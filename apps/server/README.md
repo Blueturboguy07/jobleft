@@ -380,8 +380,10 @@ within 10 s with a plain error. Nothing needs a download at start.
 
 ## 12. Logs (outcome O8)
 
-`$JOBLEFT_HOME/logs/server.log`, rotated at 5 MB. A request line holds the time, method, route NAME, status and
-duration; never the path, the query, a body, a token or a key. Error text is redacted: the home folder becomes `~`,
+`$JOBLEFT_HOME/logs/server.log`, rotated at 5 MB. At the default level it holds start, stop, crawl and error events,
+and no line per request, so a request (refused or not) writes nothing to the data folder. With `JOBLEFT_LOG_LEVEL=debug`
+a request line holds the time, method, route NAME, status and duration; never the path, the query, a body, a token or
+a key. Error text is redacted: the home folder becomes `~`,
 quoted strings, e-mail addresses and long token-like strings are masked.
 
 ## 13. Interim stand-ins and the merge

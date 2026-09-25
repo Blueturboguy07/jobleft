@@ -165,8 +165,10 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     const isApi = (req.url ?? '/').startsWith('/api/');
     setSecurityHeaders(res, isApi);
     let routeName: string = isApi ? '(none)' : 'static';
+    // Request lines are debug-level: at the default level a request, refused or not, writes nothing to the data
+    // folder (a probe from a web page leaves the folder byte for byte as it was). JOBLEFT_LOG_LEVEL=debug shows them.
     res.on('finish', () => {
-      log.info('request', { method, route: routeName, status: res.statusCode, ms: Math.round(performance.now() - t0) });
+      log.debug('request', { method, route: routeName, status: res.statusCode, ms: Math.round(performance.now() - t0) });
     });
 
     // 1. Host (DNS rebinding).
