@@ -329,7 +329,7 @@ A database written by a newer build is refused with a plain message and left unt
 
 | Command | What it does |
 |---|---|
-| `pnpm --filter @jobleft/crawler test` | 95 tests, about 15 s: the 64 ported S1 tests (2 dedupe tests rewritten for outcome O5, see `test/store.test.ts`), unit tests, and end-to-end tests on loopback mock boards (facts, closing, failures, dedupe, real-pace politeness, hostile boards, kill-and-resume through the CLI, scheduler and time-skip) |
+| `pnpm --filter @jobleft/crawler test` | 96 tests, about 15 s: the 64 ported S1 tests (2 dedupe tests rewritten for outcome O5, see `test/store.test.ts`), unit tests, and end-to-end tests on loopback mock boards (facts, closing, failures, dedupe, real-pace politeness, hostile boards, kill-and-resume through the CLI, scheduler and time-skip) |
 | `pnpm --filter @jobleft/crawler typecheck` | Type-check |
 
 No test sends a request off this computer.

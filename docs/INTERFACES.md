@@ -422,7 +422,7 @@ near and far), `levelsOf(level, years): ExperienceLevel[]`, and evidence for eac
 
 ### `@jobleft/crawler`
 
-Status: **Built** (the S1 port grown into the production crawler by the crawler lane; 95 tests). Purpose: fetch public
+Status: **Built** (the S1 port grown into the production crawler by the crawler lane; 96 tests). Purpose: fetch public
 job boards politely, normalise without inventing, store, keep current on a schedule, and close a posting only when two
 complete readings agree it is gone. How to run it and every rule it keeps: `packages/crawler/README.md`.
 
