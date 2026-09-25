@@ -107,7 +107,7 @@ export async function atsCheckPdf(bytes: Uint8Array): Promise<AtsReport> {
   // ---- layout
   for (const p of pages) {
     const g = findGutterForPage(p);
-    if (g) add({ id: `layout-columns-p${p.index + 1}`, rule: 'multi_column', severity: 'urgent', part: 'layout', cap: 60, message: 'Text is laid out in two columns (or a table). Many systems read straight across both columns and mix the lines up.', evidence: `Page ${p.index + 1}: a gap at x = ${Math.round(g.x)} pt splits ${g.left} lines on the left from ${g.right} lines on the right.` });
+    if (g) add({ id: `layout-columns-p${p.index + 1}`, rule: 'multi_column', severity: 'urgent', part: 'layout', cap: 45, message: 'Text is laid out in two columns (or a table). Many systems read straight across both columns and mix the lines up.', evidence: `Page ${p.index + 1}: a gap at x = ${Math.round(g.x)} pt splits ${g.left} lines on the left from ${g.right} lines on the right.` });
   }
   if (pages.length > 2) add({ id: 'layout-pages', rule: 'page_count', severity: 'critical', part: 'layout', message: 'The resume runs to more than two pages.', evidence: `${pages.length} pages.` });
   else if (pages.length === 2) add({ id: 'layout-pages', rule: 'page_count', severity: 'optional', part: 'layout', message: 'The resume is two pages; one page is easier to read for most roles.', evidence: '2 pages.' });

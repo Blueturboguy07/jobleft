@@ -130,7 +130,7 @@ export class ResumeService {
   // ---------------------------------------------------------------------------------------------- resumes
 
   list(): Resume[] {
-    const rows = this.#o.db.prepare('SELECT * FROM resumes ORDER BY created_at, id').all() as unknown as Row[];
+    const rows = this.#o.db.prepare('SELECT * FROM resumes ORDER BY created_at, rowid').all() as unknown as Row[];
     const bases = rows.filter((r) => r.kind === 'base').sort((a, b) => b.is_primary - a.is_primary);
     const out: Resume[] = [];
     for (const b of bases) {
@@ -369,7 +369,7 @@ export class ResumeService {
   }
 
   coverLetters(jobId: string): CoverLetter[] {
-    return (this.#o.db.prepare('SELECT * FROM cover_letters WHERE job_id = ? ORDER BY created_at, id').all(jobId) as unknown as LetterRow[]).map((r) => this.#letter(r));
+    return (this.#o.db.prepare('SELECT * FROM cover_letters WHERE job_id = ? ORDER BY created_at, rowid').all(jobId) as unknown as LetterRow[]).map((r) => this.#letter(r));
   }
 
   getCoverLetter(id: string): CoverLetter {
