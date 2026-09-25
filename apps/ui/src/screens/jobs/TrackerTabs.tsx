@@ -190,7 +190,7 @@ export function ExternalTab() {
         <p className="jl-small jl-muted">jobleft reads the page once to get the job's facts. It never reads LinkedIn, Indeed or Glassdoor; paste the posting text for those.</p>
         {result && <Alert type={result.type} showIcon message={result.msg} closable onClose={() => setResult(null)} />}
       </div>
-      <ListBody list={list} view="external" emptyArt="link" emptyTitle="No added jobs yet" emptyText="Add jobs from other sites to track them, check your match and tailor a resume." />
+      <ListBody list={list} view="external" emptyArt="link" emptyTitle="No added jobs yet" emptyText="Paste a job link or the posting text in the box above. jobleft adds the job with its facts, checks your match and lets you tailor a resume." />
     </div>
   );
 }

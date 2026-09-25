@@ -34,7 +34,7 @@ Usage: node apps/ui/mock/server.ts [options]
   --jobs N             Create about N postings and import them at once, no first crawl (for 50,000-job tests)
   --seed N             Fixture seed (default 7)
   --persona            Load the made-up persona Jordan Testwell (profile) on first start
-  --crawl-delay-ms N   Wait between boards during a refresh (default 1500 on the first run, so the first refresh of 40 boards takes about a minute; 150 later)
+  --crawl-delay-ms N   Wait between boards during a refresh (default: 1500 in the very first refresh, so it takes about a minute and the feed fills as boards arrive; 150 in later ones)
   --no-crawl           Do not refresh on launch
   --reset              Delete this mock data folder's state and boards first
   --ui-dir DIR         Built UI to serve at / (default: apps/ui/dist)
@@ -176,7 +176,7 @@ async function main(): Promise<void> {
   const dev = !!args.dev;
   const firstRun = state.jobs.size === 0;
   let changeTick = 0;
-  const crawler = new Crawler(state, { delayMs: Number(args['crawl-delay-ms'] ?? (firstRun ? 1500 : 150)), now: nowMs, onChange: () => { changeTick++; } });
+  const crawler = new Crawler(state, { delayMs: Number(args['crawl-delay-ms'] ?? 150), firstRunDelayMs: Number(args['crawl-delay-ms'] ?? 1500), now: nowMs, onChange: () => { changeTick++; } });
 
   const server = createServer(async (req, res) => {
     const port = (server.address() as { port: number }).port;

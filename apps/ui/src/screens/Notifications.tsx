@@ -42,7 +42,7 @@ export function Notifications() {
             <h2 id="new-h" className="jl-section-title jl-grow" style={{ margin: 0 }}>New</h2>
             {notes.data.length > 1 && <Button size="small" shape="round" onClick={async () => { for (const n of notes.data!) await call('ackNotification', { params: { notificationId: n.id } }).catch(() => undefined); invalidate('notifications'); }}>Dismiss all</Button>}
           </div>
-          {!notes.data.length ? <EmptyState art="bell" title="No new notifications" text="New jobs from a refresh, saved-filter alerts and reminders show here." /> : notes.data.map((n) => {
+          {!notes.data.length ? <EmptyState art="bell" title="No new notifications" text="New jobs from a refresh, saved-filter alerts and reminders show here. Choose which ones you want." action={<Button shape="round" type="primary" onClick={() => navigate('settings/alerts')}>Choose alerts</Button>} /> : notes.data.map((n) => {
             const to = targetRoute(n.target);
             return (
               <article key={n.id} className="jl-row" style={{ padding: '10px 0', borderTop: '1px solid var(--jl-line)', alignItems: 'flex-start' }} aria-label={n.title}>

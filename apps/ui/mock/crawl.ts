@@ -12,7 +12,10 @@ import { isOffline } from './ai-client.ts';
 import { newId, sleep } from './util.ts';
 
 export interface CrawlOptions {
+  /** Wait between boards in an ordinary refresh. */
   delayMs: number;
+  /** Wait between boards in the very first refresh (slower, so the feed visibly fills as boards arrive). */
+  firstRunDelayMs?: number;
   now: () => number;
   onChange: () => void;
 }
@@ -57,7 +60,8 @@ export class Crawler {
     const newIds: string[] = [];
     let requests = 0;
     for (const b of boards) {
-      if (this.opts.delayMs) await sleep(this.opts.delayMs);
+      const wait = reason === 'first_run' ? (this.opts.firstRunDelayMs ?? this.opts.delayMs) : this.opts.delayMs;
+      if (wait) await sleep(wait);
       const r = await this.crawlBoard(b, newIds);
       requests += r.requests;
       reports.push(r);
