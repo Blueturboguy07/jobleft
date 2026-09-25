@@ -8,22 +8,31 @@
 
 /** Rewrites programming-language and benefit spellings that punctuation would otherwise destroy. */
 export function rewriteSpecialTokens(input: string): string {
-  let s = input.normalize('NFKC');
+  // Fast path: each rule runs only when its trigger text is present (most descriptions have none).
+  let s = /[^\x00-\x7f]/.test(input) ? input.normalize('NFKC') : input;
+  const lower = s.toLowerCase();
+  const hasNet = lower.includes('.net');
+  const hasPlus = s.includes('+');
+  const hasSharp = s.includes('#');
+  const hasJs = lower.includes('.js') || lower.includes(' js');
+  const hasK = s.includes('(');
+  const hasAmp = s.includes('&');
+  if (!hasNet && !hasPlus && !hasSharp && !hasJs && !hasK && !hasAmp) return s;
   // asp.net / vb.net before the generic .net rule.
-  s = s.replace(/\b(asp|vb|ado)\.net\b/gi, (_m, a: string) => ` ${a.toLowerCase()}net dotnet `);
-  s = s.replace(/(^|[^\p{L}\p{N}])\.net\b/giu, '$1 dotnet ');
+  if (hasNet) s = s.replace(/\b(asp|vb|ado)\.net\b/gi, (_m, a: string) => ` ${a.toLowerCase()}net dotnet `);
+  if (hasNet) s = s.replace(/(^|[^\p{L}\p{N}])\.net\b/giu, '$1 dotnet ');
   // c++, g++ (any single letter followed by ++), also "c ++".
-  s = s.replace(/(^|[^\p{L}\p{N}])([a-z])\s?\+\+(?![\p{L}\p{N}])/giu, (_m, pre: string, l: string) => `${pre} ${l.toLowerCase()}plusplus `);
+  if (hasPlus) s = s.replace(/(^|[^\p{L}\p{N}])([a-z])\s?\+\+(?![\p{L}\p{N}])/giu, (_m, pre: string, l: string) => `${pre} ${l.toLowerCase()}plusplus `);
   // c#, f#, j# (one letter followed by #).
-  s = s.replace(/(^|[^\p{L}\p{N}])([a-z])\s?#(?![\p{L}\p{N}])/giu, (_m, pre: string, l: string) => `${pre} ${l.toLowerCase()}sharp `);
+  if (hasSharp) s = s.replace(/(^|[^\p{L}\p{N}])([a-z])\s?#(?![\p{L}\p{N}])/giu, (_m, pre: string, l: string) => `${pre} ${l.toLowerCase()}sharp `);
   // node.js, vue.js, next.js, three.js, d3.js and "node js".
-  s = s.replace(/(^|[^\p{L}\p{N}.])([\p{L}\p{N}]+)\.js(?![\p{L}\p{N}])/giu, (_m, pre: string, a: string) => `${pre} ${a.toLowerCase()}js `);
-  s = s.replace(/\b(node|vue|react|next|nuxt|express|angular|ember|backbone|three|d3|knockout|solid|svelte)\s+js\b/gi,
+  if (hasJs) s = s.replace(/(^|[^\p{L}\p{N}.])([\p{L}\p{N}]+)\.js(?![\p{L}\p{N}])/giu, (_m, pre: string, a: string) => `${pre} ${a.toLowerCase()}js `);
+  if (hasJs) s = s.replace(/\b(node|vue|react|next|nuxt|express|angular|ember|backbone|three|d3|knockout|solid|svelte)\s+js\b/gi,
     (_m, a: string) => ` ${a.toLowerCase()}js `);
   // 401(k), 403(b), 457(b), 401 (k), 401k.
-  s = s.replace(/\b(401|403|457)\s*\(\s*([a-z])\s*\)/gi, (_m, n: string, l: string) => ` ${n}${l.toLowerCase()} `);
+  if (hasK) s = s.replace(/\b(401|403|457)\s*\(\s*([a-z])\s*\)/gi, (_m, n: string, l: string) => ` ${n}${l.toLowerCase()} `);
   // R&D, P&L, Q&A, AT&T: single letters joined by "&".
-  s = s.replace(/\b([a-z]{1,2})\s?&\s?([a-z]{1,2})\b/gi, (_m, a: string, b: string) => ` ${a.toLowerCase()}and${b.toLowerCase()} `);
+  if (hasAmp) s = s.replace(/\b([a-z]{1,2})\s?&\s?([a-z]{1,2})\b/gi, (_m, a: string, b: string) => ` ${a.toLowerCase()}and${b.toLowerCase()} `);
   return s;
 }
 

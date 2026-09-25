@@ -12,7 +12,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { Job, SourceAttribution } from '@jobleft/contracts';
 import { canonicalizeUrl } from '@jobleft/crawler';
 import { decodeRecord, encodeRecord } from './codec.ts';
-import { nextRev, tx } from './db.ts';
+import { nextRev, tx, q } from './db.ts';
 import {
   boardScopeOf, companyKeyOf, contentHashOf, embedHashOf, embedTextOf, extraTextOf, facetsOf, keysOf, packFacets,
   precedenceOf,
@@ -75,31 +75,33 @@ function mergeSources(a: SourceAttribution[], b: SourceAttribution[]): SourceAtt
 export class JobWriter {
   private readonly tagCache = new Map<string, number>();
 
-  constructor(private readonly db: DatabaseSync) {}
+  private readonly db: DatabaseSync;
+
+  constructor(db: DatabaseSync) { this.db = db; }
 
   /** The id of an interned tag, creating it when new. Ids never change. */
   tagId(tag: string): number {
     const hit = this.tagCache.get(tag);
     if (hit !== undefined) return hit;
-    let r = this.db.prepare('INSERT INTO facet_tags (tag) VALUES (?) ON CONFLICT (tag) DO NOTHING RETURNING id').get(tag) as { id: number } | undefined;
-    if (!r) r = this.db.prepare('SELECT id FROM facet_tags WHERE tag = ?').get(tag) as { id: number };
+    let r = q(this.db, 'INSERT INTO facet_tags (tag) VALUES (?) ON CONFLICT (tag) DO NOTHING RETURNING id').get(tag) as { id: number } | undefined;
+    if (!r) r = q(this.db, 'SELECT id FROM facet_tags WHERE tag = ?').get(tag) as { id: number };
     const id = Number(r.id);
     this.tagCache.set(tag, id);
     return id;
   }
 
   private ridForKey(key: string): number | null {
-    const r = this.db.prepare('SELECT rid FROM job_keys WHERE key = ?').get(key) as { rid: number } | undefined;
+    const r = q(this.db, 'SELECT rid FROM job_keys WHERE key = ?').get(key) as { rid: number } | undefined;
     return r ? Number(r.rid) : null;
   }
 
   private addKey(key: string, rid: number): void {
-    this.db.prepare('INSERT OR IGNORE INTO job_keys (key, rid) VALUES (?, ?)').run(key, rid);
+    q(this.db, 'INSERT OR IGNORE INTO job_keys (key, rid) VALUES (?, ?)').run(key, rid);
   }
 
   /** May a content match merge the incoming job into row `rid`? */
   private contentMergeAllowed(rid: number, j: Job, postingIds: string[]): boolean {
-    const keys = (this.db.prepare("SELECT key FROM job_keys WHERE rid = ? AND (key LIKE 'post:%' OR key LIKE 'url:%')").all(rid) as Array<{ key: string }>).map((r) => r.key);
+    const keys = (q(this.db, "SELECT key FROM job_keys WHERE rid = ? AND (key LIKE 'post:%' OR key LIKE 'url:%')").all(rid) as Array<{ key: string }>).map((r) => r.key);
     const family = (k: string) => k.split(':').slice(0, 2).join(':');
     const theirs = keys.filter((k) => k.startsWith('post:'));
     for (const mine of postingIds) {
@@ -129,18 +131,20 @@ export class JobWriter {
   }
 
   private existing(rid: number): ExistingRow | null {
-    const r = this.db.prepare('SELECT rid, id, status, content_hash, precedence, first_seen, doc FROM store_jobs WHERE rid = ?').get(rid) as ExistingRow | undefined;
+    const r = q(this.db, 'SELECT rid, id, status, content_hash, precedence, first_seen, doc FROM store_jobs WHERE rid = ?').get(rid) as ExistingRow | undefined;
     return r ?? null;
   }
 
   private writeFts(rid: number, j: Job, replace: boolean): void {
     if (replace) {
-      this.db.prepare('DELETE FROM job_head_fts WHERE rowid = ?').run(rid);
-      this.db.prepare('DELETE FROM job_body_fts WHERE rowid = ?').run(rid);
+      q(this.db, 'DELETE FROM job_head_fts WHERE rowid = ?').run(rid);
+      q(this.db, 'DELETE FROM job_body_fts WHERE rowid = ?').run(rid);
+      q(this.db, 'DELETE FROM job_title_fts WHERE rowid = ?').run(rid);
     }
-    this.db.prepare('INSERT INTO job_head_fts (rowid, title, company, extra) VALUES (?, ?, ?, ?)')
+    q(this.db, 'INSERT INTO job_title_fts (rowid, title) VALUES (?, ?)').run(rid, indexText(j.title));
+    q(this.db, 'INSERT INTO job_head_fts (rowid, title, company, extra) VALUES (?, ?, ?, ?)')
       .run(rid, indexText(j.title), indexText(j.company), indexText(extraTextOf(j)));
-    this.db.prepare('INSERT INTO job_body_fts (rowid, body) VALUES (?, ?)').run(rid, indexText(j.description));
+    q(this.db, 'INSERT INTO job_body_fts (rowid, body) VALUES (?, ?)').run(rid, indexText(j.description));
   }
 
   private packed(j: Job): Uint8Array {
@@ -151,7 +155,7 @@ export class JobWriter {
 
   private insertRow(j: Job, rev: number): number {
     const facets = this.packed(j);
-    const r = this.db.prepare(`INSERT INTO store_jobs (id, status, closed_at, closed_reason, dup_of, company_key, board_scope,
+    const r = q(this.db, `INSERT INTO store_jobs (id, status, closed_at, closed_reason, dup_of, company_key, board_scope,
       posted_at, first_seen, last_seen, updated_at, content_hash, embed_hash, precedence, facets, doc, rev)
       VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
       j.id, j.status === 'open' ? 1 : 0, j.closedAt, j.closedReason, j.companyKey, boardScopeOf(j), j.postedAt,
@@ -164,7 +168,7 @@ export class JobWriter {
   }
 
   private rewriteRow(rid: number, j: Job, rev: number, textChanged: boolean): void {
-    this.db.prepare(`UPDATE store_jobs SET id = ?, status = ?, closed_at = ?, closed_reason = ?, company_key = ?, board_scope = ?,
+    q(this.db, `UPDATE store_jobs SET id = ?, status = ?, closed_at = ?, closed_reason = ?, company_key = ?, board_scope = ?,
       posted_at = ?, first_seen = ?, last_seen = ?, updated_at = ?, content_hash = ?, embed_hash = ?, precedence = ?, facets = ?,
       doc = ?, rev = ? WHERE rid = ?`).run(
       j.id, j.status === 'open' ? 1 : 0, j.closedAt, j.closedReason, j.companyKey, boardScopeOf(j), j.postedAt,
@@ -188,12 +192,17 @@ export class JobWriter {
     const ex = this.existing(rid);
     if (!ex) {
       // A key without its row (should not happen): drop the stale keys and insert fresh.
-      this.db.prepare('DELETE FROM job_keys WHERE rid = ?').run(rid);
+      q(this.db, 'DELETE FROM job_keys WHERE rid = ?').run(rid);
       return this.upsertOne(input, rev, nowIso, stats);
     }
-    const old = decodeRecord<Job>(ex.doc);
     const wasOpen = Number(ex.status) === 1;
     const sameIdentity = ex.id === j.id;
+    if (sameIdentity && ex.content_hash === j.contentHash && wasOpen === (j.status === 'open')) {
+      q(this.db, 'UPDATE store_jobs SET last_seen = max(last_seen, ?) WHERE rid = ?').run(j.lastSeenAt > nowIso ? j.lastSeenAt : nowIso, rid);
+      stats.unchanged++;
+      return rid;
+    }
+    const old = decodeRecord<Job>(ex.doc);
     for (const k of keys.strong) this.addKey(k, rid);
     this.addKey(keys.content, rid);
     let next: Job;
@@ -209,7 +218,7 @@ export class JobWriter {
     const sourcesChanged = JSON.stringify(next.sources.map((s) => [s.sourceId, s.url])) !== JSON.stringify(old.sources.map((s) => [s.sourceId, s.url]));
     const statusChanged = (next.status === 'open') !== wasOpen;
     if (next.contentHash === ex.content_hash && !sourcesChanged && !statusChanged) {
-      this.db.prepare('UPDATE store_jobs SET last_seen = ? WHERE rid = ?').run(next.lastSeenAt > nowIso ? next.lastSeenAt : nowIso, rid);
+      q(this.db, 'UPDATE store_jobs SET last_seen = ? WHERE rid = ?').run(next.lastSeenAt > nowIso ? next.lastSeenAt : nowIso, rid);
       stats.unchanged++;
       return rid;
     }
@@ -270,7 +279,7 @@ export class JobWriter {
     const up = this.upsert(jobs, nowIso);
     if (jobs.length === 0) return { ...up, closeHeld: 'The listing was empty, so nothing was closed.' };
     const seen = new Set(up.rids);
-    const open = (this.db.prepare('SELECT rid FROM store_jobs WHERE board_scope = ? AND status = 1').all(scope) as Array<{ rid: number }>).map((r) => Number(r.rid));
+    const open = (q(this.db, 'SELECT rid FROM store_jobs WHERE board_scope = ? AND status = 1').all(scope) as Array<{ rid: number }>).map((r) => Number(r.rid));
     const gone = open.filter((rid) => !seen.has(rid));
     if (gone.length === 0) return { ...up, closeHeld: null };
     if (open.length >= 10 && gone.length > open.length / 2) {
@@ -289,19 +298,20 @@ export class JobWriter {
    * so a closed job keeps its likes, notes and status and shows under the Closed view.
    */
   purgeClosedUntracked(rev: number): number {
-    const rows = this.db.prepare(`SELECT s.rid AS rid FROM store_jobs s WHERE s.status = 0 AND NOT EXISTS (
+    const rows = q(this.db, `SELECT s.rid AS rid FROM store_jobs s WHERE s.status = 0 AND NOT EXISTS (
       SELECT 1 FROM job_keys k JOIN tracker t ON t.job_id = substr(k.key, 4) WHERE k.rid = s.rid AND k.key LIKE 'id:%')`).all() as Array<{ rid: number }>;
     for (const r of rows) this.deleteRow(Number(r.rid), rev);
     return rows.length;
   }
 
   private deleteRow(rid: number, rev: number): void {
-    this.db.prepare('DELETE FROM job_head_fts WHERE rowid = ?').run(rid);
-    this.db.prepare('DELETE FROM job_body_fts WHERE rowid = ?').run(rid);
-    this.db.prepare('DELETE FROM job_vectors WHERE rid = ?').run(rid);
-    this.db.prepare('DELETE FROM job_keys WHERE rid = ?').run(rid);
-    this.db.prepare('DELETE FROM store_jobs WHERE rid = ?').run(rid);
-    this.db.prepare('INSERT INTO job_tombstones (rid, rev) VALUES (?, ?) ON CONFLICT (rid) DO UPDATE SET rev = excluded.rev').run(rid, rev);
+    q(this.db, 'DELETE FROM job_head_fts WHERE rowid = ?').run(rid);
+    q(this.db, 'DELETE FROM job_body_fts WHERE rowid = ?').run(rid);
+    q(this.db, 'DELETE FROM job_title_fts WHERE rowid = ?').run(rid);
+    q(this.db, 'DELETE FROM job_vectors WHERE rid = ?').run(rid);
+    q(this.db, 'DELETE FROM job_keys WHERE rid = ?').run(rid);
+    q(this.db, 'DELETE FROM store_jobs WHERE rid = ?').run(rid);
+    q(this.db, 'INSERT INTO job_tombstones (rid, rev) VALUES (?, ?) ON CONFLICT (rid) DO UPDATE SET rev = excluded.rev').run(rid, rev);
   }
 
   /** Company facts the filters read (industry, stage, staffing agency, H-1B history). Absent fields stay as they are. */
@@ -313,14 +323,14 @@ export class JobWriter {
         const key = c.key ?? (c.name ? companyKeyOf(c.name) : '');
         if (!key) continue;
         this.tagId(`co:${key}`);
-        const cur = this.db.prepare('SELECT name, industries, stage, is_staffing, h1b FROM companies WHERE key = ?').get(key) as
+        const cur = q(this.db, 'SELECT name, industries, stage, is_staffing, h1b FROM companies WHERE key = ?').get(key) as
           { name: string; industries: string; stage: string | null; is_staffing: number | null; h1b: string | null } | undefined;
         const name = c.name ?? cur?.name ?? key;
         const industries = c.industries !== undefined ? JSON.stringify(c.industries) : cur?.industries ?? '[]';
         const stage = c.stage !== undefined ? c.stage : cur?.stage ?? null;
         const staffing = c.isStaffingAgency !== undefined ? (c.isStaffingAgency === null ? null : c.isStaffingAgency ? 1 : 0) : cur?.is_staffing ?? null;
         const h1b = c.h1b !== undefined ? c.h1b : cur?.h1b ?? null;
-        this.db.prepare(`INSERT INTO companies (key, name, industries, stage, is_staffing, h1b, updated_at, rev) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        q(this.db, `INSERT INTO companies (key, name, industries, stage, is_staffing, h1b, updated_at, rev) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT (key) DO UPDATE SET name = excluded.name, industries = excluded.industries, stage = excluded.stage,
           is_staffing = excluded.is_staffing, h1b = excluded.h1b, updated_at = excluded.updated_at, rev = excluded.rev`)
           .run(key, name, industries, stage, staffing, h1b, nowIso, rev);

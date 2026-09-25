@@ -1,6 +1,6 @@
 // The one SQLite file: open it safely and run the store's migrations.
 
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
@@ -43,6 +43,21 @@ export function openDatabase(path: string, opts: OpenOptions = {}): DatabaseSync
   }
   db.exec('PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA temp_store = MEMORY; PRAGMA cache_size = -65536;');
   return db;
+}
+
+const STATEMENTS = new WeakMap<DatabaseSync, Map<string, StatementSync>>();
+
+/** A prepared statement, compiled once per connection (node:sqlite does not cache them itself). */
+export function q(db: DatabaseSync, sql: string): StatementSync {
+  let m = STATEMENTS.get(db);
+  if (!m) { m = new Map(); STATEMENTS.set(db, m); }
+  let s = m.get(sql);
+  if (!s) {
+    s = db.prepare(sql);
+    if (m.size > 500) m.clear();
+    m.set(sql, s);
+  }
+  return s;
 }
 
 /** BEGIN IMMEDIATE ... COMMIT, rolled back on any error. */
@@ -120,6 +135,9 @@ CREATE VIRTUAL TABLE job_head_fts USING fts5(title, company, extra, content='', 
   tokenize='porter unicode61 remove_diacritics 2');
 CREATE VIRTUAL TABLE job_body_fts USING fts5(body, content='', contentless_delete=1, detail=none,
   tokenize='porter unicode61 remove_diacritics 2');
+-- Titles without stemming, so an exact word ("Accountant") ranks above a stem match ("Account Manager").
+CREATE VIRTUAL TABLE job_title_fts USING fts5(title, content='', contentless_delete=1, detail=none,
+  tokenize='unicode61 remove_diacritics 2');
 
 -- Fit vectors: float16, 384 dims, one per (job, model). embed_hash = hash of the text that was embedded.
 CREATE TABLE job_vectors (

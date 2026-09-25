@@ -36,7 +36,7 @@ const DICT_V1 = Buffer.from([
   'engineering, operations, sales, marketing, finance, data, software, systems, process, project, quality, ',
 ].join(''), 'utf8');
 
-const LEVEL = 3;
+const LEVEL = 1;
 
 /** Encodes a record as compact bytes. */
 export function encodeRecord(value: unknown): Uint8Array {

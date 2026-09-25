@@ -4,7 +4,7 @@
 // new rev, and refresh() reads only rows with a larger rev. Writes from another process are picked up the same way.
 
 import type { DatabaseSync } from 'node:sqlite';
-import { currentRev } from './db.ts';
+import { currentRev, q } from './db.ts';
 import { unpackFacets } from './record.ts';
 
 export const F_EXISTS = 1;
@@ -64,7 +64,9 @@ export class MemIndex {
   /** Bumped on every change, so caches (snapshots, company masks) know when to rebuild. */
   generation = 0;
 
-  constructor(private readonly db: DatabaseSync) {}
+  private readonly db: DatabaseSync;
+
+  constructor(db: DatabaseSync) { this.db = db; }
 
   private ensureCap(rid: number): void {
     if (rid < this.cap) return;
@@ -90,7 +92,7 @@ export class MemIndex {
   }
 
   private loadTags(): void {
-    const rows = this.db.prepare('SELECT id, tag FROM facet_tags WHERE id > ? ORDER BY id').all(this.maxTagId) as Array<{ id: number; tag: string }>;
+    const rows = q(this.db, 'SELECT id, tag FROM facet_tags WHERE id > ? ORDER BY id').all(this.maxTagId) as Array<{ id: number; tag: string }>;
     for (const r of rows) {
       const id = Number(r.id);
       this.tagIdByName.set(r.tag, id);
@@ -190,18 +192,18 @@ export class MemIndex {
   load(): void {
     const rev = currentRev(this.db);
     this.loadTags();
-    const st = this.db.prepare('SELECT rid, status, facets FROM store_jobs');
+    const st = q(this.db, 'SELECT rid, status, facets FROM store_jobs');
     st.setReturnArrays(true);
     for (const row of st.iterate() as Iterable<[number, number, Uint8Array]>) this.setRow(Number(row[0]), Number(row[1]), row[2]);
     this.loadHidden(-1);
-    for (const r of this.db.prepare('SELECT key, industries, stage, is_staffing, h1b FROM companies').all() as Array<{ key: string; industries: string; stage: string | null; is_staffing: number | null; h1b: string | null }>) this.loadCompany(r);
+    for (const r of q(this.db, 'SELECT key, industries, stage, is_staffing, h1b FROM companies').all() as Array<{ key: string; industries: string; stage: string | null; is_staffing: number | null; h1b: string | null }>) this.loadCompany(r);
     this.lastRev = rev;
     this.loaded = true;
     this.generation++;
   }
 
   private loadHidden(sinceRev: number): void {
-    const rows = this.db.prepare(
+    const rows = q(this.db, 
       `SELECT k.rid AS rid, t.hidden AS hidden FROM tracker t JOIN job_keys k ON k.key = 'id:' || t.job_id WHERE t.rev > ?`,
     ).all(sinceRev) as Array<{ rid: number; hidden: number }>;
     for (const r of rows) {
@@ -220,16 +222,16 @@ export class MemIndex {
     const rev = currentRev(this.db);
     if (rev === this.lastRev) return false;
     this.loadTags();
-    const st = this.db.prepare('SELECT rid, status, facets FROM store_jobs WHERE rev > ?');
+    const st = q(this.db, 'SELECT rid, status, facets FROM store_jobs WHERE rev > ?');
     st.setReturnArrays(true);
     for (const row of st.iterate(this.lastRev) as Iterable<[number, number, Uint8Array]>) this.setRow(Number(row[0]), Number(row[1]), row[2]);
-    for (const r of this.db.prepare('SELECT rid FROM job_tombstones WHERE rev > ?').all(this.lastRev) as Array<{ rid: number }>) {
+    for (const r of q(this.db, 'SELECT rid FROM job_tombstones WHERE rev > ?').all(this.lastRev) as Array<{ rid: number }>) {
       const rid = Number(r.rid);
-      const still = this.db.prepare('SELECT 1 FROM store_jobs WHERE rid = ?').get(rid);
+      const still = q(this.db, 'SELECT 1 FROM store_jobs WHERE rid = ?').get(rid);
       if (!still) this.removeRow(rid);
     }
     this.loadHidden(this.lastRev);
-    for (const r of this.db.prepare('SELECT key, industries, stage, is_staffing, h1b FROM companies WHERE rev > ?').all(this.lastRev) as Array<{ key: string; industries: string; stage: string | null; is_staffing: number | null; h1b: string | null }>) this.loadCompany(r);
+    for (const r of q(this.db, 'SELECT key, industries, stage, is_staffing, h1b FROM companies WHERE rev > ?').all(this.lastRev) as Array<{ key: string; industries: string; stage: string | null; is_staffing: number | null; h1b: string | null }>) this.loadCompany(r);
     this.lastRev = rev;
     this.generation++;
     return true;
