@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:DraftResponse",
+  "title": "DraftResponse",
+  "type": "object",
+  "properties": {
+    "drafts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fieldId",
+          "text",
+          "provider"
+        ]
+      }
+    },
+    "costMicros": {
+      "type": "integer",
+      "description": "Integer millionths of a US dollar"
+    },
+    "balanceMicros": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "description": "Integer millionths of a US dollar"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fieldId",
+          "message"
+        ]
+      }
+    }
+  },
+  "required": [
+    "drafts",
+    "costMicros",
+    "balanceMicros",
+    "skipped"
+  ]
+}

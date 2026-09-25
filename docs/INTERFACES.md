@@ -1,6 +1,6 @@
 # jobleft interfaces
 
-Version: contracts 1.0.0, local API v1, extension protocol v1. Written by the foundation commit, 2026-09-25.
+Version: contracts 1.1.0 (1.1: extension lane additions, section 7), local API v1, extension protocol v1. Written by the foundation commit, 2026-09-25.
 
 This document is the contract between the lanes. Lanes build in parallel from it. It tells each lane what it
 owns, what it exports, what it may import, which tables and routes it serves, and which environment variables,
@@ -348,6 +348,8 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `extensionStatus` | GET | `/api/v1/extension/status` | pairing | server | — | — | `ExtensionStatus` | Paired state and profile completeness |
 | `fill` | POST | `/api/v1/extension/fill` | pairing | server | — | `FillRequest` | `FillResponse` | Values for the form fields of an application page |
 | `review` | POST | `/api/v1/extension/review` | pairing | server | — | `ReviewResult` | `ReviewResponse` | What the user reviewed and whether the user submitted |
+| `extensionPage` | POST | `/api/v1/extension/page` | pairing | server | — | `PageInfoRequest` | `PageInfo` | Which job a page address is, whether the person applied, and the resumes to attach (the address only; no page text) |
+| `extensionDrafts` | POST | `/api/v1/extension/drafts` | pairing | server | — | `DraftRequest` | `DraftResponse` | Draft answers for open questions after the person saw the price (never written into a form by the app) |
 <!-- END GENERATED: routes -->
 
 ## 7. Extension protocol

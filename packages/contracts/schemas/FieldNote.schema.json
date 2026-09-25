@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:FieldNote",
+  "title": "FieldNote",
+  "type": "object",
+  "properties": {
+    "fieldId": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "no_value",
+        "sensitive",
+        "other_person",
+        "open_question",
+        "consent",
+        "account",
+        "captcha",
+        "no_option",
+        "file",
+        "duplicate",
+        "unknown"
+      ]
+    },
+    "message": {
+      "type": "string",
+      "maxLength": 300
+    },
+    "topic": {
+      "type": "string",
+      "maxLength": 60
+    }
+  },
+  "required": [
+    "fieldId",
+    "reason",
+    "message"
+  ]
+}

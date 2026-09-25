@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:jobleft:contracts:FillRequest",
-  "title": "FillRequest",
+  "$id": "urn:jobleft:contracts:DraftRequest",
+  "title": "DraftRequest",
   "type": "object",
   "properties": {
     "requestId": {
@@ -16,33 +16,12 @@
       "maxLength": 4096,
       "description": "Absolute http(s) URL"
     },
-    "ats": {
-      "type": "string",
-      "enum": [
-        "greenhouse",
-        "lever",
-        "ashby",
-        "workable",
-        "recruitee",
-        "personio",
-        "workday",
-        "icims",
-        "smartrecruiters",
-        "oracle",
-        "ukg",
-        "taleo",
-        "jobvite",
-        "bamboohr",
-        "teamtailor",
-        "breezy",
-        "other"
-      ]
-    },
-    "step": {
+    "jobId": {
       "anyOf": [
         {
-          "type": "integer",
-          "minimum": 1
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
         },
         {
           "type": "null"
@@ -176,27 +155,19 @@
         ],
         "title": "FormField"
       },
-      "maxItems": 500
+      "minItems": 1,
+      "maxItems": 20
     },
-    "resumeId": {
-      "anyOf": [
-        {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 300
-        },
-        {
-          "type": "null"
-        }
-      ]
+    "maxCostMicros": {
+      "type": "integer",
+      "description": "Integer millionths of a US dollar"
     }
   },
   "required": [
     "requestId",
     "pageUrl",
-    "ats",
-    "step",
+    "jobId",
     "fields",
-    "resumeId"
+    "maxCostMicros"
   ]
 }

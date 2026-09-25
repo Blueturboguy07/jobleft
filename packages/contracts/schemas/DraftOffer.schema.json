@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:DraftOffer",
+  "title": "DraftOffer",
+  "type": "object",
+  "properties": {
+    "fieldIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "provider": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "local": {
+      "type": "boolean"
+    },
+    "maxPriceMicrosPerDraft": {
+      "type": "integer",
+      "description": "Integer millionths of a US dollar"
+    },
+    "balanceMicros": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "description": "Integer millionths of a US dollar"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "fieldIds",
+    "provider",
+    "local",
+    "maxPriceMicrosPerDraft",
+    "balanceMicros"
+  ]
+}

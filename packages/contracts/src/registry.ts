@@ -8,7 +8,8 @@ import {
 import { ApiErrorSchema, AppSettingsSchema, HealthSchema, JobDetailSchema, TrackerListSchema } from './api.ts';
 import { CompanySchema, H1bSummarySchema } from './company.ts';
 import {
-  ExtensionStatusSchema, FillRequestSchema, FillResponseSchema, FormFieldSchema, PairingCodeSchema, PairingInfoSchema,
+  DraftOfferSchema, DraftRequestSchema, DraftResponseSchema, ExtensionStatusSchema, FieldNoteSchema, FillRequestSchema,
+  FillResponseSchema, FormFieldSchema, PageInfoRequestSchema, PageInfoSchema, PairingCodeSchema, PairingInfoSchema,
   PairRequestSchema, PairResponseSchema, ReviewResponseSchema, ReviewResultSchema,
 } from './extension.ts';
 import { JobFilterSchema, JobListItemSchema, JobSearchRequestSchema, JobSearchResponseSchema, SavedFilterSchema } from './filter.ts';
@@ -62,6 +63,8 @@ export const SCHEMAS: Readonly<Record<string, JsonSchema>> = {
   PairingCode: PairingCodeSchema, PairingInfo: PairingInfoSchema, PairRequest: PairRequestSchema, PairResponse: PairResponseSchema,
   ExtensionStatus: ExtensionStatusSchema, FormField: FormFieldSchema, FillRequest: FillRequestSchema,
   FillResponse: FillResponseSchema, ReviewResult: ReviewResultSchema, ReviewResponse: ReviewResponseSchema,
+  FieldNote: FieldNoteSchema, DraftOffer: DraftOfferSchema, PageInfoRequest: PageInfoRequestSchema, PageInfo: PageInfoSchema,
+  DraftRequest: DraftRequestSchema, DraftResponse: DraftResponseSchema,
 };
 
 /** The JSON Schema file content for one schema: the draft, an id and the schema itself. */
