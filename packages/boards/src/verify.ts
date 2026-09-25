@@ -11,17 +11,41 @@ import {
   BlockedError, DeniedHostError, HostTrippedError, HttpError, NotFoundError, RobotsError, arr, obj, str,
 } from '@jobleft/crawler';
 import type { HttpClient, HttpGetter, SourceRegistry } from '@jobleft/crawler';
-import { ForbiddenHostError, HostBusyError, OfflineError, networkCode } from './http.ts';
+import { ForbiddenHostError, HostBusyError, OfflineError, networkCode, robotsNetworkFailure } from './http.ts';
 import { boardPageUrl } from './detect.ts';
 
 export type CheckFailure = 'not_found' | 'blocked' | 'robots' | 'forbidden' | 'offline' | 'timeout' | 'network' | 'server' | 'bad_reply' | 'busy' | 'no_adapter';
 
+export interface Classified {
+  failure: CheckFailure; status: number | null; message: string;
+  /** Set when the failure is a robots.txt that did not load (network trouble): the host whose robots.txt it was. */
+  robotsHost?: string;
+}
+
 export type VerifyResult =
   | { ok: true; openJobs: number; name: string | null; nameFrom: 'board' | 'page' | null }
-  | { ok: false; failure: CheckFailure; status: number | null; message: string };
+  | ({ ok: false } & Classified);
 
-/** Classifies an error from the polite client into a plain failure. */
-export function classifyError(e: unknown): { failure: CheckFailure; status: number | null; message: string } {
+/** A plain failure for a network error code (ECONNREFUSED, ENOTFOUND, TIMEOUT, ...). */
+function classifyNetworkCode(code: string): Classified {
+  if (code === 'TIMEOUT' || code === 'UND_ERR_CONNECT_TIMEOUT' || code === 'UND_ERR_HEADERS_TIMEOUT' || code === 'UND_ERR_BODY_TIMEOUT') {
+    return { failure: 'timeout', status: null, message: 'The host did not answer in time.' };
+  }
+  if (code === 'ENETUNREACH' || code === 'ENETDOWN' || code === 'EAI_AGAIN' || code === 'EHOSTUNREACH') {
+    return { failure: 'offline', status: null, message: 'jobleft could not reach the network.' };
+  }
+  if (code === 'ENOTFOUND') return { failure: 'network', status: null, message: 'The site name does not exist (DNS lookup failed), or the network is off.' };
+  if (code === 'ECONNREFUSED') return { failure: 'network', status: null, message: 'The site refused the connection.' };
+  if (code === 'ECONNRESET' || code === 'UND_ERR_SOCKET') return { failure: 'network', status: null, message: 'The connection broke before the reply was complete.' };
+  return { failure: 'network', status: null, message: 'The request failed before any reply.' };
+}
+
+/**
+ * Classifies an error from the polite client into a plain failure. Pass the client when it is at hand: a RobotsError
+ * caused by a robots.txt that never loaded (network trouble) is then reported as the network failure it is, not as a
+ * robots.txt block.
+ */
+export function classifyError(e: unknown, http?: HttpClient): Classified {
   if (e instanceof OfflineError) return { failure: 'offline', status: null, message: 'jobleft is offline (no request was sent).' };
   if (e instanceof ForbiddenHostError) return { failure: 'forbidden', status: null, message: `${e.provider} is not supported; nothing was sent to it.` };
   if (e instanceof DeniedHostError) return { failure: 'forbidden', status: null, message: 'The host is on the never-crawl list; nothing was sent to it.' };
@@ -33,7 +57,11 @@ export function classifyError(e: unknown): { failure: CheckFailure; status: numb
       : { failure: 'blocked', status: e.status, message: `The host refused the request (HTTP ${e.status}).` };
   }
   if (e instanceof HostTrippedError) return { failure: 'blocked', status: null, message: 'The host refused jobleft twice in a row; jobleft stopped asking it for this run.' };
-  if (e instanceof RobotsError) return { failure: 'robots', status: null, message: "The host's robots.txt does not allow jobleft to read this address." };
+  if (e instanceof RobotsError) {
+    const net = http ? robotsNetworkFailure(http, e.url) : null;
+    if (net) return { ...classifyNetworkCode(net.code), robotsHost: net.host };
+    return { failure: 'robots', status: null, message: "The host's robots.txt does not allow jobleft to read this address." };
+  }
   if (e instanceof HttpError) {
     if (e.status >= 500) return { failure: 'server', status: e.status, message: `The host's server failed (HTTP ${e.status}).` };
     if (e.status >= 300 && e.status < 400) return { failure: 'bad_reply', status: e.status, message: `The host answered with a redirect (HTTP ${e.status}) instead of the board.` };
@@ -41,17 +69,7 @@ export function classifyError(e: unknown): { failure: CheckFailure; status: numb
     if (/too large/i.test(e.message)) return { failure: 'bad_reply', status: e.status, message: 'The reply was too large to read.' };
     return { failure: 'server', status: e.status, message: `The host answered HTTP ${e.status}.` };
   }
-  const code = networkCode(e);
-  if (code === 'TIMEOUT' || code === 'UND_ERR_CONNECT_TIMEOUT' || code === 'UND_ERR_HEADERS_TIMEOUT' || code === 'UND_ERR_BODY_TIMEOUT') {
-    return { failure: 'timeout', status: null, message: 'The host did not answer in time.' };
-  }
-  if (code === 'ENETUNREACH' || code === 'ENETDOWN' || code === 'EAI_AGAIN' || code === 'EHOSTUNREACH') {
-    return { failure: 'offline', status: null, message: 'jobleft could not reach the network.' };
-  }
-  if (code === 'ENOTFOUND') return { failure: 'network', status: null, message: 'The site name does not exist (DNS lookup failed), or the network is off.' };
-  if (code === 'ECONNREFUSED') return { failure: 'network', status: null, message: 'The site refused the connection.' };
-  if (code === 'ECONNRESET' || code === 'UND_ERR_SOCKET') return { failure: 'network', status: null, message: 'The connection broke before the reply was complete.' };
-  return { failure: 'network', status: null, message: 'The request failed before any reply.' };
+  return classifyNetworkCode(networkCode(e));
 }
 
 function cleanName(s: string | null | undefined): string | null {
@@ -120,8 +138,7 @@ export async function verifyBoard(
   try {
     jobs = await source.fetchBoard({ ats, board, company: board, ...(region ? { region } : {}) }, spy);
   } catch (e) {
-    const c = classifyError(e);
-    return { ok: false, ...c };
+    return { ok: false, ...classifyError(e, http) };
   }
   const openJobs = jobs.filter((j) => !j.unreadable).length;
   let name = nameFromListing(ats, raw);

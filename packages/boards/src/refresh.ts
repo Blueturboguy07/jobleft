@@ -64,7 +64,7 @@ export async function probeBoard(ats: CrawlAtsId, board: string, region: string 
     } catch { return { state: 'live', name: null }; }
   } catch (e) {
     if (e instanceof NotFoundError) return { state: 'not_found' };
-    return { state: 'unknown', why: classifyError(e).message };
+    return { state: 'unknown', why: classifyError(e, http).message };
   }
 }
 

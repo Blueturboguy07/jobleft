@@ -150,6 +150,18 @@ export function httpStateFor(http: HttpClient): BoardHttpState | undefined { ret
 /** The redirect log of a client made by createBoardHttp (undefined for other clients). */
 export function redirectLogFor(http: HttpClient): RedirectLog | undefined { return STATE.get(http)?.redirects; }
 
+/**
+ * When the robots.txt fetch behind a RobotsError failed for network reasons (no answer at all), the host and the code of
+ * that failure; else null. The crawler reads an unreachable robots.txt as "disallow everything", so its RobotsError can
+ * mean "the network is down" as well as "the site says no". Only the client's own record tells the two apart.
+ */
+export function robotsNetworkFailure(http: HttpClient, url: string): { host: string; code: string } | null {
+  let host: string;
+  try { host = new URL(url).host; } catch { return null; }
+  const r = httpStateFor(http)?.robots.get(host);
+  return r?.error ? { host, code: r.error } : null;
+}
+
 /** A short code for a network failure: ENOTFOUND, ECONNREFUSED, TIMEOUT, ... */
 export function networkCode(e: unknown): string {
   const err = e as { name?: string; code?: string; cause?: { code?: string; name?: string } };

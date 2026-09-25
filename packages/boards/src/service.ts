@@ -521,6 +521,10 @@ export class BoardService {
     const problems: string[] = [];
     let robots = false;
     let offline = false;
+    // No answer at all from the provider (network down, name lookup failed, connection refused, time-out): nothing
+    // proves the board exists, so it is not offered, unless another board of the same link was verified.
+    const anyOk = results.some(({ r }) => r.ok);
+    const unreached: string[] = [];
     for (const { f, r, region } of results) {
       const id = boardId(f.ats, f.board, region);
       if (!r.ok) {
@@ -528,6 +532,7 @@ export class BoardService {
         if (r.failure === 'robots') { robots = true; continue; }
         if (r.failure === 'forbidden') continue;
         if (r.failure === 'offline') { offline = true; continue; }
+        if ((r.failure === 'network' || r.failure === 'timeout') && !anyOk) { if (!unreached.includes(r.message)) unreached.push(r.message); continue; }
         if (r.failure === 'bad_reply') { missing.push(`${PROVIDER_NAMES[f.ats]} board "${f.board}" (the provider did not answer with job data)`); continue; }
         problems.push(`${PROVIDER_NAMES[f.ats]} board "${f.board}": ${r.message}`);
       }
@@ -538,6 +543,7 @@ export class BoardService {
     }
     if (candidates.length === 0) {
       if (offline) return this.reply([], 'offline', 'jobleft could not reach the network, so it could not check this link. The link is kept in your pending links; try again when you are online. Nothing was added.', null, true);
+      if (unreached.length) return this.reply([], 'offline', `jobleft could not check this link. ${unreached.join(' ')} The link is kept in your pending links; try again when you are online. Nothing was added.`, null, true);
       if (robots) return this.reply([], 'blocked_by_robots', "The provider's robots.txt does not allow jobleft to read this board, so jobleft did not read it. Nothing was added.");
       if (missing.length) {
         return this.reply([], 'no_board_found', `The link names the ${missing.join(' and the ')}, but the provider answered that it does not exist. Nothing was added.`);
@@ -572,6 +578,8 @@ export class BoardService {
       if (eu.ok) { r = eu; region = 'eu'; }
     }
     if (r.ok) this.verified.set(boardId(f.ats, f.board, region), { at: Date.now(), openJobs: r.openJobs, name: r.name });
+    // A robots.txt that did not load (network trouble) stays cached in the client: use a fresh client next time.
+    else if (r.robotsHost) this.healClient(r.robotsHost);
     return { f, r, region };
   }
 
