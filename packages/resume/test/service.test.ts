@@ -247,3 +247,31 @@ test('a local model gets resume text only for AI steps; import and export send n
     assert.ok(sent[0]!.marker, 'the resume text went to the chosen provider for the AI step');
   } finally { s.done(); }
 });
+
+test('base resumes follow profile edits (renames, removals, new entries) and keep what the person set per resume', () => {
+  const s = setup();
+  try {
+    const b = s.svc.create({ name: 'B' });
+    const c = s.svc.create({ name: 'C' });
+    const cd = structuredClone(c.document);
+    const tags = cd.sections.find((x) => x.kind === 'skills')!.items[0]!;
+    tags.tags = tags.tags.filter((t) => t !== 'Docker');
+    s.svc.update(c.id, { document: cd });
+    const p2 = structuredClone(s.getProfile());
+    p2.work[0]!.bullets[1] = 'Led a migration of 12 services to PostgreSQL 16 with zero downtime.';
+    p2.skills[5]!.name = 'Postgres';
+    p2.skills = p2.skills.filter((x) => x.name !== 'Linux');
+    p2.work.unshift({ id: 'w9', company: 'Initech Sample LLC', title: 'Engineer', employmentType: null, location: 'Denver, CO', startDate: '2026-08', endDate: null, current: true, summary: null, bullets: ['Joined the platform team.'] });
+    s.setProfile(p2);
+    for (const r of [s.svc.get(b.id)!, s.svc.get(c.id)!]) {
+      assert.deepEqual(checkDocument(r.document, p2, null), [], r.name);
+      const skills = r.document.sections.find((x) => x.kind === 'skills')!.items[0]!.tags;
+      assert.ok(skills.includes('Postgres') && !skills.includes('PostgreSQL') && !skills.includes('Linux'), `${r.name}: ${skills.join(', ')}`);
+      const exp = r.document.sections.find((x) => x.kind === 'experience')!.items;
+      assert.equal(exp[0]!.heading, 'Initech Sample LLC');
+      assert.ok(exp[1]!.bullets.includes('Led a migration of 12 services to PostgreSQL 16 with zero downtime.'));
+    }
+    assert.ok(!s.svc.get(c.id)!.document.sections.find((x) => x.kind === 'skills')!.items[0]!.tags.includes('Docker'), 'C keeps Docker hidden');
+    assert.ok(s.svc.get(b.id)!.document.sections.find((x) => x.kind === 'skills')!.items[0]!.tags.includes('Docker'));
+  } finally { s.done(); }
+});

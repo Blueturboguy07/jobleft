@@ -196,7 +196,7 @@ belongs to the ai-engine lane.
 ## 5. Tests
 
 ```sh
-pnpm --filter @jobleft/resume test        # 54 tests: gate, import, render, gaps, service, readability, CLI
+pnpm --filter @jobleft/resume test        # 55 tests: gate, import, render, gaps, service, readability, CLI
 pnpm --filter @jobleft/resume typecheck
 ```
 

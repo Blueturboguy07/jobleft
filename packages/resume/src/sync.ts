@@ -14,17 +14,35 @@ function eduBullets(e: Snap['education'][number]): string[] {
   return [...(e.gpa ? [`GPA: ${e.gpa}`] : []), ...e.achievements, ...(e.coursework.length ? [`Relevant coursework: ${e.coursework.join(', ')}`] : [])];
 }
 
+/**
+ * A list on the resume (bullets, skills) after the profile's list changed from oldL to newL. An item the profile
+ * edited (same neighbours, new text) is replaced; an item the profile removed is removed; an item written only on
+ * this resume stays; new profile items join when the resume showed the whole old list.
+ */
 function syncList(cur: string[], oldL: string[], newL: string[], mirror: boolean): string[] {
   if (cur.length === oldL.length && cur.every((b, i) => b === oldL[i])) return [...newL];
+  const removed = oldL.filter((x) => !newL.includes(x));
+  const added = newL.filter((x) => !oldL.includes(x));
+  const renamed = new Map<string, string>();
+  const used = new Set<string>();
+  for (const r of removed) {
+    const i = oldL.indexOf(r);
+    for (const a of added) {
+      if (used.has(a)) continue;
+      const j = newL.indexOf(a);
+      const samePrev = i > 0 && j > 0 && oldL[i - 1] === newL[j - 1];
+      const sameNext = i < oldL.length - 1 && j < newL.length - 1 && oldL[i + 1] === newL[j + 1];
+      if (samePrev || sameNext || (oldL.length === newL.length && i === j)) { renamed.set(r, a); used.add(a); break; }
+    }
+  }
   const out: string[] = [];
   for (const b of cur) {
-    const i = oldL.indexOf(b);
-    if (i < 0) { out.push(b); continue; } // written on this resume only
-    if (newL.includes(b)) { out.push(b); continue; }
-    if (oldL.length === newL.length) out.push(newL[i]!); // edited in the profile
+    if (!oldL.includes(b) || newL.includes(b)) { out.push(b); continue; } // written here only, or unchanged
+    const to = renamed.get(b);
+    if (to !== undefined) out.push(to); // edited in the profile
     // else: removed from the profile, so removed here too
   }
-  if (mirror) for (const b of newL) if (!oldL.includes(b) && !out.includes(b)) out.push(b);
+  if (mirror) for (const a of added) if (!used.has(a) && !out.includes(a)) out.push(a);
   return out;
 }
 
