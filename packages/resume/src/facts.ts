@@ -347,10 +347,14 @@ export function findTitles(text: string): Mention[] {
   };
   for (const m of text.matchAll(SENIOR_TITLE_RE)) push(m[0], m.index!);
   for (const m of text.matchAll(CAP_TITLE_RE)) {
-    // A lone capitalised role noun at the start of a sentence ("Lead", "Head") is an ordinary word.
-    const t = m[0];
+    // Leading function words are not part of a title ("As Junior Developer" -> "Junior Developer").
+    let t = m[0];
+    let start = m.index!;
+    const lead = /^(?:(?:As|At|In|For|With|The|A|An|My|Our|Your|And|Or|Of|To|From|By|On|Dear)\s+)+/.exec(t);
+    if (lead) { t = t.slice(lead[0].length); start += lead[0].length; }
+    if (!t.trim()) continue;
     if (!/\s/.test(t.trim()) && !/^(?:Intern|Nurse|CEO|CTO|CFO|COO|CIO|CMO|VP|SRE)s?$/.test(t.trim())) continue;
-    push(t, m.index!);
+    push(t, start);
   }
   for (const m of text.matchAll(AS_ROLE_RE)) push(m[1]!, m.index! + m[0].indexOf(m[1]!));
   return dropOverlaps(out);
@@ -373,10 +377,11 @@ export function findOrgs(text: string): Mention[] {
     out.push({ kind: 'employer', text: t, key: orgKey(t), start: m.index!, end: m.index! + t.length });
   }
   for (const m of text.matchAll(AT_ORG_RE)) {
-    const name = m[1]!.replace(/\s+(?:of|and|&)$/, '').trim();
+    const name = m[1]!.replace(/[.,;:]+$/, '').replace(/\s+(?:of|and|&)$/, '').trim();
     if (!name || ORDINARY_CAPITALISED.has(name.toLowerCase())) continue;
     const start = m.index! + m[0].indexOf(name);
-    out.push({ kind: 'employer', text: name, key: orgKey(name), start, end: start + name.length });
+    const kind = /\b(?:University|College|Institute|School|Academy|Polytechnic)\b/.test(name) ? 'school' : 'employer';
+    out.push({ kind, text: name, key: orgKey(name), start, end: start + name.length });
   }
   return dropOverlaps(out);
 }

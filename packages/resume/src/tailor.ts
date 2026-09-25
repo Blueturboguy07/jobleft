@@ -198,7 +198,7 @@ export async function draftTailoring(input: TailorInput): Promise<TailorDraft> {
     const refs: BulletRef[] = [];
     for (const s of base.sections) {
       if (s.kind !== 'experience' && s.kind !== 'projects') continue;
-      for (const it of s.items) it.bullets.forEach((b, i) => refs.push({ id: `B${refs.length + 1}`, sectionId: s.id, itemId: it.id, index: i, text: b, entry: `${it.subheading ?? ''} at ${it.heading ?? ''}` }));
+      for (const it of s.items) it.bullets.forEach((b, i) => refs.push({ id: `B${refs.length + 1}`, sectionId: s.id, itemId: it.id, index: i, text: b, entry: s.kind === 'projects' ? `Project ${it.heading ?? ''}` : `${it.subheading ?? ''} at ${it.heading ?? ''}` }));
     }
     const summarySec = base.sections.find((s) => s.kind === 'summary' && s.text);
     const have = gaps.terms.filter((t) => t.status !== 'not_in_profile').map((t) => t.term);
@@ -252,8 +252,10 @@ export async function draftTailoring(input: TailorInput): Promise<TailorDraft> {
   if (refused.length) notice = `Not added: ${refused.join(', ')}. ${refused.length === 1 ? 'It is' : 'They are'} not in your profile, so jobleft will not put ${refused.length === 1 ? 'it' : 'them'} on a resume or a letter. If ${refused.length === 1 ? 'it is' : 'they are'} true, add ${refused.length === 1 ? 'it' : 'them'} to your profile in your own words first.`;
   if (!gaps.requirementsFound) notice = (notice ? notice + ' ' : '') + 'jobleft could not read the requirements of this posting, so it found no terms to compare.';
 
+  const seenV = new Set<string>();
+  const uniqueViolations = violations.filter((x) => { const k = `${x.kind}|${x.fact}|${x.where}`; if (seenV.has(k)) return false; seenV.add(k); return true; });
   const proposal: TailorProposal = {
-    id: proposalId, resumeId: input.resumeId, jobId: job.id, changes, gaps: gapList, violations,
+    id: proposalId, resumeId: input.resumeId, jobId: job.id, changes, gaps: gapList, violations: uniqueViolations,
     provider: aiLabel(input.ai), createdAt: nowIso(), costMicros, notice, refused,
   };
   return { proposal, ops };

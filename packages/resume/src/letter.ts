@@ -53,6 +53,11 @@ function asSentence(s: string): string {
   return /[.!?]$/.test(t) ? t : `${t}.`;
 }
 
+/** "at Acme Health, Inc." + "." must not give "Inc..". */
+function endWith(name: string, tail: string): string {
+  return name.endsWith('.') && tail.startsWith('.') ? name + tail.slice(1) : name + tail;
+}
+
 /** Past-tense action bullets read well after "I": "Cut batch-job time by 40%." -> "I cut batch-job time by 40%." */
 function bulletAsClause(b: string): string | null {
   const t = b.trim().replace(/[.;]$/, '');
@@ -102,7 +107,7 @@ export function ruleLetterBody(ctx: Ctx): string[] {
   const paras: string[] = [];
   const role = title === 'this role' ? 'this role' : `the ${title} role`;
   const current = ctx.profile.work.find((w) => w.current) ?? ctx.profile.work[0];
-  const opener = [`I am writing to apply for ${role} at ${company}.`];
+  const opener = [endWith(`I am writing to apply for ${role} at ${company}`, '.')];
   const sum = ctx.profile.summary ? summarySentence(ctx.profile.summary) : null;
   if (sum) opener.push(sum);
   else if (current) opener.push(`I work as a ${current.title} at ${current.company}.`.replace(/^I work as a (?=[AEIOU])/, 'I work as an '));
@@ -122,7 +127,7 @@ export function ruleLetterBody(ctx: Ctx): string[] {
   }
   const skills = matchingSkills(ctx, 6);
   if (skills.length) paras.push(`My skills include ${skills.length > 1 ? `${skills.slice(0, -1).join(', ')} and ${skills[skills.length - 1]}` : skills[0]}.`);
-  paras.push(`Thank you for considering my application. I would welcome the chance to talk about how I can help ${company}.`);
+  paras.push(endWith(`Thank you for considering my application. I would welcome the chance to talk about how I can help ${company}`, '.'));
   return paras;
 }
 
@@ -196,23 +201,20 @@ export async function draftLetter(input: { profile: Profile; job: Job; resume: R
   if (!input.ai) {
     return { text: assembleLetter(input.profile, ruleLetterBody(ctx)), gaps, notice, provider: 'none', costMicros: null };
   }
-  const opener = `I am writing to apply for ${names.title === 'this role' ? 'this role' : `the ${names.title} role`} at ${names.company}.`;
+  const opener = endWith(`I am writing to apply for ${names.title === 'this role' ? 'this role' : `the ${names.title} role`} at ${names.company}`, '.');
   const system = `You write the middle of a cover letter: two short paragraphs, under 170 words in total. Rules:\n${TRUTH_RULES}\nDo not greet and do not sign. Do not name any company except as "${names.company}". Answer as:\nBODY:\n<paragraphs>\nEND`;
   const user = [profileBlockForLetter(input.profile), jobBlock(input.job.title, input.job.company, input.job.description), `Write why this person fits the ${names.title} role at ${names.company}, using only the PROFILE.`].join('\n\n');
   const res = await aiComplete(input.ai, system, user, { maxTokens: 700 });
   const body = parseBody(res.text);
   const gated = gateSentences(body, ctx);
   let paras = gated.paras;
-  if (gated.removed.length) {
-    notice = `Left out AI sentences with facts that are not in your profile (${gated.removed.slice(0, 6).join(', ')}).`;
-    for (const r of gated.removed) if (r !== 'a placeholder' && !gaps.includes(r)) gaps.push(r);
-  }
+  if (gated.removed.length) notice = `Left out AI sentences with facts that are not in your profile (${gated.removed.slice(0, 6).join(', ')}).`;
   const sentences = paras.join(' ').split(/(?<=[.!?])\s+/).filter(Boolean).length;
   if (sentences < 2) {
-    paras = ruleLetterBody(ctx).slice(1);
+    paras = ruleLetterBody(ctx).slice(1, -1);
     notice = (notice ? notice + ' ' : '') + 'The AI text could not be used, so the middle of the letter is built from your profile.';
   }
-  const closing = `Thank you for considering my application. I would welcome the chance to talk about how I can help ${names.company}.`;
+  const closing = endWith(`Thank you for considering my application. I would welcome the chance to talk about how I can help ${names.company}`, '.');
   return { text: assembleLetter(input.profile, [opener, ...paras, closing]), gaps, notice, provider: aiLabel(input.ai), costMicros: res.costMicros };
 }
 
@@ -296,7 +298,6 @@ export async function editLetter(input: {
     return { text: input.current, gaps, changed: false, provider: aiLabel(input.ai), costMicros: res.costMicros, notice: 'The AI edit could not be used (it held facts that are not in your profile, or no text). The letter is unchanged.' };
   }
   const notice = gated.removed.length ? `Left out AI sentences with facts that are not in your profile (${gated.removed.slice(0, 6).join(', ')}).` : null;
-  for (const r of gated.removed) if (r !== 'a placeholder' && !gaps.includes(r)) gaps.push(r);
   return { text: assembleLetter(input.profile, gated.paras), gaps, changed: true, provider: aiLabel(input.ai), costMicros: res.costMicros, notice };
 }
 

@@ -25,6 +25,8 @@ export interface SrcLine {
   cells: string[];
   /** true for text from a page header or footer part (Word). */
   fromHeaderPart?: boolean;
+  /** PDF: the line is among the first or last two lines of its page (where running headers and footers sit). */
+  edge?: boolean;
 }
 
 // ------------------------------------------------------------------------------------------------ PDF
@@ -126,15 +128,20 @@ function cellLine(cells: Cell[], page: number, column: 0 | 1 | 2, gapAbove: numb
 export function pdfPageLines(p: PdfPageInfo): SrcLine[] {
   const rows = rowsOf(p.items);
   if (!rows.length) return [];
+  const edgeYs = new Set([...rows.slice(0, 2), ...rows.slice(-2)].map((r) => r.y));
+  return pdfPageLinesInner(p, rows).map(({ _y, ...l }) => ({ ...l, edge: _y !== undefined && edgeYs.has(_y) }));
+}
+
+function pdfPageLinesInner(p: PdfPageInfo, rows: Row[]): Array<SrcLine & { _y?: number }> {
   const bodySize = median(rows.map((r) => r.size));
   const pitch = bodySize * 1.2;
-  const out: SrcLine[] = [];
+  const out: Array<SrcLine & { _y?: number }> = [];
   const gutter = findGutter(rows, p.width);
   if (gutter === null) {
     let prevY: number | null = null;
     for (const r of rows) {
       const gap = prevY === null ? 0 : Math.max(0, (prevY - r.y) / pitch - 1);
-      out.push(cellLine(r.cells, p.index, 0, gap));
+      out.push({ ...cellLine(r.cells, p.index, 0, gap), _y: r.y });
       prevY = r.y;
     }
     return out;
@@ -147,7 +154,7 @@ export function pdfPageLines(p: PdfPageInfo): SrcLine[] {
   const body = rows.filter((r) => r.y <= startY);
   let prevY: number | null = null;
   for (const r of header) {
-    out.push(cellLine(r.cells, p.index, 0, prevY === null ? 0 : Math.max(0, (prevY - r.y) / pitch - 1)));
+    out.push({ ...cellLine(r.cells, p.index, 0, prevY === null ? 0 : Math.max(0, (prevY - r.y) / pitch - 1)), _y: r.y });
     prevY = r.y;
   }
   // Within the body, a row that crosses the gutter is full width and splits the columns into bands.
@@ -158,7 +165,7 @@ export function pdfPageLines(p: PdfPageInfo): SrcLine[] {
       for (const r of band) {
         const cells = r.cells.filter((c) => (side === 1 ? c.xEnd <= gutter : c.x >= gutter));
         if (!cells.length) continue;
-        out.push(cellLine(cells, p.index, side, py === null ? 1 : Math.max(0, (py - r.y) / pitch - 1)));
+        out.push({ ...cellLine(cells, p.index, side, py === null ? 1 : Math.max(0, (py - r.y) / pitch - 1)), _y: r.y });
         py = r.y;
       }
     }
@@ -168,7 +175,7 @@ export function pdfPageLines(p: PdfPageInfo): SrcLine[] {
     const crosses = r.cells.some((c) => c.x < gutter - 2 && c.xEnd > gutter + 2);
     if (crosses) {
       flush();
-      out.push(cellLine(r.cells, p.index, 0, 1));
+      out.push({ ...cellLine(r.cells, p.index, 0, 1), _y: r.y });
     } else band.push(r);
   }
   flush();
@@ -183,19 +190,21 @@ function median(xs: number[]): number {
 /** Drops running headers and footers ("Page 1 of 2", a name repeated on every page). */
 export function dropPageFurniture(lines: SrcLine[], pages: number): SrcLine[] {
   const pageNo = /^(?:page\s*)?\d+\s*(?:of|\/)\s*\d+$|^page\s+\d+$|^-\s*\d+\s*-$/i;
-  let out = lines.filter((l) => !pageNo.test(l.text.trim()));
+  let out = lines.filter((l) => !(l.edge !== false && pageNo.test(l.text.trim())));
   if (pages > 1) {
+    // Only lines at the very top or bottom of pages can be running headers or footers; a sentence that repeats in
+    // the body (the same ending on two bullets) is content and is always kept.
     const counts = new Map<string, Set<number>>();
     for (const l of out) {
       const k = l.text.trim().toLowerCase();
-      if (k.length > 60) continue;
+      if (k.length > 60 || !l.edge) continue;
       if (!counts.has(k)) counts.set(k, new Set());
       counts.get(k)!.add(l.page);
     }
     const seen = new Set<string>();
     out = out.filter((l) => {
       const k = l.text.trim().toLowerCase();
-      if ((counts.get(k)?.size ?? 0) >= Math.min(pages, 2) && pages > 1 && k.length > 0) {
+      if (l.edge && (counts.get(k)?.size ?? 0) >= Math.min(pages, 2) && pages > 1 && k.length > 0) {
         // Keep the first copy (it may be the name at the top of page 1).
         if (seen.has(k)) return false;
         seen.add(k);
