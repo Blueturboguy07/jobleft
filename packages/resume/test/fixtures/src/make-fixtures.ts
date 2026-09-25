@@ -243,7 +243,22 @@ function textResume(p: Persona): string {
   return L.join('\n') + '\n';
 }
 
+/** A profile far too long for one page: 12 jobs with 8 long bullets each (for the one-page fit, O9). */
+function oversizedText(p: Persona): string {
+  const L: string[] = [p.name, [p.email, p.phone, p.city].join(' | '), '', 'SUMMARY', p.summary, '', 'EXPERIENCE'];
+  const verbs = ['Planned', 'Reviewed', 'Organized', 'Tracked', 'Documented', 'Supported', 'Prepared', 'Checked'];
+  for (let i = 0; i < 12; i++) {
+    const year = 2025 - i * 2;
+    L.push(`Analyst, Example Company ${String.fromCharCode(65 + i)} Sample LLC, Austin, TX    Jan ${year - 1} - Dec ${year}`);
+    for (let k = 0; k < 8; k++) L.push(`- ${verbs[k]} the weekly work plan number ${k + 1} for the Example Company ${String.fromCharCode(65 + i)} team and wrote it up for the managers and the staff.`);
+    L.push('');
+  }
+  L.push('EDUCATION', 'B.S. in Computer Science, Sample State University    Aug 2004 - May 2008', '', 'SKILLS', p.skills.join(', '));
+  return L.join('\n') + '\n';
+}
+
 mkdirSync(out, { recursive: true });
+writeFileSync(join(out, 'jordan-oversized.txt'), oversizedText(JORDAN));
 await chromePdf(oneColumn(JORDAN), 'jordan-one-column.pdf');
 await chromePdf(twoColumn(JORDAN), 'jordan-two-column.pdf');
 await chromePdf(oneColumn(withAccents(JORDAN)), 'jordan-accents.pdf');

@@ -27,7 +27,8 @@ Use absolute file paths or paths from the repository root in the commands below.
 | `jordan-layout-table.docx` | The same resume laid out in a Word table (sidebar and main column), with the contact line in the page header |
 | `jordan-accents.pdf` | "José Álvarez-Testwell", a plus sign in the email, a very long link, C#, C++, R&D, 100%, Node.js |
 | `jordan-publications.pdf` | The resume plus a "Publications" section (a section the profile has no field for) |
-| `jordan-long.pdf` | Two pages: 6 jobs with many bullets |
+| `jordan-long.pdf` | Two pages: 6 jobs with many bullets (it fits one page at a smaller size) |
+| `jordan-oversized.txt` | Far too long for one page: 12 jobs with 8 long bullets each |
 | `jordan-table-two-column.pdf` | A two-column layout built from a table (hard for other systems to read) |
 | `variant-caps-numeric-dates.pdf`, `variant-pipes-right-sidebar.pdf`, `variant-flush-right.pdf` | Other layouts: capital headings and 06/2023 dates; "Title \| Company \| Dates" lines with the sidebar on the right; places and dates set flush right |
 | `scanned.pdf`, `locked.pdf`, `empty.pdf`, `text-named.pdf` | An image-only PDF, a password-protected PDF (password "user"), a 0-byte file, a text file named `.pdf` |
@@ -123,8 +124,9 @@ refuses a letter that is too long.
 
 **O9 One-page PDF.** `jr export <id> --format pdf --out /private/tmp/r.pdf`, then `pdfinfo` says 1 page and
 `pdftotext` gives the name, email and headings in order (dates sit on their own line under each entry). For a very long
-profile (`jr import $F/jordan-long.pdf --adopt --replace`, then `jr resume create --name Long` and `jr fit <id>`), the
-tool lists every left-out bullet or entry; nothing else is cut. No ligatures, no hidden or white text.
+profile (`jr import $F/jordan-oversized.txt --adopt --replace`, then `jr resume create --name Long` and `jr fit <id>`),
+the tool shrinks spacing, margins and type first, then lists every left-out bullet or entry (oldest first); every other
+bullet prints whole and the export is still one page. No ligatures, no hidden or white text.
 
 **O10 Word file.** `jr export <id> --format docx --out /private/tmp/r.docx`. The contact line is in the body (no page
 header), there are no text boxes or tables, and the text order matches the PDF. `jr import /private/tmp/r.docx` gives
