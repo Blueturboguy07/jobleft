@@ -54,7 +54,7 @@ No cycles. A lane that needs a new edge in this graph asks for it in its report;
 - Add a dependency only to your own package: `pnpm --filter <package> add <name>@<exact version>`. Installs never run scripts (`ignoreScripts: true` in `pnpm-workspace.yaml`).
 - Read a package before you run it. Copy code only from MIT, Apache-2.0 or BSD sources, and record each copy in `THIRD_PARTY_NOTICES.md` (source URL and commit, licence, the files that hold it). AGPL and GPL code is reference only.
 - A dependency whose install script is essential (for example a native build): read the script, add the package to `allowBuilds` in `pnpm-workspace.yaml`, run the script explicitly, and record why in `THIRD_PARTY_NOTICES.md` section 4.
-- Disk is tight: one `node_modules` per worktree, the shared pnpm store, one Cargo target dir (`/Users/mannbellani/jobleft/.cache/cargo-target`). Delete build output you create when you finish.
+- Disk is tight: one `node_modules` per worktree, the shared pnpm store, one Cargo target dir (`.cache/cargo-target` in the main checkout, shared by every worktree). Delete build output you create when you finish.
 
 ### 1.4 Change rules (additive only)
 
@@ -145,7 +145,7 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_MODEL_BASE_URL` | ai-engine | the Hugging Face `BAAI/bge-small-en-v1.5` files | Where the fit model is downloaded from, once (tests use a local stand-in) |
 | `JOBLEFT_DATASET_MANIFEST_URL` | static-data | none until the owner names the release location | Where newer dataset releases are listed (tests use a local stand-in) |
 | `JOBLEFT_LOG_LEVEL` | server | `info` | `error`, `warn`, `info`, `debug`. No level logs personal text, keys or tokens |
-| `CARGO_TARGET_DIR` | shell builds | `/Users/mannbellani/jobleft/.cache/cargo-target` | The one shared Cargo target dir |
+| `CARGO_TARGET_DIR` | shell builds | `<main checkout>/.cache/cargo-target` | The one shared Cargo target dir (every worktree uses the main checkout's) |
 
 The User-Agent of every crawl request is fixed in code (`USER_AGENT` in `@jobleft/crawler`):
 `jobleft-build/0.1 (research build; no personal data)`. It is never read from the environment, a profile or git.
@@ -1300,7 +1300,7 @@ Build output: `apps/extension/dist` (not committed). No Chrome Web Store submiss
 
 Status: skeleton (`sidecarEnv`, `READY_TIMEOUT_MS`, `NOTIFICATION_POLL_MS` Built). Purpose: the Tauri v2 shell
 (`apps/shell/src-tauri`, created by the shell lane) with the Node server as a sidecar. Section 5.2 is its contract.
-Builds use `CARGO_TARGET_DIR=/Users/mannbellani/jobleft/.cache/cargo-target`. No signing or notarizing in lanes
+Builds use `CARGO_TARGET_DIR=<main checkout>/.cache/cargo-target`. No signing or notarizing in lanes
 (gate G-release). If WKWebView rendering fails the visual check (plan section 6), the fallback is Electron with the
 same server.
 

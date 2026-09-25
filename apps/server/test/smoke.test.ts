@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { join, sep } from 'node:path';
 import { PACKAGE_NAME, homeLayout, newLaunchToken, resolveHome } from '../src/index.ts';
 
 test('@jobleft/server loads under Node type stripping', () => {
@@ -7,10 +8,12 @@ test('@jobleft/server loads under Node type stripping', () => {
 });
 
 test('data folder: JOBLEFT_HOME wins, else the OS default; every path stays inside it', () => {
-  assert.equal(resolveHome({ JOBLEFT_HOME: '/private/tmp/jl' }, 'darwin'), '/private/tmp/jl');
-  assert.match(resolveHome({}, 'darwin'), /Library\/Application Support\/jobleft$/);
-  const l = homeLayout('/private/tmp/jl');
-  for (const p of Object.values(l)) assert.ok(p.startsWith('/private/tmp/jl'), p);
+  const home = join('scratch', 'jl');
+  assert.equal(resolveHome({ JOBLEFT_HOME: home }, 'darwin'), home);
+  assert.match(resolveHome({}, 'darwin'), /Library[\\/]Application Support[\\/]jobleft$/);
+  assert.match(resolveHome({ APPDATA: join('C', 'Roaming') }, 'win32'), /Roaming[\\/]jobleft$/);
+  const l = homeLayout(home);
+  for (const p of Object.values(l)) assert.ok(p === home || p.startsWith(home + sep), p);
 });
 
 test('launch token: 32 random bytes, base64url, new every time', () => {

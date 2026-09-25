@@ -2,7 +2,7 @@
 // Electron is the fallback (plan section 2, spike S3). The shell owns the window, the tray (menu bar) item,
 // single-instance, notifications and quit. This file holds the Node-side contract the shell follows.
 // Status: skeleton (foundation). The shell lane creates src-tauri. Cargo builds use the one shared target dir
-// /Users/mannbellani/jobleft/.cache/cargo-target (CARGO_TARGET_DIR). No signing, no notarizing in lanes.
+// <main checkout>/.cache/cargo-target (CARGO_TARGET_DIR, shared by every worktree). No signing, no notarizing in lanes.
 // Interface: docs/INTERFACES.md, section "@jobleft/shell" and "Start the whole app".
 
 export const PACKAGE_NAME = '@jobleft/shell';
