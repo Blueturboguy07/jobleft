@@ -497,7 +497,7 @@ Teamtailor adapter reads every page and fails the board when a page fails, repea
 has lost its list field fails the board (it never looks empty); a listed job without id or title is returned as
 `unreadable`, never dropped silently; board tokens are checked before any request (a sub-domain token must be a DNS
 label, a path token a slug), so a token cannot point a request at another host; links that are not absolute http(s)
-are dropped; descriptions go through `htmlToText`; never a request to SmartRecruiters, Workday, iCIMS, Oracle, UKG or
+are dropped; extra escape layers (`&amp;lt;p&amp;gt;`) are removed from descriptions and short fields before the crawler's `htmlToText`; never a request to SmartRecruiters, Workday, iCIMS, Oracle, UKG or
 Taleo. The server merges `{ ...SOURCES, ...ATS_SOURCES }` (`allSources()`).
 
 CLI `jobleft-ats` (`packages/sources-ats/src/cli.ts`, run from the repository root with `node packages/sources-ats/src/cli.ts`):

@@ -10,7 +10,7 @@
 import type { BoardRef, HttpGetter, RawJob, Source } from '@jobleft/crawler';
 import { FeedFormatError } from '../errors.ts';
 import { atsHost, boardHost, normalRegion } from '../hosts.ts';
-import { escapeHtml, joinDistinct, postedIso, subdomainBoard, textField, textGetter, unreadableJob } from '../util.ts';
+import { escapeHtml, joinDistinct, postedIso, subdomainBoard, textField, textGetter, unreadableJob, unwrapEscapedHtml } from '../util.ts';
 import { child, childText, children, parseXml, text } from '../xml.ts';
 import type { XmlElement } from '../xml.ts';
 
@@ -64,7 +64,7 @@ export function mapPersonio(pos: XmlElement, board: BoardRef, origin: string, bo
     // The subcompany is the employing entity when the board has several; otherwise the board's employer.
     company: textField(childText(pos, 'subcompany')) || board.company,
     location,
-    descriptionHtml: body,
+    descriptionHtml: unwrapEscapedHtml(body),
     remote: false, // the feed has no remote field; the crawler still reads "Remote" in the office text
     workMode: '',
     countries: [],

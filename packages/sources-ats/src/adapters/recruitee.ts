@@ -8,7 +8,7 @@ import { arr, countryFromCode, HttpError, makePay, num, obj, str } from '@joblef
 import type { BoardRef, HttpGetter, PayPeriod, RawJob, RawPay, Source, WorkMode } from '@jobleft/crawler';
 import { FeedFormatError, SourceChangedError } from '../errors.ts';
 import { boardHost } from '../hosts.ts';
-import { countryCodes, httpUrl, joinDistinct, placeText, postedIso, subdomainBoard, textField, unreadableJob } from '../util.ts';
+import { countryCodes, httpUrl, joinDistinct, placeText, postedIso, subdomainBoard, textField, unreadableJob, unwrapEscapedHtml } from '../util.ts';
 
 export function recruiteeUrl(board: string): string {
   return `https://${subdomainBoard('recruitee', board)}.recruitee.com/api/offers/`;
@@ -75,7 +75,7 @@ export function mapRecruitee(o: Record<string, unknown>, board: BoardRef): RawJo
     title,
     company: textField(o.company_name) || board.company,
     location,
-    descriptionHtml: description,
+    descriptionHtml: unwrapEscapedHtml(description),
     remote: o.remote === true,
     workMode: mode,
     countries,

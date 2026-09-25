@@ -11,7 +11,7 @@ import { countryFromCode } from '@jobleft/crawler';
 import type { BoardRef, HttpGetter, RawJob, Source, WorkMode } from '@jobleft/crawler';
 import { FeedFormatError, PagingError } from '../errors.ts';
 import { atsHost, boardHost, normalRegion } from '../hosts.ts';
-import { httpUrl, joinDistinct, placeText, postedIso, subdomainBoard, textField, textGetter, unreadableJob } from '../util.ts';
+import { httpUrl, joinDistinct, placeText, postedIso, subdomainBoard, textField, textGetter, unreadableJob, unwrapEscapedHtml } from '../util.ts';
 import { child, childText, children, parseXml, text } from '../xml.ts';
 import type { XmlElement } from '../xml.ts';
 
@@ -59,7 +59,7 @@ export function mapTeamtailorItem(item: XmlElement, board: BoardRef, company: st
     title,
     company,
     location,
-    descriptionHtml: text(child(item, 'description')),
+    descriptionHtml: unwrapEscapedHtml(text(child(item, 'description'))),
     remote: mode === 'remote',
     workMode: mode,
     countries,

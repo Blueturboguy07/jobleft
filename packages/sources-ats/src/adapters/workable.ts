@@ -9,7 +9,7 @@ import { arr, countryFromCode, employmentTypeFromText, obj, str } from '@jobleft
 import type { BoardRef, HttpGetter, RawJob, Source, WorkMode } from '@jobleft/crawler';
 import { FeedFormatError } from '../errors.ts';
 import { boardHost } from '../hosts.ts';
-import { countryCodes, httpUrl, joinDistinct, pathBoard, placeText, postedIso, textField, unreadableJob } from '../util.ts';
+import { countryCodes, httpUrl, joinDistinct, pathBoard, placeText, postedIso, textField, unreadableJob, unwrapEscapedHtml } from '../util.ts';
 
 export const WORKABLE_HOST = 'apply.workable.com';
 
@@ -58,7 +58,7 @@ export function mapWorkable(j: Record<string, unknown>, board: BoardRef, account
     title,
     company: textField(account.name) || board.company,
     location,
-    descriptionHtml: description,
+    descriptionHtml: unwrapEscapedHtml(description),
     remote,
     workMode: mode,
     countries,

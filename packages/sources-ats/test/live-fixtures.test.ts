@@ -138,3 +138,23 @@ test('Gem: the job_posts payload maps every field', async () => {
   assert.equal(a.department, 'Engineering');
   clean(jobs, board);
 });
+
+test('double-escaped HTML and titles read as clean text, from JSON and from XML (O12)', async () => {
+  const wBoard: BoardRef = { ats: 'workable', board: 'esc-demo', company: 'Esc Demo' };
+  const w = await workable.fetchBoard(wBoard, fakeHttp({ [workableUrl('esc-demo')]: JSON.stringify({ name: 'Esc Demo', jobs: [{
+    shortcode: 'E1', title: 'AT&amp;amp;T Field Tech', url: 'https://apply.workable.com/esc-demo/j/E1/',
+    description: '&amp;lt;p&amp;gt;Fix lines &amp;amp;amp; poles.&amp;lt;/p&amp;gt;&amp;lt;ul&amp;gt;&amp;lt;li&amp;gt;Ladders&amp;lt;/li&amp;gt;&amp;lt;/ul&amp;gt;',
+  }] }) }));
+  const wj = normalizeJob(wBoard, w[0])!;
+  assert.equal(wj.title, 'AT&T Field Tech');
+  assert.equal(wj.description, 'Fix lines & poles.\n\n- Ladders');
+  const tBoard: BoardRef = { ats: 'teamtailor', board: 'esc-demo', company: 'Esc Demo' };
+  const rssText = '<rss><channel><title>Esc Demo</title><item><title>R&amp;amp;D Lead</title>' +
+    '<description>&amp;lt;p&amp;gt;Caf&amp;amp;eacute; &amp;amp;amp; lab&amp;lt;/p&amp;gt;</description>' +
+    '<link>https://esc-demo.teamtailor.com/jobs/77-lead</link></item></channel></rss>';
+  const t = await teamtailor.fetchBoard(tBoard, fakeHttp({ [teamtailorPageUrl('esc-demo', null, 0)]: rssText }));
+  const tj = normalizeJob(tBoard, t[0])!;
+  assert.equal(tj.title, 'R&D Lead');
+  assert.equal(tj.description, 'Café & lab');
+  for (const bad of ['&amp;', '&lt;', '<p>', '&eacute;']) assert.ok(!tj.description.includes(bad) && !wj.description.includes(bad), bad);
+});

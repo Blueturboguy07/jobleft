@@ -1,7 +1,7 @@
 // Helpers shared by this lane's adapters. Pure functions except `textGetter`, which only checks a capability.
 
 import { nowMs } from '@jobleft/contracts';
-import { htmlToText } from '@jobleft/parsers';
+import { decodeEntities, htmlToText } from '@jobleft/parsers';
 import { isoDate } from '@jobleft/crawler';
 import type { BoardRef, HttpGetter, RawJob } from '@jobleft/crawler';
 import { BoardTokenError } from './errors.ts';
@@ -47,8 +47,29 @@ export function httpUrl(v: unknown): string {
  */
 export function textField(v: unknown): string {
   if (typeof v !== 'string' || v === '') return '';
-  const plain = /[<&]/.test(v) ? htmlToText(v) : v;
+  let t = v;
+  // A short field escaped more than once ("AT&amp;amp;T") is decoded until no entity is left (at most 3 layers).
+  for (let i = 0; i < 3 && /&(?:#\d+|#x[0-9a-f]+|[a-z][a-z0-9]*);/i.test(t); i++) {
+    const d = decodeEntities(t);
+    if (d === t) break;
+    t = d;
+  }
+  const plain = /<\/?[a-z!]/i.test(t) ? htmlToText(t) : t;
   return plain.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * A description escaped twice or more ("&amp;lt;p&amp;gt;") loses its extra layers, so the crawler's htmlToText
+ * (which removes one encoded layer itself) sees ordinary or once-encoded HTML. Only when the text has no live tag.
+ * The result still goes through htmlToText: it is stored as text, never shown as markup.
+ */
+export function unwrapEscapedHtml(s: string): string {
+  let t = s;
+  for (let i = 0; i < 3; i++) {
+    if (/<\/?[a-z][^>]*>/i.test(t) || !/&(?:amp;)+(?:lt|gt);/i.test(t)) break;
+    t = decodeEntities(t);
+  }
+  return t;
 }
 
 /** Escapes text so it can sit inside HTML that htmlToText reads later (section headings). */

@@ -138,7 +138,7 @@ Every ATS gives the same fields with the same meaning:
 | pay | min, max, currency, period exactly as stated. Recruitee states plain amounts, never cents | not stated. Pay in the text is read by the crawler's text parser and marked `text` |
 | postedAt | The board's posting date in UTC. A date without a time (Workable) is stored at 12:00 UTC so the day is the same in every time zone from UTC-12 to UTC+11 | not stated (never the crawl time) |
 | url, applyUrl | The job's own page on the ATS (its id is in the link), and the apply page when the board gives one | only absolute http(s) links are kept; a `javascript:` link is dropped |
-| description | Plain text: tags, scripts, CDATA and entity codes removed; lists kept as "- " lines; sections kept under their own headings | empty |
+| description | Plain text: tags, scripts, CDATA and entity codes removed (also when a board escaped the HTML twice); lists kept as "- " lines; sections kept under their own headings | empty |
 
 Per-family details (field by field): `docs/sources/<family>.md`.
 
@@ -206,7 +206,7 @@ file between crawls.
 ## Tests and checks
 
 ```sh
-pnpm --filter @jobleft/sources-ats test        # 42 tests, no live request, about 10 s
+pnpm --filter @jobleft/sources-ats test        # 43 tests, no live request, about 10 s
 pnpm --filter @jobleft/sources-ats typecheck
 ```
 
