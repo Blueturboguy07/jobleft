@@ -11,9 +11,11 @@ adds. It holds:
   added;
 - **board health**: every refresh records what each board answered; a board that fails twice in a row is marked
   unreachable with a stated next check date, and becomes live again by itself when it answers;
-- **refresh**: crawls the boards through the crawler core (`@jobleft/crawler`), 1 request per second per host;
-- **directory refresh** and **Common Crawl discovery**: re-check directory rows, prune dead board tokens, add new
-  boards found in the Common Crawl URL index.
+- **refresh**: crawls the boards through the crawler core (`@jobleft/crawler`), at most 1 request per second per host;
+- **directory refresh**: re-checks directory rows against their providers and prunes dead board tokens;
+- **Common Crawl discovery**: extracts more board tokens from Common Crawl URL-index answers. Its live mode obeys
+  robots.txt, and Common Crawl's index hosts disallow all crawlers today, so it works offline on index answers
+  (see section 6).
 
 Everything below runs from the repository root with Node 24 and pnpm 12. Nothing needs an account or a key.
 
@@ -230,20 +232,30 @@ jb directory refresh --sample 50 --max-requests 60                       # write
 jb directory refresh --all --ats greenhouse --max-requests 700 \
   --in packages/boards/data/board-directory.json --out packages/boards/data/board-directory.json
 
-# Discover more board tokens in the Common Crawl URL index (CDX API), then add the ones that answer as live boards
-# with their own name.
-node packages/boards/scripts/cc-discover.ts --crawl CC-MAIN-2026-39 --host job-boards.greenhouse.io \
-  --pages 0-1 --max-requests 5 --out /private/tmp/discovered.json
-jb directory refresh --discovered /private/tmp/discovered.json --max-requests 300 --in ... --out ...
+# Common Crawl discovery. The live mode asks index.commoncrawl.org, but it obeys robots.txt, and on 2026-09-25 both
+# index.commoncrawl.org and data.commoncrawl.org answer "User-agent: * / Disallow: /". So today the live mode stops
+# with a plain message after reading robots.txt (exit code 3) and sends nothing else:
+node packages/boards/scripts/cc-discover.ts --crawl CC-MAIN-2026-39 --host job-boards.greenhouse.io --max-requests 5
 
-# The same discovery offline, from the recorded answers in test/fixtures:
+# Offline, on index answers in the CDX API format (one JSON object per line), from saved files:
 node packages/boards/scripts/cc-discover.ts --crawl CC-MAIN-2026-39 --host job-boards.greenhouse.io \
-  --pages 0 --replay packages/boards/test/fixtures/cc
+  --host jobs.ashbyhq.com --pages 0-1 --replay packages/boards/test/fixtures/cc --out /private/tmp/discovered.json
+node packages/boards/scripts/cc-discover.ts --crawl CC-MAIN-2026-39 --from-file <answer.ndjson> --out /private/tmp/discovered.json
+
+# Add discovered tokens that answer as live boards AND report their own employer name (never a name from the index):
+jb directory refresh --discovered /private/tmp/discovered.json --max-requests 300 --in <directory file> --out <file>
 ```
 
-`cc-discover` keeps only board tokens (never page content), reads only the URL index (never crawled pages), sends at
-most `--max-requests` requests (default 20), 1 per 1.1 seconds, with the project User-Agent and Retry-After honoured.
-`--record <dir>` saves each answer (`--record-lines <n>` keeps the first n lines) for offline replay.
+What you see from the replay: `6 board tokens from job-boards.greenhouse.io, jobs.ashbyhq.com (0 requests,
+replayed)`. The fixtures in `test/fixtures/cc` are hand-written in the CDX format (see the README there), because
+recording real answers would have broken robots.txt. `cc-discover` keeps only board tokens (never page content),
+reads only the URL index (never crawled pages), sends at most `--max-requests` requests (default 20), 1 per 1.1
+seconds, with the project User-Agent, robots.txt and Retry-After honoured. `--record <dir>` saves answers for replay.
+
+The shipped directory today: 3,622 rows from JobSync (602 Greenhouse, 1,160 Lever of which 81 on Lever's EU host,
+1,860 Ashby). On 2026-09-25 every Greenhouse row, every EU Lever row and 400 random Lever and Ashby rows were
+checked live: 1,029 live, 41 suspect (one "not found"; removed only after a second "not found" later), the rest
+unverified. An earlier random sample of 150 rows (50 per provider) found 143 live.
 
 ## 7. Using the package from code
 
