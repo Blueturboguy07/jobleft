@@ -395,7 +395,7 @@ Details and change rules: `packages/contracts/README.md`.
 
 ### `@jobleft/parsers`
 
-Status: **Built** (parsers lane, 48 tests; `pnpm --filter @jobleft/parsers test`). Pure functions only: no network, no clock, no files. Deterministic.
+Status: **Built** (parsers lane, 49 tests; `pnpm --filter @jobleft/parsers test`). Pure functions only: no network, no clock, no files. Deterministic.
 Purpose: every fact of a posting (pay, seniority, required years, places, US or not, work model and remote area,
 employment type, posting statements), each with `FactEvidence`, or `null`/`[]` when the posting does not state it.
 Everything the crawler, sources-other (added jobs) and store need is in `extractFacts`.
@@ -405,6 +405,7 @@ Everything the crawler, sources-other (added jobs) and store need is in `extract
 | `extractFacts` | `(input: PostingInput) => PostingFacts` | The one call. `PostingFacts` = `{ pay, places, isUs, workModel, remoteScope, employmentType, level, levels, yearsRequired, statements, evidence, description, warnings }` in contract shapes (`Pay`, `Place[]`, `RemoteScope`, `ExperienceLevel[]`, `PostingStatements`, `JobEvidence`). Never throws; a failed reader leaves its fact null and adds a warning. `description` is the whole plain text (never cut) |
 | `PostingInput` | `{ title, location?, locations?, addresses?, countries?, descriptionHtml?, description?, pay?: BoardPay[], workplaceType?, remote?, employmentType?, seniority?, experienceMonths?, extraText? }` | Board fields that carry facts. `pay` is the board's pay field (period may be null); `extraText` is board text next to the body (Lever `salaryDescription`, Ashby pay summary) |
 | `postingsFromBoard`, `fromGreenhouse`, `fromLever`, `fromAshby`, `fromWorkable`, `fromRecruitee`, `fromPersonio`, `fromJsonLd`, `detectFormat`, `fromBoard` | `(json) => PostingInput` (and a list for a whole board) | Reads the fact fields of each public format. JSON-LD `estimatedSalary` is never read |
+| `fromRawJob` | `(raw: RawJobLike, extra?) => PostingInput` | The crawler's `RawJob` (structural type) to `PostingInput`: `extractFacts(fromRawJob(raw))` in `normalizeJob` |
 | `parsePay`, `payFromBoard` | `(text, { country?, title?, placeWords? }) => { pay: Pay, evidence } \| null` | Single figures (`min = max`), "up to" (`min: null`), "from"/"+" (`max: null`), tiers (`ranges`), OTE and add-ons excluded, many currencies and number styles. `source` is `description` or `board_field` |
 | `payMeetsMinimum`, `paySortKey`, `formatPay`, `PAY_FILTER_RULE`, `yearlyPay` | `(pay, minYearly, currency?) => boolean \| null` ... | The one pay rule for filters, sorts and cards: the top of the range (or the only figure), per year (2,080 hours, 260 days, 52 weeks, 12 months), in the filter's currency; unknown pay is `null` |
 | `parsePlaces`, `parseLocationText`, `placesFromText`, `placeFromAddress`, `usFromFacts`, `countryName` | `(text, { context? }) => Place[]` ... | Every place; `region` is the US state or Canadian province code when known; `country` ISO alpha-2; `placeId` stays null (static-data resolves it). `parseLocationText` also returns work-model words and remote regions of a location field |

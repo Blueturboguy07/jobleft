@@ -289,3 +289,34 @@ export function postingsFromBoard(payload: unknown, format?: BoardFormat): Array
   });
   return out;
 }
+
+/** The fields of the crawler's RawJob that carry facts (structural, so parsers does not import the crawler). */
+export interface RawJobLike {
+  title: string;
+  location?: string | null;
+  descriptionHtml?: string | null;
+  remote?: boolean | null;
+  workMode?: string | null;
+  countries?: string[] | null;
+  employmentType?: string | null;
+  pay?: { min: number | null; max: number | null; currency: string | null; period: PayPeriod | null } | null;
+}
+
+/**
+ * PostingInput from the crawler's RawJob, for `normalizeJob`: `extractFacts(fromRawJob(raw))`.
+ * The crawler joins several places with "; " in `location`; each is still read. Pass richer board fields (every
+ * pay tier, secondary addresses) through the `from<Format>` readers when the adapter has them.
+ */
+export function fromRawJob(raw: RawJobLike, extra: Partial<PostingInput> = {}): PostingInput {
+  return {
+    title: raw.title ?? '',
+    location: raw.location ?? null,
+    descriptionHtml: raw.descriptionHtml ?? null,
+    workplaceType: raw.workMode || null,
+    remote: raw.remote === true && !raw.workMode ? true : null,
+    countries: (raw.countries ?? []).filter(Boolean),
+    employmentType: raw.employmentType || null,
+    pay: raw.pay ? [{ min: raw.pay.min, max: raw.pay.max, currency: raw.pay.currency, period: raw.pay.period }] : [],
+    ...extra,
+  };
+}

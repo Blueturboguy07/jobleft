@@ -151,3 +151,12 @@ test('cli: reads a board file and a local mock board, and refuses other hosts', 
   assert.notEqual(refused.status, 0);
   assert.match(refused.stderr, /not a loopback host/);
 });
+
+test('facts: the crawler RawJob maps in one call', async () => {
+  const { fromRawJob } = await import('../src/index.ts');
+  const f = extractFacts(fromRawJob({
+    title: 'Senior Loan Officer', location: 'Remote - US; Austin, TX', descriptionHtml: '<p>Close loans.</p>', remote: true, workMode: 'remote',
+    countries: ['US'], employmentType: 'full_time', pay: { min: 90000, max: 120000, currency: 'USD', period: 'year' },
+  }));
+  assert.deepEqual([f.pay?.min, f.pay?.source, f.workModel, f.isUs, f.levels[0], f.places.length], [90000, 'board_field', 'remote', true, 'senior', 1]);
+});

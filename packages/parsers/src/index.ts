@@ -11,8 +11,8 @@ export { extractFacts } from './facts.ts';
 export type { PostingFacts } from './facts.ts';
 
 // Board formats (fact fields of public job-board answers).
-export { detectFormat, fromAshby, fromBoard, fromGreenhouse, fromJsonLd, fromLever, fromPersonio, fromRecruitee, fromWorkable, postingsFromBoard } from './board.ts';
-export type { BoardFormat, PostingInput } from './board.ts';
+export { detectFormat, fromAshby, fromBoard, fromGreenhouse, fromJsonLd, fromLever, fromPersonio, fromRawJob, fromRecruitee, fromWorkable, postingsFromBoard } from './board.ts';
+export type { BoardFormat, PostingInput, RawJobLike } from './board.ts';
 
 // HTML.
 export { decodeEntities, htmlToText, unescapeEncodedHtml } from './html.ts';

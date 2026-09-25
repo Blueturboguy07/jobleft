@@ -124,6 +124,7 @@ Languages: English, and the common pay, period and level words in Spanish, Frenc
 |---|---|
 | `extractFacts(input: PostingInput): PostingFacts` | Every fact with evidence. Never throws: a reader that fails leaves its fact `null` and adds a line to `warnings` |
 | `postingsFromBoard(json, format?)`, `fromGreenhouse`, `fromLever`, `fromAshby`, `fromWorkable`, `fromRecruitee`, `fromPersonio`, `fromJsonLd`, `detectFormat` | Board answers to `PostingInput` |
+| `fromRawJob(raw)` | The crawler's `RawJob` to `PostingInput` (for `normalizeJob`) |
 | `parsePay(text, opts)`, `payFromBoard(pays, opts)`, `parsePayFromText(text)`, `parseNumber`, `annualize` | Pay |
 | `payMeetsMinimum(pay, minYearly, currency?)`, `paySortKey(pay)`, `formatPay(pay)`, `PAY_FILTER_RULE` | The one pay rule for filters, sorting and cards |
 | `parseLocationText(text)`, `parsePlaces(text)`, `placesFromText(text)`, `placeFromAddress(address)`, `usFromFacts(places, regions, countries)`, `isUsLocation(text, countries?)`, `countryName(cc)` | Places and country |
