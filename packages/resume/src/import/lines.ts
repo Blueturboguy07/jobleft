@@ -259,6 +259,7 @@ export function wordParagraphs(xml: string): WPara[] {
   const out: WPara[] = [];
   const re = /<(\/?)([A-Za-z0-9_:]+)((?:\s+[^\s=>/]+="[^"]*")*)\s*(\/?)>|([^<]+)/g;
   let para: WPara | null = null;
+  const paraStack: Array<{ para: WPara; allBold: boolean; hasText: boolean }> = [];
   let runBold = false;
   let runBoldSeen = false;
   let allBold = true;
@@ -325,9 +326,14 @@ export function wordParagraphs(xml: string): WPara[] {
             para.bold = hasText && allBold;
             if (para.text.trim() || !selfC) emit(para);
           }
-          para = null;
+          // A paragraph inside a text box closes back into the paragraph that holds the box.
+          const outer = paraStack.pop();
+          if (outer) { para = outer.para; allBold = outer.allBold; hasText = outer.hasText; } else para = null;
         }
-        if (!isClose && !selfC) { para = { text: '', style: null, list: false, bold: false, size: null, indent: 0, center: false }; allBold = true; hasText = false; }
+        if (!isClose && !selfC) {
+          if (para) paraStack.push({ para, allBold, hasText });
+          para = { text: '', style: null, list: false, bold: false, size: null, indent: 0, center: false }; allBold = true; hasText = false;
+        }
         break;
       case 'w:pStyle': if (para) para.style = attr(attrs, 'w:val'); break;
       case 'w:numPr': if (para && !isClose) para.list = true; break;

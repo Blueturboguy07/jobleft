@@ -29,11 +29,12 @@ Use absolute file paths or paths from the repository root in the commands below.
 | `jordan-publications.pdf` | The resume plus a "Publications" section (a section the profile has no field for) |
 | `jordan-long.pdf` | Two pages: 6 jobs with many bullets |
 | `jordan-table-two-column.pdf` | A two-column layout built from a table (hard for other systems to read) |
+| `variant-caps-numeric-dates.pdf`, `variant-pipes-right-sidebar.pdf`, `variant-flush-right.pdf` | Other layouts: capital headings and 06/2023 dates; "Title \| Company \| Dates" lines with the sidebar on the right; places and dates set flush right |
 | `scanned.pdf`, `locked.pdf`, `empty.pdf`, `text-named.pdf` | An image-only PDF, a password-protected PDF (password "user"), a 0-byte file, a text file named `.pdf` |
 | `jobs/j-fit.txt`, `jobs/j-gap.txt` | A job that fits Jordan, and a gap job (Kubernetes, Terraform, Go, a PhD, a clearance, 10+ years, a named metric) |
 | `jobs/j-inject.txt`, `jobs/j-inject.html` | The gap job with instructions hidden in the text (plain, and white 1px text in HTML) |
 
-Rebuild the fixtures with `pnpm --filter @jobleft/resume run fixtures` (uses headless Chrome with a throwaway profile).
+Rebuild the fixtures with `pnpm --filter @jobleft/resume run fixtures` and `node packages/resume/test/fixtures/src/variants.ts` (headless Chrome with a throwaway profile).
 
 ## 2. Commands
 
