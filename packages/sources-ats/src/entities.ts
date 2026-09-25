@@ -53,7 +53,7 @@ export function stripControls(s: string): string {
 /** Decodes every named (exact case) and numeric reference once. Unknown names stay as written. */
 export function decodeEntitiesFull(s: string): string {
   if (!s.includes('&')) return s;
-  return s.replace(/&(#[xX][0-9a-fA-F]{1,8}|#\d{1,9}|[A-Za-z][A-Za-z0-9]{1,31});/g, (m, body: string) => {
+  return s.replace(/&(#[xX][0-9a-fA-F]+|#\d+|[A-Za-z][A-Za-z0-9]{1,31});/g, (m, body: string) => {
     if (body[0] === '#') {
       const code = body[1] === 'x' || body[1] === 'X' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
       if (!Number.isFinite(code) || code <= 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return '';

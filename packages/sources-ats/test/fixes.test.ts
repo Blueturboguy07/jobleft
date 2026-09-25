@@ -101,7 +101,7 @@ test('a Crawl-delay that is short enough is slept and does not use up the reques
   assert.ok(expired.aborted);
   const res = await f('https://x.example.org/feed', { signal: expired });
   assert.equal(res.status, 200);
-  assert.equal(clock, 30_000);
+  assert.ok(clock >= 30_000 && clock <= 30_200, `slept ${clock} ms`);
   assert.equal(seenSignals[1], false, 'the request went out with an already aborted signal');
 });
 
@@ -265,4 +265,20 @@ test('detect --json A B answers both links; detect --json A answers one', async 
   assert.equal(one.length, 1);
   const first = JSON.parse((await run(process.execPath, [cli, 'detect', '--json', 'https://acme.recruitee.com/'], { encoding: 'utf8' })).stdout) as unknown[];
   assert.equal(first.length, 1);
+});
+
+test('an escaped Greenhouse body decodes every entity with the full table (no "EUR", no raw &atilde;)', async () => {
+  const content = '&lt;p&gt;S&amp;atilde;o Paulo &amp;euro;5 &amp;amp; &amp;ndash; caf&amp;eacute; &amp;#99999999999999999999; &amp;#x;&lt;/p&gt;';
+  const jobs = await greenhouse.fetchBoard(board('greenhouse'), http({ jobs: [{ id: 9, title: 'X', absolute_url: 'https://job-boards.greenhouse.io/acme/jobs/9', content, location: { name: 'Sao Paulo' } }] }));
+  assert.equal(descriptionText(jobs[0].descriptionHtml).replace(/&#x;/, '').replace(/\s+/g, ' ').trim(), 'São Paulo €5 & – café');
+});
+
+test('a Latin-1 feed (Content-Type charset or XML declaration) is read as UTF-8 text, not as replacement characters', async () => {
+  const latin1 = Uint8Array.from([...'<?xml version="1.0" encoding="ISO-8859-1"?><t>Caf'].map((c) => c.charCodeAt(0)).concat([0xe9], [...' Z'].map((c) => c.charCodeAt(0)), [0xfc], [...'rich</t>'].map((c) => c.charCodeAt(0))));
+  const f = politeFetch({ fetchImpl: (async () => new Response(latin1, { headers: { 'content-type': 'application/xml' } })) as typeof fetch, minGapMs: 0, marginMs: 0 });
+  assert.equal(await (await f('https://a.example.org/x')).text(), '<?xml version="1.0" encoding="ISO-8859-1"?><t>Café Zürich</t>');
+  const f2 = politeFetch({ fetchImpl: (async () => new Response(Uint8Array.from([0x47, 0x72, 0xfc, 0xdf, 0x65]), { headers: { 'content-type': 'application/rss+xml; charset=iso-8859-1' } })) as typeof fetch, minGapMs: 0, marginMs: 0 });
+  assert.equal(await (await f2('https://b.example.org/x')).text(), 'Grüße');
+  const f3 = politeFetch({ fetchImpl: (async () => new Response('Zürich', { headers: { 'content-type': 'text/plain; charset=utf-8' } })) as typeof fetch, minGapMs: 0, marginMs: 0 });
+  assert.equal(await (await f3('https://c.example.org/x')).text(), 'Zürich');
 });

@@ -1,11 +1,11 @@
 // Helpers shared by this lane's adapters. Pure functions except `textGetter`, which only checks a capability.
 
 import { nowMs } from '@jobleft/contracts';
-import { decodeEntities, htmlToText } from '@jobleft/parsers';
+import { decodeEntities } from '@jobleft/parsers';
 import { isoDate } from '@jobleft/crawler';
 import type { BoardRef, HttpGetter, PayPeriod, RawJob, RawPay } from '@jobleft/crawler';
 import { BoardTokenError } from './errors.ts';
-import { decodeEntitiesFull, decodeNamedNonMarkup, stripControls } from './entities.ts';
+import { decodeEntitiesFull, stripControls } from './entities.ts';
 
 /** A DNS label: the board is part of a host name (acme.recruitee.com), so nothing else may pass. */
 const SUBDOMAIN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
@@ -55,7 +55,7 @@ export function textField(v: unknown): string {
     if (d === t) break;
     t = d;
   }
-  const plain = /<\/?[a-z!]/i.test(t) ? htmlToText(t) : t;
+  const plain = /<\/?[a-z!]/i.test(t) ? htmlToPlain(t) : t;
   // Control characters go last: a numeric reference such as "&#27;" decodes to one.
   return stripControls(plain).replace(/\s+/g, ' ').trim();
 }
@@ -70,12 +70,44 @@ export function cleanDescription(html: string): string {
   return escapeHtml(descriptionText(html));
 }
 
+/** One encoded layer is removed only when encoded tag openers outnumber live ones (a page that shows markup as an example stays). */
+function unescapeEncodedLayer(s: string): string {
+  if (!s.includes('&lt;')) return s;
+  const enc = (s.match(/&lt;\/?[a-zA-Z]/g) ?? []).length;
+  const live = (s.match(/<\/?[a-zA-Z]/g) ?? []).length;
+  return enc > live ? decodeEntitiesFull(s) : s;
+}
+
+/**
+ * HTML to plain text, like the crawler's htmlToText (lists as "- " lines, blocks as lines) but with the full entity
+ * table: the crawler's own table knows a few dozen names and turns "&euro;" into "EUR" and "&atilde;" into nothing.
+ */
+export function htmlToPlain(input: string): string {
+  if (!input) return '';
+  let s = unescapeEncodedLayer(input);
+  s = s.replace(/<(script|style|head|noscript)\b[\s\S]*?<\/\1\s*>/gi, ' ');
+  s = s.replace(/<!--[\s\S]*?-->/g, ' ');
+  s = s.replace(/<br\s*\/?>/gi, '\n');
+  s = s.replace(/<li\b[^>]*>/gi, '\n- ');
+  s = s.replace(/<\/(p|div|h[1-6]|ul|ol|tr|table|section|article|blockquote|pre)\s*>/gi, '\n');
+  s = s.replace(/<(p|div|h[1-6]|ul|ol|tr|table|section|article|blockquote|pre)\b[^>]*>/gi, '\n');
+  s = s.replace(/<[^>]+>/g, '');
+  s = decodeEntitiesFull(s);
+  s = s.replace(/[\u200b\u200c\u200d\ufeff]/g, '');
+  const out: string[] = [];
+  let blank = 0;
+  for (const l of s.split('\n').map((x) => x.replace(/[ \t\r\f\v]+/g, ' ').trim())) {
+    if (l === '') { blank++; if (blank <= 1) out.push(''); } else { blank = 0; out.push(l); }
+  }
+  return out.join('\n').trim();
+}
+
 /** The plain text of a description (lists as "- " lines, no tags, no raw entity codes, no control characters). */
 export function descriptionText(html: string): string {
   if (!html) return '';
   let t = html;
   for (let i = 0; i < 4; i++) {
-    const next = htmlToText(decodeNamedNonMarkup(t));
+    const next = htmlToPlain(t);
     const again = /<\/?[a-z!]|&lt;\/?[a-z!]|&(?:amp;)+(?:lt|gt);/i.test(next);
     t = next;
     if (!again) break;
@@ -83,20 +115,6 @@ export function descriptionText(html: string): string {
   // Anything still shaped like a tag after four layers is dropped: the stored text is never markup.
   t = t.replace(/<\/?[a-z!][^>]*>/gi, ' ');
   return stripControls(t).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-}
-
-/**
- * A description escaped twice or more ("&amp;lt;p&amp;gt;") loses its extra layers, so the crawler's htmlToText
- * (which removes one encoded layer itself) sees ordinary or once-encoded HTML. Only when the text has no live tag.
- * The result still goes through htmlToText: it is stored as text, never shown as markup.
- */
-export function unwrapEscapedHtml(s: string): string {
-  let t = s;
-  for (let i = 0; i < 3; i++) {
-    if (/<\/?[a-z][^>]*>/i.test(t) || !/&(?:amp;)+(?:lt|gt);/i.test(t)) break;
-    t = decodeEntities(t);
-  }
-  return t;
 }
 
 /** Escapes text so it can sit inside HTML that htmlToText reads later (section headings). */

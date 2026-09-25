@@ -1,6 +1,6 @@
 // A fetch wrapper the CLI passes to the crawler's HttpClient as `fetchImpl`. It adds these rules on top of the client's
 // own (User-Agent, pacer, robots.txt, never-crawl list, no redirects):
-//   1. One pace per host, kept here as well: at least `minGapMs` (1 s) between the SENDING of any two requests to
+//   1. One pace per host, kept here as well: at least `minGapMs` (1 s, plus a 100 ms margin) between the SENDING of any two requests to
 //      one host, or the robots.txt Crawl-delay when that is longer. Slots are reserved before any waiting, so queued
 //      requests leave one after the other, also right after a Retry-After wait (the crawler's pacer counts from the
 //      time it handed the request over, not from the time the request left).
@@ -13,7 +13,7 @@
 //      Taleo is refused before it leaves, even if some code asked for it.
 //   5. The waiting never counts against the caller's request timeout: after a wait the request gets a fresh timeout.
 //   6. The body is read here with a size limit while it streams, so an endless answer stops at the limit (memory
-//      never holds more than the limit).
+//      never holds more than the limit). A body that declares Latin-1 or another charset is turned into UTF-8.
 //   7. A robots.txt that could not be read (no connection, HTTP 5xx) is remembered with its true reason, so the
 //      report does not say "robots.txt disallows this feed" (see `robotsProblemFor`).
 // It can also report every request (time, host, status) to a log callback. It never adds or changes a header.
@@ -27,6 +27,8 @@ export interface PoliteFetchOptions {
   maxWaitMs?: number;
   /** Least time between the sending of two requests to one host. Default 1000 ms. */
   minGapMs?: number;
+  /** Added to every gap, so timer and network jitter never brings two requests less than the gap apart at the host. Default 100 ms. */
+  marginMs?: number;
   /** Longest body that is read. Default 64 MiB (the crawler's own limit). */
   maxBodyBytes?: number;
   /** Timeout given to a request after it has waited. Set it to the HttpClient's timeoutMs. Default 20 s (the crawler's default). */
@@ -92,6 +94,19 @@ function signalAfterWait(orig: AbortSignal | null | undefined, timeoutMs: number
   return AbortSignal.any([fresh, external.signal]);
 }
 
+/**
+ * The crawler decodes every answer as UTF-8. A feed that says it is Latin-1 (Content-Type charset, or the XML
+ * declaration) is turned into UTF-8 here, so "Zürich" is not read as "Z\uFFFDrich". UTF-8 and unknown labels pass unchanged.
+ */
+function toUtf8(body: Uint8Array, contentType: string | null): Uint8Array {
+  let label = /charset\s*=\s*["']?([\w.:-]+)/i.exec(contentType ?? '')?.[1];
+  if (!label) label = /^\s*<\?xml[^>]*encoding\s*=\s*["']([\w.:-]+)["']/i.exec(new TextDecoder('latin1').decode(body.subarray(0, 200)))?.[1];
+  if (!label || /^utf-?8$/i.test(label)) return body;
+  try {
+    return new TextEncoder().encode(new TextDecoder(label).decode(body));
+  } catch { return body; }
+}
+
 /** Reads the body up to `limit` bytes while it streams. Throws an HttpError (no retry) as soon as the limit is passed. */
 async function limitBody(res: Response, url: string, limit: number): Promise<Response> {
   const declared = parseInt(res.headers.get('content-length') ?? '', 10);
@@ -113,16 +128,18 @@ async function limitBody(res: Response, url: string, limit: number): Promise<Res
     }
     chunks.push(value);
   }
-  const body = new Uint8Array(total);
+  let body: Uint8Array = new Uint8Array(total);
   let at = 0;
   for (const c of chunks) { body.set(c, at); at += c.byteLength; }
-  return new Response(total === 0 ? null : body, { status: res.status, statusText: res.statusText, headers: res.headers });
+  body = toUtf8(body, res.headers.get('content-type'));
+  return new Response(total === 0 ? null : (body as unknown as ConstructorParameters<typeof Response>[0]), { status: res.status, statusText: res.statusText, headers: res.headers });
 }
 
 export function politeFetch(opts: PoliteFetchOptions = {}): typeof fetch {
   const base = opts.fetchImpl ?? fetch;
   const maxWait = opts.maxWaitMs ?? 60_000;
   const minGap = opts.minGapMs ?? 1000;
+  const margin = opts.marginMs ?? 100;
   const maxBody = opts.maxBodyBytes ?? 64 * 1024 * 1024;
   const timeoutMs = opts.timeoutMs ?? 20_000;
   const now = opts.now ?? (() => Date.now());
@@ -130,11 +147,14 @@ export function politeFetch(opts: PoliteFetchOptions = {}): typeof fetch {
   const notBefore = new Map<string, number>();
   const crawlDelay = new Map<string, number>();
   const nextFree = new Map<string, number>();
+  // The latest moment at which the host is known to have seen a request from us: the send, then the answer's arrival.
+  const lastMark = new Map<string, number>();
+  const gapOf = (host: string): number => Math.max(minGap, crawlDelay.get(host) ?? 0) + margin;
 
   /** Reserves the next send time for a host, at once (so concurrent callers queue in order). */
   const reserve = (host: string): number => {
     const start = Math.max(now(), notBefore.get(host) ?? 0, nextFree.get(host) ?? 0);
-    nextFree.set(host, start + Math.max(minGap, crawlDelay.get(host) ?? 0));
+    nextFree.set(host, start + gapOf(host));
     return start;
   };
 
@@ -164,17 +184,22 @@ export function politeFetch(opts: PoliteFetchOptions = {}): typeof fetch {
     let waited = 0;
     for (;;) {
       const t = now();
-      if (start > t) { await sleep(start - t); waited += start - t; continue; } // a timer may fire a little early: check again
+      // The slot is a place in the queue; the real rule is measured from what the host last saw, so a timer that woke
+      // late, or a slow connection set-up, never brings two requests closer than the gap.
+      const earliest = Math.max(start, (lastMark.get(host) ?? -Infinity) + gapOf(host));
+      if (earliest > t) { await sleep(earliest - t); waited += earliest - t; continue; } // a timer may fire a little early: check again
       // A 429 that came back while this request slept moves the earliest time: take a new slot after it.
       if ((notBefore.get(host) ?? 0) > start) { start = reserve(host); continue; }
       break;
     }
     const sentAtMs = now();
+    lastMark.set(host, sentAtMs);
 
     let callInit = init;
     if (waited > 0) callInit = { ...init, signal: signalAfterWait(init?.signal, timeoutMs) };
     try {
       let res = await base(input, callInit);
+      lastMark.set(host, now());
       res = await limitBody(res, url, maxBody);
       if (isRobots) {
         if (res.status >= 200 && res.status < 300) {
@@ -184,7 +209,7 @@ export function politeFetch(opts: PoliteFetchOptions = {}): typeof fetch {
             if (rules.crawlDelayMs > 0) {
               crawlDelay.set(host, rules.crawlDelayMs);
               // The delay counts from the robots.txt request itself, so the next request waits for it too.
-              nextFree.set(host, Math.max(nextFree.get(host) ?? 0, start + rules.crawlDelayMs));
+              nextFree.set(host, Math.max(nextFree.get(host) ?? 0, start + rules.crawlDelayMs + margin));
             } else crawlDelay.delete(host);
           } catch { /* an unreadable robots.txt changes nothing here; the crawler decides what it means */ }
         } else if (res.status >= 500) {
@@ -200,6 +225,7 @@ export function politeFetch(opts: PoliteFetchOptions = {}): typeof fetch {
       opts.onRequest?.({ at: new Date(now()).toISOString(), url, host, status: res.status, waitedMs: waited, sentAtMs });
       return res;
     } catch (e) {
+      lastMark.set(host, now());
       if (isRobots && !(e instanceof HttpError)) {
         robotsProblems.set(host, `could not connect to ${host} to read robots.txt, so nothing was requested (an unreadable robots.txt means "do not crawl")`);
       }

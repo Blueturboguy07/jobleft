@@ -454,7 +454,12 @@ routes marked `sources-ats` (none; `listSources` merges its list). Contract chan
 
 <!-- BEGIN GENERATED: sig:packages/sources-ats -->
 ```ts
-export { ATS_SOURCES, allSources, crawledAtsIds } from './registry.ts';
+export { ATS_SOURCES, allSources, BUILTIN_SOURCES, crawledAtsIds } from './registry.ts';
+export { ashbyOverallPay, greenhouseUrlFor, GREENHOUSE_EU_HOST } from './adapters/builtins.ts';
+export { parseEuropeanPay } from './pay-text.ts';
+export { cleanDescription, descriptionText, statedPay, textField } from './util.ts';
+export { decodeEntitiesFull, stripControls } from './entities.ts';
+export { polishRaw, polishSource } from './polish.ts';
 export { atsName, classifyUrl, detectAts, neverContactHost } from './detect.ts';
 export type { AtsDetection, UrlClassification, UrlVerdict } from './detect.ts';
 export { atsHost, boardHost, normalRegion, SUBDOMAIN_FAMILIES } from './hosts.ts';
@@ -480,7 +485,7 @@ Key signatures (the block above only lists the re-exports of `src/index.ts`):
 
 | Export | Signature and meaning |
 |---|---|
-| `ATS_SOURCES` | `SourceRegistry` = `{ workable, recruitee, personio, teamtailor, gem }`. `allSources()` returns `{ ...SOURCES, ...ATS_SOURCES }` |
+| `ATS_SOURCES` | `SourceRegistry` = `{ workable, recruitee, personio, teamtailor, gem }`. `BUILTIN_SOURCES` = the crawler's `greenhouse`, `lever`, `ashby` run through this package's repairs (Greenhouse EU host and posted date, every Lever place, Ashby overall pay, clean text). `allSources()` returns `{ ...BUILTIN_SOURCES, ...ATS_SOURCES }`: use it, not `{ ...SOURCES, ...ATS_SOURCES }` |
 | `detectAts` | `(url: string) => AtsDetection \| null`; `AtsDetection { ats: AtsId; board: string \| null; region: string \| null; jobId: string \| null; crawlable: boolean }`. Pure string work. Board tokens are lower case; `region` is `"eu"` (Lever, Greenhouse EU links), `"com"` (Personio .com), `"na"` (Teamtailor North America), or the Workday `wdN` shard |
 | `classifyUrl` | `(url, notCrawledReason?) => { verdict: 'crawlable' \| 'job_link_without_board' \| 'not_crawled' \| 'never' \| 'unknown' \| 'invalid'; detection; message }`; `message` is one plain sentence. Pass `notCrawledReason` to name the reason |
 | `neverContactHost` | `(hostname) => { name, why } \| null` for LinkedIn, Indeed, Glassdoor, SmartRecruiters, Workday, iCIMS, Taleo, Oracle, UKG |
@@ -489,7 +494,7 @@ Key signatures (the block above only lists the re-exports of `src/index.ts`):
 | `ATS_SOURCE_LIST` | `ReadonlyArray<Omit<SourceInfo, 'enabled' \| 'keySet' \| 'status'>>`. Ids: `ats:<family>` for ATS families, `site:linkedin`, `site:indeed`, `site:glassdoor`. `ATS_SOURCE_DETAILS` adds `ats`, `docsFile`, `quote`, `quoteSource` |
 | `buildHealthReport` | `(run: RunReport, store: Store) => HealthReport`: per board (status, plain reason, flag, last checked, listed, read, new, updated, closed, open) and per ATS totals that add up |
 | `plainReason` | `(crawlerError: string) => string`: one plain sentence for a failed board (404, 429, 5xx, timeout, HTML, invalid JSON, cut-off XML, redirect, robots, ...) |
-| `politeFetch` | `(opts?) => typeof fetch`: a `fetchImpl` for `HttpClient` that obeys Retry-After (429 and 503) per host, keeps a robots.txt `Crawl-delay` between every two requests to a host (the crawler's `Pacer` applies it only from the second request after robots.txt), and refuses never-contact hosts before any request |
+| `politeFetch` | `(opts?) => typeof fetch`: a `fetchImpl` for `HttpClient` that keeps 1 s (+100 ms) between the sending of any two requests to a host, obeys Retry-After (429 and 503) per host, keeps a robots.txt `Crawl-delay` between every two requests to a host (the crawler's `Pacer` applies it only from the second request after robots.txt; a delay over `maxWaitMs`, 60 s, fails the request at once), does not let those waits use up the request timeout (`timeoutMs`, set it to the `HttpClient`'s), reads bodies with a size limit while they stream (`maxBodyBytes`, 64 MiB), turns Latin-1 feeds into UTF-8, remembers why a robots.txt could not be read (`robotsProblemFor`), and refuses never-contact hosts before any request |
 
 Rules: every adapter uses only the `HttpGetter` it is given (the XML adapters also need its `getText`, which the
 crawler's `HttpClient` has); `fullBoardListing` is true for all five: one answer is the whole board, and the paged
@@ -498,7 +503,7 @@ has lost its list field fails the board (it never looks empty); a listed job wit
 `unreadable`, never dropped silently; board tokens are checked before any request (a sub-domain token must be a DNS
 label, a path token a slug), so a token cannot point a request at another host; links that are not absolute http(s)
 are dropped; extra escape layers (`&amp;lt;p&amp;gt;`) are removed from descriptions and short fields before the crawler's `htmlToText`; never a request to SmartRecruiters, Workday, iCIMS, Oracle, UKG or
-Taleo. The server merges `{ ...SOURCES, ...ATS_SOURCES }` (`allSources()`).
+Taleo. The server uses `allSources()`. Greenhouse boards accept `"region": "eu"` (host `boards-api.eu.greenhouse.io`; that host is not in the approved-hosts table (section 9, Outbound hosts) until the owner adds it).
 
 CLI `jobleft-ats` (`packages/sources-ats/src/cli.ts`, run from the repository root with `node packages/sources-ats/src/cli.ts`):
 `sources [--json]`, `detect <url>... [--json]`, `crawl --boards <file> --db <file> [--out <report.json>] [--log <requests.ndjson>]

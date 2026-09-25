@@ -6,7 +6,7 @@ recognises ATS links that a person pastes.
 
 | Family | Crawled | Feed jobleft reads |
 |---|---|---|
-| Greenhouse, Lever, Ashby | yes (adapters in `@jobleft/crawler`) | their documented public board APIs |
+| Greenhouse, Lever, Ashby | yes (adapters in `@jobleft/crawler`, run through this package's repairs, see section 4) | their documented public board APIs (Greenhouse `"region": "eu"`: `boards-api.eu.greenhouse.io`) |
 | Workable | yes | `apply.workable.com/api/v1/widget/accounts/<board>?details=true` |
 | Recruitee | yes | `<board>.recruitee.com/api/offers/` |
 | Personio | yes | `<board>.jobs.personio.de/xml` (or `.jobs.personio.com`) |
@@ -67,7 +67,7 @@ invalid                This is not a web link (http or https), so jobleft cannot
 Board and job links of every family are recognised, including regional hosts (`jobs.eu.lever.co`,
 `job-boards.eu.greenhouse.io`, `<board>.jobs.personio.com`, `<board>.na.teamtailor.com`) and company pages that
 carry `gh_jid` or `ashby_jid`. Case, tracking parameters, fragments and a trailing slash do not change the board.
-Add `--json` for the full detection (`ats`, `board`, `region`, `jobId`, `crawlable`).
+Add `--json` for the full detection (`ats`, `board`, `region`, `jobId`, `crawlable`); it takes no value, so it may stand before or after any number of links, and every link gets its own answer.
 
 ## 3. Crawl stand-in boards
 
@@ -133,12 +133,12 @@ Every ATS gives the same fields with the same meaning:
 | Field | Meaning | Missing means |
 |---|---|---|
 | title, company | The posting's title; the employer name the board reports (else the name in the board list) | never missing |
-| location | Every place the posting lists, "City, Region, Country", several joined with "; " | not stated (never "Remote", never a default country) |
+| location | Every place the posting lists, "City, Region, Country", several joined with "; " (Lever: every place in `categories.allLocations`) | not stated (never "Remote", never a default country) |
 | remote, workMode | What the board states (Workable `workplace_type`/`telecommuting`, Recruitee `remote`/`hybrid`/`on_site`, Teamtailor `remoteStatus`, Gem `location_type`); the crawler also reads "Remote" in the place text | not stated (never "On-site" by default) |
-| pay | min, max, currency, period exactly as stated. Recruitee states plain amounts, never cents | not stated. Pay in the text is read by the crawler's text parser and marked `text` |
-| postedAt | The board's posting date in UTC. A date without a time (Workable) is stored at 12:00 UTC so the day is the same in every time zone from UTC-12 to UTC+11 | not stated (never the crawl time) |
+| pay | min, max, currency, period exactly as stated: decimals are kept (Recruitee "22.50" is 22.5), and a period the board does not state stays "not stated" (the amounts are still kept). Recruitee states plain amounts, never cents. Ashby: the board's overall range (`summaryComponents`), not the first of several tiers | not stated. Pay in the text is read by the crawler's text parser and marked `text`; pay written in European number style (`€45.000 – €55.000 brutto jährlich`, `CHF 85'000 - 95'000 pro Jahr`, `€14,50 - €16,00 pro Stunde`) is read by this package (`parseEuropeanPay`), because the crawler's parser would take "45.000" for 45. Such a pay shows source `api` (the crawler's label for "a pay the adapter gave"), and it is never given a period the text does not support |
+| postedAt | The board's posting date in UTC (Greenhouse: `first_published` only; `updated_at` is the last edit, not the posting). A date without a time (Workable) is stored at 12:00 UTC so the day is the same in every time zone from UTC-12 to UTC+11 | not stated (never the crawl time) |
 | url, applyUrl | The job's own page on the ATS (its id is in the link), and the apply page when the board gives one | only absolute http(s) links are kept; a `javascript:` link is dropped |
-| description | Plain text: tags, scripts, CDATA and entity codes removed (also when a board escaped the HTML twice); lists kept as "- " lines; sections kept under their own headings | empty |
+| description | Plain text: tags, scripts, CDATA and entity codes removed (all 252 HTML 4 names such as `&atilde;` `&szlig;` `&euro;`, and numeric codes; also when a board escaped the HTML twice or mixed live and escaped HTML); terminal control characters (ESC, BEL, NUL) removed, in titles, places and descriptions too; lists kept as "- " lines; sections kept under their own headings | empty |
 
 Per-family details (field by field): `docs/sources/<family>.md`.
 
@@ -197,8 +197,10 @@ file between crawls.
 | Rule | Where |
 |---|---|
 | User-Agent `jobleft-build/0.1 (research build; no personal data)`, no other identifying header, no cookie, no profile data in any URL or body | crawler `HttpClient` |
-| At most 1 request per second per host; a path robots.txt disallows is never requested; a longer `Crawl-delay` is kept between every two requests to that host, the first request after robots.txt included | crawler `HttpClient`, `Pacer`; `politeFetch` adds the first-request delay |
-| After a 429 or 503 with `Retry-After`, no request reaches that host until the time has passed (waits over 60 s fail the board at once instead of holding the crawl) | `politeFetch` (this package, used by `crawl`) |
+| At most 1 request per second per host, counted from what the host last saw (with a 100 ms margin), also right after a `Retry-After` wait; a path robots.txt disallows is never requested; a longer `Crawl-delay` is kept between every two requests to that host, the first request after robots.txt included. A `Crawl-delay` over 60 s fails the board at once with that reason; a shorter one is waited, and the wait does not use up the request's 20 s timeout | crawler `HttpClient`, `Pacer`; `politeFetch` (this package) |
+| After a 429 or 503 with `Retry-After`, no request reaches that host until the time has passed, and the queued requests then leave 1.1 s apart (waits over 60 s fail the board at once instead of holding the crawl) | `politeFetch` (this package, used by `crawl`) |
+| An answer body is read with a 64 MiB limit while it streams (an endless answer stops at the limit; memory never holds more); a Latin-1 feed is turned into UTF-8 | `politeFetch` |
+| A robots.txt that could not be read (no connection, HTTP 5xx) is reported as that ("could not connect ...", "robots.txt could not be read (HTTP 500)"), not as "robots.txt disallows this feed" | `politeFetch`, `plainReason` |
 | Never a request to LinkedIn, Indeed, Glassdoor, SmartRecruiters, Workday, iCIMS, Oracle, UKG or Taleo, also not by redirect; redirects are never followed | crawler `DENY_HOST`, `politeFetch`, `neverContactHost` |
 | A board token is checked before any request (a sub-domain must be a plain DNS label), so `evil.com/x?` as a board sends nothing | adapters |
 | A bad board (404, 429, 500, timeout, empty, invalid JSON, HTML, cut-off XML, a renamed list field, a 30 MB body, a redirect, a feed whose pages never end) fails with one plain reason and never stops the other boards | adapters, crawler, `plainReason` |
@@ -206,7 +208,7 @@ file between crawls.
 ## Tests and checks
 
 ```sh
-pnpm --filter @jobleft/sources-ats test        # 43 tests, no live request, about 10 s
+pnpm --filter @jobleft/sources-ats test        # 59 tests, no live request, about 40 s
 pnpm --filter @jobleft/sources-ats typecheck
 ```
 
@@ -232,7 +234,10 @@ a job once per city under one shortcode; the adapter now merges those rows into 
   on a large board can close.
 - The crawler flags a second job with the same company and title as a role duplicate (`duplicate_of`) even when its id
   and place differ; whether such rows are hidden is the store lane's choice.
-- Greenhouse EU links are recognised (`region: "eu"`), but the crawler's Greenhouse adapter has no EU host yet.
+- Greenhouse boards with `"region": "eu"` are read from `boards-api.eu.greenhouse.io` by this package's wrapper. The crawler's own Greenhouse adapter still knows no EU host, so code that runs `SOURCES` from `@jobleft/crawler` directly (not `allSources()`) reads the US host.
+- Pay in the text that this package reads (European number style) shows source `api`, because the crawler labels every pay an adapter hands over that way. Only the amounts and period are checked against the text.
+- A `Retry-After` and `Crawl-delay` are waited only when they are 60 s or less; a longer one fails the board for this run (its reason names the seconds).
+- `politeFetch` is what makes the pace, the body limit and the robots.txt reasons true. Code that uses the crawler's `HttpClient` without `politeFetch` does not have them (crawler lane).
 - The crawler's own never-crawl list does not yet include iCIMS, Oracle, UKG and Taleo; this package's `crawl`
   command refuses them through `politeFetch`.
 - The crawler's `Pacer` applies a robots.txt `Crawl-delay` only from the second request after robots.txt, and stops a
