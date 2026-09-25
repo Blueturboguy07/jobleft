@@ -13,6 +13,26 @@ import type { AiChunk, AiMessage, AiRequest, ProviderDriver } from '../types.ts'
 export interface OllamaModelInfo {
   capabilities: string[] | null;
   family: string | null;
+  /** The longest context the model can read, in tokens (model_info "<arch>.context_length"), or null. */
+  contextLength?: number | null;
+}
+
+/** Ollama's usual context when none is set. Longer prompts get a larger num_ctx, so Ollama never cuts them silently. */
+const DEFAULT_OLLAMA_CTX = 4096;
+
+/** The num_ctx to ask for, or a plain refusal when the text cannot fit the model at all (ai-engine O13). */
+export function contextPlan(model: string, promptChars: number, maxTokens: number | undefined, thinking: boolean, info: OllamaModelInfo | null): number | undefined {
+  const likely = Math.ceil(promptChars / 4) + 64;        // about 4 characters per token in English
+  const generous = Math.ceil(promptChars / 3) + 64;      // room for denser text
+  const need = generous + (maxTokens ?? 1024) + (thinking ? 2048 : 0);
+  const limit = info?.contextLength ?? null;
+  if (limit !== null && likely + 64 > limit) {
+    throw new AiError('provider_error', `The text is too long for the model "${model.slice(0, 80)}" (about ${likely.toLocaleString('en-US')} tokens; it reads at most ${limit.toLocaleString('en-US')}). Use a shorter text or a model with a longer context.`);
+  }
+  if (need <= DEFAULT_OLLAMA_CTX) return undefined;
+  let ctx = DEFAULT_OLLAMA_CTX;
+  while (ctx < need) ctx *= 2;
+  return limit !== null ? Math.min(ctx, limit) : ctx;
 }
 
 export interface OllamaDriverOptions {
@@ -90,7 +110,13 @@ export class OllamaDriver implements ProviderDriver {
     const info: OllamaModelInfo = {
       capabilities: Array.isArray(parsed.capabilities) ? parsed.capabilities.filter((c: unknown) => typeof c === 'string') : null,
       family: typeof parsed.details?.family === 'string' ? parsed.details.family : null,
+      contextLength: null,
     };
+    if (parsed.model_info && typeof parsed.model_info === 'object') {
+      for (const [k, v] of Object.entries(parsed.model_info as Record<string, unknown>)) {
+        if (k.endsWith('.context_length') && typeof v === 'number' && v > 0) info.contextLength = v;
+      }
+    }
     this.infoCache.set(model, info);
     return info;
   }
@@ -104,6 +130,9 @@ export class OllamaDriver implements ProviderDriver {
     const { headers, keySet } = await this.headers();
     const options: Record<string, number> = {};
     if (req.maxTokens) options.num_predict = think === undefined ? req.maxTokens : req.maxTokens + 4096;
+    const promptChars = req.messages.reduce((n, m) => n + m.content.length, 0) + (opts.json ? JSON.stringify(opts.json).length : 0);
+    const numCtx = contextPlan(this.model, promptChars, req.maxTokens, think !== undefined, info);
+    if (numCtx !== undefined) options.num_ctx = numCtx;
     if (req.temperature !== undefined) options.temperature = req.temperature;
     const body: Record<string, unknown> = { model: this.model, messages: toOllamaMessages(req.messages), stream: true };
     if (Object.keys(options).length) body.options = options;

@@ -313,3 +313,16 @@ test('a server with no model list (a 404 page) still passes the check when chat 
     assert.equal(c2.problem, 'not_ai_server');
   } finally { srv.close(); }
 });
+
+test('Ollama: a long text gets a larger context, and a text that cannot fit is refused in plain words', async () => {
+  await withModel({ models: ['plain:7b'] }, async (m) => {
+    const { engine } = makeEngine();
+    await use(engine, { provider: 'local', localKind: 'ollama', baseUrl: m.url, model: 'plain:7b' });
+    await engine.client().complete({ messages: [{ role: 'user', content: 'x'.repeat(12_000) }] });
+    const body = JSON.parse(m.log.entries.filter((e) => e.path === '/api/chat').at(-1)!.body);
+    assert.equal(body.options.num_ctx, 8192);
+    const before = m.log.entries.filter((e) => e.path === '/api/chat').length;
+    await assert.rejects(engine.client().complete({ messages: [{ role: 'user', content: 'resume '.repeat(8000) }] }), (e: AiError) => /too long for the model/.test(e.message));
+    assert.equal(m.log.entries.filter((e) => e.path === '/api/chat').length, before, 'nothing was sent');
+  });
+});

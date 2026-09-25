@@ -124,7 +124,7 @@ export async function startMockModelServer(opts: MockModelOptions = {}): Promise
       const name = String(json.model ?? json.name ?? '');
       if (!models.some((m) => sameName(m, name))) return sendJson(res, 404, { error: `model '${name}' not found` });
       const caps = /embed/.test(name) ? ['embedding'] : thinking.has(name) ? ['completion', 'thinking'] : ['completion'];
-      return sendJson(res, 200, { capabilities: caps, details: { family: 'standin' } });
+      return sendJson(res, 200, { capabilities: caps, details: { family: 'standin' }, model_info: { 'standin.context_length': 8192 } });
     }
     if (req.method === 'POST' && (path === '/api/pull' || path === '/api/create' || path === '/api/delete')) {
       log.note(entry, 'REFUSED: model management', 403);
