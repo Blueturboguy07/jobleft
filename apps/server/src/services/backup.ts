@@ -78,7 +78,7 @@ function listFiles(root: string, under: string): string[] {
   return out;
 }
 
-function freeBytes(path: string): number {
+export function freeBytes(path: string): number {
   try { const s = statfsSync(path); return Number(s.bavail) * Number(s.bsize); } catch { return Number.MAX_SAFE_INTEGER; }
 }
 

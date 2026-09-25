@@ -17,7 +17,7 @@ import { bodyToFile } from './http/body.ts';
 import { addExternal } from './interim/external.ts';
 import { detailOf } from './interim/jobs.ts';
 import { DOCX, PDF } from './interim/resumes.ts';
-import { RESTORE_LIMIT, createBackup, deleteAllData, exportAll, restoreBackup } from './services/backup.ts';
+import { RESTORE_LIMIT, createBackup, deleteAllData, exportAll, freeBytes, restoreBackup } from './services/backup.ts';
 import { ExtensionService } from './services/extension.ts';
 import { APP_VERSION } from './version.ts';
 
@@ -77,6 +77,10 @@ export const HANDLERS: HandlerTable = {
   },
   restore: async ({ app, req }) => {
     const upload = join(app.cfg.layout.tmp, `${tmpName('upload')}.zip`);
+    const declared = Number(req.headers['content-length'] ?? NaN);
+    if (Number.isFinite(declared) && declared > freeBytes(app.cfg.layout.tmp) - 64 * 1024 * 1024) {
+      throw new ApiFailure('write_failed', 'There is not enough free disk space to check this backup. Nothing was changed.', { details: { reason: 'full' } });
+    }
     try {
       await bodyToFile(req, upload, RESTORE_LIMIT);
       const restored = await restoreBackup(app, upload);
