@@ -19,8 +19,9 @@ import {
 } from './ai.ts';
 import { CompanySchema } from './company.ts';
 import {
-  ExtensionStatusSchema, FillRequestSchema, FillResponseSchema, PairingCodeSchema, PairingInfoSchema, PairRequestSchema,
-  PairResponseSchema, ReviewResponseSchema, ReviewResultSchema,
+  DraftRequestSchema, DraftResponseSchema, ExtensionStatusSchema, FillRequestSchema, FillResponseSchema, PageInfoRequestSchema,
+  PageInfoSchema, PairingCodeSchema, PairingInfoSchema, PairRequestSchema, PairResponseSchema, ReviewResponseSchema,
+  ReviewResultSchema,
 } from './extension.ts';
 import { JobFilterSchema, JobSearchRequestSchema, JobSearchResponseSchema, JobSortSchema, SavedFilterSchema } from './filter.ts';
 import { JobSchema, JobSummarySchema, CrawlAtsIdSchema } from './job.ts';
@@ -305,6 +306,8 @@ export const LOCAL_API = {
   extensionStatus: route({ method: 'GET', path: '/api/v1/extension/status', auth: 'pairing', owner: 'server', summary: 'Paired state and profile completeness', response: ExtensionStatusSchema }),
   fill: route({ method: 'POST', path: '/api/v1/extension/fill', auth: 'pairing', owner: 'server', summary: 'Values for the form fields of an application page', body: FillRequestSchema, response: FillResponseSchema }),
   review: route({ method: 'POST', path: '/api/v1/extension/review', auth: 'pairing', owner: 'server', summary: 'What the user reviewed and whether the user submitted', body: ReviewResultSchema, response: ReviewResponseSchema }),
+  extensionPage: route({ method: 'POST', path: '/api/v1/extension/page', auth: 'pairing', owner: 'server', summary: 'Which job a page address is, whether the person applied, and the resumes to attach (the address only; no page text)', body: PageInfoRequestSchema, response: PageInfoSchema }),
+  extensionDrafts: route({ method: 'POST', path: '/api/v1/extension/drafts', auth: 'pairing', owner: 'server', summary: 'Draft answers for open questions after the person saw the price (never written into a form by the app)', body: DraftRequestSchema, response: DraftResponseSchema }),
 } as const;
 
 export type LocalApi = typeof LOCAL_API;

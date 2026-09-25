@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:DraftRequest",
+  "title": "DraftRequest",
+  "type": "object",
+  "properties": {
+    "requestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "pageUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://",
+      "maxLength": 4096,
+      "description": "Absolute http(s) URL"
+    },
+    "jobId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "email",
+              "tel",
+              "url",
+              "textarea",
+              "select",
+              "radio",
+              "checkbox",
+              "file",
+              "date",
+              "number",
+              "unknown"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value",
+                "label"
+              ]
+            },
+            "maxItems": 500
+          },
+          "maxLength": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "autocomplete": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "placeholder": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "inputType": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "entry": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50
+          },
+          "context": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "combobox": {
+            "type": "boolean"
+          },
+          "accept": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "fieldId",
+          "label",
+          "name",
+          "kind",
+          "required",
+          "options",
+          "maxLength",
+          "section"
+        ],
+        "title": "FormField"
+      },
+      "minItems": 1,
+      "maxItems": 20
+    },
+    "maxCostMicros": {
+      "type": "integer",
+      "description": "Integer millionths of a US dollar"
+    }
+  },
+  "required": [
+    "requestId",
+    "pageUrl",
+    "jobId",
+    "fields",
+    "maxCostMicros"
+  ]
+}

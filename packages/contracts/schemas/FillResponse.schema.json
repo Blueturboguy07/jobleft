@@ -54,6 +54,14 @@
           },
           "needsReview": {
             "type": "boolean"
+          },
+          "item": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "topic": {
+            "type": "string",
+            "maxLength": 60
           }
         },
         "required": [
@@ -109,6 +117,11 @@
           },
           "base64": {
             "type": "string"
+          },
+          "resumeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
           }
         },
         "required": [
@@ -124,6 +137,95 @@
       "items": {
         "type": "string"
       }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "no_value",
+              "sensitive",
+              "other_person",
+              "open_question",
+              "consent",
+              "account",
+              "captcha",
+              "no_option",
+              "file",
+              "duplicate",
+              "unknown"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "topic": {
+            "type": "string",
+            "maxLength": 60
+          }
+        },
+        "required": [
+          "fieldId",
+          "reason",
+          "message"
+        ],
+        "title": "FieldNote"
+      }
+    },
+    "draftOffer": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "fieldIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "provider": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "local": {
+              "type": "boolean"
+            },
+            "maxPriceMicrosPerDraft": {
+              "type": "integer",
+              "description": "Integer millionths of a US dollar"
+            },
+            "balanceMicros": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "description": "Integer millionths of a US dollar"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "fieldIds",
+            "provider",
+            "local",
+            "maxPriceMicrosPerDraft",
+            "balanceMicros"
+          ],
+          "title": "DraftOffer"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [

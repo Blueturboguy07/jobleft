@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Apply - My Information (practice page, Workday-like, HAND-MADE not recorded)</title><link rel="stylesheet" href="/practice/_style.css"><script src="/practice/_log.js"></script>
+<style>
+  [data-automation-id^="formField-"] { margin: 12px 0; display: flex; flex-direction: column; }
+  [data-automation-id^="formField-"] label { font: bold 14px Arial, sans-serif; }
+  button[aria-haspopup="listbox"] { text-align: left; padding: 6px; border: 1px solid #bbb; border-radius: 4px; background: #fff; max-width: 480px; font: 14px Arial; }
+  ul[role="listbox"] { list-style: none; padding: 0; margin: 0; border: 1px solid #bbb; max-width: 480px; background: #fff; }
+  li[role="option"] { padding: 5px 8px; cursor: pointer; }
+  .steps { font: 13px Arial; color: #555; }
+</style>
+</head>
+<body>
+<div class="wrap" data-automation-id="applyFlowPage">
+  <div class="steps">Step 2 of 5: My Information</div>
+  <h2>My Information</h2>
+  <div data-automation-id="formField-country"><label id="country-label">Country *</label>
+    <button type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="country-label" data-automation-id="countryDropdown" data-options="Canada|United States Minor Outlying Islands|United States of America">Select One</button></div>
+  <div data-automation-id="formField-legalNameSection_firstName"><label for="fn">Given Name(s) *</label><input id="fn" data-automation-id="legalNameSection_firstName" type="text"></div>
+  <div data-automation-id="formField-legalNameSection_lastName"><label for="ln">Family Name *</label><input id="ln" data-automation-id="legalNameSection_lastName" type="text"></div>
+  <div data-automation-id="formField-addressSection_city"><label for="city">City</label><input id="city" data-automation-id="addressSection_city" type="text"></div>
+  <div data-automation-id="formField-addressSection_countryRegion"><label id="state-label">State</label>
+    <button type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="state-label" data-automation-id="addressSection_countryRegion" data-options="Tennessee|Texas|Utah">Select One</button></div>
+  <div data-automation-id="formField-email"><label for="em">Email Address *</label><input id="em" data-automation-id="email" type="text"></div>
+  <div data-automation-id="formField-phoneType"><label id="ptype-label">Phone Device Type *</label>
+    <button type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="ptype-label" data-automation-id="phone-device-type" data-options="Home|Mobile|Work">Select One</button></div>
+  <div data-automation-id="formField-phoneNumber"><label for="ph">Phone Number *</label><input id="ph" data-automation-id="phone-number" type="text"></div>
+  <h2>My Experience</h2>
+  <div data-automation-id="workExperienceSection"><h3>Work Experience</h3><button type="button" data-automation-id="Add" onclick="navigator.sendBeacon('/__event', new Blob([JSON.stringify({type:'event',page:location.pathname,detail:'Add work row pressed'})]))">Add</button></div>
+  <div data-automation-id="educationSection"><h3>Education</h3><button type="button" data-automation-id="Add">Add</button></div>
+  <div data-automation-id="formField-resume"><label for="res">Resume/CV</label><input id="res" type="file" data-automation-id="file-upload-input-ref" accept=".pdf,.docx"></div>
+  <div style="margin-top:20px"><button type="button" class="btn" data-automation-id="bottom-navigation-next-button" data-next>Save and Continue</button></div>
+</div>
+<script>
+  document.querySelectorAll('button[aria-haspopup="listbox"]').forEach(function (b, i) {
+    var list = document.createElement('ul'); list.setAttribute('role', 'listbox'); list.id = 'wd-list-' + i; list.style.display = 'none';
+    b.setAttribute('aria-controls', list.id);
+    b.getAttribute('data-options').split('|').forEach(function (o) {
+      var li = document.createElement('li'); li.setAttribute('role', 'option'); li.setAttribute('data-automation-id', 'promptOption'); li.textContent = o;
+      li.addEventListener('click', function () { b.textContent = o; list.style.display = 'none'; b.setAttribute('aria-expanded', 'false'); });
+      list.appendChild(li);
+    });
+    b.parentNode.appendChild(list);
+    b.addEventListener('click', function () { var open = list.style.display === 'none'; list.style.display = open ? 'block' : 'none'; b.setAttribute('aria-expanded', open ? 'true' : 'false'); });
+  });
+</script>
+</body></html>

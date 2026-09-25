@@ -137,6 +137,34 @@
                 "type": "null"
               }
             ]
+          },
+          "autocomplete": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "placeholder": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "inputType": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "entry": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50
+          },
+          "context": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "combobox": {
+            "type": "boolean"
+          },
+          "accept": {
+            "type": "string",
+            "maxLength": 300
           }
         },
         "required": [

@@ -14,7 +14,7 @@
 //      job Applied in the tracker.
 // The extension never receives network contacts, AI keys or the publik key. EEO answers go only into EEO fields.
 
-import { HttpUrlSchema, IdSchema, IsoDateTimeSchema } from './common.ts';
+import { HttpUrlSchema, IdSchema, IsoDateTimeSchema, MicrosSchema } from './common.ts';
 import { AtsIdSchema } from './job.ts';
 import { TrackerEntrySchema } from './tracker.ts';
 import { arr, bool, enm, int, named, nullable, obj, str, type Infer } from './schema.ts';
@@ -62,6 +62,22 @@ export const FormFieldSchema = named(obj({
   maxLength: nullable(int({ minimum: 0 })),
   /** The form section heading, when there is one ("Voluntary Self-Identification"). */
   section: nullable(str({ maxLength: 200 })),
+}, {
+  // Optional hints (contracts 1.1, extension lane). Readers treat a missing hint as unknown.
+  /** The control's HTML autocomplete token ("given-name", "email", "tel", "address-level2"). */
+  autocomplete: str({ maxLength: 100 }),
+  /** The input's placeholder text. */
+  placeholder: str({ maxLength: 300 }),
+  /** The input's HTML type ("text", "email", "month", "search"). */
+  inputType: str({ maxLength: 40 }),
+  /** 0-based position of this field's repeated block ("School" of the second education entry = 1). */
+  entry: int({ minimum: 0, maximum: 50 }),
+  /** Nearby words that change who the field is about ("Reference 1", "Emergency contact", "Education"). */
+  context: str({ maxLength: 300 }),
+  /** true for a custom dropdown whose options appear only when opened (options is then empty). */
+  combobox: bool(),
+  /** The accept attribute of a file input (".pdf,.docx"). */
+  accept: str({ maxLength: 300 }),
 }), 'FormField');
 
 export const FillRequestSchema = named(obj({
@@ -76,6 +92,35 @@ export const FillRequestSchema = named(obj({
   resumeId: nullable(IdSchema),
 }), 'FillRequest');
 
+/** Why the app left a field empty. */
+export const FIELD_NOTE_REASONS = [
+  'no_value', 'sensitive', 'other_person', 'open_question', 'consent', 'account', 'captcha', 'no_option', 'file',
+  'duplicate', 'unknown',
+] as const;
+
+export const FieldNoteSchema = named(obj({
+  fieldId: str(),
+  reason: enm(FIELD_NOTE_REASONS),
+  /** One plain sentence for the person. */
+  message: str({ maxLength: 300 }),
+}, {
+  /** The topic the app recognised, when it recognised one. */
+  topic: str({ maxLength: 60 }),
+}), 'FieldNote');
+
+export const DraftOfferSchema = named(obj({
+  /** The open questions the app can draft. */
+  fieldIds: arr(str()),
+  /** The provider in words ("Local model (llama3.1:8b)", "publik API"). */
+  provider: str({ maxLength: 120 }),
+  /** true when drafting sends nothing off this computer. */
+  local: bool(),
+  /** The most one draft can cost, in micros; 0 for a free provider. */
+  maxPriceMicrosPerDraft: MicrosSchema,
+  /** The publik balance now, when the provider is publik. */
+  balanceMicros: nullable(MicrosSchema),
+}), 'DraftOffer');
+
 export const FillResponseSchema = named(obj({
   requestId: IdSchema,
   /** The local job this page belongs to, matched from its URL; null when unknown. */
@@ -89,6 +134,15 @@ export const FillResponseSchema = named(obj({
     confidence: enm(['exact', 'likely']),
     /** true when the value needs the person's eye (for example a close dropdown match). */
     needsReview: bool(),
+  }, {
+    /** The profile item the value came from, in words ("Phone", "Education 1: School"). Shown in the report. */
+    item: str({ maxLength: 200 }),
+    /**
+     * The topic the app recognised ("country", "edu_degree", "eeo_veteran"). For a combobox (options unknown when the
+     * extension asked) the value is the wanted option text, and the extension picks an option with the same strict
+     * matcher for this topic, or leaves the field empty.
+     */
+    topic: str({ maxLength: 60 }),
   })),
   /**
    * Draft answers for open questions. They are NEVER written into the form by the fill: the extension shows each
@@ -98,8 +152,19 @@ export const FillResponseSchema = named(obj({
   /** Fields the app has no answer for. The extension leaves them empty and marks them. */
   unknownFieldIds: arr(str()),
   /** Files to attach (the resume PDF), base64. */
-  files: arr(obj({ fieldId: str(), fileName: str(), mimeType: str(), base64: str() })),
+  files: arr(obj({ fieldId: str(), fileName: str(), mimeType: str(), base64: str() }, {
+    /** The resume record the file came from. */
+    resumeId: IdSchema,
+  })),
   warnings: arr(str()),
+}, {
+  /** Why each field without a fill was left empty (the report shows it as "needs you"). */
+  notes: arr(FieldNoteSchema),
+  /**
+   * Drafts the app can make for open questions when the provider costs money (or is not free to call): the extension
+   * shows the price in dollars and asks first (POST /api/v1/extension/drafts). null = no draft provider set up.
+   */
+  draftOffer: nullable(DraftOfferSchema),
 }), 'FillResponse');
 
 export const ReviewResultSchema = named(obj({
@@ -115,7 +180,57 @@ export const ReviewResultSchema = named(obj({
   /** Answers the user chose to remember for later forms (label and value only). */
   savedAnswers: arr(obj({ label: str({ maxLength: 1000 }), value: str({ maxLength: 5000 }) }), { maxItems: 100 }),
   at: IsoDateTimeSchema,
+}, {
+  /** The resume the extension attached, so the tracker can name the version that went out. */
+  resumeId: nullable(IdSchema),
 }), 'ReviewResult');
+
+/** What the extension asks about the page the person is on (only its address; never page text). */
+export const PageInfoRequestSchema = named(obj({
+  pageUrl: HttpUrlSchema,
+}), 'PageInfoRequest');
+
+/** The app's answer: which job this page is, whether the person applied, and the resumes they can attach. */
+export const PageInfoSchema = named(obj({
+  /** null when the page matches no job in the app. */
+  jobId: nullable(IdSchema),
+  title: nullable(str()),
+  company: nullable(str()),
+  /** The tracker says the person applied to this job (their own confirm), with the date. */
+  applied: nullable(obj({ at: IsoDateTimeSchema, resumeId: nullable(IdSchema) })),
+  resumes: arr(obj({
+    id: IdSchema,
+    name: str(),
+    fileName: str(),
+    /** A version tailored for this job. */
+    tailoredForThisJob: bool(),
+    /** The person's default (primary) resume. */
+    isDefault: bool(),
+  })),
+  /** The resume a fill attaches unless the person picks another: the version for this job, else the default. */
+  suggestedResumeId: nullable(IdSchema),
+}), 'PageInfo');
+
+/** Draft answers for open questions, after the person saw the price and asked (O8, O15). */
+export const DraftRequestSchema = named(obj({
+  requestId: IdSchema,
+  pageUrl: HttpUrlSchema,
+  jobId: nullable(IdSchema),
+  /** Only the open questions to draft (label and limits; never page text). */
+  fields: arr(FormFieldSchema, { minItems: 1, maxItems: 20 }),
+  /** The most the person agreed to spend on this request, in micros (0 = free providers only). */
+  maxCostMicros: MicrosSchema,
+}), 'DraftRequest');
+
+export const DraftResponseSchema = named(obj({
+  drafts: arr(obj({ fieldId: str(), text: str(), provider: str() })),
+  /** What this request spent, in micros (0 for a local or free provider). */
+  costMicros: MicrosSchema,
+  /** The publik balance after the request, when the provider is publik. */
+  balanceMicros: nullable(MicrosSchema),
+  /** Questions the app would not draft, with a reason each. */
+  skipped: arr(obj({ fieldId: str(), message: str() })),
+}), 'DraftResponse');
 
 export const ReviewResponseSchema = named(obj({
   /** The tracker entry after the review (Applied when the user submitted). */
@@ -141,3 +256,10 @@ export type FillRequest = Infer<typeof FillRequestSchema>;
 export type FillResponse = Infer<typeof FillResponseSchema>;
 export type ReviewResult = Infer<typeof ReviewResultSchema>;
 export type ReviewResponse = Infer<typeof ReviewResponseSchema>;
+export type FieldNote = Infer<typeof FieldNoteSchema>;
+export type FieldNoteReason = (typeof FIELD_NOTE_REASONS)[number];
+export type DraftOffer = Infer<typeof DraftOfferSchema>;
+export type PageInfoRequest = Infer<typeof PageInfoRequestSchema>;
+export type PageInfo = Infer<typeof PageInfoSchema>;
+export type DraftRequest = Infer<typeof DraftRequestSchema>;
+export type DraftResponse = Infer<typeof DraftResponseSchema>;
