@@ -302,7 +302,11 @@ export class AiService {
           const raw = (await res.text().catch(() => '')).slice(0, 65536);
           if (res.status === 402 && t.provider === 'publik') throw this.publik.balanceFailure(raw);
           if (res.status === 401 || res.status === 403) throw new ApiFailure('provider_error', `${t.label} refused the key. Check the key in Settings.`);
-          if (res.status === 404) throw new ApiFailure('provider_error', `${t.label} does not have the model "${t.model}".`);
+          if (res.status === 404) {
+            throw new ApiFailure('provider_error', t.kind === 'ollama'
+              ? `${t.label} does not have the model "${t.model}".`
+              : `${t.label} answered "not found" for the model "${t.model}". Check the model name, and check the address: an OpenAI-compatible address usually ends in /v1.`);
+          }
           if (res.status === 429) throw new ApiFailure('rate_limited', `${t.label} is limiting requests right now. Wait a minute, then try again.`);
           throw new ApiFailure('provider_error', `${t.label} failed (HTTP ${res.status}).`);
         }
