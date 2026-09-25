@@ -1,81 +1,42 @@
 // @jobleft/boards: which boards the laptop crawls and when.
-//   * the board directory (shipped rows from @jobleft/static-data) and search in it ("stripe", "Stripe, Inc.")
-//   * the user's boards and choices (added by link, follow, hide, disable) in `board_prefs` (owned here);
-//     board health lives in the crawler's `boards` table
-//   * resolve a careers or job link to a board (preview only; adding needs the person's confirmation)
+//   * the board directory (packages/boards/data/board-directory.json, built from JobSync's MIT lists and checked
+//     against each provider) and search in it ("stripe", "Stripe, Inc.")
+//   * the person's boards and choices (added by link, follow, hide, disable) in `board_prefs` (owned here);
+//     what each check saw lives in `board_checks` (owned here); the crawler's `boards` table stays the crawler's
+//   * resolve a careers or job link to a board (preview only; adding needs the person's confirmation), including
+//     employer-hosted pages that embed a board and gh_jid links
+//   * dead boards: two failed checks in a row make a board unreachable, with a stated next check date; it comes
+//     back by itself when it answers again; a person's own boards are never deleted
 //   * crawl planning and the scheduler: catch-up on launch, a regular refresh, dead boards backed off
-// Status: interface stubs (foundation), except boardId. Bodies throw until the boards lane implements them.
-// Interface: docs/INTERFACES.md, section "@jobleft/boards".
-
-import type { DatabaseSync } from 'node:sqlite';
-import type {
-  BoardEntry, BoardResolveResponse, CrawlAtsId, CrawlBoardReport, CrawlProgress, CrawlRunSummary,
-} from '@jobleft/contracts';
-import type { BoardRef, HttpClient, SourceRegistry, Store } from '@jobleft/crawler';
-import type { DirectoryRow } from '@jobleft/static-data';
+// Interface: docs/INTERFACES.md, section "@jobleft/boards". CLI: src/cli.ts (jobleft-boards). Scripts: scripts/.
 
 export const PACKAGE_NAME = '@jobleft/boards';
 
-function notImplemented(what: string): never {
-  throw new Error(`not implemented yet: ${what} (lane: @jobleft/boards)`);
-}
-
-/** "<ats>:<board>" or "<ats>:<region>:<board>", lower case (BoardEntry.id). */
-export function boardId(ats: CrawlAtsId, board: string, region?: string | null): string {
-  const b = board.trim().toLowerCase();
-  return region ? `${ats}:${region.toLowerCase()}:${b}` : `${ats}:${b}`;
-}
-
-export class BoardDirectory {
-  constructor(rows: DirectoryRow[]) { void rows; }
-  get size(): number { return notImplemented('BoardDirectory.size'); }
-  /** Case-, accent- and suffix-insensitive company search; the same entry comes first for "stripe" and "Stripe, Inc.". */
-  search(q: string, limit?: number): DirectoryRow[] { return notImplemented('BoardDirectory.search'); }
-  get(id: string): DirectoryRow | undefined { return notImplemented('BoardDirectory.get'); }
-}
-
-export interface BoardServiceOptions {
-  db: DatabaseSync;
-  directory: BoardDirectory;
-  /** The polite client: every paste and every refresh shares its pacer (1 request per second per host). */
-  http: HttpClient;
-  sources: SourceRegistry;
-  now?: () => number;
-}
-
-export class BoardService {
-  constructor(opts: BoardServiceOptions) { void opts; }
-  list(q: { q?: string; view?: 'all' | 'followed' | 'user' | 'hidden' | 'disabled' | 'failing'; cursor?: string; limit?: number }): { items: BoardEntry[]; total: number; nextCursor: string | null } {
-    return notImplemented('BoardService.list');
-  }
-  /** What board is behind a link. Adds nothing. Never contacts a never-crawl host. */
-  async resolve(url: string, opts?: { acceptPaidLookup?: boolean }): Promise<BoardResolveResponse> { return notImplemented('BoardService.resolve'); }
-  /** Adds a confirmed board. Throws a conflict when it is already in the list. */
-  add(input: { ats: CrawlAtsId; board: string; region?: string | null }): BoardEntry { return notImplemented('BoardService.add'); }
-  update(id: string, patch: { followed?: boolean; hidden?: boolean; disabled?: boolean }): BoardEntry { return notImplemented('BoardService.update'); }
-  /** NDJSON lines of the directory and the user boards (GET /api/v1/boards/export). */
-  export(): Iterable<string> { return notImplemented('BoardService.export'); }
-  /** The boards due for a crawl now (not hidden, not disabled, not in back-off), spread so they do not all start at once. */
-  due(now: number, opts: { intervalHours: number; catchUp: boolean }): BoardRef[] { return notImplemented('BoardService.due'); }
-}
-
-export interface SchedulerOptions {
-  boards: BoardService;
-  crawlStore: Store;
-  http: HttpClient;
-  sources: SourceRegistry;
-  intervalHours: () => number;
-  now?: () => number;
-  /** Called after each board and at the end, so new jobs are findable at once. */
-  onProgress?: (p: CrawlProgress) => void;
-}
-
-/** Runs crawls: a catch-up on launch, then every intervalHours while the app or the tray runs. */
-export class CrawlScheduler {
-  constructor(opts: SchedulerOptions) { void opts; }
-  start(opts: { catchUp: boolean }): void { notImplemented('CrawlScheduler.start'); }
-  stop(): Promise<void> { return notImplemented('CrawlScheduler.stop'); }
-  runNow(boardIds?: string[]): { started: boolean; message: string; nextAllowedAt: string | null } { return notImplemented('CrawlScheduler.runNow'); }
-  progress(): CrawlProgress { return notImplemented('CrawlScheduler.progress'); }
-  lastReport(): { run: CrawlRunSummary | null; boards: CrawlBoardReport[] } { return notImplemented('CrawlScheduler.lastReport'); }
-}
+export { boardId, parseBoardId, isCrawlAts } from './ids.ts';
+export {
+  BoardDirectory, BUNDLED_DIRECTORY_PATH, DIRECTORY_FORMAT, PRUNED_DIRECTORY_PATH, installedDirectoryPath, loadActiveDirectory,
+  nameKey, nameWords, parseDirectoryFile, readDirectoryFile, toFileRow,
+} from './directory.ts';
+export type { DirectoryEntry, DirectoryFile, DirectoryFileRow, DirectorySource, DirectoryStatus, LoadedDirectory } from './directory.ts';
+export {
+  PROVIDER_NAMES, boardApiHost, boardApiUrl, boardPageUrl, detectBoardFromUrl, parseLink,
+} from './detect.ts';
+export type { LinkBoard, UrlDetection } from './detect.ts';
+export { scanPage } from './page.ts';
+export type { Evidence, PageBoard, PageScan } from './page.ts';
+export { forbiddenProvider, isForbiddenHost, jobSite, unsupportedProvider } from './hosts.ts';
+export {
+  BusyPacer, ForbiddenHostError, HostBusyError, OfflineError, RedirectLog, SqlitePacer, createBoardHttp, httpStateFor,
+  networkCode, offlineFromEnv, redirectLogFor,
+} from './http.ts';
+export type { BoardHttpOptions, BoardHttpState } from './http.ts';
+export { boardSources } from './sources.ts';
+export { classifyError, verifyBoard } from './verify.ts';
+export type { CheckFailure, VerifyResult } from './verify.ts';
+export { migrateBoards, SCHEMA_VERSION } from './db.ts';
+export { BoardError, BoardService, UNREACHABLE_AFTER, backoffMs, priceText } from './service.ts';
+export type { BoardErrorCode, BoardServiceOptions, CheckOutcome, ListView, PaidPageFetcher } from './service.ts';
+export { CrawlScheduler, outcomeOf } from './scheduler.ts';
+export type { SchedulerOptions } from './scheduler.ts';
+export { detectBoard } from './discover.ts';
+export type { DetectBoardResult } from './discover.ts';
