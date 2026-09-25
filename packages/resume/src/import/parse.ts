@@ -480,6 +480,7 @@ export function parseLines(lines: SrcLine[], opts: { source: 'pdf' | 'docx' | 't
   const skills: SkillEntry[] = [];
   const extraSections: ExtraSection[] = [];
   const summaries: string[] = [];
+  let sourceBullets = 0;
 
   for (const s of sections) {
     const nonEmpty = s.lines.filter((l) => l.text.trim());
@@ -498,6 +499,7 @@ export function parseLines(lines: SrcLine[], opts: { source: 'pdf' | 'docx' | 't
       }
       case 'experience': {
         const { entries, orphans } = groupEntries(nonEmpty, { dated: true });
+        sourceBullets += entries.reduce((n, e) => n + e.bullets.length, 0);
         if (orphans) warnings.push(`${s.title}: ${orphans === 1 ? 'some bullets were' : 'some bullets were'} found before any job heading; they are kept in the first entry. Check them.`);
         entries.forEach((e) => work.push(parseWorkEntry(e, work.length, warnings)));
         break;
@@ -516,6 +518,7 @@ export function parseLines(lines: SrcLine[], opts: { source: 'pdf' | 'docx' | 't
             prev.head.push(...e.head); prev.bullets.push(...e.bullets); prev.hasDate ||= e.hasDate;
           } else merged.push(e);
         }
+        sourceBullets += merged.reduce((n, e) => n + e.bullets.length, 0);
         merged.forEach((e) => education.push(parseEducationEntry(e, education.length, warnings)));
         break;
       }
@@ -525,6 +528,7 @@ export function parseLines(lines: SrcLine[], opts: { source: 'pdf' | 'docx' | 't
       case 'projects': {
         const { entries } = groupEntries(nonEmpty, { dated: false });
         // Projects rarely have dates: each non-bullet line after bullets starts a new project.
+        sourceBullets += entries.reduce((n, e) => n + e.bullets.length, 0);
         entries.forEach((e) => projects.push(parseProjectEntry(e, projects.length)));
         break;
       }
@@ -566,6 +570,7 @@ export function parseLines(lines: SrcLine[], opts: { source: 'pdf' | 'docx' | 't
     if (parts.length > 2) profile.personal.middleName = parts.slice(1, -1).join(' ');
   }
   void opts;
-  const bullets = work.reduce((n, w) => n + w.bullets.length, 0) + projects.reduce((n, p) => n + p.bullets.length, 0) + education.reduce((n, e) => n + e.achievements.length, 0);
+  // Bullets as the file shows them (under jobs, degrees and projects; a "GPA: 3.7" bullet counts too).
+  const bullets = sourceBullets;
   return { profile, unreadSections, warnings, counts: { jobs: work.length, bullets, skills: skills.length, education: education.length } };
 }

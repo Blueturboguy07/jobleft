@@ -363,8 +363,12 @@ export function layoutLetter(text: string, p: LayoutParams): LayoutResult {
       const t = ln.trim();
       if (!t) return;
       const bold = i === 0 && j === 0;
-      const size = bold ? p.nameSize : p.body;
-      for (const l of wrapPlain(t, bold ? 'bold' : 'regular', size, c.width)) c.line([{ text: l, font: bold ? 'bold' : 'regular' }], size, c.x0);
+      let size = bold ? p.nameSize : p.body;
+      const font = bold ? 'bold' : 'regular';
+      // A word longer than the line (a long link in the contact line) is set smaller, never broken or changed.
+      const longest = t.split(/\s+/).reduce((m, w) => Math.max(m, textWidth(w, font, size)), 0);
+      if (longest > c.width) size = Math.max(6, (size * c.width) / longest - 0.05);
+      for (const l of wrapPlain(t, font, size, c.width)) c.line([{ text: l, font }], size, c.x0);
     });
   });
   return { page: { runs: c.runs, rules: c.rules }, overflow: c.overflow, params: p, bottomY: c.y };

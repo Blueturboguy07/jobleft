@@ -486,6 +486,7 @@ export const ROLE_NOUNS = [
   'tutor', 'fellow', 'trainee', 'apprentice', 'contractor', 'freelancer', 'executive', 'lead', 'leader', 'principal', 'owner',
   'cashier', 'barista', 'server', 'chef', 'cook', 'driver', 'mechanic', 'electrician', 'lecturer', 'counselor', 'librarian',
   'auditor', 'controller', 'bookkeeper', 'buyer', 'marketer', 'sre', 'devops', 'tester', 'hygienist', 'paramedic', 'emt',
+  'sde', 'swe', 'mts', 'member', 'steward', 'ambassador', 'organizer', 'founder', 'manager', 'coach', 'mentor', 'captain', 'president',
 ];
 
 export const SENIORITY_WORDS = [
@@ -555,3 +556,22 @@ export const ORDINARY_CAPITALISED = new Set([
   'cover', 'letter', 'references', 'available', 'upon', 'request', 'the', 'a', 'an', 'and', 'or', 'of', 'in', 'on', 'for', 'with',
   'my', 'our', 'your', 'this', 'that', 'these', 'those', 'as', 'at', 'by', 'from', 'about', 'role', 'position', 'opportunity',
 ]);
+
+/** Action verbs and plain words a reworded bullet may use without making a new claim. */
+export const REWORD_WORDS = new Set(`
+achieved added adopted advanced analyzed applied architected assembled assessed automated boosted built championed collaborated
+completed composed conceived conducted configured consolidated constructed contributed converted coordinated created cut decreased
+defined delivered deployed designed developed devised directed documented doubled drove eliminated enabled engineered enhanced
+established evaluated executed expanded expedited facilitated finalized formulated founded generated grew guided halved headed helped
+identified implemented improved increased initiated innovated installed instituted integrated introduced launched led leveraged
+maintained managed maximized mentored migrated minimized modernized monitored negotiated operated optimized orchestrated organized
+overhauled oversaw owned partnered performed pioneered planned prepared presented prioritized produced programmed promoted proposed
+prototyped provided published raised ran rebuilt redesigned reduced refactored refined reorganized replaced resolved restructured
+revamped reviewed rewrote saved scaled secured served shipped simplified slashed solved spearheaded standardized steered streamlined
+strengthened structured supervised supported tested trained transformed tripled troubleshot tuned unified upgraded used utilized
+validated wrote worked
+across all also among and any are around as at based by daily each every for from high improved into its key main more most
+multiple new of on over per several such than that the their them these this through to under using various via weekly which while
+with within without work team teams company end-to-end reliable robust scalable efficient critical core cross-functional successfully
+significantly effectively quickly
+`.split(/\s+/).filter(Boolean));

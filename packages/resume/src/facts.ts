@@ -357,6 +357,8 @@ export function findTitles(text: string): Mention[] {
     push(t, start);
   }
   for (const m of text.matchAll(AS_ROLE_RE)) push(m[1]!, m.index! + m[0].indexOf(m[1]!));
+  // "tech lead", "team lead", "engineering manager" without "as".
+  for (const m of text.matchAll(/\b(?:tech|technical|team|engineering|project|product|program|squad|pod)\s+(?:lead|leader|manager|owner)\b/gi)) push(m[0], m.index!);
   return dropOverlaps(out);
 }
 

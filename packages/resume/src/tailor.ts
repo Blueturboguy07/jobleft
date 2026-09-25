@@ -14,7 +14,8 @@ import { ResumeError } from './errors.ts';
 import { canonicalSkill, findSkills, scanFacts } from './facts.ts';
 import { jobTerms, keywordGaps, safeDictionary } from './gaps.ts';
 import { buildProfileFacts, checkDocument, checkText, jobContext, refusedFacts, workYears, type ProfileFacts } from './truth.ts';
-import { similarity, stableId, termRegExp } from './text.ts';
+import { foldKey, similarity, stableId, termRegExp } from './text.ts';
+import { REWORD_WORDS } from './lexicon.ts';
 
 export type TailorOp =
   | { changeId: string; type: 'skills.add'; value: string }
@@ -76,6 +77,9 @@ function warnFor(before: string, after: string): string | null {
   if (lost.length) return `Removes ${lost.join(', ')} from this line. Check that it still says what you did.`;
   const newSkills = a.skills.filter((m) => !b.skills.some((x) => x.key === m.key)).map((m) => m.text);
   if (newSkills.length) return `Adds ${newSkills.join(', ')} to this line. They are in your profile; check that you used them here.`;
+  const had = new Set(foldKey(before).split(' ').map((w) => w.replace(/s$/, '')));
+  const added = [...new Set(foldKey(after).split(' ').filter((w) => w.length > 2 && !/^\d/.test(w) && !had.has(w.replace(/s$/, '')) && !REWORD_WORDS.has(w)))];
+  if (added.length) return `Adds words that are not in your original line (${added.slice(0, 5).join(', ')}). Check that the claim is still true.`;
   if (similarity(before, after) < 0.35) return 'This rewrite changes the wording a lot. Check that it makes the same claim as your original.';
   return null;
 }

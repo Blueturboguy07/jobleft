@@ -37,15 +37,17 @@ function assertJordan(p: ProfileInput, label: string): void {
   assert.deepEqual(p.projects[0]!.bullets, J.projects[0]!.bullets, `${label}: project bullets`);
 }
 
-for (const [file, label] of [
-  ['jordan-one-column.pdf', 'one-column PDF'], ['jordan-two-column.pdf', 'two-column PDF'], ['jordan-word.docx', 'Word file'],
-  ['jordan-layout-table.docx', 'Word file with a layout table'], ['jordan.txt', 'text file'],
+// Bullets as the file shows them: 5 under jobs, 1 under the project, and "GPA: 3.7" where the file shows it as a
+// bullet (the two-column file shows the GPA as a plain line).
+for (const [file, label, bullets] of [
+  ['jordan-one-column.pdf', 'one-column PDF', 7], ['jordan-two-column.pdf', 'two-column PDF', 6], ['jordan-word.docx', 'Word file', 7],
+  ['jordan-layout-table.docx', 'Word file with a layout table', 7], ['jordan.txt', 'text file', 7],
 ] as const) {
   test(`import reads every field of the ${label}`, async () => {
     const r = await importInProcess(read(file), file, '');
     assert.equal(r.report.outcome, 'ok', JSON.stringify(r.report));
     assertJordan(r.proposedProfile, label);
-    assert.deepEqual(r.report.counts, { jobs: 2, bullets: 6, skills: 12, education: 1 });
+    assert.deepEqual(r.report.counts, { jobs: 2, bullets, skills: 12, education: 1 });
   });
 }
 
