@@ -268,7 +268,7 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
       let candLead = 0;
       let leadTitle: string | null = null;
       for (const r of pf.roles) {
-        const l = levelOfTitle(r.title);
+        const l = levelOfTitle(r.title, r.family);
         if (!l) continue;
         const related = !r.family || !jf.family ? 0.5 : familyRelatedness(jf.family, r.family);
         if (related >= 0.3) {

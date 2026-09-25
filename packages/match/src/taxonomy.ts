@@ -240,13 +240,15 @@ const NOT_VERB_NEXT = new Set(['to', 'at', 'in', 'as', 'under', 'within', 'quick
 export interface ScanDoc {
   tokens: Token[];
   cache: Map<string, boolean>;
+  /** Words around the text that tell what it is about (a posting's title); counted by the whole-text checks only. */
+  context?: Token[];
 }
 
 function docHas(doc: ScanDoc, key: string, set: Set<string>, min: number): boolean {
   const hit = doc.cache.get(key);
   if (hit !== undefined) return hit;
   const seen = new Set<string>();
-  for (const t of doc.tokens) if (set.has(t.norm)) { seen.add(t.norm); if (seen.size >= min) break; }
+  for (const t of [...(doc.context ?? []), ...doc.tokens]) if (set.has(t.norm)) { seen.add(t.norm); if (seen.size >= min) break; }
   const ok = seen.size >= min;
   doc.cache.set(key, ok);
   return ok;
@@ -267,7 +269,13 @@ function neighbors(doc: ScanDoc, i: number, len: number, span: number, set: Set<
 function hyphenated(doc: ScanDoc, i: number, len: number): boolean {
   const first = doc.tokens[i];
   const last = doc.tokens[i + len - 1];
-  return first.sepBefore.endsWith('-') || last.sepAfter.startsWith('-') || /^\d/.test(doc.tokens[i - 1]?.raw ?? '') && first.sepBefore === '';
+  const prev = doc.tokens[i - 1];
+  const next = doc.tokens[i + len];
+  // The separators have their spaces removed, so a bullet dash on the next line ("C\n- Rust") also reads as "-".
+  // A hyphen joins two words only when nothing but the hyphen stands between them.
+  const joinedBefore = first.sepBefore.endsWith('-') && (!prev || first.start - prev.end === first.sepBefore.length);
+  const joinedAfter = last.sepAfter.startsWith('-') && (!next || next.start - last.end === last.sepAfter.length);
+  return joinedBefore || joinedAfter || /^\d/.test(prev?.raw ?? '') && first.sepBefore === '';
 }
 
 const NAME_BEFORE = new Set(['in', 'with', 'using', 'of', 'and', 'or', 'like', 'as']);
@@ -279,6 +287,14 @@ function writtenAsName(doc: ScanDoc, i: number, len: number): boolean {
   if (!prev || !NAME_BEFORE.has(prev.lower) || prev.sentence !== doc.tokens[i].sentence) return false;
   if (!next || next.sentence !== last.sentence) return true;
   return /^[,;.:)!?/]/.test(last.sepAfter) || next.lower === 'and' || next.lower === 'or';
+}
+
+const SKILL_NOUNS = new Set(['experience', 'proficiency', 'expertise', 'knowledge', 'skills', 'skill', 'fluency']);
+/** "Rust experience", "Go skills": the name is followed by a word for what a person knows. */
+function skillNoun(doc: ScanDoc, i: number, len: number): boolean {
+  const last = doc.tokens[i + len - 1];
+  const next = doc.tokens[i + len];
+  return !!next && next.sentence === last.sentence && last.sepAfter === '' && SKILL_NOUNS.has(next.lower);
 }
 
 /** The name is the whole line (a bullet in a list): nothing else on its line. */
@@ -299,14 +315,16 @@ export const CONTEXT_RULES: Record<string, (doc: ScanDoc, i: number, len: number
     if (neighbors(doc, i, len, 4, PROG_ANCHORS)) return true;
     // "Proficiency in C." or a bullet "- Go" inside a posting about software: the name follows "in", "with",
     // "using" or "of" and ends its clause, or it is the whole line.
-    return (writtenAsName(doc, i, len) || wholeLine(doc, i, len)) && docHas(doc, 'prog', PROG_ANCHORS, 3);
+    return (writtenAsName(doc, i, len) || wholeLine(doc, i, len) || skillNoun(doc, i, len)) && docHas(doc, 'prog', PROG_ANCHORS, 3);
   },
   stats: (doc, i, len) => {
     if (hyphenated(doc, i, len)) return false;
     if (neighbors(doc, i, len, 4, STATS_ANCHORS)) return true;
     return (writtenAsName(doc, i, len) || wholeLine(doc, i, len)) && docHas(doc, 'stats', STATS_ANCHORS, 2);
   },
-  ios: (doc, i, len) => neighbors(doc, i, len, 6, IOS_ANCHORS),
+  // "Swift" next to iOS words, or written as a name ("- Swift", "experience with Swift") in a posting about software.
+  ios: (doc, i, len) => neighbors(doc, i, len, 6, IOS_ANCHORS)
+    || (!hyphenated(doc, i, len) && (writtenAsName(doc, i, len) || wholeLine(doc, i, len) || skillNoun(doc, i, len)) && docHas(doc, 'prog', PROG_ANCHORS, 3)),
   office: (doc, i, len) => neighbors(doc, i, len, 4, OFFICE_ANCHORS),
   devops: (doc, i, len) => neighbors(doc, i, len, 6, DEVOPS_ANCHORS),
   data: (doc, i, len) => neighbors(doc, i, len, 6, DATA_ANCHORS),
@@ -350,11 +368,13 @@ export interface ScanOptions {
   relaxed?: boolean;
   /** Only these kinds (default: every kind). */
   kinds?: ReadonlySet<SkillKind>;
+  /** A title that tells what the text is about ("Software Engineer"): it counts toward the context rules. */
+  title?: string | null;
 }
 
 /** Finds every skill and credential named in the tokens, longest alias first, each token used once. */
 export function scanSkills(tokens: Token[], opts: ScanOptions = {}): AliasMatch[] {
-  const doc: ScanDoc = { tokens, cache: new Map() };
+  const doc: ScanDoc = { tokens, cache: new Map(), context: opts.title ? analyzeText(opts.title).live : undefined };
   const out: AliasMatch[] = [];
   let i = 0;
   while (i < tokens.length) {

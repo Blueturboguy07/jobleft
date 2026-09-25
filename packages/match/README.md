@@ -150,7 +150,12 @@ skills", "Right level: Senior Level", "Pay stated: $80K–$95K a year" or "Pay m
 
 **Not stated.** The detail lists level, years, pay, sponsorship, industry, work model and job type; each is the
 posting's statement with its quote, or "not stated". The level is read from the title only ("Senior", "II", "Director",
-"Aide"); it is never inferred from the years a posting asks for ("3+ years" is a minimum, not a level).
+"Aide"); it is never inferred from the years a posting asks for ("3+ years" is a minimum, not a level). A general
+manager of one store, restaurant or hotel ("General Manager, Specialty Retail", "Restaurant General Manager") is read
+as a manager, the same rung as a store manager; a plain "General Manager" outside retail, food and hospitality, and a
+regional or VP general manager, stay executive. Short language names ("C", "Go", "Rust", "Swift") count when they sit
+next to programming words, follow "in", "with" or "of", stand alone on a line ("- Rust"), or come before "experience"
+or "skills", in a posting (title included) about software.
 
 **Years of experience.** Months covered by your roles, overlaps counted once (January 2020 to December 2022 plus June
 2021 to June 2023 is 3 years 6 months); a current role counts up to this month. For the level and the years a posting

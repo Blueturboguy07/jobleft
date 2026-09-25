@@ -80,7 +80,7 @@ function jobFamily(job: Job, a: AnalyzedText): { family: string | null; source: 
   }
   // Vote from the skills the requirement and duty lines name, and from job titles written in the text.
   const votes = new Map<string, number>();
-  for (const m of scanSkills(a.live)) {
+  for (const m of scanSkills(a.live, { title: job.title })) {
     const tok = a.live.find((t) => t.start === m.start);
     const section = tok ? a.lines[tok.line]?.section : undefined;
     if (!section || SKIP_SECTIONS.has(section)) continue;
@@ -183,7 +183,10 @@ const IC_MANAGER = /\b(account|product|project|program|case|property|community|s
  * The level a title states, from @jobleft/parsers plus the match lane's reading of a few titles: an "Account Manager"
  * is not a people manager; an executive chef runs a kitchen team; a sous chef leads one.
  */
-export function levelOfTitle(title: string): Level | null {
+export function levelOfTitle(title: string, family?: string | null): Level | null {
+  // A general manager of one store, restaurant or hotel runs that site: the same rung as a store manager, not an
+  // executive of the company ("General Manager, Specialty Retail", "Restaurant General Manager").
+  if (siteGeneralManager(title, family)) return 'manager';
   // "Software Engineer II, Payments Platform": read each part of the title; the first part that states a level wins.
   const parts = title.split(/\s[-–—|/]\s|[,(]|\s[-–—]|[-–—]\s/).map((p) => p.trim()).filter(Boolean);
   if (parts.length > 1) {
@@ -191,6 +194,16 @@ export function levelOfTitle(title: string): Level | null {
     return null;
   }
   return levelOfTitlePart(title);
+}
+
+/** Kinds of work where a general manager runs one site. */
+const SITE_GM_FAMILIES = new Set(['retail', 'food', 'hospitality']);
+const SITE_WORDS = /\b(store|stores|shop|retail|restaurant|cafe|café|coffee|bar|pub|brewery|bakery|diner|grill|kitchen|hotel|motel|inn|resort|lodge|casino|location|branch|club|gym|fitness|dealership|franchise|unit|venue|outlet|boutique|salon|spa|theater|theatre|cinema|car wash|pharmacy|grocery|supermarket|market|quick service|qsr|fast food)\b/i;
+
+function siteGeneralManager(title: string, family?: string | null): boolean {
+  if (!/\bgeneral manager\b/i.test(title)) return false;
+  if (/\b(chief|president|vp|v\.p\.|svp|evp|avp|regional|district|area|division|divisional|group|corporate|global|country|national|market general manager)\b/i.test(title)) return false;
+  return SITE_WORDS.test(title) || (!!family && SITE_GM_FAMILIES.has(family));
 }
 
 function levelOfTitlePart(title: string): Level | null {
@@ -260,7 +273,7 @@ export function readJob(job: Job, company: Company | null): JobFacts {
   const a = analyzeText(job.description ?? '');
   const liveWords = a.live.filter((t) => /\p{L}/u.test(t.raw)).length;
   // Language from the ordinary words only: a list of skill names is not prose in any language.
-  const skillSpans = scanSkills(a.live);
+  const skillSpans = scanSkills(a.live, { title: job.title });
   const inSkill = new Set<number>();
   for (const m of skillSpans) for (let k = m.i; k < m.i + m.len; k++) inSkill.add(k);
   const prose = a.live.filter((_, k) => !inSkill.has(k)).map((t) => t.raw).join(' ');
@@ -291,7 +304,7 @@ export function readJob(job: Job, company: Company | null): JobFacts {
   let levelEvidence: string | null = level ? verbatim(job, job.evidence?.level?.text) ?? job.title : null;
   // The title, read by the match lane, wins over a level that is only the parsers' reading of the same title
   // ("Account Manager" is not a people manager; "Executive Assistant to the CEO" is not an executive).
-  const t = levelOfTitle(job.title);
+  const t = levelOfTitle(job.title, fam.family);
   if (level && levelFromTitle(job.title) === level && t !== level) { level = t; levelSource = t ? 'title' : null; levelEvidence = t ? job.title : null; }
   if (t && !level) { level = t; levelSource = 'title'; levelEvidence = job.title; }
   if (!level && job.employmentType === 'internship') { level = 'intern'; levelSource = 'employment_type'; levelEvidence = 'internship'; }
@@ -305,7 +318,7 @@ export function readJob(job: Job, company: Company | null): JobFacts {
   // Skills: every distinct skill once, at its strongest importance, with the posting's words.
   const items = new Map<string, JobSkillItem>();
   if (language !== 'other') {
-    const all = scanSkills(a.live);
+    const all = scanSkills(a.live, { title: job.title });
     // "LCSW, LPC or LMFT" and "TypeScript or Go" are one item that any of them meets.
     const altOf = new Map<number, string>();
     const runsOf = (ms: typeof all) => credentialRuns(a.text, ms);
