@@ -325,7 +325,11 @@ async function main(): Promise<void> {
     case 'serve': {
       const app = openBoardsApp();
       const srv = await startDevServer(app, { port: num(a, 'port') ?? 0, allowLive: a.live === true, ...(str(a, 'token') ? { token: str(a, 'token')! } : {}) });
-      if (a.schedule === true) app.scheduler.start({ catchUp: true });
+      if (a.schedule === true) {
+        const live = liveBoardCount(app);
+        if (live > 25 && a.live !== true) console.error(`Schedule not started: it would ask ${live} boards on live hosts. Add --live to allow that.`);
+        else { app.scheduler.start({ catchUp: true }); console.log(`Schedule started: a catch-up refresh now, then every ${process.env.JOBLEFT_REFRESH_HOURS ?? 6} hours.`); }
+      }
       console.log(`jobleft boards dev server on ${srv.origin}`);
       console.log(`token: ${srv.token}   (send it in the x-jobleft-token header)`);
       console.log(`data folder: ${app.home}; directory: ${app.loaded.origin} (${app.directory.size} boards)`);
