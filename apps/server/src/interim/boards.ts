@@ -57,6 +57,8 @@ export class BoardsService {
   private timer: NodeJS.Timeout | null = null;
   private catchUpTimer: NodeJS.Timeout | null = null;
   private stopped = false;
+  /** When the last refresh attempt found no network (i-core O13), or null. */
+  private offlineAt: string | null = null;
 
   constructor(o: CrawlOptions) { this.o = o; }
 
@@ -198,6 +200,9 @@ export class BoardsService {
     return {
       running: p !== null, reason: p?.reason ?? null, boardsDone: p?.done ?? 0, boardsTotal: p?.total ?? 0, jobsSeen: p?.seen ?? 0,
       startedAt: p?.startedAt ?? null, nextScheduledAt: next, lastRun: lastOk.summary,
+      ...(this.offlineAt || this.o.offline()
+        ? { offlineNote: `Offline: jobleft could not reach the job boards${this.offlineAt ? ` (last try ${this.offlineAt.slice(0, 16).replace('T', ' ')} UTC)` : ''}. You see your stored jobs; last refreshed ${lastOk.finishedAt ? `${lastOk.finishedAt.slice(0, 16).replace('T', ' ')} UTC` : 'never'}.` }
+        : {}),
     };
   }
 
@@ -222,7 +227,11 @@ export class BoardsService {
     if (this.runningP) return { started: false, message: 'A refresh is already running.', nextAllowedAt: null };
     const refs = this.refs(boardIds);
     if (refs.length === 0) return { started: false, message: boardIds?.length ? 'None of those boards is in your list.' : 'There are no boards to refresh yet. Add a board first.', nextAllowedAt: null };
-    if (!(await this.networkOk(refs))) throw new ApiFailure('offline', 'This computer seems to be offline (the job board address could not be found), so no refresh started. Your jobs are unchanged.');
+    if (!(await this.networkOk(refs))) {
+      this.offlineAt = nowIso();
+      throw new ApiFailure('offline', 'This computer seems to be offline (the job board address could not be found), so no refresh started. Your jobs are unchanged.');
+    }
+    this.offlineAt = null;
     this.runningP = this.execute(refs, reason).finally(() => { this.runningP = null; this.progress = null; });
     return { started: true, message: `Refreshing ${refs.length} board${refs.length === 1 ? '' : 's'}. New jobs appear as each board finishes.`, nextAllowedAt: null };
   }

@@ -44,8 +44,18 @@ const CITY_STATE: Record<string, string> = {
 };
 const CITY_RE = new RegExp(`\\b(${Object.keys(CITY_STATE).sort((a, b) => b.length - a.length).join('|')})\\b`, 'gi');
 
+function memo<T>(fn: (s: string) => T, max = 100_000): (s: string) => T {
+  const cache = new Map<string, T>();
+  return (s: string) => {
+    let v = cache.get(s);
+    if (v === undefined) { v = fn(s); if (cache.size >= max) cache.clear(); cache.set(s, v); }
+    return v;
+  };
+}
+
 /** US state codes a place text names ("Austin, TX", "Dallas, Texas", "Houston"). */
-export function statesIn(text: string): Set<string> {
+export const statesIn = memo(statesInRaw);
+function statesInRaw(text: string): Set<string> {
   const out = new Set<string>();
   for (const m of text.matchAll(/(?:^|[,(/;|\s-])([A-Z]{2})(?=$|[\s,)/;|.-])/g)) if (STATES[m[1]!]) out.add(m[1]!);
   for (const m of text.matchAll(STATE_NAME_RE)) out.add(STATE_BY_NAME.get(m[1]!.toLowerCase())!);
@@ -67,7 +77,9 @@ const BUCKET: Record<Level, ExperienceLevel> = {
 };
 
 /** Title words in one spelling: "RN" = registered nurse, "back-end" = backend, "developer" = engineer, plurals folded. */
-export function titleWords(text: string): string[] {
+export const titleWords = memo(titleWordsRaw);
+const titleSet = memo((t: string) => new Set(titleWords(t)));
+function titleWordsRaw(text: string): string[] {
   let t = ` ${text.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')} `;
   t = t.replace(/[/,;:()|–—]+/g, ' ').replace(/\bsr\.?(?=\s)/g, 'senior').replace(/\bjr\.?(?=\s)/g, 'junior');
   t = t.replace(/\bback[\s-]end\b/g, 'backend').replace(/\bfront[\s-]end\b/g, 'frontend').replace(/\bfull[\s-]stack\b/g, 'fullstack');
@@ -83,6 +95,12 @@ export function titleWords(text: string): string[] {
 }
 
 interface Target { label: string; words: string[]; weight: number }
+
+// Words that name a kind of role in many fields ("engineer", "manager"). They count half, so the distinctive word of a
+// target ("backend", "registered") decides the match.
+const GENERIC = new Set(['engineer', 'manager', 'specialist', 'associate', 'analyst', 'coordinator', 'representative', 'assistant',
+  'technician', 'director', 'officer', 'consultant', 'administrator', 'agent', 'lead', 'worker', 'professional', 'partner']);
+const wordWeight = (w: string) => (GENERIC.has(w) ? 0.5 : 1);
 
 export interface PrefModel {
   version: string;
@@ -132,10 +150,11 @@ export function scoreRow(m: PrefModel, r: CandidateRow): Scored {
   let title = 0;
   let bestLabel = '';
   if (m.targets.length) {
-    const have = new Set(titleWords(r.title));
+    const have = titleSet(r.title);
     let full = false;
     for (const t of m.targets) {
-      const frac = t.words.filter((w) => have.has(w)).length / t.words.length;
+      const total = t.words.reduce((a, w) => a + wordWeight(w), 0);
+      const frac = t.words.filter((w) => have.has(w)).reduce((a, w) => a + wordWeight(w), 0) / total;
       const hit = frac * t.weight;
       if (hit > title) { title = hit; bestLabel = t.label; full = frac >= 0.999; }
     }
@@ -338,20 +357,27 @@ export class FeedService {
     const rec = new Map(rows.map((r) => [r.id, r.sort_rec ?? -1]));
     const byPref = (a: number, b: number) => (scores.get(b)!.score - scores.get(a)!.score) || (rec.get(b)! - rec.get(a)!) || (a - b);
     let ids = rows.map((r) => r.id).sort(byPref);
+    // The match engine scores the best preference candidates. Top Matched orders them by the match percent (the rest
+    // follow, marked "not scored"); Recommended adds 0.3 x the percent to the preference score, so a better match
+    // wins among jobs that fit the preferences alike, while a firm preference (title, place) still decides first.
     const fit = new Map<number, number>();
+    const pool = ids.slice(0, TOP_MATCHED_POOL);
+    const idOf = this.d.db.prepare('SELECT ats, board, job_id FROM jobs WHERE id = ?');
+    for (const id of pool) {
+      const r = idOf.get(id) as { ats: string; board: string; job_id: string } | undefined;
+      const job = r ? this.job(contractJobId(r)) : null;
+      const res = job ? this.match(profile, job) : null;
+      if (res) fit.set(id, res.percent);
+    }
+    const inPool = new Set(pool);
+    const rest = ids.filter((id) => !inPool.has(id));
     if (req.sort === 'top_matched') {
-      // The match engine scores the best preference candidates; the rest follow, marked "not scored".
-      const pool = ids.slice(0, TOP_MATCHED_POOL);
-      const idOf = this.d.db.prepare('SELECT ats, board, job_id FROM jobs WHERE id = ?');
-      for (const id of pool) {
-        const r = idOf.get(id) as { ats: string; board: string; job_id: string } | undefined;
-        const job = r ? this.job(contractJobId(r)) : null;
-        const res = job ? this.match(profile, job) : null;
-        if (res) fit.set(id, res.percent);
-      }
       const scored = pool.filter((id) => fit.has(id)).sort((a, b) => (fit.get(b)! - fit.get(a)!) || byPref(a, b));
-      const unscored = ids.filter((id) => !fit.has(id));
-      ids = [...scored, ...unscored];
+      ids = [...scored, ...pool.filter((id) => !fit.has(id)), ...rest];
+    } else {
+      const key = (id: number) => scores.get(id)!.score + 0.3 * (fit.get(id) ?? 0);
+      ids = [...[...pool].sort((a, b) => (key(b) - key(a)) || byPref(a, b)), ...rest];
+      fit.clear();
     }
     return { ids, scores, fit, at: nowMs() };
   }

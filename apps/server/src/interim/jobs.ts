@@ -419,7 +419,14 @@ export class JobsService {
     }
     // Facts this build does not have yet: a filter on them matches nothing (unless unknowns are allowed).
     if (filter.maxYearsRequired !== undefined && !unknownOk.has('years')) nothing();
-    if (filter.remoteRegions?.length && !unknownOk.has('remoteRegion')) nothing();
+    // i-core: remote regions. "US" keeps remote jobs open to people in the US (is_us); a remote scope that names only
+    // other regions ("Remote (Europe only)") fails it. Other regions are not judged by this build.
+    if (filter.remoteRegions?.length) {
+      const parts: string[] = [];
+      if (filter.remoteRegions.includes('US')) parts.push("(x.is_us = 1 AND (x.remote = 1 OR x.work_mode = 'remote'))");
+      if (unknownOk.has('remoteRegion')) parts.push('x.is_us IS NULL');
+      where.push(parts.length ? `(${parts.join(' OR ')})` : '0');
+    }
     if (restrictIds) { where.push('x.id IN (SELECT value FROM json_each(?))'); args.push(JSON.stringify(restrictIds)); }
     else if (filter.h1bSponsorship) nothing();
     if (filter.industries?.length || filter.companyStages?.length || filter.roleTypes?.length) nothing();
