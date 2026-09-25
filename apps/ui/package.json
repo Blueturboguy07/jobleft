@@ -4,7 +4,7 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
-  "description": "The desktop UI (React and Ant Design 5). It talks only to the local API.",
+  "description": "The desktop UI (React 18 and Ant Design 5), plus a mock of the local API for building and checking the UI on its own.",
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"
@@ -13,10 +13,29 @@
     "node": ">=24"
   },
   "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "demo": "node mock/run.ts",
+    "api": "node mock/server.ts",
+    "stand-in:boards": "node mock/boards-server.ts",
+    "stand-in:publik": "node mock/publik.ts",
+    "stand-in:ai": "node mock/ai.ts",
+    "ctl": "node mock/ctl.ts",
     "test": "node --test \"test/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@jobleft/contracts": "workspace:*"
+    "@ant-design/icons": "5.6.1",
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource/titillium-web": "5.3.0",
+    "@jobleft/contracts": "workspace:*",
+    "antd": "5.29.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "vite": "7.3.6"
   }
 }

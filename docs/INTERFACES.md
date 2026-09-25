@@ -1,6 +1,7 @@
 # jobleft interfaces
 
 Version: contracts 1.1.0 (1.0.0 plus the match lane's optional fields, section 8, the network lane's additive network records, fields and routes, and the extension lane's additive extension protocol fields and routes, section 7), local API v1, extension protocol v1. Written by the foundation commit, 2026-09-25.
+Contract additions since 1.0.0 are listed where they belong (search for "Added by").
 
 This document is the contract between the lanes. Lanes build in parallel from it. It tells each lane what it
 owns, what it exports, what it may import, which tables and routes it serves, and which environment variables,
@@ -969,6 +970,12 @@ export { createLocalEmbedder, WordPieceTokenizer, type LocalEmbedderOptions } fr
 export { createEngineFromEnv, resolveHome } from './setup.ts';
 ```
 <!-- END GENERATED: sig:packages/ai-engine -->
+
+Added by the UI lane (contracts 1.1.0, optional): `AiSettings.costEstimates` = `{ chatTurn, tailor, coverLetter, outreachDraft,
+practice }` in micros, or null. It is the expected charge of ONE paid AI action from the provider's published prices, so the
+UI can show the cost before the click (ui O14). Planned for the ai-engine lane: fill it when the provider is publik; leave
+it null for local, custom and own-key providers. With null the UI says that the action charges the balance and that the
+exact charge shows when it finishes.
 
 Rules: the chosen provider only, never a silent fallback; a key goes only to its own provider, in a header; keys live
 in the OS secret store and only the last 4 characters come back; every request ends (10 s to connect, at most 110 s of

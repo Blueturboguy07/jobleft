@@ -1,0 +1,91 @@
+// The jobleft visual system: Ant Design 5 tokens set to the measured values of the reference layout
+// (the research folder, ui/UI-SPEC*.md, "DESIGN TOKENS"), with contrast raised where the measured
+// grey text would fail WCAG 2.1 AA. Own brand: the name, logo, icons, illustrations and copy are jobleft's.
+
+import type { ThemeConfig } from 'antd';
+
+export const COLORS = {
+  accent: '#00F0A0',
+  accentHover: '#52FFBA',
+  accentActive: '#00C98D',
+  /** Accent-coloured TEXT and focus rings (the accent itself is too light for text on white). */
+  accentInk: '#047A52',
+  accentTint: 'rgba(0,240,160,0.10)',
+  accentTint2: 'rgba(0,240,160,0.20)',
+  cyanTint: 'rgba(20,200,240,0.10)',
+  lime: '#D2FFAA',
+  bg: '#F5F6F7',
+  card: '#FFFFFF',
+  input: '#F7F8F9',
+  chip: '#F3F4F5',
+  line: '#F0F1F2',
+  border: '#DADDE1',
+  text: '#000000',
+  text2: 'rgba(0,0,0,0.70)',
+  text3: 'rgba(0,0,0,0.62)',
+  error: '#C8232A',
+  errorTint: '#FDECEE',
+  warning: '#8A5300',
+  warningTint: '#FFF6E5',
+  strongEnd: '#284E41',
+  goodEnd: '#1D465C',
+  fairEnd: '#4E4127',
+} as const;
+
+export const FONT = "'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans', 'Noto Sans Hebrew', 'Arial Hebrew', system-ui, sans-serif";
+export const DISPLAY_FONT = "'Titillium Web', 'Inter Variable', system-ui, sans-serif";
+
+export const THEME: ThemeConfig = {
+  token: {
+    colorPrimary: '#000000',
+    colorLink: COLORS.accentInk,
+    colorLinkHover: '#03603F',
+    colorLinkActive: '#024D33',
+    colorSuccess: '#0A8F5C',
+    colorError: COLORS.error,
+    colorWarning: '#D48806',
+    colorInfo: '#1F5FBF',
+    colorText: 'rgba(0,0,0,0.92)',
+    colorTextSecondary: COLORS.text2,
+    colorTextTertiary: COLORS.text3,
+    colorTextQuaternary: 'rgba(0,0,0,0.45)',
+    colorTextPlaceholder: 'rgba(0,0,0,0.56)',
+    colorTextDescription: COLORS.text3,
+    colorBgLayout: COLORS.bg,
+    colorBgContainer: COLORS.card,
+    colorBorder: COLORS.border,
+    colorBorderSecondary: COLORS.line,
+    colorBgMask: 'rgba(0,0,0,0.55)',
+    colorFillAlter: COLORS.input,
+    fontFamily: FONT,
+    fontSize: 14,
+    borderRadius: 8,
+    borderRadiusLG: 16,
+    borderRadiusSM: 6,
+    controlHeight: 32,
+    controlOutline: 'rgba(4,122,82,0.25)',
+    controlOutlineWidth: 2,
+    boxShadowSecondary: '0 6px 24px rgba(0,10,20,0.10), 0 1px 3px rgba(0,10,20,0.08)',
+    motionDurationMid: '0.16s',
+    motionDurationSlow: '0.2s',
+  },
+  components: {
+    Button: { primaryShadow: 'none', defaultShadow: 'none', dangerShadow: 'none', fontWeight: 600, borderRadius: 16, borderRadiusLG: 28, borderRadiusSM: 12, controlHeightLG: 44 },
+    Tabs: { itemSelectedColor: '#000000', inkBarColor: '#000000', itemColor: COLORS.text3, itemHoverColor: '#000000', itemActiveColor: '#000000', titleFontSize: 14, horizontalItemGutter: 28 },
+    Checkbox: { colorPrimary: COLORS.accent, colorPrimaryHover: COLORS.accentActive, colorWhite: '#000000' },
+    Radio: { colorPrimary: '#000000' },
+    Switch: { colorPrimary: '#0A8F5C', colorPrimaryHover: '#0A7A4F' },
+    Slider: { trackBg: '#0A8F5C', trackHoverBg: '#0A7A4F', handleColor: '#0A8F5C', handleActiveColor: '#0A7A4F', dotActiveBorderColor: '#0A8F5C' },
+    Modal: { borderRadiusLG: 24, titleFontSize: 20 },
+    Drawer: { footerPaddingBlock: 12 },
+    Popover: { borderRadiusLG: 12 },
+    Tooltip: { colorBgSpotlight: 'rgba(0,0,0,0.88)' },
+    Select: { optionSelectedBg: COLORS.accentTint2, optionSelectedColor: '#000000' },
+    Segmented: { itemSelectedBg: '#000000', itemSelectedColor: '#FFFFFF' },
+    Tag: { defaultBg: COLORS.chip },
+    Card: { borderRadiusLG: 16 },
+    Table: { headerBg: '#FFFFFF', headerColor: '#000000', rowHoverBg: '#FAFAFA' },
+    Menu: { itemSelectedBg: COLORS.chip, itemSelectedColor: '#000000', itemBorderRadius: 8 },
+    Alert: { withDescriptionPadding: '12px 16px' },
+  },
+};

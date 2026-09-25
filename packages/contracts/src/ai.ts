@@ -31,6 +31,19 @@ export const AiSettingsSchema = named(obj({
     pricesPer1000Micros: obj({ search: MicrosSchema, page: MicrosSchema, jsPage: MicrosSchema }),
   }),
   updatedAt: nullable(IsoDateTimeSchema),
+}, {
+  /**
+   * Added by the UI lane (contracts 1.1.0, optional). The expected charge of ONE paid AI action, in micros, from the
+   * provider's published prices, so the screen can show the cost before the person clicks (ui O14). Only the publik
+   * provider fills it; null or absent = no charge to the publik balance (local model, custom URL, own key) or unknown.
+   */
+  costEstimates: nullable(obj({
+    chatTurn: MicrosSchema,
+    tailor: MicrosSchema,
+    coverLetter: MicrosSchema,
+    outreachDraft: MicrosSchema,
+    practice: MicrosSchema,
+  })),
 }), 'AiSettings', 'AI provider settings (never the key)');
 
 /** A settings change. Keys are saved through their own route and never echoed. */

@@ -137,6 +137,45 @@
           "type": "null"
         }
       ]
+    },
+    "costEstimates": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "chatTurn": {
+              "type": "integer",
+              "description": "Integer millionths of a US dollar"
+            },
+            "tailor": {
+              "type": "integer",
+              "description": "Integer millionths of a US dollar"
+            },
+            "coverLetter": {
+              "type": "integer",
+              "description": "Integer millionths of a US dollar"
+            },
+            "outreachDraft": {
+              "type": "integer",
+              "description": "Integer millionths of a US dollar"
+            },
+            "practice": {
+              "type": "integer",
+              "description": "Integer millionths of a US dollar"
+            }
+          },
+          "required": [
+            "chatTurn",
+            "tailor",
+            "coverLetter",
+            "outreachDraft",
+            "practice"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [

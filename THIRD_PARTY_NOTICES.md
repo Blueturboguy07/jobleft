@@ -151,6 +151,21 @@ Resume-Matcher's job-description skill adder (`improver.py`) was deliberately no
   (Apache-2.0), which was run read-only from `spikes/s2-snapshot` and is not a dependency.
 - The float16 conversion, zstd record format, search, filters, dedupe and fit queue are written new.
 
+### 1.12 UI packages bundled into the built app (installed from npm, no source copied)
+
+Added by the UI lane. The built app in `apps/ui/dist` contains these; nothing is loaded from the internet at run time.
+
+| Package | Version | Licence | Use |
+|---|---|---|---|
+| react, react-dom | 18.3.1 | MIT | UI runtime |
+| antd | 5.29.3 | MIT | Component library (themed with jobleft's own tokens) |
+| @ant-design/icons | 5.6.1 | MIT | Icon components |
+| @fontsource-variable/inter | 5.3.0 | SIL OFL 1.1 (font), MIT (package) | Inter, bundled as woff2 files |
+| @fontsource/titillium-web | 5.3.0 | SIL OFL 1.1 (font), MIT (package) | Titillium Web, bundled as woff2 files |
+| vite | 7.3.6 | MIT | Build tool only (not shipped) |
+
+The logo, icons, drawn illustrations and all screen text of the UI are written new for jobleft.
+
 ## 2. Data shipped with the app
 
 Entries 2.1 to 2.5 are from the static-data lane, 2.6 from the ai-engine lane and 2.7 from the match lane (2026-09-25); 2.8 is from the boards lane.
