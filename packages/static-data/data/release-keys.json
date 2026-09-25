@@ -1,0 +1,13 @@
+{
+  "format": "jobleft-release-keys/1",
+  "note": "Public keys that may sign dataset release manifests. A manifest is installed only when its signature verifies with one of these keys. The project has no production release key yet: the owner adds one here (scope \"any\") when the release location is chosen (JOBLEFT_DATASET_MANIFEST_URL). Until then only local test releases can be installed.",
+  "keys": [
+    {
+      "keyId": "jobleft-test-2026-09",
+      "algorithm": "ed25519",
+      "publicKey": "MCowBQYDK2VwAyEAO57NF526GHUGOC1xt14ILBOcTeV8HE0oI9DvNMNhsik=",
+      "scope": "loopback-only",
+      "note": "TEST KEY. Its private key is in packages/static-data/test/fixtures/release-test-key.pem, so it is trusted only for manifests served from 127.0.0.1 or localhost (the mock release server)."
+    }
+  ]
+}

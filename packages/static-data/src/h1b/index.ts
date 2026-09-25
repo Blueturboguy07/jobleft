@@ -275,7 +275,7 @@ export function summarize(p: Prepared, kept: number[], excluded: number[], match
     roleFamily,
     filerEntities: names,
     dataThrough: p.meta.dataThrough,
-    source: p.meta.test ? `TEST RELEASE (synthetic data): ${p.meta.source}` : p.meta.source,
+    source: p.meta.test && !p.meta.source.startsWith('TEST RELEASE') ? `TEST RELEASE (synthetic data): ${p.meta.source}` : p.meta.source,
     note,
     matchedBy,
     aliasBasis,

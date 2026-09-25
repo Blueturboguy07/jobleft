@@ -71,7 +71,7 @@ function readJson<T>(path: string): T | null {
 
 /** Writes a file so that a crash leaves either the old or the new bytes, never a mix. */
 export function writeFileAtomic(path: string, data: string | Uint8Array): void {
-  mkdirSync(dirname(path), { recursive: true });
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
   const fd = openSync(tmp, 'w', 0o600);
   try {

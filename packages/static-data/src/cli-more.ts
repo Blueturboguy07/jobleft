@@ -67,6 +67,38 @@ export async function run(cmd: string, rest: string[], values: Record<string, un
       out(`built ${r.path}\n  ${r.bytes.toLocaleString('en-US')} bytes, sha256 ${r.sha256}\n  ${JSON.stringify(r.report)}`, { record: rec, report: r.report });
       return 0;
     }
+    case 'update': {
+      const url = (values.manifest as string | undefined) ?? process.env.JOBLEFT_DATASET_MANIFEST_URL;
+      if (!url) {
+        process.stderr.write('jobleft-data: no release address. Pass --manifest <url> or set JOBLEFT_DATASET_MANIFEST_URL. The project has no public release location yet; use mock-release to test.\n');
+        return 2;
+      }
+      const { installReleases } = await import('./datasets/release.ts');
+      const { listDatasets } = await import('./datasets/list.ts');
+      const { formatDatasets } = await import('./format.ts');
+      const outcomes = await installReleases({ ...opts, releaseManifestUrl: url });
+      const list = listDatasets(opts, { live: false });
+      const lines = outcomes.map((o) => `${o.action.toUpperCase().padEnd(9)} ${o.message}`);
+      lines.push('', 'Datasets in use now:', formatDatasets(list));
+      out(lines.join('\n'), { outcomes, datasets: list });
+      return outcomes.some((o) => o.action === 'refused' || o.action === 'failed') ? 1 : 0;
+    }
+    case 'mock-release': {
+      const { startMockRelease, MOCK_MODES } = await import('./datasets/mock-release.ts');
+      const mode = (values.mode as string | undefined) ?? 'valid';
+      if (!(MOCK_MODES as readonly string[]).includes(mode)) { process.stderr.write(`jobleft-data: --mode must be one of ${MOCK_MODES.join(', ')}\n`); return 2; }
+      const m = await startMockRelease({ ...opts, mode: mode as never, port: Number(values.port ?? 4777), log: (l) => process.stdout.write(l + '\n') });
+      process.stdout.write(`mock release server (mode ${m.mode}) at ${m.url}\n`);
+      process.stdout.write(`TEST RELEASE: synthetic data, signed with the test key that jobleft trusts only on 127.0.0.1.\n`);
+      process.stdout.write(`In another terminal:  node packages/static-data/src/cli.ts update --manifest ${m.url}\n`);
+      process.stdout.write('Press Ctrl+C to stop.\n');
+      await new Promise<void>((resolveStop) => {
+        const stop = () => { void m.close().then(resolveStop); };
+        process.once('SIGINT', stop);
+        process.once('SIGTERM', stop);
+      });
+      return 0;
+    }
     default:
       process.stderr.write(`jobleft-data: unknown command "${cmd}". Run with --help.\n`);
       return 2;
