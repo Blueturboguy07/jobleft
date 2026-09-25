@@ -2,7 +2,7 @@
 
 The Network tool: import the user's own Connections.csv, match contacts to companies, rank them, track outreach and draft messages.
 
-Status: skeleton (foundation commit). The public interface, CLI names, data files and environment
+Status: typed interface stubs (foundation commit): every export has its final signature and throws "not implemented yet" until this lane builds it. The public interface, CLI names, data files and environment
 variables are specified in [docs/INTERFACES.md](../../docs/INTERFACES.md), section `@jobleft/network`.
 Implement that interface here and keep this README in step with it.
 

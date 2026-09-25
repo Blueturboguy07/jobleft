@@ -2,7 +2,7 @@
 
 More ATS adapters (Workable, Recruitee, Personio and later ones) and ATS detection from a URL.
 
-Status: skeleton (foundation commit). The public interface, CLI names, data files and environment
+Status: typed interface stubs (foundation commit): every export has its final signature and throws "not implemented yet" until this lane builds it. The public interface, CLI names, data files and environment
 variables are specified in [docs/INTERFACES.md](../../docs/INTERFACES.md), section `@jobleft/sources-ats`.
 Implement that interface here and keep this README in step with it.
 

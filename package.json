@@ -14,7 +14,8 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "check": "pnpm typecheck && pnpm test",
     "app:up": "node scripts/app-up.ts",
-    "app:down": "node scripts/app-down.ts"
+    "app:down": "node scripts/app-down.ts",
+    "gen:interfaces": "node scripts/gen-interfaces.ts"
   },
   "devDependencies": {
     "@types/node": "24.13.6",

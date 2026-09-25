@@ -2,7 +2,7 @@
 
 AI providers (publik API, local model, custom URL, own key), the publik connection and wallet, secrets, and embeddings.
 
-Status: skeleton (foundation commit). The public interface, CLI names, data files and environment
+Status: typed interface stubs (foundation commit): every export has its final signature and throws "not implemented yet" until this lane builds it. The public interface, CLI names, data files and environment
 variables are specified in [docs/INTERFACES.md](../../docs/INTERFACES.md), section `@jobleft/ai-engine`.
 Implement that interface here and keep this README in step with it.
 

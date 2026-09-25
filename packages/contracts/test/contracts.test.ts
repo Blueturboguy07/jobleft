@@ -137,3 +137,11 @@ test('local API client: token in a header, JSON body, params encoded, error body
   assert.ok(!seen[0]?.url.includes('tok'), 'the token never travels in the URL');
   await assert.rejects(c.call('getProfile'), (e: unknown) => e instanceof LocalApiError && e.status === 401 && e.body?.error.code === 'unauthorized');
 });
+
+test('docs/INTERFACES.md lists every local API route (run node scripts/gen-interfaces.ts after a route change)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const doc = readFileSync(new URL('../../../docs/INTERFACES.md', import.meta.url), 'utf8');
+  for (const [name, r] of Object.entries(LOCAL_API) as Array<[string, RouteSpec]>) {
+    assert.ok(doc.includes(`| \`${name}\` | ${r.method} | \`${r.path}\` |`), `INTERFACES.md is missing route ${name} (${r.method} ${r.path})`);
+  }
+});

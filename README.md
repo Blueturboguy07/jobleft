@@ -49,6 +49,7 @@ the local API and the extension protocol) is `docs/INTERFACES.md`. Lanes build i
 | `pnpm install` | Install the workspace. Dependency install scripts never run (`ignoreScripts: true`) |
 | `pnpm typecheck` | `tsc --noEmit` in every package and app |
 | `pnpm test` | `node --test` in every package and app |
+| `pnpm gen:interfaces` | Refresh the generated blocks of docs/INTERFACES.md (route table, package signatures) |
 | `pnpm app:up` | Start the whole app (placeholder until the server lane builds it) |
 | `pnpm app:down` | Stop it (placeholder) |
 | `pnpm --filter @jobleft/crawler run crawl --boards <file> --db <file> --out <file>` | Run the crawler CLI on a board list |

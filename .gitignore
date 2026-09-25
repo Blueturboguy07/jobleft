@@ -20,3 +20,6 @@ coverage/
 # Development app home (JOBLEFT_HOME for `pnpm app:up`): local data, never committed
 .jobleft-dev/
 .DS_Store
+
+# Probe results (evals/<area>/<probe>/out)
+evals/**/out/
