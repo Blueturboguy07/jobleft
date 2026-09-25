@@ -441,7 +441,7 @@ function placesFromPiece(piece: string, context: string): Place[] {
       case 'city':
         if (cur.cityTok && keyOf(cur.cityTok.name) === tok.key) { addText(raw); break; } // "Paris, Paris, France"
         // "Richland, Washington", "Albany, New York": a state name after a city is the state.
-        if ((cur.cityTok || cur.city) && !cur.region && !cur.stateHint && !cur.country && (tok.key === 'washington' || tok.key === 'new york')) {
+        if ((cur.cityTok || cur.city) && !cur.region && !cur.stateHint && !cur.country && !cur.cityTok?.state && (keyOf(raw) === 'washington' || keyOf(raw) === 'new york')) {
           cur.stateHint = tok.key === 'washington' ? 'WA' : 'NY'; addText(raw); break;
         }
         if (cur.city || cur.cityTok || cur.region || cur.country || cur.stateHint) flush();

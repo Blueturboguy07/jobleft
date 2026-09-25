@@ -25,7 +25,9 @@ const EXP_TIGHT = /^\s*(?:of\s+)?(?:(?:relevant|related|professional|progressive
 
 /** Things with years that are not an experience requirement. */
 const NOT_EXP_AFTER = /^\s*(?:of\s+age|old\b|or\s+older|of\s+(?:college|university|school|schooling|education|study|studies|coursework|post-?secondary|high\s+school|service\b(?!\s+experience)|history|operation|business|existence|growth)|in\s+(?:business|operation|a\s+row)|ago\b|consecutive|in\s+a\s+row|degree|college|program|contract|commitment|term|warranty|plan\b|vesting|cliff|guarantee|lease|agreement|residency\s+program|apprenticeship\s+program)/i;
-const NOT_EXP_LEAD = /(?:\b(?:age|aged|ages|older\s+than|be\s+at\s+least|must\s+be|vest\w*|vesting|over\s+the\s+next|within(?:\s+the)?(?:\s+(?:last|past|first|next))?|in\s+the\s+(?:last|past|next|first)|during\s+the\s+(?:last|past)|for\s+(?:the\s+)?(?:last|past)|every|each|after|once|since|founded|established|serving|served|been|history|anniversary|for\s+(?:over|more\s+than|nearly|almost|about)|renew\w*|valid\s+for|commit\w*\s+(?:to|for)|up\s+to)\s*$)|\b(?:our|we|we've|we're|team|company|firm|organization|founders?|clinicians|leaders|leadership|family[- ]owned|proudly)\b[^.;\n]{0,50}$/i;
+const NOT_EXP_LEAD = /\b(?:age|aged|ages|older\s+than|be\s+at\s+least|must\s+be|vest\w*|vesting|over\s+the\s+next|within(?:\s+the)?(?:\s+(?:last|past|first|next))?|in\s+the\s+(?:last|past|next|first)|during\s+the\s+(?:last|past)|for\s+(?:the\s+)?(?:last|past)|every|each|after|once|since|founded|established|serving|served|been|history|anniversary|renew\w*|valid\s+for|commit\w*\s+(?:to|for))\s*$/i;
+/** The company or its team has the years ("our team has 20+ years", "a family business with over 50 years"). */
+const COMPANY_HAS = /(?:\b(?:we|we've|we're|our\s+(?:[\w-]+\s+){0,2}(?:team|company|firm|founders?|leaders(?:hip)?|clinicians|staff|people|experts|partners|business|organization|family)|the\s+(?:company|firm|team)|founders?|company|firm|business|organization)\s+(?:have|has|bring|brings|combine|combines|boast|boasts|possess|possesses|with|are|is)\b[^.;\n]{0,40}$)|\bfor\s+(?:over|more\s+than|nearly|almost|about|close\s+to)\s*$/i;
 const PREFERRED = /\b(?:prefer(?:red|ably|ence)?|nice[- ]to[- ]have|a\s+plus|is\s+a\s+plus|bonus|ideally|desired|desirable|would\s+be\s+(?:great|nice|a\s+plus)|an?\s+asset|advantage(?:ous)?|plus\b|optional|deseable|souhaité|wünschenswert)\b/i;
 const PREF_HEADING = /^\s*(?:#+\s*)?(?:preferred|nice[- ]to[- ]haves?|bonus|desired|pluses|good[- ]to[- ]have|bonus\s+points|what\s+(?:would|will)\s+make\s+you\s+stand\s+out|additional\s+qualifications|preferred\s+(?:qualifications|skills|experience|requirements))\b/i;
 const REQ_HEADING = /^\s*(?:#+\s*)?(?:required|requirements|minimum|basic\s+qualifications|minimum\s+qualifications|must[- ]haves?|what\s+you(?:'ll)?\s+need|what\s+you\s+bring|qualifications|who\s+you\s+are|what\s+we(?:'re|\s+are)?\s+looking\s+for|about\s+you|skills\s+and\s+experience|experience)\b/i;
@@ -107,11 +109,9 @@ export function parseYearsRequired(input: string): YearsResult | null {
     const after = text.slice(end, end + 120);
     const lead = text.slice(Math.max(0, idx - 60), idx);
     if (NOT_EXP_AFTER.test(after)) continue;
-    if (NOT_EXP_LEAD.test(lead + (qual && /^(?:over|up to|more than)$/.test(qual) ? '' : ''))) {
-      // "candidates with over 5 years" is still a requirement.
-      if (!/\b(?:candidates?|applicants?|you|your|ideal|successful|must|should|require[sd]?|minimum|looking\s+for|seeking|have|has|bring|possess|with)\b[^.;\n]{0,40}$/i.test(lead)) continue;
-      if (/\b(?:our|we|team|company)\b[^.;\n]{0,50}$/i.test(lead) && !/\b(?:candidates?|you|your)\b/i.test(lead)) continue;
-    }
+    if (NOT_EXP_LEAD.test(lead)) continue;
+    // "candidates with over 5 years" is a requirement; "our team has 20+ years" and "for over 50 years" are not.
+    if (COMPANY_HAS.test(lead) && !/\b(?:candidates?|applicants?|you|your|ideal|successful)\b[^.;\n]{0,40}$/i.test(lead)) continue;
     if (qual === 'up to') continue; // "up to 5 years" is never a minimum
     if (!(EXP_TIGHT.test(after) || EXP_AFTER.test(after))) continue;
     if (/\bage\b|\bold\b/i.test(after.slice(0, 20))) continue;
@@ -126,6 +126,22 @@ export function parseYearsRequired(input: string): YearsResult | null {
     mentions.push({ index: idx, end, min: a, max: m[3] || m[5] || m[7] ? null : b, preferred, sentence: s, line, degree: DEGREE.test(lineText) });
   }
   if (!mentions.length) return null;
+  // "5+ years of experience, or 3 years with an MBA": an alternative in the same sentence needs no experience words.
+  for (const base of [...mentions]) {
+    const sStart = sentStarts[base.sentence], sEnd = sentStarts[base.sentence + 1] ?? text.length;
+    const sent = text.slice(sStart, sEnd);
+    const alt = new RegExp(`\\b(?:or|alternatively|otherwise)\\s+(?:with\\s+)?(?:an?\\s+)?(?:[\\w'-]+\\s+){0,4}?${NUMW}\\s*(\\+)?\\s*(?:years?|yrs?)\\b`, 'gi');
+    let am: RegExpExecArray | null;
+    while ((am = alt.exec(sent)) !== null) {
+      const at = sStart + am.index + am[0].length;
+      if (mentions.some((x) => Math.abs(x.end - at) < 3 || (x.index <= at && x.end >= at))) continue;
+      const v = num(am[1]);
+      if (v === null || v > 30) continue;
+      const tail = text.slice(at, at + 60);
+      if (NOT_EXP_AFTER.test(tail)) continue;
+      mentions.push({ ...base, index: sStart + am.index, end: at, min: v, max: null });
+    }
+  }
   const required = mentions.filter((x) => !x.preferred);
   const pool = required.length ? required : mentions;
   // Alternatives: "or" between two mentions in one sentence, or lines keyed by degree ("Bachelor's and 4 years" /
@@ -136,7 +152,7 @@ export function parseYearsRequired(input: string): YearsResult | null {
   for (const [, ms] of bySentence) {
     if (ms.length === 1) { groups.push({ value: ms[0], members: ms }); continue; }
     const between = text.slice(ms[0].end, ms[ms.length - 1].index);
-    const alt = /\bor\b|\bwith\s+an?\s+(?:master|bachelor|ph\.?d|advanced|graduate)|\((?:[^)]*\b(?:master|ph\.?d|bachelor|degree)\b)/i.test(between) || /\bor\b/i.test(text.slice(ms[0].index - 3, ms[ms.length - 1].end));
+    const alt = /\bor\b|\bwith\s+an?\s+(?:master|bachelor|ph\.?d|advanced|graduate)|\((?:[^)]*\b(?:master|ph\.?d|bachelor|degree)\b)/i.test(between) || /\bor\b/i.test(text.slice(Math.max(0, ms[0].index - 3), ms[ms.length - 1].end));
     const pick = alt ? ms.reduce((p, c) => (c.min < p.min ? c : p)) : ms.reduce((p, c) => (c.min > p.min ? c : p));
     groups.push({ value: pick, members: ms });
   }
