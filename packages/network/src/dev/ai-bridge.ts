@@ -65,7 +65,7 @@ export function createBridgeClient(cfg: BridgeConfig, opts: BridgeOptions = {}):
   if (!cfg.provider || !cfg.baseUrl) throw new AiError('no_provider', 'No AI provider is set up.');
   const provider = cfg.provider;
   const base = normalizeBaseUrl(cfg.baseUrl, provider);
-  const model = cfg.model || (provider === 'publik' ? 'publik-balanced' : 'default');
+  let model = cfg.model || (provider === 'publik' ? 'publik-balanced' : '');
   const doFetch = opts.fetchImpl ?? fetch;
   const origin = new URL(base).host;
 
@@ -90,7 +90,20 @@ export function createBridgeClient(cfg: BridgeConfig, opts: BridgeOptions = {}):
     }
   }
 
+  /** No model chosen: use the server's only model, or name the choices. Never a guess among several. */
+  async function ensureModel(signal?: AbortSignal): Promise<void> {
+    if (model) return;
+    const res = await call('/models', { method: 'GET', headers: { accept: 'application/json' } }, signal);
+    const body = res.ok ? await res.json().catch(() => null) as { data?: Array<{ id?: string }> } | null : null;
+    const ids = (body?.data ?? []).map((m) => String(m.id ?? '')).filter(Boolean);
+    if (ids.length === 1) { model = ids[0]!; return; }
+    throw new AiError('model_not_found', ids.length
+      ? `Choose a model (ai use ... --model <name>). The server at ${origin} has: ${ids.slice(0, 12).join(', ')}.`
+      : `Choose a model (ai use ... --model <name>). The server at ${origin} lists none.`);
+  }
+
   async function complete(req: AiRequest): Promise<AiCompletion> {
+    await ensureModel(req.signal);
     const res = await call('/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
@@ -127,7 +140,7 @@ export function createBridgeClient(cfg: BridgeConfig, opts: BridgeOptions = {}):
 
   return {
     provider: provider as AiProviderKind,
-    model,
+    get model() { return model || '(server default)'; },
     complete,
     async *chat(req: AiRequest): AsyncIterable<AiChunk> {
       const c = await complete(req);

@@ -120,6 +120,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   'cross-origin-resource-policy': 'same-origin',
   'cross-origin-opener-policy': 'same-origin',
   'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+  'x-dns-prefetch-control': 'off',
 };
 
 /** Query parameter names that would carry a token. A token in a URL is refused (it ends up in logs and history). */
