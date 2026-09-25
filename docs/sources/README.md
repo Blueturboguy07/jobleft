@@ -55,4 +55,7 @@ The same list is in code (`ATS_SOURCE_LIST` in `@jobleft/sources-ats`) and on th
 - No live request to write these notes beyond reading official documentation pages and robots.txt, at most 1 request per second per host, with the User-Agent `jobleft-build/0.1 (research build; no personal data)`.
 - Never LinkedIn, Indeed, Glassdoor or SmartRecruiters. No live Workday, iCIMS, Oracle, UKG or Taleo request.
 - No personal data in the notes or the fixtures. Fixtures use made-up employers and the persona "Jordan Testwell" only.
+  Exception (sources-ats lane spec): one real answer per built ATS family, captured once from a public board, is kept in
+  `packages/sources-ats/test/fixtures/live/` so the field maps are tested on real data. They are employers' public
+  postings; a scan found no personal e-mail address or phone number (see that folder's README).
 - Quote only what is needed; name the source and the date for each quote.
