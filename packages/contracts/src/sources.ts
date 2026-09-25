@@ -192,3 +192,16 @@ export type H1bLookup = Infer<typeof H1bLookupSchema>;
 export type PlaceLookup = Infer<typeof PlaceLookupSchema>;
 export type StorageInfo = Infer<typeof StorageInfoSchema>;
 export type ExternalJobRequest = Infer<typeof ExternalJobRequestSchema>;
+
+/** A desktop notification the shell shows (new matches, tracker reminders, follow-ups). Never repeated once acked. */
+export const NotificationSchema = named(obj({
+  id: str({ minLength: 1 }),
+  kind: enm(['new_matches', 'reminder', 'follow_up', 'saved_filter_alert']),
+  title: str({ maxLength: 120 }),
+  body: str({ maxLength: 400 }),
+  /** The screen to open when the person clicks it, e.g. "/jobs/<id>". */
+  target: nullable(str()),
+  createdAt: IsoDateTimeSchema,
+}), 'Notification');
+
+export type Notification = Infer<typeof NotificationSchema>;

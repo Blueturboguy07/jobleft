@@ -117,3 +117,23 @@ test('schema registry: every schema has a title and is an object or a union', ()
     assert.ok(s.type === 'object' || Array.isArray(s.anyOf), `${name} is an object or a union`);
   }
 });
+
+test('local API client: token in a header, JSON body, params encoded, error body becomes LocalApiError', async () => {
+  const { createLocalApiClient, LocalApiError } = await import('../src/index.ts');
+  const seen: Array<{ url: string; method: string; headers: Record<string, string>; body: unknown }> = [];
+  const fakeFetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    const url = String(input);
+    seen.push({ url, method: init?.method ?? 'GET', headers: init?.headers as Record<string, string>, body: init?.body });
+    if (url.includes('/tracker/')) return new Response(JSON.stringify(fx.tracker), { status: 200 });
+    return new Response(JSON.stringify({ error: { code: 'unauthorized', message: 'The app token is missing.' } }), { status: 401 });
+  }) as typeof fetch;
+  const c = createLocalApiClient({ origin: 'http://127.0.0.1:47821', launchToken: 'tok', fetchImpl: fakeFetch, validateResponses: true });
+  const entry = await c.call('updateTracker', { params: { jobId: 'greenhouse:acme:1' }, body: { liked: true } });
+  assert.equal(entry.liked, true);
+  assert.equal(seen[0]?.url, 'http://127.0.0.1:47821/api/v1/tracker/greenhouse%3Aacme%3A1');
+  assert.equal(seen[0]?.method, 'PATCH');
+  assert.equal(seen[0]?.headers['x-jobleft-token'], 'tok');
+  assert.equal(seen[0]?.headers['content-type'], 'application/json');
+  assert.ok(!seen[0]?.url.includes('tok'), 'the token never travels in the URL');
+  await assert.rejects(c.call('getProfile'), (e: unknown) => e instanceof LocalApiError && e.status === 401 && e.body?.error.code === 'unauthorized');
+});

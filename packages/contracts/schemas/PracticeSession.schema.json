@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:PracticeSession",
+  "title": "PracticeSession",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "jobId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "company": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "text": {
+            "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gap": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "target",
+          "gap"
+        ]
+      }
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    }
+  },
+  "required": [
+    "id",
+    "jobId",
+    "company",
+    "title",
+    "questions",
+    "createdAt"
+  ]
+}

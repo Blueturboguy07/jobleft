@@ -104,6 +104,7 @@ export const match: MatchResult = {
   blockers: [],
   reasons: [{ code: 'skills_all', text: 'You have all 3 required skills.', points: 20, evidence: 'BLS, ACLS, Epic' }],
   skills: { matched: ['Epic'], missing: [], required: ['Epic'], preferred: [] },
+  experienceYearsUsed: 3.3,
   computedAt: T1,
 };
 
@@ -159,7 +160,7 @@ export const searchResponse: JobSearchResponse = {
 export const chatEvents: ChatStreamEvent[] = [
   { type: 'start', requestId: 'req-1', provider: 'local', model: 'qwen2.5:7b' },
   { type: 'delta', text: 'ready' },
-  { type: 'done', incomplete: false, costMicros: null },
+  { type: 'done', incomplete: false, costMicros: null, chatId: 'chat-1' },
 ];
 
 export const pairRequest: PairRequest = {
@@ -177,7 +178,7 @@ export const fillRequest: FillRequest = {
 export const fillResponse: FillResponse = {
   requestId: 'fill-1', jobId: job.id,
   fills: [{ fieldId: 'f1', values: ['Jordan'], source: 'profile', confidence: 'exact', needsReview: false }],
-  unknownFieldIds: [], files: [{ fieldId: 'f2', fileName: 'Jordan_Testwell_Resume.pdf', mimeType: 'application/pdf', base64: 'JVBERi0=' }],
+  drafts: [], unknownFieldIds: [], files: [{ fieldId: 'f2', fileName: 'Jordan_Testwell_Resume.pdf', mimeType: 'application/pdf', base64: 'JVBERi0=' }],
   warnings: [],
 };
 

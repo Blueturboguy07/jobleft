@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:PairingInfo",
+  "title": "PairingInfo",
+  "type": "object",
+  "properties": {
+    "extensionId": {
+      "type": "string",
+      "pattern": "^[a-p]{32}$"
+    },
+    "browser": {
+      "type": "string"
+    },
+    "extensionVersion": {
+      "type": "string"
+    },
+    "pairedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    },
+    "lastSeenAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 date-time, UTC (\"Z\")"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "extensionId",
+    "browser",
+    "extensionVersion",
+    "pairedAt",
+    "lastSeenAt"
+  ]
+}

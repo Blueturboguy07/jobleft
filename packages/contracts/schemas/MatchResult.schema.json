@@ -369,6 +369,17 @@
         "preferred"
       ]
     },
+    "experienceYearsUsed": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "computedAt": {
       "type": "string",
       "format": "date-time",
@@ -386,6 +397,7 @@
     "blockers",
     "reasons",
     "skills",
+    "experienceYearsUsed",
     "computedAt"
   ]
 }

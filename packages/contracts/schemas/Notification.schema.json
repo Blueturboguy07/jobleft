@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:Notification",
+  "title": "Notification",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "new_matches",
+        "reminder",
+        "follow_up",
+        "saved_filter_alert"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "body": {
+      "type": "string",
+      "maxLength": 400
+    },
+    "target": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "title",
+    "body",
+    "target",
+    "createdAt"
+  ]
+}

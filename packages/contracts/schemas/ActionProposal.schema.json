@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:ActionProposal",
+  "title": "ActionProposal",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "tracker_status",
+              "like",
+              "unlike",
+              "hide",
+              "unhide",
+              "note_add",
+              "reminder_add",
+              "profile_edit",
+              "resume_delete",
+              "filter_save",
+              "contact_stage"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "job",
+                  "resume",
+                  "profile",
+                  "filter",
+                  "contact"
+                ]
+              },
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "summary",
+          "target"
+        ]
+      },
+      "minItems": 1
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    }
+  },
+  "required": [
+    "id",
+    "actions",
+    "expiresAt"
+  ]
+}

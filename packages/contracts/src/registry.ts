@@ -1,12 +1,15 @@
 // Every top-level contract schema by name. scripts/gen-schemas.ts writes each one to schemas/<name>.schema.json,
 // and test/schemas.test.ts checks that the files on disk match (so non-TypeScript readers see the same contract).
 
-import { AiSettingsSchema, AiSettingsUpdateSchema, ChatMessageSchema, ChatRequestSchema, ChatStreamEventSchema, ProviderCheckSchema } from './ai.ts';
+import {
+  ActionProposalSchema, AiSettingsSchema, AiSettingsUpdateSchema, ChatMessageSchema, ChatRequestSchema, ChatStreamEventSchema,
+  ChatThreadSchema, PracticeItemSchema, PracticeSessionSchema, ProviderCheckSchema,
+} from './ai.ts';
 import { ApiErrorSchema, AppSettingsSchema, HealthSchema, JobDetailSchema, TrackerListSchema } from './api.ts';
 import { CompanySchema, H1bSummarySchema } from './company.ts';
 import {
-  ExtensionStatusSchema, FillRequestSchema, FillResponseSchema, FormFieldSchema, PairingCodeSchema, PairRequestSchema,
-  PairResponseSchema, ReviewResponseSchema, ReviewResultSchema,
+  ExtensionStatusSchema, FillRequestSchema, FillResponseSchema, FormFieldSchema, PairingCodeSchema, PairingInfoSchema,
+  PairRequestSchema, PairResponseSchema, ReviewResponseSchema, ReviewResultSchema,
 } from './extension.ts';
 import { JobFilterSchema, JobListItemSchema, JobSearchRequestSchema, JobSearchResponseSchema, SavedFilterSchema } from './filter.ts';
 import { JobSchema, JobSummarySchema, PaySchema, PlaceSchema, SourceAttributionSchema } from './job.ts';
@@ -21,7 +24,8 @@ import {
 import type { JsonSchema } from './schema.ts';
 import {
   BoardEntrySchema, BoardResolveResponseSchema, CrawlBoardReportSchema, CrawlProgressSchema, DatasetInfoSchema,
-  ExternalJobRequestSchema, FitIndexStatusSchema, H1bLookupSchema, PlaceLookupSchema, SourceInfoSchema, StorageInfoSchema,
+  ExternalJobRequestSchema, FitIndexStatusSchema, H1bLookupSchema, NotificationSchema, PlaceLookupSchema, SourceInfoSchema,
+  StorageInfoSchema,
 } from './sources.ts';
 import { TrackerEntrySchema, TrackerPatchSchema } from './tracker.ts';
 import { PublikConnectionSchema, PublikWalletSchema } from './wallet.ts';
@@ -45,15 +49,17 @@ export const SCHEMAS: Readonly<Record<string, JsonSchema>> = {
   BoardEntry: BoardEntrySchema, BoardResolveResponse: BoardResolveResponseSchema, SourceInfo: SourceInfoSchema,
   CrawlProgress: CrawlProgressSchema, CrawlBoardReport: CrawlBoardReportSchema, FitIndexStatus: FitIndexStatusSchema,
   DatasetInfo: DatasetInfoSchema, H1bLookup: H1bLookupSchema, PlaceLookup: PlaceLookupSchema, StorageInfo: StorageInfoSchema,
-  ExternalJobRequest: ExternalJobRequestSchema,
+  ExternalJobRequest: ExternalJobRequestSchema, Notification: NotificationSchema,
   // AI
   AiSettings: AiSettingsSchema, AiSettingsUpdate: AiSettingsUpdateSchema, ProviderCheck: ProviderCheckSchema,
   ChatMessage: ChatMessageSchema, ChatRequest: ChatRequestSchema, ChatStreamEvent: ChatStreamEventSchema,
+  ActionProposal: ActionProposalSchema, ChatThread: ChatThreadSchema, PracticeSession: PracticeSessionSchema,
+  PracticeItem: PracticeItemSchema,
   // local API
   ApiError: ApiErrorSchema, Health: HealthSchema, JobDetail: JobDetailSchema, TrackerList: TrackerListSchema,
   AppSettings: AppSettingsSchema,
   // extension protocol
-  PairingCode: PairingCodeSchema, PairRequest: PairRequestSchema, PairResponse: PairResponseSchema,
+  PairingCode: PairingCodeSchema, PairingInfo: PairingInfoSchema, PairRequest: PairRequestSchema, PairResponse: PairResponseSchema,
   ExtensionStatus: ExtensionStatusSchema, FormField: FormFieldSchema, FillRequest: FillRequestSchema,
   FillResponse: FillResponseSchema, ReviewResult: ReviewResultSchema, ReviewResponse: ReviewResponseSchema,
 };

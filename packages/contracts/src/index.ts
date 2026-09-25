@@ -32,3 +32,4 @@ export * from './sources.ts';
 export * from './extension.ts';
 export * from './api.ts';
 export * from './registry.ts';
+export * from './client.ts';

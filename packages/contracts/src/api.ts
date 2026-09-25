@@ -13,11 +13,14 @@
 //   * error bodies never echo keys, resume text or network rows.
 
 import { HttpUrlSchema, IdSchema, IsoDateTimeSchema, MicrosSchema } from './common.ts';
-import { AiSettingsSchema, AiSettingsUpdateSchema, ChatRequestSchema, ProviderCheckSchema } from './ai.ts';
+import {
+  AiSettingsSchema, AiSettingsUpdateSchema, ChatRequestSchema, ChatThreadSchema, PracticeItemSchema, PracticeSessionSchema,
+  ProviderCheckSchema,
+} from './ai.ts';
 import { CompanySchema } from './company.ts';
 import {
-  ExtensionStatusSchema, FillRequestSchema, FillResponseSchema, PairingCodeSchema, PairRequestSchema, PairResponseSchema,
-  ReviewResponseSchema, ReviewResultSchema,
+  ExtensionStatusSchema, FillRequestSchema, FillResponseSchema, PairingCodeSchema, PairingInfoSchema, PairRequestSchema,
+  PairResponseSchema, ReviewResponseSchema, ReviewResultSchema,
 } from './extension.ts';
 import { JobFilterSchema, JobSearchRequestSchema, JobSearchResponseSchema, JobSortSchema, SavedFilterSchema } from './filter.ts';
 import { JobSchema, JobSummarySchema, CrawlAtsIdSchema } from './job.ts';
@@ -32,13 +35,13 @@ import {
 } from './resume.ts';
 import {
   BoardEntrySchema, BoardResolveResponseSchema, CrawlBoardReportSchema, CrawlProgressSchema, CrawlRunSummarySchema,
-  DatasetInfoSchema, ExternalJobRequestSchema, FitIndexStatusSchema, H1bLookupSchema, PlaceLookupSchema, SourceInfoSchema,
-  StorageInfoSchema,
+  DatasetInfoSchema, ExternalJobRequestSchema, FitIndexStatusSchema, H1bLookupSchema, NotificationSchema, PlaceLookupSchema,
+  SourceInfoSchema, StorageInfoSchema,
 } from './sources.ts';
 import { TrackerEntrySchema, TrackerPatchSchema, TrackerStatusSchema, TrackerViewSchema } from './tracker.ts';
 import { PublikConnectionSchema } from './wallet.ts';
 import {
-  anyValue, arr, bool, enm, int, lit, named, nullable, obj, str, type Infer, type JsonSchema,
+  anyValue, arr, bool, enm, int, lit, named, nullable, obj, rec, str, type Infer, type JsonSchema,
 } from './schema.ts';
 
 // ---------------------------------------------------------------- constants
@@ -172,7 +175,12 @@ export const LOCAL_API = {
   getSettings: route({ method: 'GET', path: '/api/v1/settings', auth: 'launch', owner: 'server', summary: 'App settings', response: AppSettingsSchema }),
   putSettings: route({ method: 'PUT', path: '/api/v1/settings', auth: 'launch', owner: 'server', summary: 'Change app settings', body: AppSettingsSchema, response: AppSettingsSchema }),
   storage: route({ method: 'GET', path: '/api/v1/storage', auth: 'launch', owner: 'store', summary: 'Where the data lives and how big it is', response: StorageInfoSchema }),
-  backup: route({ method: 'POST', path: '/api/v1/backup', auth: 'launch', owner: 'server', summary: 'Write a backup file (never holds a key)', response: obj({ path: str(), bytes: int({ minimum: 0 }) }) }),
+  backup: route({ method: 'POST', path: '/api/v1/backup', auth: 'launch', owner: 'server', summary: 'Download one backup file of everything, uploaded files included (never a key or a token)', response: 'file' }),
+  restore: route({ method: 'POST', path: '/api/v1/restore', auth: 'launch', owner: 'server', summary: 'Restore a backup file; a damaged or foreign file is refused and nothing changes', body: { raw: ['application/zip', 'application/octet-stream'] }, response: obj({ restored: rec(int({ minimum: 0 })) }) }),
+  exportAll: route({ method: 'GET', path: '/api/v1/export', auth: 'launch', owner: 'server', summary: 'Download all personal data as readable files (no keys)', response: 'file' }),
+  deleteAllData: route({ method: 'POST', path: '/api/v1/data/delete', auth: 'launch', owner: 'server', summary: 'Delete every personal record and file in the data folder', body: obj({ confirm: lit('delete everything') }), response: Ok }),
+  listNotifications: route({ method: 'GET', path: '/api/v1/notifications', auth: 'launch', owner: 'server', summary: 'Notifications waiting for the shell to show', response: arr(NotificationSchema) }),
+  ackNotification: route({ method: 'POST', path: '/api/v1/notifications/:notificationId/ack', auth: 'launch', owner: 'server', summary: 'Mark a notification shown (it is never shown again)', response: Ok }),
   exportJobs: route({ method: 'GET', path: '/api/v1/export/jobs', auth: 'launch', owner: 'store', summary: 'Download saved jobs with their source credits (NDJSON)', response: 'file' }),
   devClock: route({ method: 'POST', path: '/api/v1/dev/clock', auth: 'launch', owner: 'server', summary: 'Time-skip for tests', devOnly: true, body: obj({}, { offset: str(), now: IsoDateTimeSchema }), response: obj({ now: IsoDateTimeSchema }) }),
 
@@ -265,6 +273,16 @@ export const LOCAL_API = {
   checkAi: route({ method: 'POST', path: '/api/v1/ai/check', auth: 'launch', owner: 'ai-engine', summary: 'Test the provider now', response: ProviderCheckSchema }),
   listModels: route({ method: 'GET', path: '/api/v1/ai/models', auth: 'launch', owner: 'ai-engine', summary: 'Models the provider says it has', response: obj({ models: arr(str()) }) }),
   chat: route({ method: 'POST', path: '/api/v1/ai/chat', auth: 'launch', owner: 'ai-engine', summary: 'Chat (streams ChatStreamEvent)', body: ChatRequestSchema, response: 'sse' }),
+  listChats: route({ method: 'GET', path: '/api/v1/ai/chats', auth: 'launch', owner: 'ai-engine', summary: 'Saved conversations (on the laptop)', response: arr(obj({ id: IdSchema, title: str(), jobId: nullable(IdSchema), updatedAt: IsoDateTimeSchema })) }),
+  getChat: route({ method: 'GET', path: '/api/v1/ai/chats/:chatId', auth: 'launch', owner: 'ai-engine', summary: 'One conversation', response: ChatThreadSchema }),
+  deleteChat: route({ method: 'DELETE', path: '/api/v1/ai/chats/:chatId', auth: 'launch', owner: 'ai-engine', summary: 'Delete a conversation for real', response: Ok }),
+  decideProposal: route({ method: 'POST', path: '/api/v1/ai/proposals/:proposalId', auth: 'launch', owner: 'ai-engine', summary: 'Approve some actions of an assistant proposal; the rest are declined', body: obj({ approveActionIds: arr(IdSchema) }), response: obj({ applied: arr(IdSchema), declined: arr(IdSchema) }) }),
+  startPractice: route({ method: 'POST', path: '/api/v1/practice/sessions', auth: 'launch', owner: 'ai-engine', summary: 'Interview practice made for one job', body: obj({ jobId: IdSchema }), response: PracticeSessionSchema }),
+  practiceFeedback: route({ method: 'POST', path: '/api/v1/practice/feedback', auth: 'launch', owner: 'ai-engine', summary: 'Feedback on an answer (no invented achievements; placeholders marked)', body: obj({ sessionId: IdSchema, questionId: IdSchema, answer: str({ maxLength: 20000 }) }), response: obj({ feedback: str(), sampleAnswer: nullable(str()), placeholders: arr(str()) }) }),
+  listPracticeItems: route({ method: 'GET', path: '/api/v1/practice/items', auth: 'launch', owner: 'ai-engine', summary: 'The personal question bank', query: obj({}, { jobId: IdSchema }), response: arr(PracticeItemSchema) }),
+  savePracticeItem: route({ method: 'POST', path: '/api/v1/practice/items', auth: 'launch', owner: 'ai-engine', summary: 'Save a question, answer or debrief for a job', body: obj({ jobId: IdSchema, kind: enm(['question', 'debrief']) }, { question: str(), answer: str(), feedback: str(), notes: str() }), response: PracticeItemSchema }),
+  updatePracticeItem: route({ method: 'PATCH', path: '/api/v1/practice/items/:itemId', auth: 'launch', owner: 'ai-engine', summary: 'Edit a saved practice item', body: obj({}, { question: nullable(str()), answer: nullable(str()), feedback: nullable(str()), notes: nullable(str()) }), response: PracticeItemSchema }),
+  deletePracticeItem: route({ method: 'DELETE', path: '/api/v1/practice/items/:itemId', auth: 'launch', owner: 'ai-engine', summary: 'Delete a saved practice item', response: Ok }),
   cancelAi: route({ method: 'POST', path: '/api/v1/ai/requests/:requestId/cancel', auth: 'launch', owner: 'ai-engine', summary: 'Cancel a running AI request (stops upstream too)', response: obj({ cancelled: bool() }) }),
   getPublik: route({ method: 'GET', path: '/api/v1/publik', auth: 'launch', owner: 'ai-engine', summary: 'publik connection and balance', response: PublikConnectionSchema }),
   connectPublik: route({ method: 'POST', path: '/api/v1/publik/connect', auth: 'launch', owner: 'ai-engine', summary: 'Connect after the disclosure (no key is typed)', body: obj({ disclosureAccepted: lit(true), disclosureVersion: int({ minimum: 1 }) }), response: PublikConnectionSchema }),
@@ -274,7 +292,9 @@ export const LOCAL_API = {
   // ---- extension
   pairingCode: route({ method: 'POST', path: '/api/v1/extension/pairing-code', auth: 'launch', owner: 'server', summary: 'Show a 6-digit pairing code (5 minutes)', response: PairingCodeSchema }),
   pair: route({ method: 'POST', path: '/api/v1/extension/pair', auth: 'none', owner: 'server', summary: 'Pair the extension with a code (Origin must be the extension)', body: PairRequestSchema, response: PairResponseSchema }),
-  unpair: route({ method: 'DELETE', path: '/api/v1/extension/pairing', auth: 'either', owner: 'server', summary: 'Forget the pairing', response: Ok }),
+  listPairings: route({ method: 'GET', path: '/api/v1/extension/pairings', auth: 'launch', owner: 'server', summary: 'Paired extensions (the person sees each one)', response: arr(PairingInfoSchema) }),
+  deletePairing: route({ method: 'DELETE', path: '/api/v1/extension/pairings/:extensionId', auth: 'launch', owner: 'server', summary: 'Unpair one extension; its token stops working at once', response: Ok }),
+  unpair: route({ method: 'DELETE', path: '/api/v1/extension/pairing', auth: 'pairing', owner: 'server', summary: 'The extension unpairs itself', response: Ok }),
   extensionStatus: route({ method: 'GET', path: '/api/v1/extension/status', auth: 'pairing', owner: 'server', summary: 'Paired state and profile completeness', response: ExtensionStatusSchema }),
   fill: route({ method: 'POST', path: '/api/v1/extension/fill', auth: 'pairing', owner: 'server', summary: 'Values for the form fields of an application page', body: FillRequestSchema, response: FillResponseSchema }),
   review: route({ method: 'POST', path: '/api/v1/extension/review', auth: 'pairing', owner: 'server', summary: 'What the user reviewed and whether the user submitted', body: ReviewResultSchema, response: ReviewResponseSchema }),

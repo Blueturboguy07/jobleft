@@ -84,11 +84,17 @@ export const FillResponseSchema = named(obj({
     fieldId: str(),
     /** One value; for a multi-select checkbox group, the chosen option values. */
     values: arr(str(), { minItems: 1 }),
-    source: enm(['profile', 'resume', 'eeo', 'saved_answer', 'ai_draft']),
-    confidence: enm(['exact', 'likely', 'guess']),
-    /** true for guesses and AI drafts: the extension marks them for the user's review. */
+    /** eeo and saved_answer are used only for answers the person saved; sensitive fields otherwise stay empty. */
+    source: enm(['profile', 'resume', 'eeo', 'saved_answer']),
+    confidence: enm(['exact', 'likely']),
+    /** true when the value needs the person's eye (for example a close dropdown match). */
     needsReview: bool(),
   })),
+  /**
+   * Draft answers for open questions. They are NEVER written into the form by the fill: the extension shows each
+   * draft, and inserts it only when the person accepts it. Drafts use only profile facts.
+   */
+  drafts: arr(obj({ fieldId: str(), text: str(), provider: str() })),
   /** Fields the app has no answer for. The extension leaves them empty and marks them. */
   unknownFieldIds: arr(str()),
   /** Files to attach (the resume PDF), base64. */
@@ -104,7 +110,7 @@ export const ReviewResultSchema = named(obj({
   filledFieldIds: arr(str()),
   /** Fields the user changed after the fill. */
   editedFieldIds: arr(str()),
-  /** true only when the USER pressed the page's own submit button. */
+  /** true only when the PERSON confirmed in the extension that they submitted the application themselves. */
   submittedByUser: bool(),
   /** Answers the user chose to remember for later forms (label and value only). */
   savedAnswers: arr(obj({ label: str({ maxLength: 1000 }), value: str({ maxLength: 5000 }) }), { maxItems: 100 }),
@@ -116,6 +122,16 @@ export const ReviewResponseSchema = named(obj({
   trackerEntry: nullable(TrackerEntrySchema),
 }), 'ReviewResponse');
 
+/** One paired extension, as the app lists it (the person can unpair each one). */
+export const PairingInfoSchema = named(obj({
+  extensionId: str({ pattern: '^[a-p]{32}$' }),
+  browser: str(),
+  extensionVersion: str(),
+  pairedAt: IsoDateTimeSchema,
+  lastSeenAt: nullable(IsoDateTimeSchema),
+}), 'PairingInfo');
+
+export type PairingInfo = Infer<typeof PairingInfoSchema>;
 export type PairingCode = Infer<typeof PairingCodeSchema>;
 export type PairRequest = Infer<typeof PairRequestSchema>;
 export type PairResponse = Infer<typeof PairResponseSchema>;

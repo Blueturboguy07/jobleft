@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "jobleft autofill",
+  "version": "0.1.0",
+  "description": "Fills job applications from your own jobleft app on this computer. You review every field and you submit.",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": { "service_worker": "dist/background.js", "type": "module" },
+  "action": { "default_popup": "dist/popup.html", "default_title": "jobleft" }
+}

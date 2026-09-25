@@ -64,6 +64,8 @@ export const MatchResultSchema = named(obj({
   blockers: arr(BlockerSchema),
   reasons: arr(ReasonSchema),
   skills: obj({ matched: arr(str()), missing: arr(str()), required: arr(str()), preferred: arr(str()) }),
+  /** The years of experience the score used, and where they came from (the person can correct them). */
+  experienceYearsUsed: nullable(num({ minimum: 0 })),
   computedAt: IsoDateTimeSchema,
 }), 'MatchResult', 'The match score of one job for the profile');
 

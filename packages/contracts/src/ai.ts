@@ -64,10 +64,72 @@ export const ChatRequestSchema = named(obj({
   requestId: IdSchema,
   messages: arr(ChatMessageSchema, { minItems: 1 }),
 }, {
+  /** Continue this saved conversation (conversations stay on the laptop). Absent = a new conversation. */
+  chatId: IdSchema,
   /** Ask about this job (its facts are added by the server, not by the client). */
   jobId: IdSchema,
   preset: enm(['chat', 'fit', 'tailor', 'interview', 'debrief', 'profile']),
 }), 'ChatRequest');
+
+/**
+ * A change the assistant wants to make. Nothing is written until the person approves each action
+ * (POST /api/v1/ai/proposals/:proposalId). Proposals live in memory: closing the app declines them.
+ * Text inside postings, files or pages never creates a proposal on its own.
+ */
+export const ActionProposalSchema = named(obj({
+  id: IdSchema,
+  actions: arr(obj({
+    id: IdSchema,
+    kind: enm([
+      'tracker_status', 'like', 'unlike', 'hide', 'unhide', 'note_add', 'reminder_add', 'profile_edit', 'resume_delete',
+      'filter_save', 'contact_stage',
+    ]),
+    /** One plain sentence that names the exact change ("Move Initech, Data Analyst to Rejected"). */
+    summary: str({ minLength: 1 }),
+    /** The record the action changes. */
+    target: obj({ kind: enm(['job', 'resume', 'profile', 'filter', 'contact']), id: nullable(IdSchema) }),
+  }), { minItems: 1 }),
+  expiresAt: IsoDateTimeSchema,
+}), 'ActionProposal');
+
+export const ChatThreadSchema = named(obj({
+  id: IdSchema,
+  title: str(),
+  jobId: nullable(IdSchema),
+  messages: arr(obj({ role: enm(['user', 'assistant']), content: str(), at: IsoDateTimeSchema }, { incomplete: bool() })),
+  createdAt: IsoDateTimeSchema,
+  updatedAt: IsoDateTimeSchema,
+}), 'ChatThread');
+
+/** Interview practice made for one job. Questions are labelled practice, never "asked at" the employer. */
+export const PracticeSessionSchema = named(obj({
+  id: IdSchema,
+  jobId: IdSchema,
+  company: str(),
+  title: str(),
+  questions: arr(obj({
+    id: IdSchema,
+    text: str(),
+    /** The skill or requirement of the posting the question practises. */
+    target: nullable(str()),
+    /** true = the posting asks for it and the profile does not show it (a gap to prepare). */
+    gap: bool(),
+  })),
+  createdAt: IsoDateTimeSchema,
+}), 'PracticeSession');
+
+/** A saved practice question, answer or interview debrief, linked to one job (the personal question bank). */
+export const PracticeItemSchema = named(obj({
+  id: IdSchema,
+  jobId: IdSchema,
+  kind: enm(['question', 'debrief']),
+  question: nullable(str()),
+  answer: nullable(str()),
+  feedback: nullable(str()),
+  notes: nullable(str()),
+  createdAt: IsoDateTimeSchema,
+  updatedAt: IsoDateTimeSchema,
+}), 'PracticeItem');
 
 /** Error details inside the stream use the same shape as the API error body's inner object. */
 const StreamErrorSchema = obj({ code: str(), message: str() }, { link: obj({ label: str(), url: HttpUrlSchema }) });
@@ -79,7 +141,9 @@ const StreamErrorSchema = obj({ code: str(), message: str() }, { link: obj({ lab
 export const ChatStreamEventSchema = named(union([
   obj({ type: lit('start'), requestId: IdSchema, provider: AiProviderKindSchema, model: str() }),
   obj({ type: lit('delta'), text: str() }),
-  obj({ type: lit('done'), incomplete: bool(), costMicros: nullable(MicrosSchema) }),
+  /** The assistant asks to change data; the UI shows each action for approval. */
+  obj({ type: lit('proposal'), proposal: ActionProposalSchema }),
+  obj({ type: lit('done'), incomplete: bool(), costMicros: nullable(MicrosSchema), chatId: nullable(IdSchema) }),
   obj({ type: lit('error'), error: StreamErrorSchema }),
 ]), 'ChatStreamEvent');
 
@@ -92,6 +156,10 @@ export type ProviderCheck = Infer<typeof ProviderCheckSchema>;
 export type ChatMessage = Infer<typeof ChatMessageSchema>;
 export type ChatRequest = Infer<typeof ChatRequestSchema>;
 export type ChatStreamEvent = Infer<typeof ChatStreamEventSchema>;
+export type ActionProposal = Infer<typeof ActionProposalSchema>;
+export type ChatThread = Infer<typeof ChatThreadSchema>;
+export type PracticeSession = Infer<typeof PracticeSessionSchema>;
+export type PracticeItem = Infer<typeof PracticeItemSchema>;
 
 /** Turns texts into vectors for fit indexing. Implemented by @jobleft/ai-engine (local bge-small by default). */
 export interface Embedder {

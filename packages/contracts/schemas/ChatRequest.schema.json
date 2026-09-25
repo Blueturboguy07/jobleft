@@ -35,6 +35,11 @@
       },
       "minItems": 1
     },
+    "chatId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
     "jobId": {
       "type": "string",
       "minLength": 1,
