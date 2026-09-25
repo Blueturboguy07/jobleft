@@ -252,6 +252,65 @@ test('O7: a job the source stops listing closes on the next good answer; a new o
   } finally { await t.done(); }
 });
 
+test('O7: a merged posting closes when the LAST source drops it, in either drop order, and stays closed on later unchanged answers', async () => {
+  for (const order of [['gh-simplify-internships', 'gh-vanshb03-internships'], ['gh-vanshb03-internships', 'gh-simplify-internships']] as const) {
+    const t = await setup();
+    try {
+      for (const id of order) await t.svc.update(id, { enabled: true });
+      await t.svc.refresh({ ids: [...order] });
+      const acme = () => feedJobs(t.store.db, { status: 'all' }).filter((j) => j.company === 'Acme Robotics');
+      assert.equal(acme().length, 1);
+      assert.equal(acme()[0]!.status, 'open');
+      assert.equal(acme()[0]!.sources.length, 2, 'both sources list it');
+      const dropped: Record<string, any> = {};
+      const drop = (file: string) => t.editJson(file, (d) => { dropped[file] = d.find((x: any) => x.company_name === 'Acme Robotics'); return d.filter((x: any) => x.company_name !== 'Acme Robotics'); });
+      // The first source drops it: the other still lists it, so the job stays open.
+      drop(`${order[0]}.json`);
+      t.clock.advance(2 * HOUR);
+      await t.svc.refresh({ ids: [order[0]] });
+      assert.equal(acme()[0]!.status, 'open', `${order[0]} dropped it, ${order[1]} still lists it`);
+      // The last source drops it: the job closes at THIS refresh, whichever source created the row.
+      drop(`${order[1]}.json`);
+      t.clock.advance(HOUR);
+      const last = (await t.svc.refresh({ ids: [order[1]] })).results[0]!;
+      assert.equal(last.closed, 1);
+      assert.equal(acme()[0]!.status, 'closed', 'closed when the last source dropped it');
+      assert.equal(acme()[0]!.closedReason, 'source_removed');
+      assert.ok(!feedJobs(t.store.db, {}).some((j) => j.company === 'Acme Robotics'), 'gone from the default list');
+      assert.ok(!feedJobs(t.store.db, { sourceId: order[0] }).some((j) => j.company === 'Acme Robotics'));
+      // Later refreshes with unchanged content (a 304) keep it closed and do not fail.
+      t.clock.advance(28 * HOUR);
+      const again = (await t.svc.refresh({ ids: [...order] })).results;
+      for (const r of again) assert.equal(r.outcome, 'ok', r.message);
+      assert.equal(acme()[0]!.status, 'closed');
+      // It comes back when one source lists it again: one job, reopened.
+      t.editJson(`${order[1]}.json`, (d) => [...d, dropped[`${order[1]}.json`]]);
+      t.clock.advance(28 * HOUR);
+      await t.svc.refresh({ ids: [order[1]] });
+      assert.equal(acme().length, 1);
+      assert.equal(acme()[0]!.status, 'open', 'reopened by a source that lists it');
+    } finally { await t.done(); }
+  }
+});
+
+test('O7: a job left with no open posting by an earlier refresh closes at the next refresh of its board, even on a 304', async () => {
+  const t = await setup();
+  try {
+    for (const id of ['gh-simplify-internships', 'gh-vanshb03-internships']) await t.svc.update(id, { enabled: true });
+    await t.svc.refresh({ ids: ['gh-simplify-internships', 'gh-vanshb03-internships'] });
+    // Put the store in the state the old code left behind: both postings closed, the job row still open.
+    t.store.db.exec(`UPDATE feed_postings SET status = 'closed', closed_at = '2026-09-25T13:00:00.000Z', closed_reason = 'source_removed'
+      WHERE job_key IN (SELECT job_key FROM feed_postings GROUP BY job_key HAVING count(*) = 2)`);
+    const stuck = () => (t.store.db.prepare(`SELECT count(*) AS n FROM jobs j WHERE j.closed_at IS NULL AND NOT EXISTS
+      (SELECT 1 FROM feed_postings fp WHERE fp.job_ats = j.ats AND fp.job_board = j.board AND fp.job_ext_id = j.job_id AND fp.status = 'open')`).get() as { n: number }).n;
+    assert.equal(stuck(), 1);
+    t.clock.advance(30 * HOUR);
+    await t.svc.refresh({ ids: ['gh-simplify-internships'] });
+    assert.equal(stuck(), 0);
+    assert.ok(!feedJobs(t.store.db, {}).some((j) => j.company === 'Acme Robotics'));
+  } finally { await t.done(); }
+});
+
 test('O10: the same posting from two lists is one job with both credits; different jobs with the same title stay apart', async () => {
   const t = await setup();
   try {
@@ -349,6 +408,34 @@ test('O9: remote jobs open to US applicants: US-only and worldwide by default, u
     const unknown = feedJobs(t.store.db, { sourceId: 'remoteok' }).find((j) => j.title === 'Data Annotator')!;
     assert.equal(unknown.remoteScope, null);
     assert.equal(unknown.isUs, null);
+  } finally { await t.done(); }
+});
+
+test('O9: remote jobs that bar the US ("excluding US", "except USA", "Not US", "Non-US") never look open to US applicants', async () => {
+  const t = await setup();
+  try {
+    await t.svc.update('remoteok', { enabled: true });
+    const labels = ['Worldwide (excluding US)', 'Anywhere except USA', 'Remote (Not US)', 'Non-US'];
+    t.editJson('remoteok.json', (d) => [...d, ...labels.map((location, i) => ({
+      ...d[1], id: `9100${i}`, slug: `neg-${i}`, position: `Negated Role ${i}`, location,
+      url: `https://remoteOK.com/remote-jobs/neg-${i}`, apply_url: `https://remoteOK.com/remote-jobs/neg-${i}`,
+    }))]);
+    await t.svc.refresh({ ids: ['remoteok'] });
+    const q = (extra: object) => feedJobs(t.store.db, { remote: true, openToUs: true, ...extra }).map((j) => j.title);
+    for (const includeUnknownRegion of [false, true]) {
+      const shown = q({ includeUnknownRegion });
+      assert.ok(!shown.some((x) => x.startsWith('Negated Role')), `none is open to US (includeUnknownRegion ${includeUnknownRegion}): ${shown.join(', ')}`);
+    }
+    // They are still listed as remote jobs, with the words kept and no US region.
+    const all = feedJobs(t.store.db, { sourceId: 'remoteok' }).filter((j) => j.title.startsWith('Negated Role'));
+    assert.equal(all.length, 4);
+    for (const j of all) {
+      assert.equal(j.isUs, false);
+      assert.ok(labels.includes(j.remoteScope!.text));
+      assert.ok(!j.remoteScope!.regions.some((r) => r === 'US' || r === 'WORLDWIDE' || r === 'NA'));
+    }
+    // The fixtures' other jobs are unchanged.
+    assert.ok(q({}).includes('Senior Backend Engineer'));
   } finally { await t.done(); }
 });
 

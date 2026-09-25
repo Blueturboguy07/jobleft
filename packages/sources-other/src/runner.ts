@@ -138,6 +138,9 @@ export function applyFeedResult(store: Store, feed: JobFeed, res: FeedResult, no
       const r = db.prepare(`UPDATE feed_postings SET last_seen_at = ?, missing_since = NULL WHERE source_id = ? AND status = 'open'`).run(nowIso, feed.id);
       out.listed = Number(r.changes);
       out.unchanged = out.listed;
+      // Nothing is closed by a 304, but a job of this board that no source lists any more (its last source dropped it
+      // at some earlier refresh of another source) still closes now.
+      settleBoard(store, ats, board, nowIso);
       return out;
     }
     const ref: BoardRef = { ats: ats as Ats, board, company: '' };
@@ -197,8 +200,11 @@ export function applyFeedResult(store: Store, feed: JobFeed, res: FeedResult, no
     // ---- close what the source no longer lists, only with proof ----
     const canClose = res.complete && !res.problem && out.listed > 0 && (res.unreadableWithoutId ?? 0) === 0;
     if (!canClose) return out;
-    const open = db.prepare(`SELECT external_id, missing_since FROM feed_postings WHERE source_id = ? AND status = 'open'`).all(feed.id) as Array<{ external_id: string; missing_since: string | null }>;
+    const open = db.prepare(`SELECT external_id, missing_since, job_ats, job_board FROM feed_postings WHERE source_id = ? AND status = 'open'`).all(feed.id) as Array<{ external_id: string; missing_since: string | null; job_ats: string; job_board: string }>;
     const missing = open.filter((r) => !keep.has(r.external_id));
+    // A posting this source drops may sit on a job row that ANOTHER feed created (two lists, one link). That row
+    // closes when its last open posting closes, so the rows of every affected owner board are settled below.
+    const boards = new Map<string, { ats: string; board: string }>([[`${ats}\u0000${board}`, { ats, board }]]);
     if (missing.length) {
       let toClose = missing;
       if (open.length >= MASS_CLOSE_MIN_OPEN && missing.length / open.length > MASS_CLOSE_SHARE) {
@@ -210,18 +216,29 @@ export function applyFeedResult(store: Store, feed: JobFeed, res: FeedResult, no
         }
       }
       const close = db.prepare(`UPDATE feed_postings SET status = 'closed', closed_at = ?, closed_reason = 'source_removed' WHERE source_id = ? AND external_id = ?`);
-      for (const m of toClose) close.run(nowIso, feed.id, m.external_id);
+      for (const m of toClose) {
+        close.run(nowIso, feed.id, m.external_id);
+        if (m.job_ats.startsWith('feed:')) boards.set(`${m.job_ats}\u0000${m.job_board}`, { ats: m.job_ats, board: m.job_board });
+      }
       out.closed = toClose.length;
     }
-    // Rows this feed owns: keep open every row some source still lists (touch it), then close the rest through the
-    // crawler's own function (rows not seen at this instant).
-    const keepRows = db.prepare(`SELECT j.* FROM jobs j WHERE j.ats = ? AND j.board = ? AND j.closed_at IS NULL AND j.last_seen < ?
-        AND EXISTS (SELECT 1 FROM feed_postings fp WHERE fp.job_ats = j.ats AND fp.job_board = j.board AND fp.job_ext_id = j.job_id AND fp.status = 'open')`)
-      .all(ats, board, nowIso) as unknown as JobsRow[];
-    for (const r of keepRows) store.upsertJob(crawledFromRow(r), nowIso);
-    store.closeUnseenForBoard(ats, board, nowIso, nowIso);
+    for (const b of boards.values()) settleBoard(store, b.ats, b.board, nowIso);
     return out;
   });
+}
+
+/**
+ * Closes the job rows of one feed-owned board that no source lists any more, and keeps open every row some source
+ * still lists. A row stays open while ANY feed posting for it is open (its owner's or another feed's, O10) and closes
+ * when the last one closes (O7). Rows go through the crawler's own functions: every row a source still lists is
+ * touched (last_seen = now), then the crawler closes the rows not seen at this instant.
+ */
+function settleBoard(store: Store, ats: string, board: string, nowIso: string): void {
+  const keepRows = store.db.prepare(`SELECT j.* FROM jobs j WHERE j.ats = ? AND j.board = ? AND j.closed_at IS NULL AND j.last_seen < ?
+      AND EXISTS (SELECT 1 FROM feed_postings fp WHERE fp.job_ats = j.ats AND fp.job_board = j.board AND fp.job_ext_id = j.job_id AND fp.status = 'open')`)
+    .all(ats, board, nowIso) as unknown as JobsRow[];
+  for (const r of keepRows) store.upsertJob(crawledFromRow(r), nowIso);
+  store.closeUnseenForBoard(ats, board, nowIso, nowIso);
 }
 
 /** Plain words for any failure. Keys, emails and query strings are removed. */

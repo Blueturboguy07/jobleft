@@ -164,22 +164,12 @@ const SCOPE_WORDS: Array<[RegExp, string[]]> = [
   [/\bemea\b/i, ['EMEA']],
   [/\b(apac|asia[- ]pacific|asia)\b/i, ['APAC']],
 ];
-const US_WORDS = /\b(usa|u\.s\.a?\.?|united states( of america)?|anywhere in the us|us[- ]based)\b/i;
+const US_WORDS = /\b(usa|u\.s\.a?\.?|united states( of america)?|anywhere in the us|us[- ]based)(?![A-Za-z0-9])/i;
 /** A standalone upper-case "US" (case-sensitive on purpose: "join us" is not a region). */
 const US_TOKEN = /(?:^|[^A-Za-z])US(?:$|[^A-Za-z])/;
 
-/**
- * Where a remote job accepts applicants, from the source's own words ("USA Only", "Europe only", "Worldwide",
- * "Remote (US or Canada)", "Remote in USA"). Regions are ISO alpha-2 codes or WORLDWIDE, EU, EMEA, APAC, LATAM, NA.
- * Regions stay empty when the words name none; `text` always keeps the words. null for an empty text.
- */
-export function parseRemoteScope(text: string | null | undefined): RemoteScope | null {
-  const t = (text ?? '').replace(/\s+/g, ' ').trim();
-  if (!t) return null;
-  // Time zones ("PT/ET hours", "UTC+2", "US Pacific overlap") are working hours, not where applicants may live.
-  const u = t.replace(/\b(PT|ET|CT|MT|PST|EST|CST|MST|PDT|EDT|CET|CEST|GMT|UTC|BST|IST)([+-]\d{1,2})?\b(\s*\/\s*\b(PT|ET|CT|MT|PST|EST|CST|MST|CET|GMT|UTC)\b)*/g, ' ')
-    .replace(/\b\d+\s*h(ours?)?\s+overlap\s+with\s+[^,;)]*/gi, ' ')
-    .replace(/\boverlap\s+with\s+[^,;)]*/gi, ' ');
+/** Regions named by words that hold no negation. `states` = a US state names the US ("Remote - Texas"). */
+function regionsIn(u: string, states = true): string[] {
   const regions: string[] = [];
   const add = (r: string) => { if (!regions.includes(r)) regions.push(r); };
   if (US_WORDS.test(u) || US_TOKEN.test(u)) add('US');
@@ -188,20 +178,73 @@ export function parseRemoteScope(text: string | null | undefined): RemoteScope |
   const tokens = u
     .replace(/\b(remote|remoto|only|fully|full[- ]time|residents?|based|in|from|within|time ?zones?|hours?|preferred|required)\b/gi, ',')
     .split(/[,;/|()+&]|\bor\b|\band\b|\s-\s/i)
-    .map((s) => s.trim())
-    .filter((s) => s.length >= 2);
+    .map((x) => x.trim())
+    .filter((x) => x.length >= 2);
   for (const tok of tokens) {
     const c = countryCode(tok);
     if (c) add(c);
-    else if (isUsState(tok)) add('US');
+    else if (isUsState(tok)) { if (states) add('US'); }
     else if (/^can(ada)?$/i.test(tok)) add('CA');
   }
-  return { regions, text: t };
+  return regions;
 }
 
-/** true = open to people in the US by the stated regions, false = stated regions exclude the US, null = not stated. */
+// A segment (the words between commas, semicolons, brackets and slashes) that says who is NOT accepted:
+// "excluding US", "Anywhere except USA", "Remote (Not US)", "Non-US", "outside the US", "US excluded".
+const NEGATION_LEAD = /\b(?:excl(?:uding|udes?|uded)?\.?|except(?:ing)?|other than|apart from|outside(?: of)?|not|no|non|without)(?![A-Za-z])[\s-]*/i;
+const NEGATION_TAIL = /\s+(?:is |are )?(?:excluded|not (?:eligible|accepted|allowed|permitted|available|open)|ineligible)\s*$/i;
+/** Regions that, when excluded, bar applicants in the US. */
+const US_INCLUSIVE = ['US', 'NA', 'WORLDWIDE'];
+
+/** Splits the words of a remote scope into what they include and what they leave out. */
+function scopeParts(u: string): { included: string[]; excluded: string[] } {
+  if (!NEGATION_LEAD.test(u) && !NEGATION_TAIL.test(u.replace(/[)\s]+$/, ''))) return { included: regionsIn(u), excluded: [] };
+  const keep: string[] = [];
+  const left: string[] = [];
+  for (const seg of u.split(/[,;()|/]+/)) {
+    const lead = NEGATION_LEAD.exec(seg);
+    const tail = NEGATION_TAIL.exec(seg);
+    if (tail) left.push(seg.slice(0, tail.index)); // "US excluded": the words before the marker are left out
+    else if (lead) { keep.push(seg.slice(0, lead.index)); left.push(seg.slice(lead.index + lead[0].length)); }
+    else keep.push(seg);
+  }
+  // A US state in a leave-out ("US only, except California") does not bar the whole US.
+  const excluded = regionsIn(left.join(', '), false);
+  const barsUs = excluded.some((r) => US_INCLUSIVE.includes(r));
+  const included = regionsIn(keep.join(', ')).filter((r) => !excluded.includes(r) && !(barsUs && US_INCLUSIVE.includes(r)));
+  return { included, excluded };
+}
+
+const TIME_ZONES = /\b(PT|ET|CT|MT|PST|EST|CST|MST|PDT|EDT|CET|CEST|GMT|UTC|BST|IST)([+-]\d{1,2})?\b(\s*\/\s*\b(PT|ET|CT|MT|PST|EST|CST|MST|CET|GMT|UTC)\b)*/g;
+function withoutTimeZones(t: string): string {
+  // Time zones ("PT/ET hours", "UTC+2", "US Pacific overlap") are working hours, not where applicants may live.
+  return t.replace(TIME_ZONES, ' ')
+    .replace(/\b\d+\s*h(ours?)?\s+overlap\s+with\s+[^,;)]*/gi, ' ')
+    .replace(/\boverlap\s+with\s+[^,;)]*/gi, ' ');
+}
+
+/**
+ * Where a remote job accepts applicants, from the source's own words ("USA Only", "Europe only", "Worldwide",
+ * "Remote (US or Canada)", "Remote in USA"). Regions are ISO alpha-2 codes or WORLDWIDE, EU, EMEA, APAC, LATAM, NA.
+ * Regions stay empty when the words name none; `text` always keeps the words. null for an empty text.
+ * Words that leave a region out ("Worldwide (excluding US)", "Anywhere except USA", "Non-US") never add it, and they
+ * take back any wider region that would still hold it (WORLDWIDE, NA): `regions` lists only what the words include.
+ */
+export function parseRemoteScope(text: string | null | undefined): RemoteScope | null {
+  const t = (text ?? '').replace(/\s+/g, ' ').trim();
+  if (!t) return null;
+  return { regions: scopeParts(withoutTimeZones(t)).included, text: t };
+}
+
+/**
+ * true = open to people in the US by the stated regions, false = the stated regions or the words exclude the US,
+ * null = not stated. The words are read again for a leave-out ("Worldwide (excluding US)" is false, not null).
+ */
 export function scopeOpenToUs(scope: RemoteScope | null): boolean | null {
-  if (!scope || scope.regions.length === 0) return null;
+  if (!scope) return null;
+  const { excluded } = scopeParts(withoutTimeZones(scope.text));
+  if (excluded.some((r) => US_INCLUSIVE.includes(r))) return false;
+  if (scope.regions.length === 0) return null;
   return scope.regions.some((r) => r === 'US' || r === 'WORLDWIDE' || r === 'NA');
 }
 

@@ -37,6 +37,35 @@ test('open to US applicants: US, worldwide and North America yes; Europe only no
   assert.equal(scopeOpenToUs(null), null);
 });
 
+test('O9: words that leave a region out never make it an included region and never look open to US applicants', () => {
+  // Every phrasing that bars the US: no region is included, and the scope says "not open to US" (false), not "unknown".
+  for (const w of [
+    'Worldwide (excluding US)', 'Anywhere except USA', 'Remote (Not US)', 'Non-US', 'Worldwide, excluding the United States',
+    'Global - excl. US', 'Worldwide except U.S.', 'Remote outside the US', 'Anywhere but not in the US', 'Remote, no US',
+    'Worldwide; US excluded', 'Remote (US not eligible)', 'Anywhere in the world other than USA', 'Non-USA', 'Worldwide (except North America)',
+  ]) {
+    const scope = parseRemoteScope(w)!;
+    assert.ok(!scope.regions.includes('US') && !scope.regions.includes('WORLDWIDE') && !scope.regions.includes('NA'), `${w}: regions ${JSON.stringify(scope.regions)}`);
+    assert.equal(scopeOpenToUs(scope), false, w);
+    assert.equal(scope.text, w, 'the words are kept');
+  }
+  // The rest of the words still count.
+  assert.deepEqual(parseRemoteScope('Europe, not US')?.regions, ['EU']);
+  assert.deepEqual(parseRemoteScope('Americas (excluding US)')?.regions, ['LATAM']);
+  assert.equal(scopeOpenToUs(parseRemoteScope('Europe, not US')), false);
+  // A leave-out of something else changes nothing for the US.
+  assert.deepEqual(parseRemoteScope('Worldwide (excluding Russia)')?.regions, ['WORLDWIDE']);
+  assert.equal(scopeOpenToUs(parseRemoteScope('Worldwide (excluding Russia)')), true);
+  assert.equal(scopeOpenToUs(parseRemoteScope('Worldwide, no timezone restrictions')), true);
+  // A state left out of the US is not the whole US left out.
+  assert.deepEqual(parseRemoteScope('USA (except California)')?.regions, ['US']);
+  assert.equal(scopeOpenToUs(parseRemoteScope('USA only, no relocation')), true);
+  // Words without a negation read as before.
+  assert.equal(scopeOpenToUs(parseRemoteScope('North America')), true);
+  assert.equal(scopeOpenToUs(parseRemoteScope('Nordics only')), null);
+  assert.equal(scopeOpenToUs(parseRemoteScope('Nonprofit, US')), true);
+});
+
 test('pay from a salary field keeps the period and the currency as written', () => {
   const hour = payFromSalaryField('$30 an hour');
   assert.equal(hour?.period, 'hour');

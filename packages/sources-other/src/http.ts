@@ -52,7 +52,14 @@ export const MIN_GAP_MS = 1100;
 
 /** Spaces requests to one host. Pacing uses real time, never the app clock. */
 export interface HostPacer {
+  /** Waits for the host's next slot, then books the slot after it `gapMs` (at least MIN_GAP_MS) later. */
   wait(host: string, gapMs: number, signal?: AbortSignal): Promise<void>;
+  /**
+   * Books the host's next slot at least `gapMs` from now, without waiting. The client calls it right after the
+   * robots.txt answer, because the robots.txt request itself is paced before its Crawl-delay is known: the first
+   * request after it must still keep the delay (RFC 9309 Crawl-delay is the gap between requests to the host).
+   */
+  hold?(host: string, gapMs: number): Promise<void> | void;
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -74,6 +81,9 @@ export class MemoryPacer implements HostPacer {
     this.next.set(host, start + Math.max(MIN_GAP_MS, gapMs));
     await sleep(start - now, signal);
   }
+  hold(host: string, gapMs: number): void {
+    this.next.set(host, Math.max(this.next.get(host) ?? 0, Date.now() + gapMs));
+  }
 }
 
 /**
@@ -83,32 +93,40 @@ export class MemoryPacer implements HostPacer {
 export class DbPacer implements HostPacer {
   private db: DatabaseSync;
   constructor(db: DatabaseSync) { this.db = db; }
-  async wait(host: string, gapMs: number, signal?: AbortSignal): Promise<void> {
-    const gap = Math.max(MIN_GAP_MS, gapMs);
-    let start = 0;
-    let now = 0;
+
+  /** Reads the host's slot and books a new one in one write transaction. Returns when the caller may go. */
+  private async book(host: string, signal: AbortSignal | undefined, next: (now: number, slot: number) => { start: number; nextAt: number }): Promise<{ start: number; now: number }> {
     for (let attempt = 0; ; attempt++) {
       try {
         this.db.exec('BEGIN IMMEDIATE');
         try {
-          now = Date.now();
+          const now = Date.now();
           const row = this.db.prepare('SELECT next_at_ms FROM source_host_slots WHERE host = ?').get(host) as { next_at_ms: number } | undefined;
-          start = Math.max(now, Number(row?.next_at_ms ?? 0));
+          const { start, nextAt } = next(now, Number(row?.next_at_ms ?? 0));
           this.db.prepare('INSERT INTO source_host_slots (host, next_at_ms) VALUES (?, ?) ON CONFLICT(host) DO UPDATE SET next_at_ms = excluded.next_at_ms')
-            .run(host, start + gap);
+            .run(host, nextAt);
           this.db.exec('COMMIT');
+          return { start, now };
         } catch (e) {
           try { this.db.exec('ROLLBACK'); } catch { /* already rolled back */ }
           throw e;
         }
-        break;
       } catch (e) {
         // Another process holds the write lock for a moment: wait and try again.
         if (attempt < 50 && /busy|locked/i.test(String((e as Error).message))) { await sleep(20, signal); continue; }
         throw e;
       }
     }
+  }
+
+  async wait(host: string, gapMs: number, signal?: AbortSignal): Promise<void> {
+    const gap = Math.max(MIN_GAP_MS, gapMs);
+    const { start, now } = await this.book(host, signal, (n, slot) => { const st = Math.max(n, slot); return { start: st, nextAt: st + gap }; });
     await sleep(start - now, signal);
+  }
+
+  async hold(host: string, gapMs: number): Promise<void> {
+    await this.book(host, undefined, (n, slot) => ({ start: n, nextAt: Math.max(slot, n + gapMs) }));
   }
 }
 
@@ -268,7 +286,12 @@ export class FeedClient implements FeedHttp {
           return DISALLOW_ALL; // RFC 9309: robots.txt unreachable = assume disallow
         }
         const body = await this.readBody(res, realHost).catch(() => '');
-        if (res.status >= 200 && res.status < 300) return parseRobots(body, PRODUCT_TOKEN);
+        if (res.status >= 200 && res.status < 300) {
+          const rules = parseRobots(body, PRODUCT_TOKEN);
+          // The robots.txt request was paced before its Crawl-delay was known: keep the delay for the request after it.
+          if (rules.crawlDelayMs > MIN_GAP_MS) await this.pacer.hold?.(realHost, rules.crawlDelayMs);
+          return rules;
+        }
         if (res.status >= 500) return DISALLOW_ALL;
         return ALLOW_ALL; // 4xx: no rules published
       })();
