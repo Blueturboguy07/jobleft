@@ -77,6 +77,15 @@ test('country: never the wrong country (O8)', () => {
   assert.equal(parsePlaces('Batumi, Georgia')[0].country, 'GE');
 });
 
+test('country: a listed US place makes a US job even when the board names another country', () => {
+  const r = parseLocationText('Toronto; San Francisco');
+  assert.equal(usFromFacts(r.places, r.remoteRegions, ['CA']), true);
+  const t = parseLocationText('Toronto, ON');
+  assert.equal(usFromFacts(t.places, t.remoteRegions, ['CA']), false);
+  assert.deepEqual(parsePlaces('Saint John, New Brunswick').map((p) => [p.region, p.country]), [['NB', 'CA']]);
+  assert.deepEqual(parsePlaces('New Brunswick, NJ').map((p) => [p.region, p.country]), [['NJ', 'US']]);
+});
+
 test('country: the spike API still answers the same questions', () => {
   assert.equal(isUsLocation('Austin, TX'), true);
   assert.equal(isUsLocation('Remote', ['US']), true);
