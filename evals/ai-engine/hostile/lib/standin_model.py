@@ -501,12 +501,16 @@ class H(BaseHTTPRequestHandler):
             ps = ps[:max(1, len(ps) // 2)]
         stop = 'max_tokens' if mode == 'cutoff' else 'end_turn'
         tools = body.get('tools') or []
-        use_tool = bool(tools) and mode not in ('text', 'empty') and text.strip().startswith('{')
+        try:
+            parsed = json.loads(text) if tools else None
+        except Exception:
+            parsed = None
+        use_tool = bool(tools) and mode not in ('text', 'empty') and isinstance(parsed, dict)
         if not stream:
             if mode == 'half':
                 return self.drop(idx, 'half')
             if use_tool:
-                content = [{'type': 'tool_use', 'id': 'toolu_h', 'name': tools[0].get('name'), 'input': json.loads(text)}]
+                content = [{'type': 'tool_use', 'id': 'toolu_h', 'name': tools[0].get('name'), 'input': parsed}]
                 stop = 'tool_use' if mode != 'cutoff' else stop
             else:
                 content = [{'type': 'text', 'text': ''.join(ps)}]
