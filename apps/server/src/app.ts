@@ -12,6 +12,8 @@ import { NetworkService } from '@jobleft/network';
 import { openAndMigrate } from './db/open.ts';
 import type { HomeLayout } from './home.ts';
 import { AiFacade } from './integ/engine.ts';
+import { buildAssistant } from './integ/assistant.ts';
+import type { Assistant } from '@jobleft/assistant';
 import { ResumeBridge } from './integ/resume.ts';
 import { BoardsService } from './interim/boards.ts';
 import { ChatService } from './interim/chats.ts';
@@ -59,6 +61,7 @@ export class AppData {
   readonly network: NetworkService;
   readonly chats: ChatService;
   readonly ai: AiFacade;
+  private assistantInstance: Assistant | null = null;
   readonly boards: BoardsService;
   readonly feed: FeedService;
   readonly migrated: { from: number; to: number; fresh: boolean };
@@ -147,6 +150,12 @@ export class AppData {
     this.kv.set('core.seededBoards', added);
     this.cfg.log.info('seed.added', { boards: added.length });
     if (added.length && auto) this.boards.runNow(undefined, 'first_run').catch((e) => this.cfg.log.warn('seed.crawl_not_started', { error: e instanceof Error ? e.message : 'error' }));
+  }
+
+  /** The assistant (chat with tools, practice), built once per data folder on first use. */
+  assistant(app: App): Assistant {
+    if (!this.assistantInstance) this.assistantInstance = buildAssistant(app, this, this.db);
+    return this.assistantInstance;
   }
 
   /** Background work: reminders, follow-ups and the crawl scheduler. Never before the server answers. */

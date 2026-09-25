@@ -191,6 +191,9 @@ importers:
       '@jobleft/ai-engine':
         specifier: workspace:*
         version: link:../../packages/ai-engine
+      '@jobleft/assistant':
+        specifier: workspace:*
+        version: link:../../packages/assistant
       '@jobleft/boards':
         specifier: workspace:*
         version: link:../../packages/boards

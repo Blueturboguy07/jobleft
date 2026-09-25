@@ -29,6 +29,7 @@
     "@jobleft/resume": "workspace:*",
     "@jobleft/match": "workspace:*",
     "@jobleft/network": "workspace:*",
-    "@jobleft/extension": "workspace:*"
+    "@jobleft/extension": "workspace:*",
+    "@jobleft/assistant": "workspace:*"
   }
 }

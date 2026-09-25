@@ -20,6 +20,7 @@ import { addExternal } from './interim/external.ts';
 import { detailOf } from './interim/jobs.ts';
 import { createAiRouteHandlers, type AiRouteHandlers } from '@jobleft/ai-engine';
 import { apiFailureOf } from './integ/engine.ts';
+import { assistantRoute } from './integ/assistant.ts';
 import { matchFor } from './integ/match.ts';
 import { step } from './integ/resume.ts';
 import { safeFileName } from './interim/resumes.ts';
@@ -300,20 +301,18 @@ export const HANDLERS: HandlerTable = {
   deleteAiKey: (c) => aiJson(c, 'deleteAiKey'),
   checkAi: (c) => aiJson(c, 'checkAi'),
   listModels: (c) => aiJson(c, 'listModels'),
-  chat: async ({ d, body }) => {
-    const job = body.jobId ? jobOr404(d, body.jobId) : null;
-    return { sse: await d.ai.prepareChat(body, job) };
-  },
-  listChats: ({ d }) => ({ json: d.chats.list() }),
-  getChat: ({ d, params }) => { const c = d.chats.get(params.chatId!); if (!c) notFound('That conversation'); return { json: c }; },
-  deleteChat: ({ d, params }) => { if (!d.chats.delete(params.chatId!)) notFound('That conversation'); return ok; },
-  decideProposal: () => notFound('That proposal'),
-  startPractice: () => notReady('Interview practice (the AI engine)'),
-  practiceFeedback: () => notReady('Interview practice (the AI engine)'),
-  listPracticeItems: () => ({ json: [] }),
-  savePracticeItem: () => notReady('The personal question bank (the AI engine)'),
-  updatePracticeItem: () => notFound('That practice item'),
-  deletePracticeItem: () => notFound('That practice item'),
+  // i-ai: the assistant (tools over the person's own data), its conversations, its proposals and interview practice.
+  chat: (c) => assistantRoute(c as Ctx<RouteName>, 'chat'),
+  listChats: (c) => assistantRoute(c as Ctx<RouteName>, 'listChats'),
+  getChat: (c) => assistantRoute(c as Ctx<RouteName>, 'getChat'),
+  deleteChat: (c) => assistantRoute(c as Ctx<RouteName>, 'deleteChat'),
+  decideProposal: (c) => assistantRoute(c as Ctx<RouteName>, 'decideProposal'),
+  startPractice: (c) => assistantRoute(c as Ctx<RouteName>, 'startPractice'),
+  practiceFeedback: (c) => assistantRoute(c as Ctx<RouteName>, 'practiceFeedback'),
+  listPracticeItems: (c) => assistantRoute(c as Ctx<RouteName>, 'listPracticeItems'),
+  savePracticeItem: (c) => assistantRoute(c as Ctx<RouteName>, 'savePracticeItem'),
+  updatePracticeItem: (c) => assistantRoute(c as Ctx<RouteName>, 'updatePracticeItem'),
+  deletePracticeItem: (c) => assistantRoute(c as Ctx<RouteName>, 'deletePracticeItem'),
   cancelAi: (c) => aiJson(c, 'cancelAi'),
   getPublik: (c) => aiJson(c, 'getPublik'),
   connectPublik: (c) => aiJson(c, 'connectPublik'),

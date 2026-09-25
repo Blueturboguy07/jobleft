@@ -59,7 +59,7 @@ export function countsOf(db: DatabaseSync): Record<string, number> {
     resumes: q('resumes') + q('srv_resumes', notAdopted('')),
     resumeFiles: q('resumes', "WHERE file_json IS NOT NULL") + q('srv_resumes', notAdopted('file_path IS NOT NULL')),
     contacts: q('network_contacts'),
-    chats: q('srv_chats'),
+    chats: q('srv_chats') + q('ai_chats'),
     chatMessages: q('srv_chat_messages'),
     savedAnswers: q('srv_saved_answers'),
     boards: q('srv_boards'),
