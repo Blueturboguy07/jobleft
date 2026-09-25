@@ -52,8 +52,11 @@ async function start(name: string, port: number, logFile: string | null, handle:
 
 // ---------------------------------------------------------------- job boards
 
-/** The boards file: { "greenhouse": { "<token>": [ jobs ] }, "lever": {...}, "ashby": {...} } in each ATS's own shape. */
-export type BoardsFile = Partial<Record<'greenhouse' | 'lever' | 'ashby', Record<string, unknown[]>>>;
+/**
+ * The boards file: { "greenhouse": { "<token>": [ jobs ] }, "lever": {...}, "ashby": {...} } in each ATS's own shape,
+ * and "pages": { "/path": "<html>" } for job pages added by link (map their host to this server with JOBLEFT_HOST_MAP).
+ */
+export type BoardsFile = Partial<Record<'greenhouse' | 'lever' | 'ashby', Record<string, unknown[]>>> & { pages?: Record<string, string> };
 
 export function startBoards(opts: { file: string; port?: number; logFile?: string | null }): Promise<Mock> {
   const load = (): BoardsFile => { try { return JSON.parse(readFileSync(opts.file, 'utf8')) as BoardsFile; } catch { return {}; } };
@@ -61,6 +64,8 @@ export function startBoards(opts: { file: string; port?: number; logFile?: strin
     const b = load();
     let m: RegExpExecArray | null;
     if (url.pathname === '/robots.txt') { res.writeHead(404); res.end(); return; }
+    const page = b.pages?.[url.pathname];
+    if (page !== undefined) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(page); return; }
     if ((m = /^\/v1\/boards\/([^/]+)\/jobs$/.exec(url.pathname))) {
       const jobs = b.greenhouse?.[decodeURIComponent(m[1]!)];
       if (!jobs) { json(res, 404, { status: 404, error: 'Job not found' }); return; }

@@ -99,3 +99,28 @@ test('offline mode refuses a crawl with a plain message and changes nothing', as
     assert.equal(r.json.error.code, 'offline');
   } finally { await s.stop(); cleanup(s.home); }
 });
+
+test('a job added by link reads the page once, politely; never-crawl sites get no request', async () => {
+  const dir = scratchHome('extlink');
+  const file = join(dir, 'boards.json');
+  const ld = { '@context': 'https://schema.org', '@type': 'JobPosting', title: 'Pastry Chef', hiringOrganization: { '@type': 'Organization', name: 'Crumb & Co' }, datePosted: '2026-09-19', description: '<p>Bake things.</p>', employmentType: 'FULL_TIME', jobLocation: { '@type': 'Place', address: { addressLocality: 'Portland', addressRegion: 'OR', addressCountry: 'US' } }, baseSalary: { '@type': 'MonetaryAmount', currency: 'USD', value: { '@type': 'QuantitativeValue', minValue: 22, maxValue: 26, unitText: 'HOUR' } } };
+  writeFileSync(file, JSON.stringify({ pages: { '/careers/pastry-chef': `<html><head><title>Careers</title><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body>x</body></html>` } }));
+  const boards = await startBoards({ file });
+  const s = await startTest('extlink', { env: { JOBLEFT_HOST_MAP: JSON.stringify({ 'jobs.example.com': boards.origin }) } });
+  try {
+    const r = await s.call('POST', '/api/v1/jobs/external', { url: 'https://jobs.example.com/careers/pastry-chef' });
+    assert.equal(r.status, 200, r.text);
+    const j = r.json.job;
+    assert.deepEqual([j.title, j.company, j.employmentType], ['Pastry Chef', 'Crumb & Co', 'full_time']);
+    assert.deepEqual([j.pay.min, j.pay.max, j.pay.period, j.pay.currency], [22, 26, 'hour', 'USD']);
+    assert.equal(j.places[0].text, 'Portland, OR, US');
+    assert.equal(r.json.tracker.external, true);
+    assert.equal((await s.call('GET', '/api/v1/tracker?view=external')).json.items.length, 1);
+    const before = boards.log.length;
+    const li = await s.call('POST', '/api/v1/jobs/external', { url: 'https://www.linkedin.com/jobs/view/123' });
+    assert.equal(li.status, 422);
+    assert.equal(li.json.error.code, 'forbidden_source');
+    assert.equal(boards.log.length, before, 'nothing was sent');
+    for (const e of boards.log) assert.equal(e.headers['user-agent'], 'jobleft-build/0.1 (research build; no personal data)');
+  } finally { await s.stop(); await boards.close(); cleanup(s.home); cleanup(dir); }
+});

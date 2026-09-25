@@ -364,7 +364,7 @@ Data saved in an interim table is not moved into a lane's table automatically ye
 ## 14. Tests
 
 ```sh
-pnpm --filter @jobleft/server test        # 39 tests: security, records, kill -9, backup, pairing, lifecycle, AI, crawl
+pnpm --filter @jobleft/server test        # 40 tests: security, records, kill -9, backup, pairing, lifecycle, AI, crawl, add by link
 pnpm --filter @jobleft/server typecheck
 apps/server/scripts/jobsync-tests.sh      # the jobsync fork's own unit tests (needs vendor/jobsync/node_modules)
 ```
