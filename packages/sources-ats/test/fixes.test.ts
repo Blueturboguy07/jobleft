@@ -291,7 +291,9 @@ test('the crawler pacer never reserves an absurd Crawl-delay for the next reques
   await pacer.wait('slow.example.org');
   await pacer.wait('slow.example.org', 100_000_000); // robots.txt says Crawl-delay: 100000
   await pacer.wait('slow.example.org', 100_000_000);
-  assert.deepEqual(slept, [1000, 60_000]);
+  // The crawler pacer measures each gap from the last request with the caller's own delay, plus its 100 ms margin; the
+  // absurd delay is cut to 60 s, so each of the two later requests waits 60.1 s, never 27 hours.
+  assert.deepEqual(slept, [60_100, 60_100]);
 });
 
 test('a broken or cut-off answer gets a plain sentence, not "terminated"', () => {

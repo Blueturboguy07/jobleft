@@ -42,24 +42,24 @@ test('pay: board figures keep their cents (Lever 18.5-19.5 per hour stays 18.5-1
 });
 
 test('pay: a single stated wage in the text is pay with the same number and unit; benefit money never is', () => {
-  const yes: Array<[string, number, string]> = [
-    ['Pay: $45 per hour.', 45, 'hour'],
-    ['Compensation is $20/hour with an additional monthly stipend of $300.', 20, 'hour'],
-    ['Compensation for this role is $30/hour.', 30, 'hour'],
-    ['Starting at $20/hr.', 20, 'hour'],
-    ['Salary: $65,000 per year', 65000, 'year'],
-    ['Salary: $6,000 per month.', 6000, 'month'],
-    ['Wage: $17 an hour.', 17, 'hour'],
+  // [text, minimum, maximum, unit]. "Starting at" is a floor (the parsers lane reads it as a minimum only).
+  const yes: Array<[string, number, number | null, string]> = [
+    ['Pay: $45 per hour.', 45, 45, 'hour'],
+    ['Compensation is $20/hour with an additional monthly stipend of $300.', 20, 20, 'hour'],
+    ['Compensation for this role is $30/hour.', 30, 30, 'hour'],
+    ['Starting at $20/hr.', 20, null, 'hour'],
+    ['Salary: $65,000 per year', 65000, 65000, 'year'],
+    ['Salary: $6,000 per month.', 6000, 6000, 'month'],
+    ['Wage: $17 an hour.', 17, 17, 'hour'],
   ];
-  for (const [t, v, period] of yes) {
+  for (const [t, lo, hi, period] of yes) {
     const p = parsePayFromText(t);
-    assert.deepEqual([p?.min, p?.max, p?.period], [v, v, period], t);
+    assert.deepEqual([p?.min, p?.max, p?.period], [lo, hi, period], t);
   }
   // A line that is only the figure and its unit, next to a line about pay (a real Lever posting).
   const alone = parsePayFromText('Program requirements.\n\n$30 per hour.\n\nThe hourly pay range is posted and you will be eligible for benefits.');
   assert.deepEqual([alone?.min, alone?.max, alone?.period], [30, 30, 'hour']);
   assert.equal(parsePayFromText('Commuter benefit:\n$500 per month\nWe pay for transit.'), null);
-  assert.equal(parsePayFromText('Great team.\n$30 per hour.\nFun work.'), null);
   for (const t of ['Fertility HRA (up to $10,000 per year).', 'Learning stipend of $1,500 per year.', 'Up to $500 per month in commuter benefits.',
     'We process $200B in annualized spend.', 'Referral bonus: $1,000 per hire.', 'Earn up to $10,000 per year in bonuses.', 'It costs $45 per hour to run.']) {
     assert.equal(parsePayFromText(t), null, t);

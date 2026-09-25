@@ -156,7 +156,7 @@ export function normalizeJob(board: BoardRef, raw: RawJob): Job | null {
   const hooked = uniqueTexts.length > 0 ? uniqueTexts.map((t) => tryHook('parsePlaces', [t], isPlaceArray)) : [];
   if (hooked.length > 0 && hooked.every((h) => h !== null && h.length > 0)) {
     // The parsers lane resolved every place: keep its parts, but always keep the board's own words as the text.
-    places = hooked.flatMap((h, i) => h!.map((p) => ({ ...p, text: p.text || uniqueTexts[i]! })));
+    places = hooked.flatMap((h, i) => h!.map((p) => ({ ...p, text: h!.length === 1 ? uniqueTexts[i]! : p.text || uniqueTexts[i]! })));
   }
   const description = htmlToText(raw.descriptionHtml);
 

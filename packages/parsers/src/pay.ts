@@ -184,6 +184,8 @@ const ADDITIVE = /(?:\bplus\b|\+|\badditional\b|\bextra\b|\bin\s+addition\b|\bad
 const BENEFIT_STIPEND = /\b(?:learning|wellness|phone|cell\w*|internet|remote|home[- ]office|wfh|work[- ]from[- ]home|commut\w*|transit|transport\w*|meal|lunch|food|education\w*|development|fitness|gym|tech\w*|travel|reloc\w*|housing|equipment|book|conference|health|lifestyle|monthly\s+wellness|utility|utilities|mobile|coworking|co-working|workspace|office)\s+(?:and\s+\w+\s+)?stipends?\b|\bstipends?\s+(?:for|to\s+cover|towards?)\b/i;
 const INTERN_TITLE = /\b(?:intern|interns|internship|co-?op|fellow|fellowship|resident|residency|extern|externship|apprentice|trainee|stagiaire|praktikant|werkstudent|becario|estagi[aá]ri[oa]|pasante)\b/i;
 
+const BENEFIT_LINE = /\b(?:benefits?|perks|stipends?|commut\w*|reimburs\w*|allowances?|bonus(?:es)?|hsa|fsa|hra|tuition|wellness|referral)\b/i;
+
 function lastMatch(re: RegExp, s: string): { at: number; end: number; text: string } | null {
   re.lastIndex = 0;
   let m: RegExpExecArray | null;
@@ -433,6 +435,11 @@ function contextKind(text: string, start: number, end: number, prevEnd: number, 
     else if (tc) kind = 'total';
     else if (pc) kind = 'pay';
     else if (ex && stipendIsPay) kind = 'pay';
+  }
+  // A figure alone on its line, under a short benefit line ("Commuter benefit:" then "$500 per month"), is that benefit.
+  if (kind === 'none' && !excluded && text.slice(text.lastIndexOf('\n', start - 1) + 1, start).trim() === '') {
+    const above = text.slice(0, text.lastIndexOf('\n', start - 1) + 1).split('\n').map((l) => l.trim()).filter(Boolean).pop() ?? '';
+    if (above.length <= 80 && BENEFIT_LINE.test(above) && !HEADING_CUE.test(above)) return { kind, excluded: true, cue: false };
   }
   return { kind, excluded, cue: kind !== 'none' };
 }
