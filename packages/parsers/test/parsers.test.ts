@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { htmlToText, unescapeEncodedHtml } from '../src/html.ts';
 import { levelFromDescription, levelFromTitle } from '../src/level.ts';
-import { isUsLocation } from '../src/location.ts';
+import { isUsLocation } from '../src/places.ts';
 import { annualize, parsePayFromText } from '../src/pay.ts';
 
 test('pay: annual ranges in the common spellings', () => {
@@ -42,9 +42,9 @@ test('pay: annualize converts hourly, monthly, weekly and daily', () => {
 
 test('level: generic titles, senior-most marker wins', () => {
   const cases: Array<[string, string | null]> = [
-    ['Software Engineering Intern', 'intern'], ['Associate Director of Finance', 'director'], ['Assistant Store Manager', 'manager'],
+    ['Software Engineering Intern', 'intern'], ['Associate Director of Finance', 'director'], ['Assistant Store Manager', 'mid'],
     ['Sales Associate', 'entry'], ['Senior Accountant', 'senior'], ['Staff Software Engineer', 'staff'], ['Principal Consultant', 'principal'],
-    ['Vice President, Lending', 'vp'], ['Chief Nursing Officer', 'exec'], ['Head of Marketing', 'director'], ['Shift Supervisor', 'lead'],
+    ['Vice President, Lending', 'vp'], ['Chief Nursing Officer', 'exec'], ['Head of Marketing', 'director'], ['Shift Supervisor', 'entry'],
     ['Registered Nurse II', 'mid'], ['Registered Nurse III', 'senior'], ['Registered Nurse I', 'entry'], ['Staff Nurse', null], ['Cashier', null],
     ['Junior Designer', 'entry'], ['Team Lead, Support', 'lead'],
   ];

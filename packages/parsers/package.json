@@ -4,7 +4,7 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
-  "description": "Pure parsers: seniority level, pay, place (US heuristic) and HTML to plain text.",
+  "description": "Pure, offline readers for the facts of a job posting: pay, seniority, required years, places, US or not, work model and remote area, with evidence. Plus a CLI that reads postings from files or a local mock board.",
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"
@@ -14,9 +14,14 @@
   },
   "scripts": {
     "test": "node --test \"test/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "parse": "node src/cli.ts",
+    "serve-board": "node scripts/serve-board.ts"
   },
   "dependencies": {
     "@jobleft/contracts": "workspace:*"
+  },
+  "bin": {
+    "jobleft-parse": "./src/cli.ts"
   }
 }

@@ -1,0 +1,79 @@
+{
+  "jobs": [
+    {
+      "id": 101,
+      "title": "Registered Nurse - Night Shift",
+      "absolute_url": "https://example.com/jobs/101",
+      "location": {
+        "name": "Portland, ME"
+      },
+      "content": "&lt;p&gt;Join our med-surg unit. Pay: $48/hr plus a $4/hr night differential. $5,000 sign-on bonus.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;1+ year of acute care experience required&lt;/li&gt;&lt;li&gt;Must be 18 years or older&lt;/li&gt;&lt;/ul&gt;"
+    },
+    {
+      "id": 102,
+      "title": "Senior Care Aide",
+      "absolute_url": "https://example.com/jobs/102",
+      "location": {
+        "name": "Springfield, IL"
+      },
+      "content": "&lt;p&gt;Help seniors in our senior living community. No experience required - we will train you. Starting at $17.50 per hour.&lt;/p&gt;"
+    },
+    {
+      "id": 103,
+      "title": "Software Engineer III",
+      "absolute_url": "https://example.com/jobs/103",
+      "location": {
+        "name": "Remote - Canada"
+      },
+      "content": "&lt;p&gt;This is a fully remote role open to candidates in Canada only. 0-2 years of experience.&lt;/p&gt;&lt;p&gt;We raised $150M in our Series C.&lt;/p&gt;"
+    },
+    {
+      "id": 104,
+      "title": "Account Executive",
+      "absolute_url": "https://example.com/jobs/104",
+      "location": {
+        "name": "New York, NY; San Francisco, CA; Austin, TX"
+      },
+      "content": "&lt;p&gt;Compensation: $60K base, $120K OTE. Hybrid role, 3 days a week in the office.&lt;/p&gt;&lt;p&gt;5+ years of SaaS sales experience, or 3 years with an MBA.&lt;/p&gt;"
+    },
+    {
+      "id": 105,
+      "title": "Warehouse Associate",
+      "absolute_url": "https://example.com/jobs/105",
+      "location": {
+        "name": "Paris, TX"
+      },
+      "content": "&lt;p&gt;Salario: $18 - $21 por hora. Turno de noche.&lt;/p&gt;"
+    },
+    {
+      "id": 106,
+      "title": "Data Analyst",
+      "absolute_url": "https://example.com/jobs/106",
+      "location": {
+        "name": "Tbilisi, Georgia"
+      },
+      "content": "&lt;p&gt;Competitive salary. Work with remote teams on remote sensing data.&lt;/p&gt;"
+    },
+    {
+      "id": 107,
+      "title": "Product Designer",
+      "absolute_url": "https://example.com/jobs/107",
+      "location": {
+        "name": "Remote"
+      },
+      "content": "&lt;p&gt;Remote, but you must live within 50 miles of Denver, CO.&lt;/p&gt;&lt;p&gt;Salary range by location: NYC $140,000 - $160,000; Denver $120,000 - $140,000; all other US locations $110,000 - $130,000.&lt;/p&gt;"
+    },
+    {
+      "id": 108,
+      "title": "Shift Manager",
+      "absolute_url": "https://example.com/jobs/108",
+      "location": {
+        "name": "Multiple Locations"
+      },
+      "content": "&lt;p&gt;Lead shifts at our store. Up to $22/hr. 401(k) match up to 6%. Req 120000.&lt;/p&gt;"
+    }
+  ],
+  "meta": {
+    "total": 8
+  }
+}

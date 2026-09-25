@@ -127,6 +127,8 @@ Entries 2.1 to 2.5 are from the static-data lane, 2.6 from the ai-engine lane an
   copied or transformed. Each file states this in its header.
 - Licence: the jobleft project's own licence (not decided yet; see the root `package.json`).
 
+Note (parsers lane, 2026-09-25): `packages/parsers/src/geo-us.ts`, `geo-world.ts` and `currency.ts` hold small lookup lists (US state codes, about 2,500 US city names, 116 country names, common regions, about 1,500 world city names, currency markers). They were written for jobleft from general knowledge. No dataset (GeoNames, Census or other) was copied, so no third-party licence applies.
+
 ## 3. Development tools (not shipped in the app)
 
 | Package | Version | Licence | Use |
