@@ -141,13 +141,16 @@ export async function startStandin(dir: string, opts: { basePort?: number; log?:
   const servers: Server[] = [];
   const hostMap: Record<string, string> = {};
   let port = opts.basePort ?? 0;
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  let closed = false;
 
   for (const [host, list] of byHost) {
+    let listenPort = 0;
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = new URL(req.url ?? '/', 'http://standin');
       const record = (status: number): void => {
         const r: StandinRequest = {
-          at: new Date().toISOString(), host, port: (server.address() as { port: number }).port, method: req.method ?? 'GET',
+          at: new Date().toISOString(), host, port: listenPort, method: req.method ?? 'GET',
           path: url.pathname + url.search, headers: Object.fromEntries(Object.entries(req.headers).map(([k, v]) => [k, String(v)])), status,
         };
         requests.push(r);
@@ -171,34 +174,45 @@ export async function startStandin(dir: string, opts: { basePort?: number; log?:
       const status = meta?.status ?? 200;
       const body = Buffer.from(meta?.body ?? hit.r.body ?? readFileSync(hit.r.file, 'utf8'));
       const send = (): void => {
+        if (closed || res.destroyed) return;
         record(status);
         res.writeHead(status, { 'content-type': FAMILIES[hit!.b.ats].type, ...(meta?.headers ?? {}) });
         if (meta?.bytesPerSecond && meta.bytesPerSecond > 0) {
           let i = 0;
           const step = Math.max(1, Math.floor(meta.bytesPerSecond / 10));
           const timer = setInterval(() => {
-            if (i >= body.length || res.destroyed) { clearInterval(timer); res.end(); return; }
+            if (closed || i >= body.length || res.destroyed) { clearInterval(timer); timers.delete(timer); res.end(); return; }
             res.write(body.subarray(i, i + step));
             i += step;
           }, 100);
-          res.on('close', () => clearInterval(timer));
+          timers.add(timer);
+          res.on('close', () => { clearInterval(timer); timers.delete(timer); });
           return;
         }
         res.end(body);
       };
-      if (meta?.delayMs) setTimeout(send, meta.delayMs); else send();
+      if (meta?.delayMs) {
+        const timer = setTimeout(() => { timers.delete(timer); send(); }, meta.delayMs);
+        timers.add(timer);
+      } else send();
     });
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject);
       server.listen(port, '127.0.0.1', () => resolve());
     });
     const actual = (server.address() as { port: number }).port;
+    listenPort = actual;
     hostMap[host] = `http://127.0.0.1:${actual}`;
     if (port) port = actual + 1;
     servers.push(server);
   }
   return {
     boards, hostMap, requests,
-    close: () => Promise.all(servers.map((s) => new Promise<void>((r) => { s.closeAllConnections?.(); s.close(() => r()); }))).then(() => undefined),
+    close: () => {
+      closed = true;
+      for (const t of timers) { clearTimeout(t); clearInterval(t); }
+      timers.clear();
+      return Promise.all(servers.map((s) => new Promise<void>((r) => { s.closeAllConnections?.(); s.close(() => r()); }))).then(() => undefined);
+    },
   };
 }
