@@ -19,6 +19,7 @@
   "dependencies": {
     "@jobleft/contracts": "workspace:*",
     "@jobleft/crawler": "workspace:*",
-    "@jobleft/static-data": "workspace:*"
+    "@jobleft/static-data": "workspace:*",
+    "onnxruntime-node": "1.30.0"
   }
 }
