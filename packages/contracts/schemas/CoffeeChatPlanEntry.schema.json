@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:CoffeeChatPlanEntry",
+  "title": "CoffeeChatPlanEntry",
+  "type": "object",
+  "properties": {
+    "companyKey": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "companyName": {
+      "type": "string"
+    },
+    "contacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "to_contact",
+              "messaged",
+              "replied",
+              "met",
+              "follow_up_due"
+            ]
+          },
+          "nextStep": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "text"
+              ]
+            }
+          }
+        },
+        "required": [
+          "contactId",
+          "firstName",
+          "lastName",
+          "position",
+          "stage",
+          "nextStep",
+          "reasons"
+        ]
+      }
+    }
+  },
+  "required": [
+    "companyKey",
+    "companyName",
+    "contacts"
+  ]
+}

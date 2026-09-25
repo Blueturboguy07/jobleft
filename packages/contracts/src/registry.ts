@@ -15,7 +15,8 @@ import { JobFilterSchema, JobListItemSchema, JobSearchRequestSchema, JobSearchRe
 import { JobSchema, JobSummarySchema, PaySchema, PlaceSchema, SourceAttributionSchema } from './job.ts';
 import { MatchResultSchema, MatchSummarySchema } from './match.ts';
 import {
-  CompanyCoverageSchema, ContactRankSchema, NetworkContactSchema, NetworkImportSummarySchema, OutreachDraftSchema,
+  CoffeeChatPlanEntrySchema, CompanyCoverageSchema, CompanyMatchExplanationSchema, ContactRankSchema, DraftPreviewSchema,
+  NetworkCompanyGroupSchema, NetworkContactSchema, NetworkImportSummarySchema, OutreachDraftSchema,
 } from './network.ts';
 import { ProfileInputSchema, ProfileSchema } from './profile.ts';
 import {
@@ -40,7 +41,9 @@ export const SCHEMAS: Readonly<Record<string, JsonSchema>> = {
   MatchResult: MatchResultSchema, MatchSummary: MatchSummarySchema,
   TrackerEntry: TrackerEntrySchema, TrackerPatch: TrackerPatchSchema,
   NetworkContact: NetworkContactSchema, NetworkImportSummary: NetworkImportSummarySchema, ContactRank: ContactRankSchema,
-  CompanyCoverage: CompanyCoverageSchema, OutreachDraft: OutreachDraftSchema,
+  CompanyCoverage: CompanyCoverageSchema, OutreachDraft: OutreachDraftSchema, NetworkCompanyGroup: NetworkCompanyGroupSchema,
+  CompanyMatchExplanation: CompanyMatchExplanationSchema, CoffeeChatPlanEntry: CoffeeChatPlanEntrySchema,
+  DraftPreview: DraftPreviewSchema,
   PublikWallet: PublikWalletSchema, PublikConnection: PublikConnectionSchema,
   // search
   JobFilter: JobFilterSchema, JobSearchRequest: JobSearchRequestSchema, JobSearchResponse: JobSearchResponseSchema,

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:NetworkCompanyGroup",
+  "title": "NetworkCompanyGroup",
+  "type": "object",
+  "properties": {
+    "companyKey": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "company",
+        "unknown",
+        "placeholder"
+      ]
+    },
+    "names": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "name",
+          "count"
+        ]
+      }
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "companyKey",
+    "kind",
+    "names",
+    "count"
+  ]
+}

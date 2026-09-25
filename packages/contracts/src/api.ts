@@ -26,8 +26,8 @@ import { JobFilterSchema, JobSearchRequestSchema, JobSearchResponseSchema, JobSo
 import { JobSchema, JobSummarySchema, CrawlAtsIdSchema } from './job.ts';
 import { MatchResultSchema } from './match.ts';
 import {
-  CompanyCoverageSchema, ContactRankSchema, NetworkContactSchema, NetworkImportSummarySchema, OutreachDraftSchema,
-  OutreachStageSchema,
+  CoffeeChatPlanEntrySchema, CompanyCoverageSchema, CompanyMatchExplanationSchema, ContactRankSchema, DraftPreviewSchema,
+  NetworkCompanyGroupSchema, NetworkContactSchema, NetworkImportSummarySchema, OutreachDraftSchema, OutreachStageSchema,
 } from './network.ts';
 import { ProfileInputSchema, ProfileSchema } from './profile.ts';
 import {
@@ -257,13 +257,18 @@ export const LOCAL_API = {
 
   // ---- network tool
   importNetwork: route({ method: 'POST', path: '/api/v1/network/import', auth: 'launch', owner: 'network', summary: 'Import Connections.csv (raw text body)', body: { raw: ['text/csv', 'text/plain'] }, response: NetworkImportSummarySchema }),
-  listContacts: route({ method: 'GET', path: '/api/v1/network/contacts', auth: 'launch', owner: 'network', summary: 'Contacts, filtered', query: obj({}, { companyKey: str(), stage: OutreachStageSchema, q: str({ maxLength: 200 }), due: QBool, inPlan: QBool }), response: arr(NetworkContactSchema) }),
+  listContacts: route({ method: 'GET', path: '/api/v1/network/contacts', auth: 'launch', owner: 'network', summary: 'Contacts, filtered', query: obj({}, { companyKey: str(), stage: OutreachStageSchema, q: str({ maxLength: 200 }), due: QBool, inPlan: QBool, noCompany: QBool, limit: QInt, offset: QInt }), response: arr(NetworkContactSchema) }),
   networkCoverage: route({ method: 'GET', path: '/api/v1/network/coverage', auth: 'launch', owner: 'network', summary: 'Target companies with and without connections', response: arr(CompanyCoverageSchema) }),
   rankContacts: route({ method: 'GET', path: '/api/v1/network/rank', auth: 'launch', owner: 'network', summary: 'Who to message first at a company, with reasons', query: obj({ companyKey: str({ minLength: 1 }) }, { jobId: IdSchema }), response: arr(ContactRankSchema) }),
   updateContact: route({ method: 'PATCH', path: '/api/v1/network/contacts/:contactId', auth: 'launch', owner: 'network', summary: 'Stage, note, follow-up date, plan', body: obj({}, { stage: OutreachStageSchema, note: nullable(str({ maxLength: 20000 })), followUpOn: nullable(str({ format: 'date' })), inPlan: bool() }), response: NetworkContactSchema }),
   deleteContact: route({ method: 'DELETE', path: '/api/v1/network/contacts/:contactId', auth: 'launch', owner: 'network', summary: 'Delete one contact and everything about it', response: Ok }),
   deleteNetwork: route({ method: 'DELETE', path: '/api/v1/network', auth: 'launch', owner: 'network', summary: 'Delete all network data (the user\'s own file is untouched)', response: obj({ ok: lit(true), deleted: int({ minimum: 0 }) }) }),
-  draftOutreach: route({ method: 'POST', path: '/api/v1/network/contacts/:contactId/draft', auth: 'launch', owner: 'network', summary: 'Draft a short message (sends only this contact, this job and a short summary)', body: obj({ variant: enm(['short', 'long']) }, { jobId: IdSchema }), response: OutreachDraftSchema }),
+  draftOutreach: route({ method: 'POST', path: '/api/v1/network/contacts/:contactId/draft', auth: 'launch', owner: 'network', summary: 'Draft a short message (sends only this contact, this job and a short summary)', body: obj({ variant: enm(['short', 'long']) }, { jobId: IdSchema, template: bool(), confirmRemote: bool() }), response: OutreachDraftSchema }),
+  previewDraft: route({ method: 'POST', path: '/api/v1/network/contacts/:contactId/draft/preview', auth: 'launch', owner: 'network', summary: 'What a draft would send and to whom (nothing is sent)', body: obj({ variant: enm(['short', 'long']) }, { jobId: IdSchema }), response: DraftPreviewSchema }),
+  networkCompanies: route({ method: 'GET', path: '/api/v1/network/companies', auth: 'launch', owner: 'network', summary: 'Companies in the network with counts; blank and placeholder companies grouped apart', response: arr(NetworkCompanyGroupSchema) }),
+  explainCompanyMatch: route({ method: 'GET', path: '/api/v1/network/match', auth: 'launch', owner: 'network', summary: 'How a company count was made: names counted and near names not counted, with reasons', query: obj({ companyKey: str({ minLength: 1 }) }, { companyName: str({ maxLength: 300 }) }), response: CompanyMatchExplanationSchema }),
+  networkPlan: route({ method: 'GET', path: '/api/v1/network/plan', auth: 'launch', owner: 'network', summary: 'The coffee-chat plan by company, in rank order, with a next step each', response: arr(CoffeeChatPlanEntrySchema) }),
+  planTopContacts: route({ method: 'POST', path: '/api/v1/network/plan', auth: 'launch', owner: 'network', summary: 'Put the top N people at a company into the coffee-chat plan', body: obj({ companyKey: str({ minLength: 1 }), count: int({ minimum: 1, maximum: 50 }) }, { jobId: IdSchema }), response: arr(NetworkContactSchema) }),
 
   // ---- AI and publik
   getAiSettings: route({ method: 'GET', path: '/api/v1/ai/settings', auth: 'launch', owner: 'ai-engine', summary: 'Provider settings (never the key)', response: AiSettingsSchema }),
