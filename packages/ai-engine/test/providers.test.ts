@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AiError, thinkOption } from '../src/index.ts';
+import { AiError, thinkOption, type AiTool } from '../src/index.ts';
 import { CANARY, collect, makeEngine, use, withModel } from './helpers.ts';
 
 test('custom address works with and without /v1, and chat streams the answer', async () => {
@@ -237,5 +237,53 @@ test('own keys: OpenAI and Anthropic go only to their vendor address (stand-in b
     assert.ok(!('max_tokens' in body) || body.max_completion_tokens !== undefined || true);
     assert.throws(() => makeEngine({ env: { JOBLEFT_AI_HOST_MAP: JSON.stringify({ 'api.openai.com': 'http://10.0.0.5:1' }) } }), /loopback/);
     assert.throws(() => makeEngine({ env: { JOBLEFT_AI_HOST_MAP: JSON.stringify({ 'boards-api.greenhouse.io': m.url }) } }), /vendor hosts/);
+  });
+});
+
+test('tool calls work the same way through OpenAI-style, Ollama and Anthropic providers', async () => {
+  await withModel({ key: CANARY }, async (m) => {
+    const tools: AiTool[] = [{ name: 'find_jobs', description: 'Search saved jobs', parameters: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 20 } }, required: ['query'] } }];
+    const env = { JOBLEFT_AI_HOST_MAP: JSON.stringify({ 'api.anthropic.com': m.url }) };
+    const setups = [
+      { provider: 'custom', baseUrl: m.url, model: 'standin-7b' },
+      { provider: 'local', localKind: 'ollama', baseUrl: m.url, model: 'standin-7b' },
+      { provider: 'own_key', vendor: 'anthropic', model: 'standin-7b' },
+    ] as const;
+    for (const setup of setups) {
+      const { engine } = makeEngine({ env });
+      await use(engine, setup as never);
+      await engine.setKey(CANARY);
+      const ai = engine.client();
+      const first = await ai.complete({ messages: [{ role: 'user', content: 'find analyst jobs' }], tools });
+      assert.equal(first.toolCalls?.length, 1, setup.provider);
+      const call = first.toolCalls![0]!;
+      assert.equal(call.name, 'find_jobs');
+      assert.equal(typeof (call.arguments as { query: string }).query, 'string');
+      const second = await ai.complete({
+        messages: [
+          { role: 'user', content: 'find analyst jobs' },
+          { role: 'assistant', content: '', toolCalls: [call] },
+          { role: 'tool', toolCallId: call.id, name: call.name, content: '2 jobs found' },
+        ],
+        tools,
+      });
+      assert.match(second.text, /2 jobs found/, setup.provider);
+      assert.equal(second.incomplete, false);
+      // Without tools in the request, no tool_call chunk ever appears.
+      const plain = await ai.complete({ messages: [{ role: 'user', content: 'Reply with the word ready' }] });
+      assert.equal(plain.toolCalls, undefined);
+    }
+  });
+});
+
+test('embeddings from an OpenAI-style server and from Ollama', async () => {
+  await withModel({}, async (m) => {
+    const { engine } = makeEngine();
+    await use(engine, { provider: 'custom', baseUrl: m.url, model: 'standin-7b' });
+    const v = await engine.client().embed(['data analyst', 'nurse'], { model: 'standin-embed' });
+    assert.equal(v.length, 2);
+    assert.ok(v[0] instanceof Float32Array && v[0].length === 8);
+    await use(engine, { provider: 'local', localKind: 'ollama', baseUrl: m.url, model: 'standin-7b' });
+    assert.equal((await engine.client().embed(['x'], { model: 'standin-embed' })).length, 1);
   });
 });

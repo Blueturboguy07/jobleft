@@ -7,7 +7,7 @@
 
 import http from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
-import { answerFor, lastUserText, pieces, readBody, RequestLog, sendJson, sleep } from './common.ts';
+import { answerFor, instanceOf, lastUserText, pieces, readBody, RequestLog, sendJson, sleep } from './common.ts';
 
 export const MODEL_MODES = [
   'ok', 'slow', 'stall', 'stall-after-headers', 'half', 'refuse-key', 'model-not-found', 'html', 'broken', 'empty',
@@ -155,7 +155,48 @@ export async function startMockModelServer(opts: MockModelOptions = {}): Promise
       return sendJson(res, 404, { error: { message: `The model \`${model}\` does not exist or you do not have access to it.`, type: 'invalid_request_error', code: 'model_not_found' } });
     }
 
-    let text = answerFor(json, { bad: mode === 'badscore' });
+    // Tool use: with tools and mode "ok", the first answer is one call of the first tool; after a tool result, text.
+    const tools: any[] = Array.isArray(json.tools) ? json.tools : [];
+    const lastMsg = Array.isArray(json.messages) ? json.messages.at(-1) : null;
+    const toolResult = lastMsg?.role === 'tool' ? String(lastMsg.content ?? '')
+      : Array.isArray(lastMsg?.content) ? lastMsg.content.filter((p: any) => p?.type === 'tool_result').map((p: any) => String(p.content ?? '')).join(' ') || null : null;
+    if (mode === 'ok' && tools.length && toolResult === null) {
+      const t = tools[0];
+      const name = String(t.function?.name ?? t.name ?? 'tool');
+      const args = instanceOf(t.function?.parameters ?? t.input_schema ?? t.parameters);
+      const argText = JSON.stringify(args);
+      log.note(entry, `tool call ${name}`);
+      if (ollama) {
+        const line = { model, message: { role: 'assistant', content: '', tool_calls: [{ function: { name, arguments: args } }] }, done: false };
+        if (json.stream === false) return sendJson(res, 200, { ...line, done: true, done_reason: 'stop' });
+        res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+        res.write(JSON.stringify(line) + '\n');
+        res.end(JSON.stringify({ model, message: { role: 'assistant', content: '' }, done: true, done_reason: 'stop' }) + '\n');
+        return;
+      }
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      if (anthropic) {
+        const ev = (e: string, d: unknown) => res.write(`event: ${e}\ndata: ${JSON.stringify(d)}\n\n`);
+        ev('message_start', { type: 'message_start', message: { id: 'standin', role: 'assistant', model } });
+        ev('content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'toolu_standin_1', name, input: {} } });
+        ev('content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: argText.slice(0, 5) } });
+        ev('content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: argText.slice(5) } });
+        ev('content_block_stop', { type: 'content_block_stop', index: 0 });
+        ev('message_delta', { type: 'message_delta', delta: { stop_reason: 'tool_use' } });
+        ev('message_stop', { type: 'message_stop' });
+        res.end();
+        return;
+      }
+      const chunk = (delta: unknown, finish: string | null) => res.write(`data: ${JSON.stringify({ id: 'standin', object: 'chat.completion.chunk', model, choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`);
+      chunk({ tool_calls: [{ index: 0, id: 'call_standin_1', type: 'function', function: { name, arguments: '' } }] }, null);
+      chunk({ tool_calls: [{ index: 0, function: { arguments: argText.slice(0, 5) } }] }, null);
+      chunk({ tool_calls: [{ index: 0, function: { arguments: argText.slice(5) } }] }, null);
+      chunk({}, 'tool_calls');
+      res.end('data: [DONE]\n\n');
+      return;
+    }
+
+    let text = toolResult !== null && mode === 'ok' ? `The tool answered: ${toolResult.slice(0, 100)}` : answerFor(json, { bad: mode === 'badscore' });
     if (mode === 'text') text = `The candidate looks like a good fit for this job. ${lastUserText(json).length > 0 ? 'Good luck.' : ''}`.trim();
     if (mode === 'empty' || mode === 'think-only') text = '';
     if (mode === 'think') text = `<think>Let me think about the question first.</think>${text}`;
