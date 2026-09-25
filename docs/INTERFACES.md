@@ -980,6 +980,11 @@ The export list above is generated from `src/index.ts`, which only re-exports. T
 | Fit model | `createLocalEmbedder({ modelDir, threads?, baseUrl?, allowDownload?, ortModule? })`: bge-small-en-v1.5, pinned sha256, WordPiece tokenizer (`WordPieceTokenizer`). ONNX Runtime (`onnxruntime-node`) is loaded at run time and is NOT a dependency yet: without it the embedder answers `not_ready` |
 | Setup | `createEngineFromEnv({ env?, home? })` (what the CLI uses), `resolveHome(env?)` |
 
+For the UI lane (publik contract section 12): show `PUBLIK_DISCLOSURE` before `connectPublik`, and right after it
+succeeds show the balance card: the balance line (`formatDollars(wallet.balanceMicros)`), `PUBLIK_JUSTIFICATION`, and one
+button that opens `wallet.topUpUrl` ("Link this computer & pick a plan" while `claimState` is `anonymous`, "Add a plan or
+pack" once claimed). A 402 shows the error message and exactly one link (`error.link`). Money is "balance" in dollars.
+
 Key slots: a key belongs to one provider address. `own_key.<vendor>` for own keys; `custom@<hash of origin>` and
 `local@<hash of origin>` for addresses. Secret name: `SECRET_NAMES.providerKey(slot)`. Changing the address means the
 key must be saved again: the old key never goes to the new address.
