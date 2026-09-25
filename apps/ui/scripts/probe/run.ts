@@ -13,7 +13,7 @@ const get = (k: string) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? a
 const only = argv.includes('--all') ? ALL : (get('only') ?? 'nav').split(',');
 const out = get('out') ?? '/private/tmp/jlui-probe';
 
-interface Probe { run: (d: Demo, out: string) => Promise<void>; demoArgs?: string[] }
+interface Probe { run: (d: Demo, out: string) => Promise<void>; demoArgs?: string[]; noServer?: boolean }
 const attached = get('url') ? attachDemo(get('url')!) : null;
 let shared: Demo | null = null;
 const startShared = () => startDemo({ home: '/private/tmp/jlui-probe-home', args: ['--persona', '--balance', '4.37', '--jobs', '1500'] });
@@ -22,6 +22,7 @@ try {
   for (const name of only) {
     console.log(`\n== ${name}`);
     const mod = await import(`./${name}.ts`) as Probe;
+    if (mod.noServer) { await mod.run(null as unknown as Demo, out); continue; }
     if (attached) { await mod.run(attached, out); continue; }
     if (mod.demoArgs) {
       if (shared) { await shared.stop(); shared = null; }

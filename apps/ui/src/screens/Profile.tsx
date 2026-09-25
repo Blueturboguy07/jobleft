@@ -173,7 +173,7 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
     case 'auth':
       body = (<Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Alert type="info" showIcon icon={<LockOutlined />} message="These answers stay on this Mac. They are never sent to an AI provider. jobleft uses them to warn you when a posting has a limit you do not meet." />
-        <YesNo label="Are you authorized to work in the US?" value={wa.usAuthorized} onChange={(v) => setWa({ usAuthorized: v })} />
+        <YesNo label="Are you legally allowed to work in the US?" value={wa.usAuthorized} onChange={(v) => setWa({ usAuthorized: v })} />
         <YesNo label="Will you need visa sponsorship now or later?" value={wa.needsSponsorship} onChange={(v) => setWa({ needsSponsorship: v })} />
         <YesNo label="Are you a US citizen?" value={wa.usCitizen} onChange={(v) => setWa({ usCitizen: v })} />
         <YesNo label="Do you hold a security clearance?" value={wa.hasSecurityClearance} onChange={(v) => setWa({ hasSecurityClearance: v })} />
@@ -290,7 +290,7 @@ export function ProfileScreen() {
           </Block>
           <Block id="auth" title="Work authorization" onEdit={() => setEdit('auth')}>
             <ul style={{ margin: 0, paddingLeft: 18 }}>
-              <li>Authorized to work in the US: {wa.usAuthorized ? ANS[wa.usAuthorized] : 'not answered'}</li>
+              <li>Legally allowed to work in the US: {wa.usAuthorized ? ANS[wa.usAuthorized] : 'not answered'}</li>
               <li>Needs visa sponsorship: {wa.needsSponsorship ? ANS[wa.needsSponsorship] : 'not answered'}</li>
               <li>US citizen: {wa.usCitizen ? ANS[wa.usCitizen] : 'not answered'}</li>
               <li>Security clearance: {wa.hasSecurityClearance ? ANS[wa.hasSecurityClearance] : 'not answered'}</li>

@@ -1,5 +1,5 @@
 // The jobleft visual system: Ant Design 5 tokens set to the measured values of the reference layout
-// (docs: ~/jobright-research/ui/UI-SPEC*.md, "DESIGN TOKENS"), with contrast raised where the measured
+// (the research folder, ui/UI-SPEC*.md, "DESIGN TOKENS"), with contrast raised where the measured
 // grey text would fail WCAG 2.1 AA. Own brand: the name, logo, icons, illustrations and copy are jobleft's.
 
 import type { ThemeConfig } from 'antd';

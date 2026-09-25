@@ -172,7 +172,7 @@ apps/ui/
   test/          unit tests
 ```
 
-Design tokens (`src/app/theme.ts`) come from the measured values in `jobright-research/ui/UI-SPEC*.md`: Inter and Titillium Web,
+Design tokens (`src/app/theme.ts`) come from the measured values in the research folder (`ui/UI-SPEC*.md`): Inter and Titillium Web,
 accent #00F0A0, black primary buttons, 16 px card radius, 28 px pill buttons, backgrounds #F5F6F7 and #FFFFFF. The brand
 is jobleft, with its own logo, icons, illustrations and copy.
 

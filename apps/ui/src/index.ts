@@ -6,7 +6,7 @@
 
 export const PACKAGE_NAME = '@jobleft/ui';
 
-/** The screens (hash routes) of the app. Parity targets are in ~/jobright-research/ui (UI-SPEC, UI-SPEC-LOGGED-IN). */
+/** The screens (hash routes) of the app. Layout targets are the measured design notes of the research folder (ui/UI-SPEC and ui/UI-SPEC-LOGGED-IN). */
 export const SCREENS = {
   feed: '#/jobs',                        // Recommended feed: filters, sort, saved filters, cards with match tiles
   liked: '#/jobs/liked',                 // Liked tab (Active / Closed)
