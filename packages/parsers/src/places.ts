@@ -534,7 +534,7 @@ export function parsePlaces(text: string, opts: { context?: string } = {}): Plac
 // ---------------------------------------------------------------------------------------------------------------
 // Places named in the posting text (pasted jobs, or a board with an empty location field)
 
-const LABELED = /^[\s\-*•]*(?:job\s+|work\s+|primary\s+|office\s+|position\s+|role\s+)?(?:location|locations|location\(s\)|work\s+site|worksite|city|ubicación|ubicacion|lieu|standort|localização)\s*[:\-–]\s*(.{2,160})$/gim;
+const LABELED = /(?:^|[.;!]\s+)[\s\-*•]*(?:job\s+|work\s+|primary\s+|office\s+|position\s+|role\s+)?(?:location|locations|location\(s\)|work\s+site|worksite|city|ubicación|ubicacion|lugar\s+de\s+trabajo|lieu(?:\s+de\s+travail)?|standort|arbeitsort|localização|local\s+de\s+trabalho)\s*[:\-–]\s*([^\n]{2,160})$/gim;
 const SENTENCE = /\b(?:this|the)\s+(?:role|position|job|opportunity)\s+(?:is|will\s+be)\s+(?:based|located|onsite|on-site|in-office)\s+(?:in|at|out\s+of)\s+(?:our\s+)?(?:office\s+in\s+)?([^.;\n]{2,80})/gi;
 const BOILERPLATE = /\b(?:headquarter\w*|hq|founded|offices?\s+(?:in|across|around)|we\s+(?:have|are)|our\s+company|corporate\s+office|global\s+presence|locations\s+across)\b/i;
 
