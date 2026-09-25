@@ -99,9 +99,10 @@ export function extractFacts(input: PostingInput): PostingFacts {
   }, undefined);
   if (placeEv && places.length) evidence.places = placeEv;
 
-  // Work model and remote area.
+  // Work model and remote area. A pasted posting has no location field: its "Location:" line stands in for it.
+  const textLocation = !locTexts.length && placeEv?.source === 'description' ? placeEv.text.replace(/^.*?(?:location|locations|ubicaci[oó]n|standort|lieu)\s*[:\-–]\s*/i, '') : null;
   const wm = safe(warnings, 'work model', () => parseWorkModel([title, description].join('\n'), {
-    workplaceType: input.workplaceType ?? null, remote: input.remote ?? null, location: input.location ?? null,
+    workplaceType: input.workplaceType ?? null, remote: input.remote ?? null, location: input.location ?? textLocation ?? null,
     locations: input.locations ?? [], title,
   }), { workModel: null, remoteScope: null, evidence: {} });
   if (wm.evidence.workModel) evidence.workModel = wm.evidence.workModel;

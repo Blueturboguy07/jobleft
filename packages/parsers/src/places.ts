@@ -335,7 +335,7 @@ function splitSegments(text: string): string[] {
     .filter(Boolean);
 }
 
-const REMOTE_RE = /\b(?:remote(?:ly)?|work from home|wfh|home[- ]?based|homeworking|home working|telecommute|telework|virtual|distributed|anywhere|work from anywhere|nationwide|remoto|à distance|teletrabajo|home office)\b/i;
+const REMOTE_RE = /\b(?:remote(?:ly)?(?![ \t]+(?:patient|sensing|monitoring|support|access|desktop|control|pilot|operations?|care|monitor|device|site|locations?|areas?|villages?|communities))|work from home|wfh|home[- ]?based|homeworking|home working|telecommute|telework|virtual|distributed|anywhere|work from anywhere|nationwide|remoto|à distance|teletrabajo|home office)\b/i;
 const HYBRID_RE = /\bhybrid\b|\bhíbrido\b|\bhybride\b/i;
 const ONSITE_RE = /\b(?:on-?site|on site|in-?office|in office|in-?person|in person|office-?based|office based|presencial|sur site)\b/i;
 
