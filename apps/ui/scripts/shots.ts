@@ -12,7 +12,7 @@ const url = args.url;
 if (!url) { console.error('Pass --url with the token address the demo printed.'); process.exit(1); }
 const out = args.out ?? '/private/tmp/jlui-shots';
 mkdirSync(out, { recursive: true });
-const sizes = (args.sizes ?? '1024x640,1440x900').split(',').map((s) => s.split('x').map(Number) as [number, number]);
+const sizes = (args.sizes ?? '1024x640,1440x900').split(',').map((s: string) => s.split('x').map(Number) as [number, number]);
 const routes = (args.routes ?? 'jobs,jobs/liked,jobs/applied,jobs/external,jobs/hidden,DETAIL,tracker,dashboard,resume,profile,network,network/people,interview,assistant,settings/ai,settings/balance,settings/alerts,settings/sources,settings/data,settings/extension,settings/about,notifications,onboarding').split(',');
 
 const b = await launch();
