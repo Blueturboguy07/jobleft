@@ -86,7 +86,7 @@ export async function serve(svc: StoreService, opts: ServeOptions = {}): Promise
     await svc.refreshModelState();
     const wantModel = opts.download !== false && svc.jobs.mem.openCount > 0;
     await svc.loadModel({ download: wantModel });
-    if (svc.hasModel()) log('fit model ready');
+    if (svc.hasModel()) { log('fit model ready'); await svc.warmFit().catch(() => undefined); }
     else log(`fit model not ready (${svc.modelState}${svc.modelProblem ? `: ${svc.modelProblem}` : ''})`);
   };
   const tick = async () => {
@@ -181,7 +181,7 @@ export async function serve(svc: StoreService, opts: ServeOptions = {}): Promise
     const body = check<never>(ProfileInputSchema, await readJson(req), 'profile');
     const p = svc.profiles.put(body, '', nowMs());
     // The new profile vector is made on the next fit search (or now, when the model is loaded).
-    void svc.profileVector().catch(() => undefined);
+    setImmediate(() => { void svc.warmFit().catch(() => undefined); });
     return p;
   });
   route('GET', '/api/v1/export/jobs', 'exportJobs', async () => {

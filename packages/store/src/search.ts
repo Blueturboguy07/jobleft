@@ -372,8 +372,17 @@ interface Snapshot {
 }
 
 function sortedOf(s: Snapshot): { rids: Int32Array; primary: Float64Array } {
-  if (!s.sorted) s.sorted = order(s.cands, s.cands.length, s.keys);
+  if (!s.sorted) {
+    s.sorted = order(s.cands, s.cands.length, s.keys);
+    // The sorted arrays hold the same rows: drop the unsorted copies.
+    s.cands = s.sorted.rids;
+    s.keys = s.sorted.primary;
+  }
   return s.sorted;
+}
+
+function snapBytes(s: Snapshot): number {
+  return s.cands.byteLength + s.keys.byteLength;
 }
 
 /** The best k candidates, best first (one pass with a small heap; no full sort for page 1). */
@@ -414,6 +423,8 @@ function topK(cands: Int32Array, keys: Float64Array, k: number): { rids: number[
 }
 
 const SNAPSHOT_MAX = 24;
+/** Memory the kept result orders may use together (about 8 broad searches over 500,000 jobs). */
+const SNAPSHOT_BUDGET_BYTES = 96 * 1024 * 1024;
 const SNAPSHOT_TTL_MS = 30 * 60_000;
 const snapshots = new WeakMap<MemIndex, Map<string, Snapshot>>();
 
@@ -427,7 +438,8 @@ function putSnapshot(mem: MemIndex, s: Snapshot): void {
   const m = snapStore(mem);
   const now = Date.now();
   for (const [k, v] of m) if (now - v.lastUsed > SNAPSHOT_TTL_MS) m.delete(k);
-  while (m.size >= SNAPSHOT_MAX) {
+  const used = () => { let b = 0; for (const v of m.values()) b += snapBytes(v); return b; };
+  while (m.size > 0 && (m.size >= SNAPSHOT_MAX || used() + snapBytes(s) > SNAPSHOT_BUDGET_BYTES)) {
     let oldest: string | null = null, t = Infinity;
     for (const [k, v] of m) if (v.lastUsed < t) { t = v.lastUsed; oldest = k; }
     if (oldest) m.delete(oldest); else break;

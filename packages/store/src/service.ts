@@ -149,6 +149,12 @@ export class StoreService {
     return { vector: vec };
   }
 
+  /** Makes the profile vector and scores every indexed job for it, so the first Top Matched search is quick. */
+  async warmFit(): Promise<void> {
+    const pv = await this.profileVector();
+    if (pv.vector) { this.fit.refresh(); this.fit.vec.scoresFor(pv.vector); }
+  }
+
   async searchContext(now = nowMs()): Promise<SearchContext> {
     const pv = await this.profileVector();
     return { profileVector: pv.vector, fitUnavailable: pv.reason, h1b: null, places: null, now, fit: this.fit };

@@ -18,6 +18,10 @@ export function prng(seed: number): () => number {
 
 interface Family {
   name: string;
+  /** Share of postings (real boards lean to software, sales, health care and operations). */
+  weight?: number;
+  /** Words that make a long tail of titles ("Accounts Payable Specialist, Construction"). */
+  niches?: string[];
   titles: string[];
   skills: string[];
   duties: string[];
@@ -68,6 +72,51 @@ const FAMILIES: Family[] = [
     skills: ['roadmapping', 'Jira', 'agile', 'stakeholder management', 'user stories', 'SQL', 'product analytics'],
     duties: ['own the roadmap for a product area', 'write clear requirements and user stories', 'coordinate launches across teams', 'track milestones, risks and dependencies', 'use data and customer feedback to set priorities'] },
 ];
+
+const EXTRA_FAMILIES: Family[] = [
+  { name: 'retail', department: 'Stores', weight: 6, titles: ['Store Associate', 'Assistant Store Manager', 'Cashier', 'Visual Merchandiser', 'Stock Associate', 'Store Manager'],
+    niches: ['Apparel', 'Grocery', 'Home Goods', 'Pharmacy', 'Electronics', 'Outlet'],
+    skills: ['point of sale', 'merchandising', 'cash handling', 'customer service', 'inventory', 'scheduling'],
+    duties: ['greet customers and help them find products', 'restock shelves and keep the floor tidy', 'open and close the store', 'handle returns and exchanges at the register'] },
+  { name: 'food', department: 'Hospitality', weight: 4, titles: ['Line Cook', 'Sous Chef', 'Server', 'Barista', 'Restaurant General Manager', 'Dishwasher', 'Catering Coordinator'],
+    niches: ['Fine Dining', 'Cafe', 'Hotel', 'Events', 'Bakery'],
+    skills: ['food safety', 'ServSafe', 'menu planning', 'inventory', 'customer service'],
+    duties: ['prepare dishes to recipe and plating standards', 'keep stations clean and stocked', 'serve guests and take orders', 'plan staff schedules for busy shifts'] },
+  { name: 'transport', department: 'Fleet', weight: 4, titles: ['Delivery Driver', 'CDL Truck Driver', 'Dispatcher', 'Fleet Manager', 'Route Planner', 'Courier'],
+    niches: ['Local', 'Regional', 'Long Haul', 'Last Mile', 'Refrigerated'],
+    skills: ['CDL Class A', 'route planning', 'DOT regulations', 'fleet maintenance', 'GPS'],
+    duties: ['drive assigned routes and deliver on time', 'inspect the vehicle before each trip', 'log hours of service', 'coordinate pickups with customers'] },
+  { name: 'health-admin', department: 'Patient Services', weight: 4, titles: ['Medical Receptionist', 'Medical Billing Specialist', 'Health Information Technician', 'Patient Access Representative', 'Practice Manager'],
+    niches: ['Dental', 'Pediatrics', 'Cardiology', 'Urgent Care', 'Orthopedics'],
+    skills: ['medical coding', 'ICD-10', 'insurance verification', 'scheduling', 'HIPAA'],
+    duties: ['check patients in and verify insurance', 'code visits and submit claims', 'schedule appointments and manage the front desk', 'keep medical records complete and private'] },
+  { name: 'banking', department: 'Branch Banking', weight: 3, titles: ['Bank Teller', 'Personal Banker', 'Loan Officer', 'Branch Manager', 'Credit Analyst', 'Underwriter'],
+    niches: ['Mortgage', 'Commercial', 'Consumer', 'Small Business'],
+    skills: ['lending', 'credit analysis', 'KYC', 'cash handling', 'financial products'],
+    duties: ['open accounts and advise customers on products', 'review loan applications', 'balance the cash drawer', 'assess credit risk for new borrowers'] },
+];
+
+const FAMILY_WEIGHT: Record<string, number> = {
+  software: 16, data: 5, accounting: 4, sales: 10, marketing: 5, nursing: 9, operations: 7, people: 3, support: 6, design: 2,
+  legal: 1.5, education: 2.5, trades: 3, product: 4,
+};
+
+const NICHES: Record<string, string[]> = {
+  software: ['Payments', 'Infrastructure', 'Search', 'Growth', 'Identity', 'Data Platform', 'Mobile', 'Developer Tools'],
+  data: ['Marketing', 'Risk', 'Product', 'Supply Chain', 'Pricing'], accounting: ['Construction', 'Healthcare', 'Retail', 'Nonprofit', 'Manufacturing'],
+  sales: ['Mid-Market', 'Enterprise', 'SMB', 'Public Sector', 'Healthcare'], marketing: ['B2B', 'Lifecycle', 'Brand', 'Partner', 'Events'],
+  nursing: ['Emergency', 'Pediatrics', 'Oncology', 'Med-Surg', 'Labor and Delivery', 'Home Health'], operations: ['Night Shift', 'Inbound', 'Outbound', 'Cold Storage', 'Returns'],
+  people: ['Engineering', 'Field', 'Corporate', 'Campus'], support: ['Tier 2', 'Enterprise', 'Billing', 'Onboarding'], design: ['Mobile', 'Growth', 'Platform'],
+  legal: ['Employment', 'Privacy', 'Commercial'], education: ['K-12', 'Higher Education', 'Corporate'], trades: ['Commercial', 'Residential', 'Industrial'],
+  product: ['Platform', 'Payments', 'Consumer', 'Internal Tools'],
+};
+
+const ALL_FAMILIES: Family[] = [...FAMILIES.map((f) => ({ ...f, weight: FAMILY_WEIGHT[f.name] ?? 2, niches: NICHES[f.name] ?? [] })), ...EXTRA_FAMILIES];
+const FAMILY_CUM: number[] = (() => {
+  const total = ALL_FAMILIES.reduce((s, f) => s + (f.weight ?? 1), 0);
+  let acc = 0;
+  return ALL_FAMILIES.map((f) => (acc += (f.weight ?? 1) / total));
+})();
 
 const LEVEL_PREFIX: Array<[string, Job['level'], number]> = [
   ['Intern, ', 'intern', 0.04], ['Junior ', 'entry', 0.12], ['', null, 0.44], ['Senior ', 'senior', 0.22], ['Staff ', 'staff', 0.06],
@@ -182,12 +231,16 @@ export class SynthGenerator {
 
   /** Job number i of the set (deterministic for a given seed and i order). */
   job(i: number): Job {
-    const fam = this.pick(FAMILIES);
+    const fr = this.rnd();
+    let fam = ALL_FAMILIES[ALL_FAMILIES.length - 1]!;
+    for (let k = 0; k < FAMILY_CUM.length; k++) if (fr < FAMILY_CUM[k]!) { fam = ALL_FAMILIES[k]!; break; }
     const company = this.companies[Math.floor(Math.pow(this.rnd(), 1.6) * this.companies.length)]!;
     let lr = this.rnd();
     let level: [string, Job['level'], number] = LEVEL_PREFIX[2]!;
     for (const l of LEVEL_PREFIX) { if (lr < l[2]) { level = l; break; } lr -= l[2]; }
-    const baseTitle = this.pick(fam.titles);
+    const niche = fam.niches && fam.niches.length > 0 && this.rnd() < 0.45 ? this.pick(fam.niches) : null;
+    const plain = this.pick(fam.titles);
+    const baseTitle = niche ? (this.rnd() < 0.5 ? `${plain}, ${niche}` : `${plain} (${niche})`) : plain;
     const title = level[1] === 'intern' ? `${baseTitle} Intern` : `${level[0]}${baseTitle}`;
     const skills: string[] = [];
     const nSkills = 3 + Math.floor(this.rnd() * 6);
