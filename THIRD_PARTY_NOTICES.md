@@ -26,6 +26,8 @@ Rules (from the build rules):
 | `packages/crawler/src/lifecycle.ts` | `internal/ingest/pipeline/board_scope.go`, `cooldown.go`, `cmd/ingest/main.go` | Close-vanished guards (board coverage proof, sweepable providers, sweep grace, cooldown backoff, empty-feed net) |
 | `packages/crawler/src/types.ts` | `internal/ingest/sources` `Source` interface | Adapter contract shape (`fullBoardListing` marker) |
 | `packages/parsers/src/html.ts` | `unescapeEncodedHTML` rule | Decode one entity layer only when encoded tags outnumber live tags |
+| `packages/sources-ats/src/adapters/personio.ts` | `internal/ingest/sources/personio.go` | Idea only, no code copied (sources-ats lane, 2026-09-25): read the default-language XML feed for the full position list, and read the English feed once only to fill empty description blocks |
+| `packages/sources-ats/src/adapters/teamtailor.ts` | `internal/ingest/sources/teamtailor.go` (`ttJobIDPattern`) | Idea only, no code copied: the job id is the number after `/jobs/` in a Teamtailor job link. The adapter itself reads the documented RSS feed, not the HTML pages freehire reads |
 
 Local additions that are not in freehire (written new): the per-host pacer, the robots.txt parser and check, the never-crawl host list, the mass-close guard (`closeTooBroad`), the empty-streak rule, the level and pay parsers, the US-location heuristic and the SQLite store.
 

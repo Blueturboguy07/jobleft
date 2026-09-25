@@ -288,10 +288,11 @@ export function classifyUrl(input: string, notCrawledReason: (ats: AtsId) => str
   }
   if (!d) return { verdict: 'unknown', detection: null, message: 'jobleft does not recognise the job system behind this link, so it cannot add a board from it.' };
   if (!d.crawlable) {
-    const why = notCrawledReason(d.ats);
+    const raw = notCrawledReason(d.ats);
+    const why = raw ? raw.charAt(0).toLowerCase() + raw.slice(1).replace(/\.$/, '') : null;
     return {
       verdict: 'not_crawled', detection: d,
-      message: `This is a ${atsName(d.ats)} link. jobleft does not crawl ${atsName(d.ats)}${why ? `: ${why}` : ''}.`,
+      message: `This is a ${atsName(d.ats)} link. jobleft does not crawl ${atsName(d.ats)}${why ? `: ${why}` : ''}. Nothing was sent.`,
     };
   }
   if (!d.board) {

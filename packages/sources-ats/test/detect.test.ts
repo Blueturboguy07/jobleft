@@ -82,7 +82,7 @@ test('classifyUrl gives a plain message for every kind of link (O3, O15)', () =>
   }
   const b = c('https://acme.bamboohr.com/careers');
   assert.equal(b.verdict, 'not_crawled');
-  assert.match(b.message, /does not crawl BambooHR: No documented public feed/);
+  assert.match(b.message, /does not crawl BambooHR: no documented public feed.*Nothing was sent\.$/);
   assert.equal(c('https://example.com/careers').verdict, 'unknown');
   assert.equal(c('hello world').verdict, 'invalid');
   assert.equal(c('javascript:alert(1)').verdict, 'invalid');

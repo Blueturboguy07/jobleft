@@ -4,7 +4,7 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
-  "description": "More ATS adapters (Workable, Recruitee, Personio and later ones) and ATS detection from a URL.",
+  "description": "ATS adapters beyond Greenhouse, Lever and Ashby (Workable, Recruitee, Personio, Teamtailor, Gem), the ATS source list, and ATS detection from a URL.",
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"
@@ -14,11 +14,15 @@
   },
   "scripts": {
     "test": "node --test \"test/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "cli": "node src/cli.ts"
   },
   "dependencies": {
     "@jobleft/contracts": "workspace:*",
     "@jobleft/parsers": "workspace:*",
     "@jobleft/crawler": "workspace:*"
+  },
+  "bin": {
+    "jobleft-ats": "./src/cli.ts"
   }
 }
