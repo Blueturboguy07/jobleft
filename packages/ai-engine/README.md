@@ -200,8 +200,8 @@ The outcomes are in `docs/outcomes/ai-engine.md`. "jl" is the alias from section
 | O10 No provider switch by itself | Choose a local or custom provider and stop it. `jl chat` and `jl json` report "Nothing answers at ..."; the publik stand-in and any other stand-in log no request |
 | O11 Local means nothing leaves | A local provider must be on 127.0.0.1 or localhost. With `JOBLEFT_OFFLINE=1`, only loopback providers work; others answer "jobleft is in offline mode". The engine has no telemetry, no crash reporter and no model download for chat |
 | O12 A bad answer is refused | Modes `empty`, `cutoff`, `text`, `badscore`, then `jl json "Jordan Testwell, SQL analyst. Job: data analyst with SQL and Tableau."`. Each prints `Cannot use this answer: ...` and `Try again: ...`. No number is filled in. In `jl chat`, a cut-off answer ends with `[incomplete: ...]` |
-| O13 Small local models | `jl use local --kind ollama --model qwen2.5:7b`, then `jl json "..."` five times. Structured requests send the schema as Ollama `format` (or `response_format` on OpenAI-style servers); a plain-text answer is read by the line fallback when it can be, and refused when it cannot. Mode `think` shows only the answer; mode `think-only` says that the model spent its answer on thinking |
-| O14 A web page cannot use the local API | `jl serve` prints an address and a launch token. Requests with no token, a guessed token, a token in the URL, a foreign or `null` Origin, a changed Host header, or a form post (`text/plain`, form types) are refused (401, 403 or 415) before any work. There is no CORS header. (The real app server mounts the same route handlers behind the same rules) |
+| O13 Small local models | `jl use local --kind ollama --model qwen2.5:7b`, then `jl json "<resume and job text>"` five times. Structured requests send the schema as Ollama `format` (or `response_format` on OpenAI-style servers); a plain-text answer is read by the line fallback when it can be, and refused when it cannot. A long text gets a larger Ollama context (`num_ctx`), and a text that cannot fit the model is refused in plain words before anything is sent, so Ollama never cuts it silently. Mode `think` shows only the answer; mode `think-only` says that the model spent its answer on thinking. Measured on 2026-09-25 with Ollama `qwen2.5:7b` on this Mac: 5 of 5 fit answers usable (scores 70 to 78, reasons name the missing Tableau and years) |
+| O14 A web page cannot use the local API | `jl serve` prints an address and a launch token (routes: section 8). Requests with no token, a guessed token, a token in the URL, a foreign or `null` Origin, a changed Host header, or a form post (`text/plain`, form types) are refused (401, 403 or 415) before any work. There is no CORS header. (The real app server mounts the same route handlers behind the same rules) |
 | O15 Paid fetch and search are off until turned on | `jl metered status` shows `off` and the prices per 1,000 requests (search $5.00, page $2.00, page that needs JavaScript $4.00). Connecting publik does not turn it on. `jl metered on` shows the prices first and asks. The fetch client itself belongs to `@jobleft/sources-other` |
 
 ## 6. Where things are stored
@@ -239,12 +239,23 @@ const fit = await ai.json({ schema: SomeContractSchema, messages, lineFallback }
 engine.cancel('r1');
 ```
 
+Tool calls: pass `tools: [{ name, description, parameters }]` in the request. The stream then gives `{ type: 'tool_call', call: { id, name, arguments, rawArguments } }`, and `complete()` gives `toolCalls`. Send the result back as `{ role: 'tool', toolCallId, name, content }` after `{ role: 'assistant', content, toolCalls }`. This works the same for OpenAI-style servers, Ollama and Anthropic. Without `tools`, no tool call ever appears.
+
+Embeddings from the chosen provider: `ai.embed(texts, { model: 'nomic-embed-text' })` (OpenAI-style `/embeddings`, Ollama `/api/embed`, publik `/embeddings`; Anthropic has none and says so). The free local fit model is `createLocalEmbedder({ modelDir })` (bge-small-en-v1.5, 384 dimensions); see section 10.
+
 `apps/server` mounts `createAiRouteHandlers(engine)` for the routes this lane owns and passes its `SettingsStore` as `state`. The full list of exports is in `docs/INTERFACES.md`, section `@jobleft/ai-engine`.
+
+`jl serve` serves these routes on 127.0.0.1 with the app's security rules, for probing this package alone: `GET /api/v1/health`, `GET|PUT /api/v1/ai/settings`, `PUT|DELETE /api/v1/ai/key`, `POST /api/v1/ai/check`, `GET /api/v1/ai/models`, `POST /api/v1/ai/chat` (server-sent events: `start`, `delta`, then one `done` or `error`), `POST /api/v1/ai/requests/:requestId/cancel`, `GET /api/v1/publik`, `POST /api/v1/publik/connect` (`{"disclosureAccepted":true,"disclosureVersion":1}`), `POST /api/v1/publik/disconnect`, `POST /api/v1/publik/refresh`. Send the token in the `x-jobleft-token` header and JSON bodies with `content-type: application/json`. Example:
+
+```sh
+curl -s -N -X POST http://127.0.0.1:<port>/api/v1/ai/chat -H "x-jobleft-token: <token>" -H 'content-type: application/json' \
+  -d '{"requestId":"r1","messages":[{"role":"user","content":"Reply with the word ready"}]}'
+```
 
 ## 9. Tests
 
 ```sh
-pnpm --filter @jobleft/ai-engine test        # 33 tests; about 3 s; loopback stand-ins only
+pnpm --filter @jobleft/ai-engine test        # about 38 tests, about 3 s; loopback stand-ins only
 pnpm --filter @jobleft/ai-engine typecheck
 JOBLEFT_TEST_KEYCHAIN=1 pnpm --filter @jobleft/ai-engine test   # also writes, reads and deletes one test item in the macOS Keychain
 ```
@@ -252,6 +263,6 @@ JOBLEFT_TEST_KEYCHAIN=1 pnpm --filter @jobleft/ai-engine test   # also writes, r
 ## 10. Not done yet
 
 - The assistant presets, chat history, action proposals and interview practice (their routes and tables) are not built. `chat` streams one answer and does not save it.
-- The fit model embedder (`createLocalEmbedder`) is written and its tokenizer is tested, but ONNX Runtime is not a dependency yet (287 MB). Without `onnxruntime-node` it answers "The fit model runtime (ONNX Runtime) is not installed in this build".
+- The fit model embedder (`createLocalEmbedder`) is written and was checked once against the spike S2 reference (same token ids, cosine 1.000000 for texts under 512 tokens), but ONNX Runtime is not a dependency yet (287 MB). Without `onnxruntime-node` (or `JOBLEFT_ORT_MODULE` pointing at an installed copy) it answers "The fit model runtime (ONNX Runtime) is not installed in this build". It downloads the model once from `JOBLEFT_MODEL_BASE_URL` and refuses a file whose sha256 does not match.
 - Windows Credential Manager is not wired. On Windows and Linux the encrypted file store is used.
 - Own-key requests to the real vendors were not tried (no real keys). They were tested against the stand-in through `JOBLEFT_AI_HOST_MAP`.
