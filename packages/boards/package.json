@@ -14,12 +14,24 @@
   },
   "scripts": {
     "test": "node --test \"test/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "boards": "node src/cli.ts",
+    "discover": "node scripts/cc-discover.ts",
+    "build-directory": "node scripts/build-directory.ts"
   },
   "dependencies": {
     "@jobleft/contracts": "workspace:*",
     "@jobleft/crawler": "workspace:*",
     "@jobleft/sources-ats": "workspace:*",
     "@jobleft/static-data": "workspace:*"
-  }
+  },
+  "bin": {
+    "jobleft-boards": "./src/cli.ts"
+  },
+  "files": [
+    "src",
+    "data",
+    "scripts",
+    "README.md"
+  ]
 }

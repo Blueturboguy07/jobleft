@@ -91,7 +91,7 @@ The starting weights of the overall percent (0.24 / 0.29 / 0.08 / +36) come from
 
 ## 2. Data shipped with the app
 
-Entries 2.1 to 2.5 are from the static-data lane, 2.6 from the ai-engine lane and 2.7 from the match lane (2026-09-25). The board directory and the skill dictionary are not built yet.
+Entries 2.1 to 2.5 are from the static-data lane, 2.6 from the ai-engine lane and 2.7 from the match lane (2026-09-25); 2.8 is from the boards lane.
 
 ### 2.1 H-1B sponsor table (US Department of Labor)
 
@@ -146,6 +146,17 @@ Entries 2.1 to 2.5 are from the static-data lane, 2.6 from the ai-engine lane an
 
 Note (parsers lane, 2026-09-25): `packages/parsers/src/geo-us.ts`, `geo-world.ts` and `currency.ts` hold small lookup lists (US state codes, about 2,500 US city names, 116 country names, common regions, about 1,500 world city names, currency markers). They were written for jobleft from general knowledge. No dataset (GeoNames, Census or other) was copied, so no third-party licence applies.
 
+### 2.8 Board directory (boards lane)
+
+- File: `packages/boards/data/board-directory.json` (the header names every source, its licence, a public page and a notice; it ships with the app). Removed rows, with both "not found" dates: `packages/boards/data/board-directory-pruned.json`.
+- Source: JobSync bundled company board lists, https://github.com/Gsync/jobsync, commit `527333e60d4913f3af217c2153a8ee7bc68cf857` (2026-09-14). Read-only clone at `vendor/jobsync` (not committed). Files: `src/lib/scraper/greenhouse/companies.json` (602 rows), `src/lib/scraper/lever/companies.json` (1,160 rows, 81 on Lever's EU host), `src/lib/scraper/ashby/companies.json` (1,860 rows).
+- Licence: MIT. Copyright (c) 2024 gsync. Full text in section 5.2. The upstream repository does not say how the lists were made (open question for the owner; see below).
+- What was taken: each row's board token and employer name. No JobSync code was copied (`packages/boards/scripts/build-directory.ts` reads the files and is written new).
+- What jobleft changed: rows normalised to `{ ats, slug, name, region, source, lastVerified, status }`; every Greenhouse row, every EU Lever row and a random sample of the other Lever and Ashby rows were checked against the providers' public APIs on 2026-09-25 (1 request per second per host, robots.txt obeyed, User-Agent `jobleft-build/0.1 (research build; no personal data)`); where a Greenhouse board reports a different name in its own API (`GET boards-api.greenhouse.io/v1/boards/{token}`), the row now carries the board's own name (4 rows); rows that answered "not found" are marked `suspect` and are removed only after a second "not found" at a later time: 41 rows (31 Greenhouse, 9 Lever, 1 Ashby) were removed this way on 2026-09-25, so the file ships 3,581 rows (571 Greenhouse, 1,151 Lever, 1,859 Ashby).
+- Not used, on purpose: the `data/` board lists of Feashliaa/job-board-aggregator and of colophon-group/jobseek (both CC BY-NC 4.0, non-commercial). No directory row comes from them.
+- Not used yet: the Common Crawl URL index. `packages/boards/scripts/cc-discover.ts` can extract board tokens from it, but on 2026-09-25 the robots.txt of index.commoncrawl.org and data.commoncrawl.org disallows all crawlers, so jobleft sent no index request and the directory holds no Common Crawl row. If the owner later obtains index answers another way, rows added from them are named `commoncrawl-<crawl id>` in the directory header, with the Common Crawl Terms of Use (https://commoncrawl.org/terms-of-use, last updated 2024-03-07: a limited licence; commercial use is not excluded; legal advice is recommended); their employer names come from each board's own API, never from crawled text.
+- Open question for the owner: JobSync's lists carry JobSync's MIT licence, but their own upstream origin is not documented. Before a public release, confirm with the JobSync maintainer that the lists were not copied from a non-commercial list.
+
 ## 3. Development tools (not shipped in the app)
 
 | Package | Version | Licence | Use |
@@ -185,7 +196,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### 5.2 MIT licence (jobsync)
+### 5.2 MIT licence (JobSync)
 
 ```
 MIT License
