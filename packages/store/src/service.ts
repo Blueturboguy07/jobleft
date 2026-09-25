@@ -6,7 +6,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import { nowMs } from '@jobleft/contracts';
 import { migrate, openDatabase } from './db.ts';
 import { checkModel, defaultModelSource, ensureModel, modelDirIn, MODEL_FILES, type ModelSource } from './embed/model.ts';
-import { createBgeEmbedder, type LocalEmbedder } from './embed/onnx.ts';
+import type { LocalEmbedder } from './embed/onnx.ts';
+import { createWorkerEmbedder } from './embed/worker.ts';
 import { FitIndex, priorityFilterOf, profileTextOf, type ModelInfo } from './fit.ts';
 import { ensureHome, storeHome, type StoreHome } from './home.ts';
 import { JobStore, type SearchContext } from './jobstore.ts';
@@ -117,7 +118,7 @@ export class StoreService {
           c = await checkModel(this.modelDir, MODEL_FILES, true);
           if (c.state !== 'ready') throw new Error(c.problems[0] ?? 'The fit model did not verify.');
         }
-        const e = await createBgeEmbedder({ modelDir: this.modelDir, threads: this.threads });
+        const e = await createWorkerEmbedder({ modelDir: this.modelDir, threads: this.threads });
         this.embedder = e;
         this.fit.setEmbedder(e);
         this.modelState = 'ready';

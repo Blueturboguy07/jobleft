@@ -78,7 +78,6 @@ export async function serve(svc: StoreService, opts: ServeOptions = {}): Promise
   let stopping = false;
   const abort = new AbortController();
   let indexing: Promise<unknown> | null = null;
-  let lastRevIndexed = -1;
   const background = async () => {
     // Vectors load after the filter arrays, so word and filter searches are ready first.
     await new Promise((r) => setImmediate(r));
@@ -89,18 +88,26 @@ export async function serve(svc: StoreService, opts: ServeOptions = {}): Promise
     if (svc.hasModel()) { log('fit model ready'); await svc.warmFit().catch(() => undefined); }
     else log(`fit model not ready (${svc.modelState}${svc.modelProblem ? `: ${svc.modelProblem}` : ''})`);
   };
+  // A run starts at launch (it records 0 when nothing waits), after every data change (not after the run's own
+  // vector writes), and when jobs wait that the last run did not see (for example Top Matched asked for them).
+  let lastGen = -1;
+  let lastWaiting = -1;
   const tick = async () => {
     if (stopping || indexing) return;
-    const rev = svc.jobs.mem.lastRev;
     svc.jobs.mem.refresh();
-    const changed = svc.jobs.mem.lastRev !== lastRevIndexed || rev !== svc.jobs.mem.lastRev;
-    if (!changed) return;
+    const gen = svc.jobs.mem.generation;
+    const waiting = svc.fit.counts().waiting;
+    const due = gen !== lastGen || (waiting > 0 && waiting !== lastWaiting);
+    if (!due) return;
     if (!svc.hasModel()) {
       if (svc.modelState !== 'downloading' && opts.download !== false && svc.jobs.mem.openCount > 0 && svc.modelState !== 'failed') await svc.loadModel({ download: true });
       if (!svc.hasModel()) return;
     }
-    lastRevIndexed = svc.jobs.mem.lastRev;
-    indexing = svc.fit.runAll(abort.signal).then((r) => { if (r.indexed > 0) log(`fit indexing: ${r.indexed} jobs indexed`); }).catch((e: unknown) => log(`fit indexing stopped: ${e instanceof Error ? e.message : 'error'}`)).finally(() => { indexing = null; lastRevIndexed = svc.jobs.mem.lastRev; });
+    lastGen = gen;
+    indexing = svc.fit.runAll(abort.signal)
+      .then((r) => { if (r.indexed > 0) log(`fit indexing: ${r.indexed} jobs indexed`); })
+      .catch((e: unknown) => log(`fit indexing stopped: ${e instanceof Error ? e.message : 'error'}`))
+      .finally(() => { indexing = null; lastWaiting = svc.fit.counts().waiting; });
   };
   const bg = background().then(() => tick()).catch(() => undefined);
   const timer = setInterval(() => { void tick(); }, 2000);

@@ -125,7 +125,13 @@ async function downloadHttp(url: string, dest: string, f: ModelFile, opts: Downl
   if (have > f.bytes) { rmSync(part); have = 0; }
   const headers: Record<string, string> = { 'user-agent': USER_AGENT, accept: 'application/octet-stream' };
   if (have > 0) headers.range = `bytes=${have}-`;
-  const res = await (opts.fetchImpl ?? fetch)(url, { headers, signal: opts.signal, redirect: 'follow' });
+  let res: Response;
+  try {
+    res = await (opts.fetchImpl ?? fetch)(url, { headers, signal: opts.signal, redirect: 'follow' });
+  } catch (e) {
+    const why = e instanceof Error && e.cause instanceof Error ? e.cause.message : e instanceof Error ? e.message : String(e);
+    throw new Error(`The fit model could not be downloaded (${why}). Nothing half-done is used; run the download again to resume.`);
+  }
   if (res.status === 200 && have > 0) { have = 0; rmSync(part, { force: true }); }
   else if (res.status !== 200 && res.status !== 206) throw new Error(`the model host answered ${res.status} for ${f.path}`);
   if (!res.body) throw new Error(`the model host sent no data for ${f.path}`);
@@ -140,6 +146,9 @@ async function downloadHttp(url: string, dest: string, f: ModelFile, opts: Downl
       if (have > f.bytes) throw new Error(`${f.path} is larger than expected`);
       opts.onProgress?.({ file: f.path, fileBytes: have, doneBytes: doneBefore + have, totalBytes: total });
     }
+  } catch (e) {
+    if (e instanceof Error && /larger than expected/.test(e.message)) throw e;
+    throw new Error(`The fit model download was cut at ${have} of ${f.bytes} bytes of ${f.path}. Run the download again to resume.`);
   } finally {
     closeSync(fd);
   }

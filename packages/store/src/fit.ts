@@ -102,7 +102,7 @@ export class FitIndex {
   private readonly mem: MemIndex;
   private readonly rt: Runtime;
   private running = false;
-  private orderCache: { gen: number; vgen: number; rids: number[] } | null = null;
+  private orderCache: { gen: number; requested: number; rids: number[] } | null = null;
 
   private readonly db: DatabaseSync;
   private readonly opts: FitIndexOptions;
@@ -170,8 +170,13 @@ export class FitIndex {
   /** Waiting rows in queue order. */
   queue(): number[] {
     this.refresh();
-    if (this.orderCache && this.orderCache.gen === this.mem.generation && this.orderCache.vgen === this.vec.generation && this.rt.requested.size === 0) {
-      return this.orderCache.rids.filter((rid) => this.vec.fresh[rid] !== 1);
+    if (this.orderCache && this.orderCache.gen === this.mem.generation && this.orderCache.requested === this.rt.requested.size) {
+      // Same data: the cached order minus the rows indexed since.
+      const fresh = this.vec.fresh;
+      const out: number[] = [];
+      for (const rid of this.orderCache.rids) if (!(rid < fresh.length && fresh[rid] === 1)) out.push(rid);
+      this.orderCache.rids = out;
+      return out;
     }
     const m = this.mem;
     const pf = this.opts.priorityFilter?.() ?? null;
@@ -192,7 +197,7 @@ export class FitIndex {
     };
     for (const b of buckets) b.sort(byNewest);
     const rids = [...buckets[0]!, ...buckets[1]!, ...buckets[2]!];
-    this.orderCache = { gen: this.mem.generation, vgen: this.vec.generation, rids };
+    this.orderCache = { gen: this.mem.generation, requested: this.rt.requested.size, rids };
     return rids;
   }
 

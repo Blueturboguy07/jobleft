@@ -202,18 +202,17 @@ export class MemIndex {
     this.generation++;
   }
 
-  private loadHidden(sinceRev: number): void {
-    const rows = q(this.db, 
+  private loadHidden(sinceRev: number): number {
+    const rows = q(this.db,
       `SELECT k.rid AS rid, t.hidden AS hidden FROM tracker t JOIN job_keys k ON k.key = 'id:' || t.job_id WHERE t.rev > ?`,
     ).all(sinceRev) as Array<{ rid: number; hidden: number }>;
     for (const r of rows) {
       const rid = Number(r.rid);
       this.ensureCap(rid);
-      const was = (this.flags[rid]! & (F_EXISTS | F_OPEN | F_HIDDEN)) === (F_EXISTS | F_OPEN);
       if (Number(r.hidden) === 1) this.flags[rid]! |= F_HIDDEN;
       else this.flags[rid]! &= ~F_HIDDEN;
-      void was;
     }
+    return rows.length;
   }
 
   /** Applies every change committed since the last load or refresh. Returns true when something changed. */
@@ -222,19 +221,21 @@ export class MemIndex {
     const rev = currentRev(this.db);
     if (rev === this.lastRev) return false;
     this.loadTags();
+    let changes = 0;
     const st = q(this.db, 'SELECT rid, status, facets FROM store_jobs WHERE rev > ?');
     st.setReturnArrays(true);
-    for (const row of st.iterate(this.lastRev) as Iterable<[number, number, Uint8Array]>) this.setRow(Number(row[0]), Number(row[1]), row[2]);
+    for (const row of st.iterate(this.lastRev) as Iterable<[number, number, Uint8Array]>) { this.setRow(Number(row[0]), Number(row[1]), row[2]); changes++; }
     for (const r of q(this.db, 'SELECT rid FROM job_tombstones WHERE rev > ?').all(this.lastRev) as Array<{ rid: number }>) {
       const rid = Number(r.rid);
       const still = q(this.db, 'SELECT 1 FROM store_jobs WHERE rid = ?').get(rid);
-      if (!still) this.removeRow(rid);
+      if (!still) { this.removeRow(rid); changes++; }
     }
-    this.loadHidden(this.lastRev);
-    for (const r of q(this.db, 'SELECT key, industries, stage, is_staffing, h1b FROM companies WHERE rev > ?').all(this.lastRev) as Array<{ key: string; industries: string; stage: string | null; is_staffing: number | null; h1b: string | null }>) this.loadCompany(r);
+    changes += this.loadHidden(this.lastRev);
+    for (const r of q(this.db, 'SELECT key, industries, stage, is_staffing, h1b FROM companies WHERE rev > ?').all(this.lastRev) as Array<{ key: string; industries: string; stage: string | null; is_staffing: number | null; h1b: string | null }>) { this.loadCompany(r); changes++; }
     this.lastRev = rev;
-    this.generation++;
-    return true;
+    // A change number that only carried fit vectors changes nothing here (caches stay valid).
+    if (changes > 0) this.generation++;
+    return changes > 0;
   }
 
   /** Open, not hidden. */

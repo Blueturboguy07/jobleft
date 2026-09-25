@@ -104,7 +104,6 @@ CREATE TABLE store_jobs (
 -- The full record of each posting (compressed JSON), apart from store_jobs so a scan of the filter columns stays small.
 CREATE TABLE job_docs (rid INTEGER PRIMARY KEY, doc BLOB NOT NULL);
 CREATE INDEX store_jobs_rev ON store_jobs (rev);
-CREATE INDEX store_jobs_company ON store_jobs (company_key);
 CREATE INDEX store_jobs_scope ON store_jobs (board_scope) WHERE status = 1;
 
 -- Every key that names a posting: its id, its canonical links, its ATS posting id, its content fingerprint.
