@@ -107,6 +107,7 @@ export class NetworkService {
   private readonly nowFn: () => number;
   private readonly tz: string;
   private counts: Map<string, number> | null = null;
+  private countsVersion = -1;
 
   constructor(opts: NetworkServiceOptions) {
     this.db = opts.db;
@@ -333,8 +334,15 @@ export class NetworkService {
     return this.list(rest).length;
   }
 
+  /** SQLite's data_version: it changes when another connection (another process) commits to the file. */
+  private dataVersion(): number {
+    return (this.db.prepare('PRAGMA data_version').get() as { data_version: number }).data_version;
+  }
+
   private countCache(): Map<string, number> {
-    if (this.counts) return this.counts;
+    const v = this.dataVersion();
+    if (this.counts && this.countsVersion === v) return this.counts;
+    this.countsVersion = v;
     const m = new Map<string, number>();
     const rows = this.db.prepare('SELECT company_key AS k, company_raw_key AS r FROM network_contacts WHERE company_key IS NOT NULL').all() as Array<{ k: string; r: string | null }>;
     for (const { k, r } of rows) {

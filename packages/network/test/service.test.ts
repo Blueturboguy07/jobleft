@@ -220,3 +220,18 @@ test('O14: 30,000 rows import well under 30 seconds', async () => {
   for (let i = 0; i < 1000; i++) s.countFor('stripe');
   assert.ok(performance.now() - t1 < 200, 'counts come from the cached map');
 });
+
+test('counts follow changes made by another process (another connection to the same file)', () => {
+  const h = tempHome();
+  try {
+    const a = fileService(h.dir);
+    const b = fileService(h.dir);
+    assert.equal(a.service.countFor('stripe'), null);
+    b.service.import(fileText(base));
+    assert.equal(a.service.countFor('stripe'), 2, 'the other connection sees the import');
+    b.service.deleteAll();
+    assert.equal(a.service.countFor('stripe'), null, 'and the delete');
+    assert.deepEqual(grepDir(h.dir, 'Quill'), [], 'a delete while another process has the file open still leaves nothing');
+    a.db.close(); b.db.close();
+  } finally { h.done(); }
+});
