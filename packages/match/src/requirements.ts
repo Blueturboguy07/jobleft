@@ -83,7 +83,7 @@ function liveSentences(a: AnalyzedText): Sentence[] {
 
 const WORK_CONTEXT = /\b(visas?|h-?1-?b|h1b|immigration|work (authori[sz]ation|permits?|visas?)|employment (authori[sz]ation|visas?|based)|authori[sz]ed to work|legally (authori[sz]ed|eligible|able)|eligible to work|right to work|green card|opt\b|cpt\b|stem opt|tn visa|e-?3|sponsor(ship)? (for|of) (employment|work|a visa|visas)|(now|currently) or in the future|require (visa )?sponsorship|need (visa )?sponsorship|immigration sponsorship|employment sponsorship|work sponsorship)\b/i;
 const SPONSOR_WORD = /\b(sponsor(s|ed|ing|ship)?|h-?1-?b|h1b|visas?)\b/i;
-const SPONSOR_NO = /\b(no|not|cannot|can ?not|can'?t|unable|won'?t|will not|do not|don'?t|does not|doesn'?t|are not|is not|without|never|n'?t)\b[^.;]{0,60}\b(sponsor\w*|h-?1-?b|h1b|visas?)\b|\b(sponsor\w*|h-?1-?b|h1b|visas?)\b[^.;]{0,40}\b(is not|are not|not (be )?(available|offered|provided|possible)|unavailable|cannot|will not|won'?t)\b/i;
+const SPONSOR_NO = /^\s*[-•*]?\s*((visa|h-?1-?b|immigration)\s+)?sponsorship( available)?\s*[:?-]\s*(no|none|not available|n\/a|unavailable)\b|\b(no|not|cannot|can ?not|can'?t|unable|won'?t|will not|do not|don'?t|does not|doesn'?t|are not|is not|without|never|n'?t)\b[^.;]{0,60}\b(sponsor\w*|h-?1-?b|h1b|visas?)\b|\b(sponsor\w*|h-?1-?b|h1b|visas?)\b[^.;]{0,40}\b(is not|are not|not (be )?(available|offered|provided|possible)|unavailable|cannot|will not|won'?t)\b/i;
 const SPONSOR_YES = /\b((will|can|may|able to|happy to|glad to|do|does|we)\s+(provide\s+|offer\s+)?sponsor\w*|sponsorship (is |will be )?(available|offered|provided|possible)|(visa|h-?1-?b|h1b) sponsorship (is )?(available|offered|provided)|(offer|offers|provide|provides|support|supports) (visa |h-?1-?b |h1b |immigration )?sponsorship|sponsor(s|ing)? (h-?1-?b|h1b|visas?|work visas?))\b/i;
 
 const COUNTRY_WORDS: Array<[RegExp, string, string]> = [
@@ -217,11 +217,14 @@ export function readRequirements(a: AnalyzedText): PostedRequirement[] {
     const t = s.text;
     const skipSection = section === 'benefits' && !WORK_CONTEXT.test(t);
 
-    // Sponsorship and work authorization can sit anywhere, including the last paragraph.
-    if (SPONSOR_WORD.test(t) && WORK_CONTEXT.test(t)) {
+    // Sponsorship and work authorization can sit anywhere, including the last paragraph. The visa context may sit
+    // earlier on the same line ("Work Authorization: must be eligible to work in the US; we cannot sponsor").
+    const lineText = a.lines[s.line]?.text ?? t;
+    const sponsorLabel = /^\s*[-•*]?\s*((visa|h-?1-?b|immigration|work visa)\s+)?sponsorship( available)?\s*[:?-]/i.test(t) || /\bno (visa |h-?1-?b |immigration )?sponsorship\b|\bsponsorship (is |will )?not (be )?(available|offered|provided|possible)\b/i.test(t);
+    if (SPONSOR_WORD.test(t) && (WORK_CONTEXT.test(t) || WORK_CONTEXT.test(lineText) || sponsorLabel)) {
       if (SPONSOR_NO.test(t)) {
         out.push({ kind: 'sponsorship', importance: 'required', label: 'No visa sponsorship', quote: q(s), start: s.start, detail: { sponsorship: 'no', country: countryIn(t)?.code ?? 'US' } });
-      } else if (SPONSOR_YES.test(t)) {
+      } else if (SPONSOR_YES.test(t) || /^\s*[-•*]?\s*((visa|h-?1-?b)\s+)?sponsorship( available)?\s*[:?-]\s*(yes|available)\b/i.test(t)) {
         out.push({ kind: 'sponsorship', importance: 'preferred', label: 'Visa sponsorship offered', quote: q(s), start: s.start, detail: { sponsorship: 'yes' } });
       }
     }
