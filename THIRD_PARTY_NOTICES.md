@@ -44,10 +44,10 @@ function, list or text was copied or ported.
 | freehire `internal/candidate/jobmatch/jobmatch.go` (commit `e58b1af6`, `vendor/freehire`) | MIT | Skill coverage with exact and "adjacent" matches, an adjacent match counting half | `packages/match/src/score.ts` (Skills part: a related skill counts half and still shows as missing) |
 | freehire `internal/candidate/hardconstraint/hardconstraint.go`, `degrees.go` | MIT | Blockers per category with a score ceiling; judge a category only when both sides carry data | `packages/match/src/score.ts` (caps; "not in your profile" instead of a guessed answer) |
 | freehire `internal/dict/skilladjacency`, `internal/dict/skilltag` (comments on ambiguous words) | MIT | A conservative list of substitutable skills; words such as "slack", "react", "epic", "assembly" that are also ordinary words | `packages/match/data/skills.tsv` (case and context rules; related skills) |
-| career-ops `jd-skill-gap.mjs`, reactive-resume `jd/match.ts` (as summarised in `jobright-research/audit/03`) | MIT | Requirement-section detection by headings; weighting required over preferred terms; stuffing counted once | `packages/match/src/text.ts`, `src/job.ts` |
+| career-ops `jd-skill-gap.mjs`, reactive-resume `jd/match.ts` (as summarised in the project's research audit 03) | MIT | Requirement-section detection by headings; weighting required over preferred terms; stuffing counted once | `packages/match/src/text.ts`, `src/job.ts` |
 
 The starting weights of the overall percent (0.24 / 0.29 / 0.08 / +36) come from the project's own observation notes
-(`jobright-research/ui/UI-SPEC-LOGGED-IN.md`, section MATCH SCORE), not from any code or dataset.
+(the logged-in UI spec, section MATCH SCORE), not from any code or dataset.
 
 ## 2. Data shipped with the app
 
