@@ -371,7 +371,7 @@ function pairAmounts(text: string, amounts: Amount[], country: string | null | u
         const ca = resolveCurrency(a.marker, country), cb = resolveCurrency(b.marker, country);
         const dollarish = (x: string | null) => x === null || ['USD', 'CAD', 'AUD', 'NZD', 'SGD', 'HKD', 'MXN'].includes(x);
         const compatible = !ca || !cb || ca === cb || ((b.marker === '$' || a.marker === '$') && dollarish(ca) && dollarish(cb));
-        if (compatible && (a.marker || b.marker || a.mult || b.mult)) {
+        if (compatible) {
           pairs.push({ a, b });
           i++;
           continue;
@@ -485,7 +485,11 @@ function buildCandidates(text: string, opts: PayParseOptions): Cand[] {
     }
     const heading = headingCue(text, start);
     if (noMarker && !(ctx.cue || heading)) continue;
-    if (noMarker && !explicit && !(a.mult || b?.mult)) continue;
+    // A figure with no currency needs a "k", a period after it, or a period word in its own label ("Hourly rate: 25.00").
+    if (noMarker && !explicit && !(a.mult || b?.mult)) {
+      const label = text.slice(Math.max(clauseStart(text, start, /[.!?;\n•|]/), thisPrevEnd, start - 60), start);
+      if (!(periodBefore(label) && lastMatch(PAY_CUE, label))) continue;
+    }
     // A range of salary size with a pay word close by, but not in its own clause ("... with an $125,000 to
     // $145,000. Base salary may vary ..."). Only for ranges and "k" figures, never for small numbers.
     let wide = false;

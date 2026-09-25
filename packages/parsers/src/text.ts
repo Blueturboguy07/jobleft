@@ -45,6 +45,7 @@ const OTHER_JOBS_HEADING = new RegExp(
     '(?:similar|related|recommended|suggested|other|more|nearby|featured|trending|popular|recent(?:ly viewed)?|latest|new)\\s+(?:jobs?|positions?|openings?|roles?|opportunities|vacancies|listings?|postings?)(?:\\s+(?:at|from|near|like|for|in)\\b.*)?',
     'jobs?\\s+(?:you\\s+(?:may|might)\\s+(?:also\\s+)?(?:like|be\\s+interested\\s+in)|like\\s+this|similar\\s+to\\s+this.*|near\\s+you|for\\s+you)',
     'people\\s+(?:also\\s+)?(?:viewed|searched|applied).*',
+    'recommended\\s+for\\s+you', 'related\\s+searches', 'more\\s+from\\s+this\\s+(?:employer|company)', 'other\\s+roles\\s+you\\s+might\\s+like',
     'you\\s+(?:may|might)\\s+(?:also\\s+)?(?:like|be\\s+interested\\s+in).*',
     '(?:explore|browse|see|view)\\s+(?:all\\s+|more\\s+|other\\s+|similar\\s+)?(?:jobs?|openings|positions|roles)(?:\\s+(?:at|from|like|in)\\b.*)?',
     'more\\s+(?:from|at)\\s+.{1,60}',
