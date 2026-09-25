@@ -37,6 +37,7 @@ Your boards
   add --ats <provider> --board <token> [--region eu] [--yes]
   follow|unfollow|hide|unhide|disable|enable <boardId> [<boardId> ...]
   pending [--retry]                       links pasted while offline
+  jobs <boardId> [--all] [--json]         the jobs a board's refreshes stored (open; --all adds closed)
 
 Refresh
   refresh [--boards <id,id>] [--due-hours <h>] [--live] [--json]
@@ -288,6 +289,19 @@ async function main(): Promise<void> {
       if (json) { console.log(JSON.stringify({ run: rep.run, boards }, null, 1)); return; }
       if (!rep.run) { console.log('No refresh has run yet.'); return; }
       for (const b of boards) console.log(`${b.boardId.padEnd(34)} ${b.status.padEnd(12)} listed ${String(b.listed).padStart(4)} new ${b.inserted} closed ${b.closed} requests ${b.requests}${b.reason ? `  ${b.reason}` : ''}${b.closeHeld ? `  (${b.closeHeld})` : ''}`);
+    });
+
+    case 'jobs': return withApp((app) => {
+      const id = a._[1] ?? fail('usage: jobs <boardId> [--all]', 2);
+      const e = app.service.get(id);
+      if (!e) fail(`not_found: no board "${id}" in your list or the directory`, 4);
+      const rows = app.crawlStore.db.prepare(`SELECT job_id, title, location, first_seen, last_seen, closed_at, closed_reason FROM jobs
+        WHERE ats = ? AND board = ? ${a.all === true ? '' : 'AND closed_at IS NULL'} ORDER BY closed_at IS NOT NULL, title, job_id`).all(e.ats, e.board) as Array<Record<string, string | null>>;
+      if (json) { console.log(JSON.stringify({ board: e, jobs: rows }, null, 1)); return; }
+      console.log(`${line(e)}${e.hidden ? '  (hidden: its jobs are left out of the feed)' : ''}`);
+      for (const r of rows) console.log(`  ${String(r.job_id).padEnd(12)} ${String(r.title).slice(0, 50).padEnd(50)} ${r.closed_at ? `closed ${when(r.closed_at)} (${r.closed_reason})` : `open, last seen ${when(r.last_seen)}`}`);
+      const open = rows.filter((r) => !r.closed_at).length;
+      console.log(`${open} open${a.all === true ? `, ${rows.length - open} closed` : ''}`);
     });
 
     case 'directory': return directoryCmd(a, json);

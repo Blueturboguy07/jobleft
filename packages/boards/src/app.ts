@@ -28,6 +28,9 @@ import { boardApiHost } from './detect.ts';
 
 type Env = Record<string, string | undefined>;
 
+/** The gap between two requests to one host (at most 1 request per second, with a margin for network jitter). */
+export const PACING_MS = 1100;
+
 /** JOBLEFT_HOME, else the OS default (the same rule as apps/server resolveHome). */
 export function resolveHome(env: Env = process.env, platform: NodeJS.Platform = process.platform): string {
   if (env.JOBLEFT_HOME) return env.JOBLEFT_HOME;
@@ -90,7 +93,8 @@ export function openBoardsApp(opts: { env?: Env; onRequest?: (i: { host: string;
   const loaded = loadActiveDirectory({ home, env });
   const directory = new BoardDirectory(loaded.entries);
   const sources = boardSources({ ...SOURCES, ...ATS_SOURCES });
-  const pacer = new SqlitePacer(dbPath);
+  // 1.1 s, not 1.0 s: network jitter must never make two requests to one host arrive less than 1 s apart.
+  const pacer = new SqlitePacer(dbPath, PACING_MS);
   const offline = offlineFromEnv(env);
   const hostMap = hostMapFromEnv(env);
   const newHttp = (): HttpClient => createBoardHttp({

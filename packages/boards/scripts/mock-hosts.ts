@@ -9,8 +9,12 @@
 //   "boards": { "greenhouse:acme": { "name": "Acme Corp", "jobs": 5, "script": ["ok"] }, "lever:beta": {...}, ... },
 //   "pages":  { "/acme.html": "<html>...</html>", ... },          served on the careers host (careers.mock.example)
 //   "redirects": { "/old": "https://boards.greenhouse.io/acme" }, 302 answers on the careers host
-//   "robots": { "careers.mock.example": "User-agent: *\nDisallow: /private" }
+//   "robots": { "careers.mock.example": "User-agent: *\nDisallow: /private" },
+//   "paid": { "balanceMicros": 5000000, "priceMicros": 4000, "pages": { "<url>": "<html seen by a browser>" } }
 // }
+// The paid page fetch stand-in (only when "paid" is set) listens on its own loopback port: POST /fetch with
+// { url, js, maxPriceMicros } answers { url, html, costMicros } and takes the price from the balance;
+// GET /balance answers { balanceMicros, requests }. Point JOBLEFT_PAID_FETCH_URL at it.
 // A board's "script" is the answer to each successive list request; the last step repeats. Steps: ok, 404, 500,
 // 403, timeout (no answer for 30 s), empty (a valid empty list), broken (not JSON), 429:<seconds> (Retry-After).
 // "jobs" is a count, or a list of job ids.
@@ -26,6 +30,7 @@ export interface MockConfig {
   pages?: Record<string, string>;
   redirects?: Record<string, string>;
   robots?: Record<string, string>;
+  paid?: { balanceMicros?: number; priceMicros?: number; pages?: Record<string, string> };
 }
 export interface MockRequest { at: number; host: string; method: string; path: string; headers: Record<string, string | string[] | undefined>; body: string }
 
@@ -36,6 +41,9 @@ export const MOCK_HOSTS = [
 
 export interface MockHosts {
   hostMap: Record<string, string>;
+  /** The paid page fetch stand-in (when config.paid is set). */
+  paidUrl: string | null;
+  paid: { balanceMicros: number; requests: number };
   log: MockRequest[];
   config: MockConfig;
   /** Requests to one board's list endpoint. */
@@ -149,8 +157,34 @@ export async function startMockHosts(config: MockConfig, opts: { logFile?: strin
     servers.push(server);
     hostMap[host] = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   }
+  const paid = { balanceMicros: cfg.paid?.balanceMicros ?? 5_000_000, requests: 0 };
+  let paidUrl: string | null = null;
+  if (cfg.paid) {
+    const price = cfg.paid.priceMicros ?? 4000;
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
+        log.push({ at: Date.now(), host: 'paid-fetch', method: req.method ?? 'GET', path: req.url ?? '/', headers: req.headers, body });
+        if (opts.logFile) appendFileSync(opts.logFile, JSON.stringify({ at: new Date().toISOString(), host: 'paid-fetch', method: req.method, path: req.url, body }) + '\n');
+        res.setHeader('content-type', 'application/json');
+        if (req.method === 'GET' && req.url === '/balance') { res.end(JSON.stringify(paid)); return; }
+        if (req.method !== 'POST' || req.url !== '/fetch') { res.statusCode = 404; res.end('{}'); return; }
+        let j: { url?: string; maxPriceMicros?: number } = {};
+        try { j = JSON.parse(body); } catch { res.statusCode = 400; res.end('{}'); return; }
+        if ((j.maxPriceMicros ?? 0) < price) { res.statusCode = 402; res.end(JSON.stringify({ error: 'price above the cap' })); return; }
+        if (paid.balanceMicros < price) { res.statusCode = 402; res.end(JSON.stringify({ error: 'insufficient balance' })); return; }
+        paid.balanceMicros -= price; paid.requests++;
+        res.end(JSON.stringify({ url: j.url, html: cfg.paid?.pages?.[j.url ?? ''] ?? '<html><body>No board here either.</body></html>', costMicros: price }));
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+    servers.push(server);
+    paidUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  }
   return {
-    hostMap, log, config: cfg,
+    hostMap, log, config: cfg, paidUrl, paid,
     listRequests: (k: string) => log.filter((e) => listKey(e.host, e.path.split('?')[0]!) === k.toLowerCase()),
     setBoard: (k: string, b: MockBoard) => { cfg.boards![k.toLowerCase()] = b; steps.delete(k.toLowerCase()); },
     close: async () => { for (const s of servers) { s.closeAllConnections(); await new Promise<void>((r) => s.close(() => r())); } },
@@ -162,6 +196,7 @@ if (process.argv[1]?.endsWith('mock-hosts.ts')) {
   const l = process.argv.indexOf('--log');
   const config = i > 0 ? JSON.parse(readFileSync(process.argv[i + 1]!, 'utf8')) as MockConfig : {};
   const m = await startMockHosts(config, l > 0 ? { logFile: process.argv[l + 1]! } : {});
-  console.log(`JOBLEFT_HOST_MAP='${JSON.stringify(m.hostMap)}'`);
+  console.log(`export JOBLEFT_HOST_MAP='${JSON.stringify(m.hostMap)}'`);
+  if (m.paidUrl) console.log(`export JOBLEFT_PAID_FETCH_URL=${m.paidUrl} JOBLEFT_PAID_FETCH_PRICE_MICROS=${config.paid?.priceMicros ?? 4000}`);
   console.error('Mock hosts are running on loopback. Stop with Ctrl-C.');
 }

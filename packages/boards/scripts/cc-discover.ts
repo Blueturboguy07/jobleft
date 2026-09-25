@@ -52,7 +52,7 @@ async function main(): Promise<void> {
   const maxRequests = Number(arg('max-requests') ?? 20);
   const out = arg('out') ? resolve(arg('out')!) : null;
   const http = replay ? null : createBoardHttp({
-    pacer: new BusyPacer(1000), hostMap: hostMapFromEnv(), offline: () => offlineFromEnv(),
+    pacer: new BusyPacer(1100), hostMap: hostMapFromEnv(), offline: () => offlineFromEnv(),
     timeoutMs: 90_000, maxRequests, retries: 1, retryDelayMs: 5000,
   });
   const base = `https://index.commoncrawl.org/${crawl}-index`;
