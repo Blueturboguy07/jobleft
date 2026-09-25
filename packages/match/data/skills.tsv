@@ -231,7 +231,7 @@ ux_research | User research | skill | design,product | user research, ux researc
 wireframing | Wireframing and prototyping | skill | design,product | wireframing, wireframes, wireframe, prototyping, prototypes, high-fidelity mockups, mockups, user flows |
 design_systems | Design systems | skill | design,software | design systems, design system, component libraries |
 graphic_design | Graphic design | skill | design,marketing | graphic design, visual design, typography, layout design |
-video_editing | Video editing | skill | design,marketing,media | video editing, video production, editing video, video editor |
+video_editing | Video editing | skill | design,marketing | video editing, video production, editing video, video editor |
 photography | Photography | skill | design,marketing | photography, photo editing, product photography |
 autocad | AutoCAD | tool | engineering,construction_mgmt,trades_electrical,design | autocad, auto cad, autocad civil 3d, civil 3d | revit
 revit | Revit | tool | engineering,construction_mgmt,design | revit, bim, building information modeling | autocad
@@ -443,7 +443,7 @@ aba | Applied behavior analysis | method | counseling,health_support,teaching | 
 lesson_planning | Lesson planning | skill | teaching,childcare,training | lesson planning, lesson plans, lesson plan, planning lessons, unit plans, unit planning |
 classroom_mgmt | Classroom management | skill | teaching,childcare | classroom management, managing a classroom, classroom behavior management |
 curriculum_dev | Curriculum development | skill | teaching,training,childcare | curriculum development, curriculum design, developing curriculum, curriculum planning, curriculum writing | instructional_design
-differentiated | Differentiated instruction | method | teaching | differentiated instruction, differentiation, differentiating instruction, small group instruction, small-group instruction, scaffolding |
+differentiated | Differentiated instruction | method | teaching | differentiated instruction, differentiation, differentiating instruction, small group instruction, small-group instruction |
 special_ed | Special education | skill | teaching,childcare,counseling | special education, =SPED, students with disabilities, special needs students, inclusion classroom, co-teaching |
 iep | IEPs | skill | teaching,counseling | =IEP, =IEPs, individualized education program, individualized education programs, individualized education plan, 504 plans, 504 plan |
 student_assessment | Student assessment | skill | teaching | student assessment, formative assessment, formative assessments, summative assessment, progress monitoring, data-driven instruction, student data |
