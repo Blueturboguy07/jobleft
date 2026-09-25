@@ -58,7 +58,7 @@ export interface SourceStatus { name: string; status: 'used' | 'no_facts' | 'not
 /** The contract Company plus what the person needs to judge the facts. */
 export interface CompanyDetail extends Company {
   factsStatus: { fetchedAt: string | null; lastAttemptAt: string | null; lastError: string | null; sources: SourceStatus[] };
-  paidLookup: { lastCostMicros: number; lastCostText: string; at: string; totalMicros: number; note: string | null } | null;
+  paidLookup: { lastCostMicros: number; lastCostText: string; at: string; totalMicros: number; note: string | null; ran?: boolean } | null;
 }
 
 interface Row {
@@ -233,7 +233,8 @@ export class CompanyFacts {
     const fresh = row?.fresh_until ? Date.parse(row.fresh_until) > now : false;
     const waiting = row?.retry_after ? Date.parse(row.retry_after) > now : false;
     const needFree = opts.force || (!fresh && !waiting);
-    const paidAlready = row?.paid ? (JSON.parse(row.paid) as { at?: string }).at : null;
+    const prevPaid = row?.paid ? (JSON.parse(row.paid) as { at?: string; ran?: boolean }) : null;
+    const paidAlready = prevPaid?.ran ? prevPaid.at ?? null : null;
     const needPaid = opts.allowPaid && this.#paid !== null && (opts.force || !paidAlready || !fresh);
     if (!needFree && !needPaid) return this.get(key);
     const name = this.#nameFor(key, row);
@@ -425,7 +426,7 @@ export class CompanyFacts {
     const prevPaid = row?.paid ? (JSON.parse(row.paid) as NonNullable<CompanyDetail['paidLookup']>) : null;
     const record = (spent: number, note: string | null) => {
       const total = (prevPaid?.totalMicros ?? 0) + spent;
-      const paidJson = JSON.stringify({ lastCostMicros: spent, lastCostText: `${formatDollars(spent)} from your balance`, at, totalMicros: total, note });
+      const paidJson = JSON.stringify({ lastCostMicros: spent, lastCostText: `${formatDollars(spent)} from your balance`, at, totalMicros: total, note, ran: spent > 0 });
       this.#db.prepare('UPDATE company_facts SET paid = ?, facts = ?, updated_at = ? WHERE key = ?').run(paidJson, JSON.stringify(facts), at, key);
     };
     if (!this.#row(key)) this.#upsert(key, name, facts, [], { fetched_at: null, fresh_until: null, last_attempt_at: at, last_error: null, retry_after: null, paid: null });

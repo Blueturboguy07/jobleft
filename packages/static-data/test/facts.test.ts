@@ -128,8 +128,10 @@ test('paid lookups run only with consent and within the cap; cost is in dollars 
   const capped = await facts.refresh(key, { allowPaid: true, maxPriceMicros: 1000 });
   assert.equal(s.queries.length, 0);
   assert.match(capped.paidLookup?.note ?? '', /over your limit/);
-  await facts.refresh(key, { allowPaid: true, maxPriceMicros: 100_000, force: true });
-  assert.equal(s.queries.length, 2);
+  await facts.refresh(key, { allowPaid: true, maxPriceMicros: 100_000 });
+  assert.equal(s.queries.length, 2, 'a capped lookup that did not run is tried again when the cap allows it');
+  await facts.refresh(key, { allowPaid: true, maxPriceMicros: 100_000 });
+  assert.equal(s.queries.length, 2, 'a paid lookup that ran is not repeated while the facts are fresh');
   for (const q of s.queries) assert.doesNotMatch(q, /jordan|testwell|@/i);
   const c = facts.get(key);
   assert.doesNotMatch(JSON.stringify(c), /credit/i);
