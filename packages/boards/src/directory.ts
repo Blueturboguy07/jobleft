@@ -34,6 +34,8 @@ export interface DirectoryFileRow {
   lastVerified: string | null;
   /** live = answered at the last check; suspect = answered "not found" once (checked again before removal); unverified = not checked. */
   status: DirectoryStatus;
+  /** Set on a suspect row: when the provider first answered "not found" (RFC 3339). */
+  suspectSince?: string;
 }
 
 export interface DirectorySource {
