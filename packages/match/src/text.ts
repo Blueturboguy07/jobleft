@@ -195,19 +195,44 @@ function splitSentences(text: string, lineStart: number, lineIndex: number, star
   return out;
 }
 
+/**
+ * A heading written inside a paragraph: "Home every weekend. Requirements: valid Class A CDL, ...". The line is read
+ * as two lines at that point, so the text after the heading gets its section.
+ */
+const INLINE_HEADING = /(?<=[.!?;]\s{1,4}|^\s*[-•*]?\s*)(requirements|qualifications|minimum qualifications|basic qualifications|preferred qualifications|must[- ]haves?|must have|nice[- ]to[- ]haves?|nice to have|preferred|bonus( points)?|what you('ll| will)? (bring|need)|you have|you bring|responsibilities|duties|benefits|perks|what we offer|about (us|the role|you)|skills|experience)\s*:/gi;
+
+function physicalLines(text: string): Array<{ start: number; end: number }> {
+  const out: Array<{ start: number; end: number }> = [];
+  let offset = 0;
+  for (const lt of text.split('\n')) {
+    const start = offset;
+    const end = offset + lt.length;
+    offset = end + 1;
+    // Split before each inline heading that is not at the very start of the line.
+    const cuts: number[] = [];
+    INLINE_HEADING.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = INLINE_HEADING.exec(lt))) {
+      if (m.index > 0 && lt.slice(0, m.index).trim()) cuts.push(m.index);
+      if (m[0].length === 0) INLINE_HEADING.lastIndex++;
+    }
+    let from = 0;
+    for (const c of cuts) { out.push({ start: start + from, end: start + c }); from = c; }
+    out.push({ start: start + from, end });
+  }
+  return out;
+}
+
 /** Reads a posting (or any text) into lines, sections, sentences and tokens. */
 export function analyzeText(text: string): AnalyzedText {
   const lines: Line[] = [];
   const sentences: Sentence[] = [];
   let section: SectionKind = 'intro';
   let hasHeadings = false;
-  let offset = 0;
-  const rawLines = text.split('\n');
+  const rawLines = physicalLines(text);
   for (let li = 0; li < rawLines.length; li++) {
-    const lt = rawLines[li];
-    const start = offset;
-    const end = offset + lt.length;
-    offset = end + 1;
+    const { start, end } = rawLines[li];
+    const lt = text.slice(start, end);
     const kind = headingKind(lt);
     let heading = false;
     if (kind) {

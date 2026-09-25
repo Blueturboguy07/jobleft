@@ -106,7 +106,8 @@ export const ExperienceDetailSchema = named(obj({
   rolesCounted: arr(obj({ title: str(), company: str(), from: str(), to: str(), months: int({ minimum: 0 }) })),
   rolesNotCounted: arr(obj({ title: str(), company: str(), why: str() })),
   relevantMonths: nullable(int({ minimum: 0 })),
-  jobYears: nullable(obj({ min: nullable(int({ minimum: 0 })), max: nullable(int({ minimum: 0 })), importance: str(), quote: str() })),
+  /** Years the posting asks for (months as a fraction: 6 months = 0.5). */
+  jobYears: nullable(obj({ min: nullable(num({ minimum: 0 })), max: nullable(num({ minimum: 0 })), importance: str(), quote: str() })),
   jobLevel: nullable(str()),
 }), 'ExperienceDetail');
 

@@ -1,0 +1,14 @@
+{
+  "01-lead-warehouse-2nd.txt": "strong",
+  "02-warehouse-supervisor.txt": "strong",
+  "03-inventory-control-specialist.txt": "strong",
+  "04-shipping-receiving-lead.txt": "strong",
+  "05-forklift-operator.txt": "possible",
+  "06-logistics-coordinator.txt": "possible",
+  "07-operations-manager-dc.txt": "possible",
+  "08-cdl-driver.txt": "poor",
+  "09-software-engineer.txt": "poor",
+  "10-registered-nurse.txt": "poor",
+  "11-accountant.txt": "poor",
+  "12-vp-supply-chain.txt": "poor"
+}

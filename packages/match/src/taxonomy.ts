@@ -428,6 +428,8 @@ export function familyOfTitle(title: string): TitleFamily | null {
   let offset = 0;
   for (const part of parts) {
     const w = foldTitleWords(part);
+    // "Cook II", "Nurse 3", "Technician - Level 2": a trailing grade does not stop a head-noun match.
+    while (w.length > 1 && /^(i|ii|iii|iv|v|vi|[1-6]|l[1-6]|level|grade)$/.test(w[w.length - 1])) w.pop();
     for (let i = 0; i < w.length; i++) {
       const cands = TITLE_PHRASES.get(w[i]);
       if (!cands) continue;

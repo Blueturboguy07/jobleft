@@ -9,7 +9,7 @@ import { analyzeText, quoteAround, textLanguage, type AnalyzedText, type Section
 import {
   FAMILIES, SKILLS, familyOfTitle, familyRelatedness, scanIndustries, scanSkills, tokensOfText, type IndustryHit,
 } from './taxonomy.ts';
-import { primaryYears, readRequirements, type PostedRequirement } from './requirements.ts';
+import { credentialRuns, primaryYears, readRequirements, type PostedRequirement } from './requirements.ts';
 
 export type SkillImportance = 'required' | 'preferred' | 'mentioned';
 
@@ -50,13 +50,20 @@ const SKIP_SECTIONS: ReadonlySet<SectionKind> = new Set(['about', 'benefits', 'e
 const LINE_PREFERRED = /\b(preferred|preferably|a plus|is a plus|nice[- ]to[- ]have|bonus|desired|desirable|ideally|advantage|helpful|not required)\b/i;
 const LINE_REQUIRED = /\b(required|must|mandatory|minimum|essential|necessary)\b/i;
 
-function lineImportance(section: SectionKind, line: string): SkillImportance {
+/** A sentence that states what the person must bring, even without a heading ("2 years of experience, CDL-A, ..."). */
+const REQUIREMENT_SENTENCE = /\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\+?\s*(\(\d+\)\s*)?(years?|yrs?|months?)\b[^.;]{0,60}\b(experience|exp\b)|\bexperience\b[^.;]{0,25}\b\d{1,2}\+?\s*(years?|months?)\b|\b(must have|must be able|must hold|must possess|you have|you'?ll need|you will need|you should have|we'?re looking for someone|looking for someone with|the ideal candidate|candidates? (must|should|will) have|requires?|required|minimum of|need(s)? to have|proven experience|experience (with|in|using|as)|knowledge of|proficien\w+ (in|with)|ability to)\b/i;
+/** Words that make a licence or certificate in plain text a requirement ("Licensed therapists (LCSW, LPC or LMFT)"). */
+const LICENCE_WORDS = /\b(licen[cs]ed|licen[cs]es?|licensure|certified|certifications?|certificates?|card|endorsements?|credentials?|registered|registration)\b/i;
+
+function lineImportance(section: SectionKind, line: string, credential = false): SkillImportance {
   const pref = LINE_PREFERRED.test(line);
   const req = LINE_REQUIRED.test(line) && !/\bnot required\b/i.test(line);
   if (section === 'required') return pref && !req ? 'preferred' : 'required';
   if (section === 'preferred') return req && !pref ? 'required' : 'preferred';
   if (pref && !req) return 'preferred';
   if (req) return 'required';
+  if (REQUIREMENT_SENTENCE.test(line)) return 'required';
+  if (credential && LICENCE_WORDS.test(line)) return 'required';
   return 'mentioned';
 }
 
@@ -160,6 +167,26 @@ function readEmploymentType(job: Job, a: AnalyzedText): { type: EmploymentType |
   return { type: null, evidence: null };
 }
 
+/** Titles with "manager" that manage work, not people ("Account Manager", "Product Manager", "Case Manager"). */
+const IC_MANAGER = /\b(account|product|project|program|case|property|community|social media|marketing|brand|content|relationship|territory|key account|customer success|client success|success|category|practice|care|portfolio|event|events|engagement|partner|partnerships|channel|technical account|implementation|delivery|release|configuration|data|compliance|contracts?|office|leasing|pmo|campaign|digital marketing|product marketing|growth|seo|email marketing|demand generation|study|clinical trial|grants?|development|fundraising|wealth|asset)\s+manager\b/i;
+
+/**
+ * The level a title states, from @jobleft/parsers plus the match lane's reading of a few titles: an "Account Manager"
+ * is not a people manager; an executive chef runs a kitchen team; a sous chef leads one.
+ */
+export function levelOfTitle(title: string): Level | null {
+  const t = title.trim();
+  if (/\b(executive chef|head chef|chef de cuisine|culinary director)\b/i.test(t)) return 'manager';
+  if (/\bsous chef\b/i.test(t)) return 'lead';
+  const base = levelFromTitle(t);
+  if (base === 'manager' && IC_MANAGER.test(t) && !/\b(managers|team manager|people manager)\b/i.test(t)) {
+    if (/\b(senior|sr\.?)\b/i.test(t)) return 'senior';
+    if (/\b(principal|group|lead)\b/i.test(t)) return 'lead';
+    return /\b(associate|junior|jr\.?|assistant)\b/i.test(t) ? 'entry' : 'mid';
+  }
+  return base;
+}
+
 function levelFromYears(min: number | null): Level | null {
   if (min === null) return null;
   if (min <= 1) return 'entry';
@@ -217,10 +244,9 @@ export function readJob(job: Job, company: Company | null): JobFacts {
   let level: Level | null = job.level ?? null;
   let levelSource: JobFacts['levelSource'] = level ? 'job' : null;
   let levelEvidence: string | null = level ? job.evidence?.level?.text ?? job.title : null;
-  if (!level) {
-    const t = levelFromTitle(job.title);
-    if (t) { level = t; levelSource = 'title'; levelEvidence = job.title; }
-  }
+  // The title, read by the match lane, wins over a crawler's level for the few titles the parsers misread.
+  const t = levelOfTitle(job.title);
+  if (t && (!level || (level === 'manager' && t !== 'manager'))) { level = t; levelSource = 'title'; levelEvidence = job.title; }
   if (!level && job.employmentType === 'internship') { level = 'intern'; levelSource = 'employment_type'; levelEvidence = 'internship'; }
   if (!level && years && years.importance === 'required') {
     const y = levelFromYears(years.detail.minYears ?? null);
@@ -233,14 +259,24 @@ export function readJob(job: Job, company: Company | null): JobFacts {
   // Skills: every distinct skill once, at its strongest importance, with the posting's words.
   const items = new Map<string, JobSkillItem>();
   if (language !== 'other') {
-    for (const m of scanSkills(a.live)) {
-      const def = SKILLS.get(m.id)!;
-      const tok = a.live.find((t) => t.start === m.start)!;
+    const all = scanSkills(a.live);
+    // "LCSW, LPC or LMFT" is one item that any of the three meets.
+    const altOf = new Map<number, string>();
+    for (const run of credentialRuns(a.text, all.filter((m) => SKILLS.get(m.id)?.kind === 'cred'))) {
+      if (!run.alternative) continue;
+      const key = `alt:${run.ids.join('|')}`;
+      for (const m of all) if (m.start >= run.start && m.end <= run.end) altOf.set(m.start, key);
+    }
+    const tokAt = new Map(a.live.map((t) => [t.start, t]));
+    for (const m0 of all) {
+      const m = altOf.has(m0.start) ? { ...m0, id: altOf.get(m0.start)! } : m0;
+      const def = SKILLS.get(m0.id)!;
+      const tok = tokAt.get(m.start)!;
       const line = a.lines[tok.line];
       if (!line || SKIP_SECTIONS.has(line.section)) continue;
       const sentence = a.sentences[tok.sentence]?.text ?? line.text;
-      const imp = lineImportance(line.section, sentence);
-      if ((def.kind === 'cred' || def.kind === 'regime') && imp === 'mentioned') continue;
+      const imp = lineImportance(line.section, sentence, def.kind === 'cred');
+      if (def.kind === 'cred' && imp === 'mentioned') continue;
       if (imp === 'mentioned' && def.families && fam.family) {
         let fits = false;
         for (const f of def.families) if (familyRelatedness(fam.family, f) >= 0.3) { fits = true; break; }

@@ -1,0 +1,14 @@
+{
+  "01-account-executive-saas.txt": "strong",
+  "02-senior-ae.txt": "strong",
+  "03-enterprise-ae.txt": "strong",
+  "04-account-manager.txt": "possible",
+  "05-sdr-manager.txt": "possible",
+  "06-sales-engineer.txt": "possible",
+  "07-retail-sales-associate.txt": "poor",
+  "08-vp-sales.txt": "poor",
+  "09-software-engineer.txt": "poor",
+  "10-nurse.txt": "poor",
+  "11-pharma-rep-cit.txt": "possible",
+  "12-marketing-manager.txt": "poor"
+}

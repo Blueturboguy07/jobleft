@@ -1,0 +1,76 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "work": [
+    {
+      "company": "Blue Bonnet Grill",
+      "title": "Line Cook",
+      "startDate": "2022-03",
+      "endDate": "present",
+      "bullets": [
+        "Work the grill and saute stations in a 180-seat restaurant.",
+        "Prep sauces and proteins, follow recipes and plating guides.",
+        "Keep the station clean and follow food safety rules."
+      ]
+    },
+    {
+      "company": "Burger Barn",
+      "title": "Prep Cook",
+      "startDate": "2020-06",
+      "endDate": "2022-02",
+      "bullets": [
+        "Food prep, dishwashing and closing duties."
+      ]
+    }
+  ],
+  "skills": [
+    "Food preparation",
+    "Knife skills",
+    "Grill",
+    "Food safety",
+    "Kitchen cleaning"
+  ],
+  "certifications": [
+    "Texas Food Handler Card"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Cook"
+    ],
+    "targetTitles": [
+      "Line Cook",
+      "Sous Chef"
+    ],
+    "employmentTypes": [
+      "full_time",
+      "part_time"
+    ],
+    "workModels": [
+      "onsite"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "placeId": null,
+        "radiusMiles": 20
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

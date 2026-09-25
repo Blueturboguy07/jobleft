@@ -6,7 +6,7 @@ import type { Blocker, Company, Job, MatchResult, Place, PlaceQuery, Profile, Re
 import { bandFor } from '@jobleft/contracts';
 import { configTag, resolveConfig, type MatchConfig, type MatchConfigInput } from './config.ts';
 import { comparePlace, placeLabel, parsePlaceText } from './geo.ts';
-import { readJob, type JobFacts, type JobSkillItem } from './job.ts';
+import { levelOfTitle, readJob, type JobFacts, type JobSkillItem } from './job.ts';
 import {
   formatMonths, heldFrom, monthLabel, monthOf, profileFacts, scoringView, type ProfileFacts, type RoleFact,
 } from './profile.ts';
@@ -14,7 +14,6 @@ import { yearsLabel, type PostedRequirement } from './requirements.ts';
 import {
   SKILLS, familyLabel, familyRelatedness, foldTitleWords, industryName, industryRelatedness, skillName,
 } from './taxonomy.ts';
-import { levelFromTitle } from '@jobleft/parsers';
 
 export const ENGINE_BASE_VERSION = 'match-1.0.0';
 
@@ -256,7 +255,7 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
       let titleOrd = 0;
       let candLead = 0;
       for (const r of pf.roles) {
-        const l = levelFromTitle(r.title);
+        const l = levelOfTitle(r.title);
         if (!l) continue;
         const related = !r.family || !jf.family ? 0.5 : familyRelatedness(jf.family, r.family);
         if (related >= 0.3) titleOrd = Math.max(titleOrd, LEVEL_ORD[scale][l]);
@@ -264,8 +263,9 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
       }
       const cand = Math.max(candYears, Math.min(titleOrd, candYears + 1));
       const gap = jobOrd - cand;
-      let fit = gap > 0.5 ? 100 - (gap - 0.5) * 30 : gap < -1 ? 100 - (-gap - 1) * 20 : 100;
-      fit = clamp(fit, gap > 0 ? 15 : 60, 100);
+      // Below the level costs a lot; above it costs a little (frontline work barely at all).
+      let fit = gap > 0.5 ? 100 - (gap - 0.5) * 30 : gap < -1.5 ? 100 - (-gap - 1.5) * 15 : 100;
+      fit = clamp(fit, gap > 0 ? 15 : scale === 'frontline' ? 85 : 70, 100);
       const jobLead = LEAD_ORD[jf.level] ?? 0;
       const tech = jf.family === 'software' || jf.family === 'data' || jf.family === 'security';
       const peopleRole = jobLead > 0 && !(tech && jf.level === 'lead');
@@ -378,7 +378,8 @@ function scoreSkills(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): SkillsOu
     reasons.push({ code: 'skills_not_english', text: 'Not enough information: the posting is not in English, and jobleft reads skills in English postings only.', points: 0 });
     return { sub: { percent: null, reasons }, checks: [], lists: empty, coverage: null, total: 0 };
   }
-  const items: Array<JobSkillItem & { name: string; raw?: boolean }> = jf.skills.map((s) => ({ ...s, name: skillName(s.id) }));
+  const nameOf = (id: string) => (id.startsWith('alt:') ? id.slice(4).split('|').map(skillName).join(' or ') : skillName(id));
+  const items: Array<JobSkillItem & { name: string; raw?: boolean }> = jf.skills.map((s) => ({ ...s, name: nameOf(s.id) }));
   // Profile skills the dictionaries do not know, matched word for word ("Pyxis", "Kronos").
   if (pf.rawSkills.length) {
     const toks = jf.text.live.filter((t) => { const sec = jf.text.lines[t.line]?.section; return sec !== 'about' && sec !== 'benefits' && sec !== 'eeo'; });
@@ -408,12 +409,13 @@ function scoreSkills(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): SkillsOu
     let via: string | null = null;
     if (it.raw) { state = 'met'; credit = 1; from = `your skills list ("${it.name}")`; }
     else {
-      const h = heldOrBetter(pf, it.id);
+      const ids = it.id.startsWith('alt:') ? it.id.slice(4).split('|') : [it.id];
+      const h = ids.map((id) => heldOrBetter(pf, id)).find((x) => x) ?? null;
       if (h) { state = 'met'; credit = 1; from = heldFrom(h); }
       else {
-        const def = SKILLS.get(it.id)!;
-        const rel = [...def.related].find((r) => pf.held.has(r));
-        const implied = pf.impliedCreds.get(it.id);
+        const def = SKILLS.get(ids[0])!;
+        const rel = ids.length === 1 ? [...def.related].find((r) => pf.held.has(r)) : undefined;
+        const implied = ids.map((id) => pf.impliedCreds.get(id)).find((x) => x);
         if (rel) { state = 'related'; credit = cfg.skills.related; via = skillName(rel); from = heldFrom(pf.held.get(rel)!); }
         else if (implied) { state = 'implied'; credit = cfg.skills.implied; via = implied; }
       }
@@ -809,7 +811,7 @@ function chips(pf: ProfileFacts, jf: JobFacts, company: Company | null, sk: Skil
     const met = req.filter((c) => c.state === 'met').length;
     out.push({ kind: 'skills', label: `Has ${met} of ${req.length} skills`, positive: true, rank: 2 });
   }
-  if (ex.levelFit !== null && ex.levelFit >= 90 && jf.level && jf.levelSource !== 'years') out.push({ kind: 'level', label: `Right level: ${LEVEL_WORD[jf.level]}`, positive: true, rank: 3 });
+  if (ex.levelFit !== null && ex.levelFit >= 90 && jf.level && jf.levelSource !== 'years' && (ex.sub.percent ?? 0) >= 70) out.push({ kind: 'level', label: `Right level: ${LEVEL_WORD[jf.level]}`, positive: true, rank: 3 });
   const pay = jf.job.pay;
   if (pay) {
     const payDeal = deal.checks.find((c) => c.kind === 'pay');

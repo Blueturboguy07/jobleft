@@ -2727,7 +2727,7 @@
                         "min": {
                           "anyOf": [
                             {
-                              "type": "integer",
+                              "type": "number",
                               "minimum": 0
                             },
                             {
@@ -2738,7 +2738,7 @@
                         "max": {
                           "anyOf": [
                             {
-                              "type": "integer",
+                              "type": "number",
                               "minimum": 0
                             },
                             {

@@ -31,10 +31,12 @@ export interface PostedRequirement {
     minYears?: number | null;
     maxYears?: number | null;
     general?: boolean;
+    /** Several years statements in one sentence joined by "or" ("a degree and 2 years, or 6 years"). */
+    alternative?: boolean;
   };
 }
 
-const REQUIRED_CUE = /\b(required|requires?|requirement|must|mandatory|need(ed|s)?|necessary|essential|minimum|at least|only|active|current(ly)?|valid|unrestricted|hold(s|ing)?|possess(es|ion)?|in good standing)\b/i;
+const REQUIRED_CUE = /\b(required|requires?|requirements?|qualifications?|must|mandatory|need(ed|s)?|necessary|essential|minimum|at least|only|active|current(ly)?|valid|unrestricted|licensed|certified|in good standing)\b/i;
 const PREFERRED_CUE = /\b(preferred|preferably|prefer|a plus|is a plus|are a plus|plus\b|desired|desirable|nice[- ]to[- ]have|bonus|advantage(ous)?|ideally|ideal|helpful|beneficial|welcome|strongly considered|not required|a big plus|highly valued)\b/i;
 const OBTAIN_CUE = /\b(within\s+(\d+|one|two|three|six|twelve|thirty|sixty|ninety)\s*(\(\d+\)\s*)?(days?|weeks?|months?|years?)|ability to (obtain|get|acquire|earn)|able to (obtain|get|acquire|earn)|willing(ness)? to (obtain|get|acquire|earn|pursue)|eligible (for|to (obtain|receive|get))|eligibility (for|to)|must (obtain|acquire|get|earn)|obtain (and|&) maintain|(upon|after|following) (hire|hiring|employment|start)|prior to (start|hire)|or eligible|in progress|working towards?|candidates? (for|in)|sit for|will (be )?(provide|provided|train|trained)|we (will )?(provide|pay for|cover|sponsor)|company[- ]paid|paid training|or be able to)\b/i;
 const NEGATED = /\b(no|not|never|without)\b[^.;]{0,25}\b(required|needed|necessary)\b|\bnot (a )?requirement\b/i;
@@ -155,6 +157,7 @@ const RE_RANGE = new RegExp(`\\b${NUM}${PAREN}\\s*(?:-|–|—|to)\\s*${NUM}${PA
 const RE_PLUS = new RegExp(`\\b${NUM}${PAREN}\\s*(?:\\+|\\s+or more|\\s+plus|\\s+or greater)\\s*${YRS}|\\b${NUM}\\+${YRS}|\\b${NUM}${PAREN}\\s*${YRS}\\s*\\+`, 'i');
 const RE_MIN = new RegExp(`\\b(?:at least|minimum of|a minimum of|min\\.?|minimum|no less than|not less than|more than|over|in excess of)\\s*(?:of\\s*)?${NUM}${PAREN}\\s*\\+?\\s*${YRS}`, 'i');
 const RE_PLAIN = new RegExp(`\\b${NUM}${PAREN}\\s*${YRS}`, 'i');
+const RE_MONTHS = new RegExp(`\\b${NUM}${PAREN}\\s*\\+?\\s*(?:or more\\s+)?months?`, 'i');
 const RE_UPTO = new RegExp(`\\b(?:up to|less than|under|no more than)\\s*${NUM}${PAREN}\\s*${YRS}`, 'i');
 const YEARS_CONTEXT = /\b(experience|exp\b|experienced|working (as|in|with|on)|worked|work history|background|in (a|an|the) [\w\s/&-]{0,40}(role|position|setting|environment|capacity|field|industry|function)|as an? [a-z]|professional|track record|tenure|hands-on)\b/i;
 const YEARS_NOT = /\b(years? old|of age|age of|years? of age|in business|anniversary|founded|since (19|20)\d\d|warranty|guarantee|years? of (service|operation|history|growth|success|excellence)|serving (our|the)|we'?ve been|for over \d+ years|legacy|years? (ago|later|from now|away)|per year|a year\b|each year|every year|year[- ]round|retention|term of|lease|vesting|vest\w* over|cliff|contract (term|length)|probation|after \d+ years? (of service|with)|tuition|reimbursement)\b/i;
@@ -178,6 +181,8 @@ function yearsIn(s: string): YearsHit[] {
     while ((m = g.exec(s))) {
       const start = m.index, end = m.index + m[0].length;
       if (hits.some((h) => start < h.end && end > h.start)) continue;
+      // "1 year of ICU experience within the last 3 years": the second number is a time window, not a requirement.
+      if (/\b(within|in|during|over|from)\s+(the\s+)?(last|past|previous|prior)\s*$/i.test(s.slice(Math.max(0, start - 30), start))) continue;
       const v = read(m);
       if (v) hits.push({ ...v, start, end });
     }
@@ -187,11 +192,13 @@ function yearsIn(s: string): YearsHit[] {
   take(RE_PLUS, (m) => { const a = num(m[1] ?? m[2] ?? m[3]); return a !== null && a <= 30 ? { min: a, max: null } : null; });
   take(RE_UPTO, (m) => { const a = num(m[1]); return a !== null && a <= 30 ? { min: 0, max: a } : null; });
   take(RE_PLAIN, (m) => { const a = num(m[1]); return a !== null && a <= 30 ? { min: a, max: null } : null; });
+  take(RE_MONTHS, (m) => { const a = num(m[1]); return a !== null && a > 0 && a <= 24 ? { min: Math.round((a / 12) * 100) / 100, max: null } : null; });
   return hits.sort((x, y) => x.start - y.start);
 }
 
 export function yearsLabel(min: number | null, max: number | null): string {
   if (min === 0 && (max === null || max === 0)) return 'no experience needed';
+  if (min !== null && min > 0 && min < 1 && max === null) return `${Math.round(min * 12)}+ months`;
   if (min !== null && max !== null) return min === 0 ? `up to ${max} years` : `${min} to ${max} years`;
   if (min !== null) return `${min}+ years`;
   if (max !== null) return `up to ${max} years`;
@@ -274,7 +281,9 @@ export function readRequirements(a: AnalyzedText): PostedRequirement[] {
     } else if (YEARS_CONTEXT.test(t) && !YEARS_NOT.test(t)) {
       const imp = importanceOf(t, section) ?? (section === 'duties' || section === 'intro' || section === 'other' ? 'required' : null);
       if (imp && imp !== 'obtainable') {
-        for (const y of yearsIn(t)) {
+        const found = yearsIn(t);
+        const alternative = found.length > 1 && found.slice(1).some((y, i) => /\bor\b/i.test(t.slice(found[i].end, y.start)));
+        for (const y of found) {
           // "3+ years of Python" or "2+ years with Salesforce" is about one skill; "5+ years of accounting experience"
           // is general.
           const after = t.slice(y.end, y.end + 60).replace(/^\s*(of|in|with|using|working with|programming in|hands-on|professional|direct|practical|relevant|recent|progressive|experience|\s)+/i, '');
@@ -285,7 +294,7 @@ export function readRequirements(a: AnalyzedText): PostedRequirement[] {
           out.push({
             kind: 'years', importance: imp, label: yearsLabel(y.min, y.max) + ' of experience',
             quote: quoteAround(text, s.start + y.start, s.start + y.end, 200), start: s.start,
-            detail: { minYears: y.min, maxYears: y.max, general: !specific },
+            detail: { minYears: y.min, maxYears: y.max, general: !specific, alternative },
           });
         }
       }
@@ -293,38 +302,34 @@ export function readRequirements(a: AnalyzedText): PostedRequirement[] {
   }
 
   // Licences and certifications: the dictionary names them; the sentence around them says required or not.
-  for (const m of scanSkills(a.live)) {
-    const def = SKILLS.get(m.id);
-    if (!def || def.kind !== 'cred') continue;
-    const tok = a.live.find((k) => k.start === m.start);
+  const credMatches = scanSkills(a.live).filter((m) => SKILLS.get(m.id)?.kind === 'cred');
+  const byStart = new Map(a.live.map((t) => [t.start, t]));
+  for (const run of credentialRuns(text, credMatches)) {
+    const tok = byStart.get(run.start);
     if (!tok) continue;
     const s = a.sentences[tok.sentence];
     if (!s || s.ignored || /\?\s*$/.test(s.text)) continue;
     const section = sectionOf(a, s.line);
     if (section === 'benefits' || section === 'about' || section === 'eeo') continue;
-    if (NEGATED.test(s.text) && new RegExp(`${escapeRe(text.slice(m.start, m.end))}[^.;]{0,30}\\b(not|no)\\b`, 'i').test(s.text)) continue;
-    const imp = importanceNear(text, s, m.start, section);
-    if (!imp) continue;
-    out.push({
-      kind: 'licence', importance: imp, label: def.name, quote: quoteAround(text, m.start, m.end, 200), start: m.start,
-      detail: { credIds: [m.id] },
-    });
+    const groups = run.alternative ? [run.ids] : run.ids.map((id) => [id]);
+    let at = run.start;
+    for (const ids of groups) {
+      const m = credMatches.find((x) => x.id === ids[0] && x.start >= at) ?? credMatches.find((x) => x.id === ids[0])!;
+      at = m.end;
+      if (NEGATED.test(s.text) && new RegExp(`${escapeRe(text.slice(m.start, m.end))}[^.;]{0,30}\\b(not|no)\\b`, 'i').test(s.text)) continue;
+      // "RN, BLS and ACLS required": the cue after the list applies to every item in it.
+      const imp = importanceNear(text, s, run.alternative ? run.start : m.start, section) ?? importanceNear(text, s, run.end - 1, section);
+      if (!imp) continue;
+      const label = ids.map((id) => SKILLS.get(id)!.name).join(' or ');
+      const qs = run.alternative ? run.start : m.start;
+      const qe = run.alternative ? run.end : m.end;
+      out.push({ kind: 'licence', importance: imp, label, quote: quoteAround(text, qs, qe, 200), start: qs, detail: { credIds: ids } });
+    }
   }
 
-  // "CPA or CMA": alternatives in one clause are one requirement.
+  // The same credential named twice: keep one (the strongest importance wins).
   const merged: PostedRequirement[] = [];
   for (const r of out) {
-    const prev = merged[merged.length - 1];
-    if (r.kind === 'licence' && prev && prev.kind === 'licence' && prev.importance === r.importance && r.start - prev.start < 40) {
-      const between = text.slice(prev.start, r.start).toLowerCase();
-      if (/\bor\b/.test(between) && !/[;.]/.test(between)) {
-        prev.detail.credIds = [...(prev.detail.credIds ?? []), ...(r.detail.credIds ?? [])];
-        prev.label = `${prev.label} or ${r.label}`;
-        if (!prev.quote.includes(r.quote) && r.quote.length > prev.quote.length) prev.quote = r.quote;
-        continue;
-      }
-    }
-    // The same credential named twice: keep the first (strongest importance wins).
     if (r.kind === 'licence') {
       const dup = merged.find((x) => x.kind === 'licence' && x.detail.credIds?.join() === r.detail.credIds?.join());
       if (dup) { if (rankImp(r.importance) < rankImp(dup.importance)) { dup.importance = r.importance; dup.quote = r.quote; } continue; }
@@ -340,6 +345,26 @@ function rankImp(i: Importance): number {
 
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export interface CredentialRun { ids: string[]; start: number; end: number; alternative: boolean }
+
+/**
+ * Groups licence mentions that form one list: "LCSW, LPC or LMFT" is one requirement met by any of them (alternative);
+ * "BLS and ACLS" and "RN, BLS, ACLS" are separate requirements.
+ */
+export function credentialRuns(text: string, matches: Array<{ id: string; start: number; end: number }>): CredentialRun[] {
+  const runs: Array<CredentialRun & { seps: string[] }> = [];
+  for (const m of matches) {
+    const prev = runs[runs.length - 1];
+    const between = prev ? text.slice(prev.end, m.start) : '';
+    if (prev && between.length <= 12 && /^[\s,/()]*(or|and\/or|and|&)?[\s,/()]*$/i.test(between) && !/[.;\n]/.test(between)) {
+      prev.ids.push(m.id);
+      prev.end = m.end;
+      prev.seps.push(between);
+    } else runs.push({ ids: [m.id], start: m.start, end: m.end, alternative: false, seps: [] });
+  }
+  return runs.map(({ seps, ...r }) => ({ ...r, alternative: seps.some((x) => /\bor\b|\//i.test(x)) }));
 }
 
 /**
@@ -359,7 +384,7 @@ export function primaryYears(reqs: PostedRequirement[]): PostedRequirement | nul
     for (const group of bySentence.values()) {
       // "a degree and 2 years, or 6 years" offers alternatives (the smaller one is enough);
       // "7+ years including 3+ years in leadership" does not (the larger one is the requirement).
-      const alternatives = group.length > 1 && /\bor\b/i.test(group.map((g) => g.quote).join(' '));
+      const alternatives = group.length > 1 && group.some((g) => g.detail.alternative);
       const pick = group.reduce((x, y) => (alternatives
         ? ((y.detail.minYears ?? 0) < (x.detail.minYears ?? 0) ? y : x)
         : ((y.detail.minYears ?? 0) > (x.detail.minYears ?? 0) ? y : x)));

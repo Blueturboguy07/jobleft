@@ -1,0 +1,14 @@
+{
+  "01-cdl-a-regional.txt": "strong",
+  "02-local-cdl-a.txt": "strong",
+  "03-tanker-driver-hazmat.txt": "strong",
+  "04-otr-driver.txt": "strong",
+  "05-cdl-b-delivery.txt": "possible",
+  "06-dispatcher.txt": "possible",
+  "07-driver-trainer.txt": "possible",
+  "08-driver-colorado.txt": "poor",
+  "09-warehouse-manager.txt": "poor",
+  "10-nurse.txt": "poor",
+  "11-software-engineer.txt": "poor",
+  "12-fleet-director.txt": "poor"
+}

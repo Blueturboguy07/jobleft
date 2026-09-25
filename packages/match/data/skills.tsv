@@ -474,7 +474,15 @@ hiring | Hiring and staffing | skill | retail,food,hospitality,@mgmt,hr | hiring
 team_leadership | Team supervision | skill | retail,food,hospitality,@mgmt,@trades,nursing | team supervision, supervising staff, supervising employees, managing a team, managing teams, people management, direct reports, supervisory experience, supervising a team, leading a team, team leadership, managing staff |
 sales_goals | Sales goals | skill | retail,sales | sales goals, driving sales, suggestive selling, selling techniques, clienteling | 
 food_safety | Food safety | regime | food,hospitality,retail,manufacturing | food safety, food handling, safe food handling, food sanitation, haccp, food safety standards |
-food_prep | Food preparation | skill | food,hospitality | food preparation, food prep, preparing food, cooking, line cooking, knife skills, recipe execution, grill, grilling, sauteing, baking | 
+food_prep | Food preparation | skill | food,hospitality | food preparation, food prep, prepare meals, prepare food, prepares food, preparing meals, prepare dishes, prepare menu items, prepares menu items, prepare breakfast, cook meals, prep work, prepping food, preparing food, prepping ingredients, prep cooking, cooking, cook to order, cooking to order | 
+line_cooking | Line cooking | skill | food,hospitality | line cooking, cooking on the line, line cook experience, working the line, high-volume kitchen, high volume kitchen, fast-paced kitchen, scratch kitchen | 
+grill_station | Grill cooking | skill | food,hospitality | grill, grilling, grill station, flat top, flattop, broiler, char-grill, chargrill | saute_station
+saute_station | Sauté | skill | food,hospitality | saute, sauté, sauteing, sautéing, saute station, sauté station | grill_station
+fry_station | Fryer | skill | food | fryer, fryers, deep fryer, frying, fry station | 
+knife_skills | Knife skills | skill | food,hospitality | knife skills, knife work, knife handling | 
+baking | Baking | skill | food,hospitality,retail | baking, pastry, bread baking, pastries | 
+recipes | Recipe and plating standards | skill | food,hospitality | follow recipes, following recipes, recipe specifications, recipe cards, plating, plate presentation, plating guides, portion control, portioning | 
+kitchen_sanitation | Kitchen cleaning and sanitation | skill | food,hospitality,security_services | kitchen cleaning, clean station, cleaning the kitchen, kitchen sanitation, clean as you go, dishwashing, washing dishes, sanitizing surfaces | 
 menu_planning | Menu planning | skill | food | menu planning, menu development, recipe development, costing recipes |
 kitchen_mgmt | Kitchen management | skill | food | kitchen management, back of house, back-of-house, boh operations, food cost control, food costs |
 barista | Espresso and coffee | skill | food | espresso, latte art, coffee preparation, espresso machine, barista experience |

@@ -1,0 +1,84 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "work": [
+    {
+      "company": "Northwind Logistics",
+      "title": "Warehouse Lead",
+      "startDate": "2023-01",
+      "endDate": "present",
+      "bullets": [
+        "Lead a crew of 8 on second shift in a 300,000 sq ft distribution center.",
+        "Assign picking and loading work, train new hires on RF scanners and the WMS.",
+        "Run cycle counts and fix inventory discrepancies."
+      ]
+    },
+    {
+      "company": "Northwind Logistics",
+      "title": "Warehouse Associate",
+      "startDate": "2020-03",
+      "endDate": "2022-12",
+      "bullets": [
+        "Picked and packed orders, loaded and unloaded trucks, drove a sit-down forklift and electric pallet jack."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "Round Rock High School",
+      "degree": "High School Diploma"
+    }
+  ],
+  "skills": [
+    "Forklift",
+    "Pallet jack",
+    "RF scanner",
+    "WMS",
+    "Order picking",
+    "Shipping and receiving",
+    "Inventory control",
+    "Loading and unloading"
+  ],
+  "certifications": [
+    "Forklift certification"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Warehouse"
+    ],
+    "targetTitles": [
+      "Warehouse Supervisor",
+      "Warehouse Lead"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "onsite"
+    ],
+    "places": [
+      {
+        "text": "Round Rock, TX",
+        "placeId": null,
+        "radiusMiles": 30
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}
