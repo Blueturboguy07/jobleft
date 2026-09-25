@@ -1,0 +1,22 @@
+{
+  "name": "@jobleft/ai-engine",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "AI providers (publik API, local model, custom URL, own key), the publik connection and wallet, secrets, and embeddings.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@jobleft/contracts": "workspace:*"
+  }
+}

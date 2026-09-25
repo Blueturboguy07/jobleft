@@ -1,0 +1,33 @@
+{
+  "name": "@jobleft/server",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "The local HTTP server: loopback only, launch token, Host and Origin checks. It serves the local API and the built UI.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@jobleft/contracts": "workspace:*",
+    "@jobleft/parsers": "workspace:*",
+    "@jobleft/crawler": "workspace:*",
+    "@jobleft/sources-ats": "workspace:*",
+    "@jobleft/sources-other": "workspace:*",
+    "@jobleft/boards": "workspace:*",
+    "@jobleft/store": "workspace:*",
+    "@jobleft/static-data": "workspace:*",
+    "@jobleft/ai-engine": "workspace:*",
+    "@jobleft/resume": "workspace:*",
+    "@jobleft/match": "workspace:*",
+    "@jobleft/network": "workspace:*"
+  }
+}

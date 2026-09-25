@@ -1,0 +1,25 @@
+{
+  "name": "@jobleft/boards",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "The board directory, board discovery from a careers link, user board choices and crawl planning.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@jobleft/contracts": "workspace:*",
+    "@jobleft/crawler": "workspace:*",
+    "@jobleft/sources-ats": "workspace:*",
+    "@jobleft/static-data": "workspace:*"
+  }
+}

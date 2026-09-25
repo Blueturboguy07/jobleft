@@ -1,0 +1,24 @@
+{
+  "name": "@jobleft/sources-ats",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "More ATS adapters (Workable, Recruitee, Personio and later ones) and ATS detection from a URL.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@jobleft/contracts": "workspace:*",
+    "@jobleft/parsers": "workspace:*",
+    "@jobleft/crawler": "workspace:*"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@jobleft/network",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "The Network tool: import the user's own Connections.csv, match contacts to companies, rank them, track outreach and draft messages.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@jobleft/contracts": "workspace:*",
+    "@jobleft/ai-engine": "workspace:*",
+    "@jobleft/static-data": "workspace:*"
+  }
+}
