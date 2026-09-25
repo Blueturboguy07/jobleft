@@ -79,7 +79,7 @@ async function listChanges(p: Page): Promise<{ times: number[]; server: number[]
     await p.eval("(document.querySelector('.jl-list-scroll, .jl-feed-scroll') || document.scrollingElement).scrollTo?.(0, 0)");
     await p.openSelect('Sort jobs');
     await sleep(250);
-    const r = await timedList(p, async () => { await p.clickText(s); });
+    const r = await timedList(p, async () => { await p.clickText(s, '.ant-select-dropdown'); });
     times.push(r.ms); server.push(r.server);
     await sleep(400);
   }
