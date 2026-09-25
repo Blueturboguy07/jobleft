@@ -267,6 +267,23 @@ export function readJob(job: Job, company: Company | null): JobFacts {
   const language = textLanguage(prose) ?? textLanguage(job.title);
   const fam = jobFamily(job, a);
   const requirements = language === 'other' ? [] : readRequirements(a);
+  // Facts the crawler's parsers found that this reading missed are kept, quoted only when word for word.
+  const st = job.statements ?? { sponsorship: null, clearanceRequired: null, usCitizenOnly: null };
+  const ev = job.evidence ?? {};
+  const has = (k: PostedRequirement['kind']) => requirements.some((r) => r.kind === k);
+  if (st.sponsorship && !has('sponsorship')) {
+    requirements.push({ kind: 'sponsorship', importance: st.sponsorship === 'no' ? 'required' : 'preferred', label: st.sponsorship === 'no' ? 'No visa sponsorship' : 'Visa sponsorship offered', quote: verbatim(job, ev.sponsorship?.text) ?? '', start: Number.MAX_SAFE_INTEGER, detail: { sponsorship: st.sponsorship, country: 'US' } });
+  }
+  if (st.clearanceRequired && !has('clearance')) {
+    requirements.push({ kind: 'clearance', importance: 'required', label: 'Security clearance', quote: verbatim(job, ev.clearanceRequired?.text) ?? '', start: Number.MAX_SAFE_INTEGER, detail: { clearanceLevel: 'security' } });
+  }
+  if (st.usCitizenOnly && !has('citizenship')) {
+    requirements.push({ kind: 'citizenship', importance: 'required', label: 'US citizenship', quote: verbatim(job, ev.usCitizenOnly?.text) ?? '', start: Number.MAX_SAFE_INTEGER, detail: { citizenship: 'citizen' } });
+  }
+  if (job.yearsRequired && (job.yearsRequired.min !== null || job.yearsRequired.max !== null) && !has('years')) {
+    const { min, max } = job.yearsRequired;
+    requirements.push({ kind: 'years', importance: 'required', label: `${min ?? 0}+ years of experience`, quote: verbatim(job, ev.years?.text) ?? '', start: Number.MAX_SAFE_INTEGER, detail: { minYears: min, maxYears: max, general: true } });
+  }
   const years = primaryYears(requirements);
 
   let level: Level | null = job.level ?? null;

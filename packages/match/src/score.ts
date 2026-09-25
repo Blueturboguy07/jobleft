@@ -65,6 +65,11 @@ function q(s: string): string {
   return `"${s}"`;
 }
 
+/** "(\"the posting's words\")", or a plain note when the fact came from the job data without a quote. */
+function saidOf(quote: string): string {
+  return quote ? `(${q(quote)})` : '(from the job data; no quote from the posting text)';
+}
+
 function article(word: string): string {
   return /^[aeiou]/i.test(word) ? 'an' : 'a';
 }
@@ -336,25 +341,25 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
     const mh: MustHave = { kind: 'years', requirement: `${label} of experience${pref ? ' (preferred)' : ''}`, importance: pref ? 'preferred' : 'required', state: 'info', quote: y.quote, message: '' };
     if (years === null) {
       mh.state = pref ? 'info' : 'not_in_profile';
-      mh.message = `The posting asks for ${label} (${q(y.quote)}); your work dates are not in your profile.`;
+      mh.message = `The posting asks for ${label} ${saidOf(y.quote)}; your work dates are not in your profile.`;
       levelReasons.push({ code: 'years_no_dates', text: mh.message, points: 0 });
     } else if (min === null || min === 0) {
       yearsFit = 100;
       mh.state = 'met';
-      mh.message = `The posting asks for ${label} (${q(y.quote)}).`;
-      levelReasons.push({ code: 'years_met', text: `The posting asks for ${label} (${q(y.quote)}); your profile shows ${yearsText}.`, points: 0 });
+      mh.message = `The posting asks for ${label} ${saidOf(y.quote)}.`;
+      levelReasons.push({ code: 'years_met', text: `The posting asks for ${label} ${saidOf(y.quote)}; your profile shows ${yearsText}.`, points: 0 });
     } else if (years >= min) {
       yearsFit = max !== null && years > max + 4 ? 90 : 100;
-      if (max !== null && max <= 3 && years > max + 4 && !y.detail.alternative) caps.push({ cap: cfg.caps.stepDown, reason: `The posting asks for ${label} (${q(y.quote)}); with ${yearsText} you are well above that range.` });
+      if (max !== null && max <= 3 && years > max + 4 && !y.detail.alternative) caps.push({ cap: cfg.caps.stepDown, reason: `The posting asks for ${label} ${saidOf(y.quote)}; with ${yearsText} you are well above that range.` });
       mh.state = 'met';
-      mh.message = `The posting asks for ${label} (${q(y.quote)}); your profile shows ${yearsText}.`;
+      mh.message = `The posting asks for ${label} ${saidOf(y.quote)}; your profile shows ${yearsText}.`;
       levelReasons.push({ code: 'years_met', text: mh.message + (yearsFit < 100 ? ' That is well above the range.' : ''), points: yearsFit - 100 });
     } else {
       const ratio = years / min;
       yearsFit = Math.round(30 + 70 * Math.pow(ratio, 1.2));
       if (pref) yearsFit = Math.round((yearsFit + 100) / 2);
       mh.state = pref ? 'info' : 'unmet';
-      mh.message = `The posting ${pref ? 'prefers' : 'asks for'} ${label} (${q(y.quote)}); your profile shows ${yearsText}.`;
+      mh.message = `The posting ${pref ? 'prefers' : 'asks for'} ${label} ${saidOf(y.quote)}; your profile shows ${yearsText}.`;
       levelReasons.push({ code: 'years_short', text: mh.message, points: yearsFit - 100 });
       if (!pref && ratio < 0.6 && min - years >= 2) blockers.push({ kind: 'years', message: mh.message, quote: y.quote, source: 'description' });
     }
@@ -581,7 +586,7 @@ function evaluateMustHaves(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): Mu
     if (seen.has(key)) continue;
     seen.add(key);
     const m: MustHave = { kind: r.kind, requirement: r.label, importance: r.importance, state: 'info', quote: r.quote, message: '' };
-    const said = `(${q(r.quote)})`;
+    const said = saidOf(r.quote);
     switch (r.kind) {
       case 'sponsorship': {
         if (r.detail.sponsorship === 'yes') { m.state = 'info'; m.message = `The posting says it sponsors visas ${said}.`; mustHaves.push(m); break; }
