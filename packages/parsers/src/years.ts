@@ -154,8 +154,9 @@ export function parseYearsRequired(input: string): YearsResult | null {
       added++;
     }
   }
-  const required = mentions.filter((x) => !x.preferred);
-  const pool = required.length ? required : mentions;
+  // A preferred figure is not a requirement: a posting that only prefers years states no required years.
+  const pool = mentions.filter((x) => !x.preferred);
+  if (!pool.length) return null;
   // Alternatives: "or" between two mentions in one sentence, or lines keyed by degree ("Bachelor's and 4 years" /
   // "Master's and 2 years") give the lowest. Everything else is a joint requirement and gives the highest.
   const bySentence = new Map<number, Mention[]>();

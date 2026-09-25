@@ -717,6 +717,43 @@ export function placeFromAddress(a: BoardAddress, context = ''): Place | null {
   return { text, city: city || null, region: region || null, country, placeId: null };
 }
 
+/**
+ * A city from the location text read again in a country the board states in a structured field ("Sudbury" with a
+ * board country of US is Sudbury, MA, not Sudbury, Ontario). null when the city is not known in that country or the
+ * place already sits there.
+ */
+export function placeInCountry(p: Place, cc: string, context = ''): Place | null {
+  if (!p.city || !/^[A-Z]{2}$/.test(cc) || p.country === cc) return null;
+  const k = keyOf(p.city);
+  const known = cc === 'US' ? US_CITY_STATES.has(k) : (WORLD_CITY_COUNTRIES.get(k) ?? []).includes(cc);
+  if (!known) return null;
+  const q = parsePlaces(`${p.city}, ${cc}`, { context })[0];
+  return q && q.country === cc && q.city ? { ...q, text: p.text } : null;
+}
+
+/**
+ * The posting says the job is not open to people in the US ("Internationally located candidates only (not in US, CA,
+ * UK)", "for candidates based outside the United States"). A sentence that turns such people away ("candidates outside
+ * the US will not be considered") is the opposite and does not count.
+ */
+export function textExcludesUs(text: string): string | null {
+  const US = String.raw`(?:the\s+)?(?:US|U\.S\.A?\.?|USA|United\s+States(?:\s+of\s+America)?)(?![A-Za-z])`;
+  const re = new RegExp(String.raw`\b(?:not\s+(?:in|from|located\s+in|based\s+in|residing\s+in)|outside\s+(?:of\s+)?|excluding|except(?:\s+for)?|other\s+than)\s+${US}`, 'gi');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const lead = text.slice(Math.max(0, m.index - 90), m.index);
+    const trail = text.slice(m.index + m[0].length, m.index + m[0].length + 70);
+    // The phrase has to be about who the job is open to.
+    if (!/\b(?:candidates?|applicants?|located|based|resid\w*|only|hire|hiring|open\s+to|talent|people|remote)\b|\(\s*$/i.test(lead)) continue;
+    if (/\b(?:cannot|can't|can\s+not|unable|not\s+able|won't|will\s+not|do\s+not|don't|does\s+not|not\s+(?:currently\s+)?(?:hire|hiring|consider|accept)|sponsor\w*|travel\w*|clients?|customers?|offices?|teams?\s+(?:are|in))\b/i.test(lead.slice(-50))) continue;
+    if (/^[^.;\n]{0,40}\b(?:will\s+not|won't|cannot|can't|are\s+not|is\s+not|not\s+be\s+considered|not\s+eligible|ineligible|need\s+not|unable|may\s+not)\b/i.test(trail)) continue;
+    const s = Math.max(0, text.lastIndexOf('\n', m.index) + 1, text.lastIndexOf('. ', m.index) + 2);
+    const eNl = text.indexOf('\n', m.index);
+    return clip(text.slice(s, eNl < 0 ? undefined : eNl).trim(), 220);
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // US or not
 

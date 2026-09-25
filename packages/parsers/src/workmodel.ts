@@ -84,7 +84,7 @@ const TZ_REGION: Array<[RegExp, string]> = [
 ];
 const LIMIT_RULES: RegExp[] = [
   /\b(?:must|need\s+to|required\s+to|should|will\s+need\s+to|are\s+required\s+to)\s+(?:be\s+)?(?:physically\s+)?(?:located|based|reside|residing|live|living|resident)\s+(?:in|within|inside)\s+(?:the\s+|one\s+of\s+the\s+)?([^.;\n]{2,200})/gi,
-  /\b(?:open|available)\s+(?:only\s+)?to\s+(?:candidates|applicants|residents|people|individuals|those)\s+(?:who\s+(?:are|live)\s+)?(?:located|based|residing|living)?\s*(?:in|within|from)\s+(?:the\s+)?([^.;\n]{2,200})/gi,
+  /\b(?:open|available|limited|restricted)\s+(?:only\s+)?to\s+(?:candidates|applicants|residents|people|individuals|those)\s+(?:who\s+(?:are|live)\s+)?(?:located|based|residing|living)?\s*(?:in|within|from|of)\s+(?:the\s+)?([^.;\n]{2,200})/gi,
   /\b(?:we\s+(?:can|are\s+able\s+to|currently)\s+(?:only\s+)?(?:hire|employ|consider\s+candidates)|we\s+are\s+(?:only\s+)?(?:able\s+to\s+)?hiring|hiring\s+(?:only\s+)?(?:in|from))\s+(?:in\s+|from\s+)?(?:the\s+following\s+(?:states|countries|locations)\s*:?\s*)?(?:the\s+)?([^.;\n]{2,200})/gi,
   /\bremote\s*(?:\(|-|–|,)?\s*(?:in|within|from|across)?\s*(?:the\s+)?((?:US|U\.S\.A?\.?|USA|United\s+States|Canada|UK|United\s+Kingdom|Europe|EU|EMEA|India|LATAM|APAC|Mexico|Brazil|Germany|Australia)\b(?:\s*(?:,|and|or|&|\/)\s*(?:the\s+)?(?:US|U\.S\.A?\.?|USA|United\s+States|Canada|UK|United\s+Kingdom|Europe|EU|EMEA|India|LATAM|APAC|Mexico|Brazil|Germany|Australia)\b)*(?:\s+only)?)/gi,
   /\b((?:US|U\.S\.|USA|Canada|UK|EU|EMEA|India|LATAM|APAC|Mexico|Brazil|Germany|Philippines|Australia)[- ]only)\b/gi,

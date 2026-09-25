@@ -222,7 +222,8 @@ const MAN_AFTER = /^\s?万/;
 const TAIL_REJECT = /^\s*(?:%|percent|per\s*cent|pct|years?(?![a-z])|yrs?(?![a-z])|-?year(?![a-z])|months?\s+(?:of|experience)|employees|people|users|customers|members|clients|hotels|locations|stores|sq(?![a-z])|square|ft(?![a-z])|feet|miles|km|hours?\s+(?:of|per\s+week|a\s+week|weekly)|x(?![a-z])|times|days?\s+(?:of|per|a)|kg|lbs?|pounds\s+(?:of|lifting)|students|beds|patients|countries|cities|states|languages)/i;
 const HINT_UPTO = /(?:up\s+to|as\s+much\s+as|maximum\s+(?:of\s+)?|max\.?\s*:?|no\s+more\s+than|capped\s+at|hasta|jusqu'?\s*[àa]|bis\s+zu|até)\s*$/i;
 const HINT_FROM = /(?:\bfrom|starting\s+(?:at|from|pay\s+(?:of|at|is)?|rate\s+(?:of|at|is)?|wage\s+(?:of|at|is)?|salary\s+(?:of|at|is)?|base\s+(?:of|at)?)?|starts\s+at|beginning\s+at|begins?\s+at|will\s+begin\s+at|minimum\s+(?:of\s+)?|min\.?\s*:?|at\s+least|no\s+less\s+than|a\s+partir\s+de|desde|ab|à\s+partir\s+de|starting\s+off\s+at|start\s+at|guaranteed)\s*$/i;
-const HINT_AFTER_FROM = /^\s*(?:minimum|min\.?|or\s+more|and\s+up|and\s+above|or\s+higher)(?![a-z])/i;
+// "or more" after the figure and its period: "$19.00/hr+", "2,800,000円〜" (a wave dash with no second figure).
+const HINT_AFTER_FROM = /^\s*(?:(?:minimum|min\.?|or\s+more|and\s+up|and\s+above|or\s+higher)(?![a-z])|\+(?=[ \t]*(?:$|[.,;:)\n]))|[〜～](?!\s*[\d¥￥$€£]))/i;
 const HINT_AFTER_UPTO = /^\s*(?:maximum|max\.?|or\s+less)(?![a-z])/i;
 
 function scanAmounts(text: string): Amount[] {
@@ -338,7 +339,7 @@ interface Cand {
   label: string;
 }
 
-const CONNECTOR = /^\s*(?:(?:minimum|min\.?|starting|base|to\s+start|\/(?:hr|hour|h|yr|year)|per\s+(?:hour|year)|annually|hourly)\s*)?(?:-|–|—|~|to|through|thru|and|à|a|au|bis|hasta|até|ate|e|y|et|und|tot)\s*(?:(?:(?:go(?:es)?\s+|can\s+go\s+|could\s+go\s+)?up\s+to|a\s+maximum\s+of|max(?:imum)?\.?|of)\s*)?$/i;
+const CONNECTOR = /^\s*(?:(?:minimum|min\.?|starting|base|to\s+start|\/(?:hr|hour|h|yr|year)|per\s+(?:hour|year)|annually|hourly)\s*)?(?:-|–|—|~|〜|～|to|through|thru|and|à|a|au|bis|hasta|até|ate|e|y|et|und|tot)\s*(?:(?:(?:go(?:es)?\s+|can\s+go\s+|could\s+go\s+)?up\s+to|a\s+maximum\s+of|max(?:imum)?\.?|of)\s*)?$/i;
 
 function scaleOk(v: number, period: PayPeriod, currency: string): boolean {
   const usd = v / (CURRENCY_SCALE[currency] ?? 1);
@@ -652,7 +653,9 @@ export function payFromBoard(pays: BoardPay[], opts: { text?: string; country?: 
     if (!period) continue;
     if (!scaleOk((min ?? max)!, period, currency) || !scaleOk((max ?? min)!, period, currency)) continue;
     const shown = [p.label, [min, max].filter((x) => x !== null).join(' - '), currency, period].filter(Boolean).join(' ');
-    good.push({ min, max, currency, period, label: p.label ?? '', text: p.text ? `${p.text}` : shown });
+    // The board's own words are the evidence only when they hold a figure; boilerplate such as "Minimum and maximum
+    // wage or salary for the position." gives way to the figures themselves.
+    good.push({ min, max, currency, period, label: p.label ?? '', text: p.text && /\d/.test(p.text) ? p.text : shown });
   }
   if (good.length === 0) return null;
   const distinct: typeof good = [];

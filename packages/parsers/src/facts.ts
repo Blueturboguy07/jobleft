@@ -8,9 +8,9 @@ import type { PostingInput } from './board.ts';
 import { htmlToText } from './html.ts';
 import { parseLevel } from './level.ts';
 import { parsePay, payFromBoard, type PayResult } from './pay.ts';
-import { parseLocationText, placeFromAddress, placesFromText, usFromFacts } from './places.ts';
+import { parseLocationText, placeFromAddress, placeInCountry, placesFromText, textExcludesUs, usFromFacts } from './places.ts';
 import { parseEmploymentType, parseStatements } from './statements.ts';
-import { clip } from './text.ts';
+import { clip, keyOf } from './text.ts';
 import { US_STATES } from './geo-us.ts';
 import { parseWorkModel } from './workmodel.ts';
 import { parseYearsRequired } from './years.ts';
@@ -107,9 +107,24 @@ export function extractFacts(raw: PostingInput): PostingFacts {
       if (r.excludesUs) excludesUs = true;
     }
     if (places.length) placeEv = { source: 'location_text', text: clip(locTexts.join('; '), 500) };
-    for (const a of input.addresses ?? []) {
-      const p = placeFromAddress(a, description);
-      if (!p) continue;
+    // A remote job whose location text names only the remote area ("Remote (Global)"): a board address is the
+    // company's office, not a place the job is in.
+    const remoteAreaOnly = !places.length && locRegions.length > 0 && locTexts.some((t) => /remote/i.test(t));
+    const addrPlaces = remoteAreaOnly ? [] : (input.addresses ?? []).map((a) => placeFromAddress(a, description)).filter((p): p is Place => !!p);
+    // The countries the board states in structured fields. A bare city in the location text is read in one of them
+    // ("Sudbury" with a US address or a board country of US is Sudbury, MA).
+    const stated = [...(input.countries ?? []).filter((c) => typeof c === 'string').map((c) => (c.toUpperCase() === 'UK' ? 'GB' : c.toUpperCase())), ...addrPlaces.map((p) => p.country ?? '')]
+      .filter((c, i, all) => /^[A-Z]{2}$/.test(c) && all.indexOf(c) === i);
+    for (let i = 0; i < places.length; i++) {
+      const p = places[i];
+      if (!p.city) continue;
+      const addr = addrPlaces.find((q) => q.city && q.country && q.city.toLowerCase() === p.city!.toLowerCase());
+      // The structured address for the same city states its country and region: it wins over a guess from the name.
+      if (addr && addr.country !== p.country && keyOf(p.text) === keyOf(p.city)) { places[i] = { ...p, region: addr.region, country: addr.country }; continue; }
+      if (!stated.length || (p.country && stated.includes(p.country)) || keyOf(p.text) !== keyOf(p.city)) continue;
+      for (const cc of stated) { const q = placeInCountry(p, cc, description); if (q) { places[i] = q; break; } }
+    }
+    for (const p of addrPlaces) {
       // An address that repeats a place from the location text adds nothing; one that fills in a country does.
       const same = places.find((q) => q.city && p.city && q.city.toLowerCase() === p.city.toLowerCase());
       if (same) { if (!same.country && p.country) same.country = p.country; if (!same.region && p.region) same.region = p.region; continue; }
@@ -141,6 +156,14 @@ export function extractFacts(raw: PostingInput): PostingFacts {
     if (!open && !places.some((p) => p.country === 'US' && (p.city || p.region))) isUs = false;
     if (open && isUs === null) isUs = true;
   }
+  // A remote job the posting says is not open to people in the US ("Internationally located candidates only (not in
+  // US, CA, UK)"): not a US job, and its remote area is not the whole world.
+  const notUs = wm.workModel === 'remote' && !places.some((p) => p.country === 'US' && (p.city || p.region)) ? safe(warnings, 'country', () => textExcludesUs(description), null) : null;
+  if (notUs && wm.remoteScope) {
+    isUs = false;
+    wm.remoteScope = { regions: wm.remoteScope.regions.filter((r) => !['US', 'NA', 'AMER', 'WORLDWIDE'].includes(r)), text: clip(`${wm.remoteScope.text}; ${notUs}`, 500) };
+    evidence.remoteScope = { source: 'description', text: clip(notUs, 500) };
+  } else if (notUs && isUs !== false) isUs = false;
   const country = places.find((p) => p.country)?.country ?? (boardCountries.length === 1 ? boardCountries[0].toUpperCase() : null) ?? (isUs ? 'US' : null);
 
   // Pay: the posting text and the board's field. When both state pay and they differ, the text wins (it is what a
