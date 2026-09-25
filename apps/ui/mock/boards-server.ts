@@ -103,6 +103,11 @@ const server = createServer((req, res) => {
   return page(res, 200, `${p.title} - ${b.company}`, `<h1>${esc(p.title)}</h1><dl>${facts.filter((f) => f[1]).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v!)}</dd>`).join('')}</dl><pre>${esc(p.description)}</pre>${p.hasApplyPage ? `<p><a href="/${encodeURIComponent(b.board)}/jobs/${encodeURIComponent(p.externalId)}/apply">Apply</a></p>` : ''}`, ld);
 });
 
+server.on('error', (e: NodeJS.ErrnoException) => {
+  if (e.code === 'EADDRINUSE') console.error(`Port ${port} is already in use, so the stand-in employer boards cannot start.`);
+  else console.error(`The stand-in employer boards cannot start: ${e.message}`);
+  process.exit(1);
+});
 server.listen(port, '127.0.0.1', () => console.log(`Stand-in employer boards on http://127.0.0.1:${port} (reads ${boardsDir})`));
 process.on('SIGTERM', () => process.exit(0));
 process.on('SIGINT', () => process.exit(0));

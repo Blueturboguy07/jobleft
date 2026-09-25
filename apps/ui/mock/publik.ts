@@ -109,6 +109,11 @@ const server = createServer(async (req, res) => {
   send(res, 404, { error: { code: 'not_found', message: 'no such route' } });
 });
 
+server.on('error', (e: NodeJS.ErrnoException) => {
+  if (e.code === 'EADDRINUSE') console.error(`Port ${port} is already in use, so the stand-in publik API cannot start.`);
+  else console.error(`The stand-in publik API cannot start: ${e.message}`);
+  process.exit(1);
+});
 server.listen(port, '127.0.0.1', () => console.log(`Stand-in publik API on http://127.0.0.1:${port}/api/v1 (balance $${(s.balanceMicros / 1e6).toFixed(2)}, $${(s.priceMicros / 1e6).toFixed(2)} per AI call, ledger ${ledgerFile})`));
 process.on('SIGTERM', () => process.exit(0));
 process.on('SIGINT', () => process.exit(0));

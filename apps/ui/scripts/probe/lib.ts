@@ -2,7 +2,7 @@
 // The probes are written from the outcomes in docs/outcomes/ui.md (what a person must see and be able to do),
 // not from how the screens are built. Each probe prints PASS or FAIL lines with the evidence.
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -97,4 +97,31 @@ export function attachDemo(url: string, home = ''): Demo {
     url, origin: origin!, port: Number(port), token: token!, home, api: createLocalApiClient({ origin: origin!, launchToken: token }),
     log: () => '', stop: async () => undefined, kill9: () => { throw new Error('attached demo: cannot kill'); }, relaunchApi: async () => { throw new Error('attached demo'); },
   };
+}
+
+/** Runs the demo's control tool (node mock/ctl.ts ...) against this demo's data folder and returns what it printed. */
+export function ctl(demo: Demo, ...words: string[]): string {
+  const r = spawnSync(process.execPath, [join(UI_ROOT, 'mock', 'ctl.ts'), ...words, '--home', demo.home], { encoding: 'utf8' });
+  return `${r.stdout}${r.stderr}`.trim();
+}
+
+/** Starts a refresh through the local API and waits until it is over. Returns false when it did not finish in time. */
+export async function refreshAndWait(demo: Demo, timeoutMs = 120_000): Promise<boolean> {
+  await demo.api.call('crawlRun', { body: {} });
+  const end = Date.now() + timeoutMs;
+  await sleep(500);
+  while (Date.now() < end) {
+    const s = await demo.api.call('crawlStatus');
+    if (!s.running) return true;
+    await sleep(500);
+  }
+  return false;
+}
+
+/** Fetches a page from the stand-in employer sites (loopback only). */
+export async function getPage(url: string): Promise<{ status: number; text: string }> {
+  const u = new URL(url);
+  if (u.hostname !== '127.0.0.1') throw new Error(`the probes only fetch loopback pages: ${url}`);
+  const r = await fetch(url);
+  return { status: r.status, text: await r.text() };
 }

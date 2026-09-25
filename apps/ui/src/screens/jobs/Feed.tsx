@@ -7,6 +7,8 @@ import { Alert, Button, Dropdown, Progress } from 'antd';
 import { ArrowUpOutlined, ReloadOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import type { FitState, JobFilter, JobListItem, JobSort, SavedFilter } from '@jobleft/contracts';
 import { call, type UiError } from '../../app/api.ts';
+import { invalidate } from '../../app/data.ts';
+import { ui } from '../../app/layers.ts';
 import { navigate } from '../../app/router.ts';
 import { getFeed, profileIsSet, setFeed, useCrawl, useFeed, useProfile, useTrackerCounts } from '../../app/session.ts';
 import { JobCard, type CardItem } from '../../components/JobCard.tsx';
@@ -18,6 +20,9 @@ import { AllFiltersDrawer } from './AllFilters.tsx';
 import { useCardActions } from './cardActions.tsx';
 import { FilterBar } from './Filters.tsx';
 import { BoardsCard, Checklist, SavedFilters, SaveFilterModal, UserCard, useSavedFilters } from './Side.tsx';
+
+/** The finish time of the refresh whose problem notice the person closed (kept while the app runs, so tab switches do not bring it back). */
+let closedNotice: string | null = null;
 
 export const ROW = 232;
 export const GAP = 8;
@@ -98,6 +103,7 @@ export function Feed() {
   const [drawer, setDrawer] = useState<{ open: boolean; saved: SavedFilter | null }>({ open: false, saved: null });
   const [savingNarrow, setSavingNarrow] = useState(false);
   const [newJobs, setNewJobs] = useState(false);
+  const [noticeClosed, setNoticeClosed] = useState(closedNotice);
   const profileSet = profileIsSet(profile.data);
 
   // the first time a profile exists, start from its preferences
@@ -186,6 +192,17 @@ export function Feed() {
               <Progress className="meter" percent={progress.boardsTotal ? Math.round((100 * progress.boardsDone) / progress.boardsTotal) : 0} size="small" strokeColor="#0A8F5C" aria-label="Refresh progress" />
             </div>
           )}
+          {!progress?.running && progress?.lastRun && progress.lastRun.failed > 0 && noticeClosed !== progress.lastRun.finishedAt && (() => {
+            const last = progress.lastRun;
+            const none = last.ok === 0;
+            return (
+              <Alert type={none ? 'error' : 'warning'} showIcon style={{ marginBottom: 8 }} closable onClose={() => { closedNotice = last.finishedAt; setNoticeClosed(last.finishedAt); }}
+                message={none
+                  ? 'jobleft could not read any job board. The employer sites did not answer, or this computer has no network. Your saved jobs are still here.'
+                  : `${plural(last.failed, 'job board')} could not be read in the last refresh. The other ${plural(last.ok, 'board')} were read.`}
+                action={<Button size="small" shape="round" icon={<ReloadOutlined />} onClick={() => { void call('crawlRun', { body: {} }).then((r) => { if (!r.started) ui.message?.info(r.message); invalidate('crawl'); }, (e: { message: string }) => ui.message?.error(e.message)); }}>Try again</Button>} />
+            );
+          })()}
           {newJobs && (
             <div style={{ position: 'sticky', top: 120, zIndex: 6, display: 'flex', justifyContent: 'center', height: 0 }}>
               <Button type="primary" shape="round" icon={<ArrowUpOutlined />} style={{ marginTop: 4 }} onClick={() => { setNewJobs(false); scrollRef.current?.scrollTo({ top: 0 }); void load(true); }}>New jobs arrived. Show them</Button>

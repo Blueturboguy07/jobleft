@@ -22,12 +22,13 @@ export function JobsScreen({ tab, detailId }: { tab: JobsTab | null; detailId: s
   if (tab) lastTab = tab;
   const underRef = useRef<HTMLDivElement | null>(null);
   const opener = useRef<HTMLElement | null>(null);
+  const openerJob = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     const el = underRef.current;
     if (!el) return;
     if (detailId) {
-      if (!opener.current) opener.current = document.activeElement as HTMLElement | null;
+      if (!openerJob.current) { opener.current = document.activeElement as HTMLElement | null; openerJob.current = detailId; }
       el.setAttribute('inert', '');
       el.setAttribute('aria-hidden', 'true');
     } else {
@@ -36,11 +37,19 @@ export function JobsScreen({ tab, detailId }: { tab: JobsTab | null; detailId: s
     }
   }, [detailId]);
 
+  // Closing the detail puts the keyboard focus back where it was: on the card that was opened. A virtual list may
+  // have made that card's element again, so it is found again by its job id; without a card, focus goes to the main area.
   useEffect(() => {
     if (detailId) return;
     const o = opener.current;
+    const id = openerJob.current;
     opener.current = null;
-    if (o && document.contains(o)) o.focus({ preventScroll: true });
+    openerJob.current = null;
+    if (!o && !id) return;
+    const again = id ? document.querySelector<HTMLElement>(`[data-job-id="${CSS.escape(id)}"] .jl-card-title a, [data-job-id="${CSS.escape(id)}"] a`) : null;
+    const target = o && o !== document.body && document.contains(o) ? o : again;
+    if (target) target.focus({ preventScroll: true });
+    else document.getElementById('jl-main')?.focus({ preventScroll: true });
   }, [detailId]);
 
   const close = () => navigate(current === 'recommended' ? 'jobs' : `jobs/${current}`);

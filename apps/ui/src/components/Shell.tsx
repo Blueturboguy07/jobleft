@@ -8,6 +8,7 @@ import { SearchOutlined, CloseOutlined, ExpandAltOutlined } from '@ant-design/ic
 import { formatDollars } from '@jobleft/contracts';
 import { navigate } from '../app/router.ts';
 import { useLayer, useReturnFocus } from '../app/layers.ts';
+import { invalidate } from '../app/data.ts';
 import { setFeed, useAiSettings, useFeed, useNotifications, usePublik, useTrackerCounts } from '../app/session.ts';
 import { LogoMark } from './Art.tsx';
 import { Chat } from './Chat.tsx';
@@ -139,13 +140,17 @@ export function TopBar({ screen, jobsTab }: { screen: ScreenId; jobsTab: string 
 export function ConnectionBanner() {
   const [local, setLocal] = useState(true);
   const [online, setOnline] = useState(navigator.onLine);
+  const wasDown = useRef(false);
   useEffect(() => {
     let alive = true;
     const ping = async () => {
-      try {
-        const r = await fetch('api/v1/health', { cache: 'no-store' });
-        if (alive) setLocal(r.ok);
-      } catch { if (alive) setLocal(false); }
+      let ok = false;
+      try { ok = (await fetch('api/v1/health', { cache: 'no-store' })).ok; } catch { ok = false; }
+      if (!alive) return;
+      setLocal(ok);
+      // the service came back: every screen reads its data again, so nothing stays on old or empty values
+      if (ok && wasDown.current) invalidate('');
+      wasDown.current = !ok;
     };
     void ping();
     const t = setInterval(() => { void ping(); }, local ? 20000 : 4000);

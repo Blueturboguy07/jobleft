@@ -307,3 +307,9 @@ button.jl-kpi:hover { box-shadow: inset 0 0 0 1px #9AA0A6; }
 
 .jl-narrow-only { display: none; }
 @media (max-width: 1199px) { .jl-narrow-only { display: inline-flex; } }
+
+/* preset tag colours of Ant Design are too light for text (WCAG 2.1 AA): dark ink on a tint */
+.ant-tag.ant-tag-green, .ant-tag.ant-tag-success { color: #0B5D3B !important; background: #E3F8EE !important; border-color: #9FD9BC !important; }
+.ant-tag.ant-tag-orange, .ant-tag.ant-tag-gold, .ant-tag.ant-tag-warning { color: #7A4500 !important; background: #FFF3DC !important; border-color: #F0CB86 !important; }
+.ant-tag.ant-tag-red, .ant-tag.ant-tag-error { color: #8F1A20 !important; background: #FDECEE !important; border-color: #F3C4C7 !important; }
+.ant-tag.ant-tag-blue, .ant-tag.ant-tag-processing { color: #164A96 !important; background: #E8F0FC !important; border-color: #B5CDF2 !important; }

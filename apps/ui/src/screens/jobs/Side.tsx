@@ -56,7 +56,7 @@ export function SaveFilterModal({ open, onClose, filter, sort, onSaved }: { open
           <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoFocus aria-label="Filter name" />
         </Form.Item>
         <Form.Item>
-          <label className="jl-row"><Switch checked={alert} onChange={setAlert} /> Tell me when a refresh finds new jobs for this filter</label>
+          <label className="jl-row"><Switch aria-label="Tell me when a refresh finds new jobs for this filter" checked={alert} onChange={setAlert} /> Tell me when a refresh finds new jobs for this filter</label>
         </Form.Item>
       </Form>
       {err && <div role="alert" style={{ color: 'var(--jl-error)' }}>{err}</div>}
@@ -132,9 +132,9 @@ export function BoardsCard() {
       ) : last ? (
         <span className="jl-small">Last refresh {ago(last.finishedAt)}: {plural(last.ok, 'board')} read{last.failed ? `, ${last.failed} could not be read` : ''}. {plural(last.inserted, 'new job')}.</span>
       ) : <span className="jl-small">No refresh has run yet.</span>}
-      <div className="jl-row">
+      <div className="jl-row jl-wrap">
         <Button size="small" shape="round" icon={<ReloadOutlined />} onClick={() => { void run(); }} loading={busy} disabled={progress?.running}>Refresh now</Button>
-        <Button size="small" type="link" onClick={() => navigate('settings/sources')}>Sources and report</Button>
+        <Button size="small" type="link" style={{ padding: 0 }} onClick={() => navigate('settings/sources')}>Sources and report</Button>
       </div>
     </section>
   );

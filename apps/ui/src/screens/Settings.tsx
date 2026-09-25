@@ -151,7 +151,7 @@ function AiTab() {
         </Panel>
       )}
       <Panel title="Paid web lookups" desc={<>Off unless you turn it on. When on, jobleft may pay per request, from your publik balance or your own key, to read pages a plain fetch cannot, or to look up company facts. Prices per 1,000 requests: web search {formatDollars(p.search)}, page {formatDollars(p.page)}, page that needs JavaScript {formatDollars(p.jsPage)}. jobleft always tries a free plain fetch first.</>}>
-        <label className="jl-row"><Switch checked={s.meteredFetch.enabled} disabled={!s.provider} onChange={(v) => { void setMetered(v); }} /> {s.meteredFetch.enabled ? 'On' : 'Off'}{!s.provider && <span className="jl-muted"> (choose a provider first)</span>}</label>
+        <label className="jl-row"><Switch aria-label="Paid web lookups" checked={s.meteredFetch.enabled} disabled={!s.provider} onChange={(v) => { void setMetered(v); }} /> {s.meteredFetch.enabled ? 'On' : 'Off'}{!s.provider && <span className="jl-muted"> (choose a provider first)</span>}</label>
       </Panel>
     </div>
   );
@@ -250,13 +250,13 @@ function AlertsTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Panel title="Notifications" desc="jobleft shows these as macOS notifications and in Notifications. They are made on this Mac; nothing is emailed.">
-        <label className="jl-row"><Switch checked={s.notifications.reminders} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, reminders: v } }); }} /> Tracker reminders and follow-ups</label>
-        <label className="jl-row"><Switch checked={s.notifications.alerts} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, alerts: v } }); }} /> New jobs after a refresh, and saved-filter alerts</label>
+        <label className="jl-row"><Switch aria-label="Tracker reminders and follow-ups" checked={s.notifications.reminders} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, reminders: v } }); }} /> Tracker reminders and follow-ups</label>
+        <label className="jl-row"><Switch aria-label="New jobs after a refresh, and saved-filter alerts" checked={s.notifications.alerts} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, alerts: v } }); }} /> New jobs after a refresh, and saved-filter alerts</label>
       </Panel>
       <Panel title="Saved-filter alerts">
         {filters.data && !filters.data.length && <p className="jl-muted">No saved filters yet. Save one from the Jobs screen.</p>}
         {filters.data?.map((f) => (
-          <label key={f.id} className="jl-row"><Switch checked={f.alert.enabled} onChange={async (v) => {
+          <label key={f.id} className="jl-row"><Switch aria-label={`Alerts for ${f.name}`} checked={f.alert.enabled} onChange={async (v) => {
             try { await call('updateFilter', { params: { filterId: f.id }, body: { name: f.name, filter: f.filter, sort: f.sort, alert: v } }); invalidate('filters'); } catch (e) { ui.message?.error((e as UiError).message); }
           }} /> {f.name}</label>
         ))}
@@ -294,8 +294,8 @@ function SourcesTab() {
         {s && (
           <div className="jl-row jl-wrap" style={{ gap: 20 }}>
             <label className="jl-row">Refresh every <Select style={{ width: 130 }} value={s.crawl.intervalHours} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, intervalHours: v } }); }} options={[1, 3, 6, 12, 24, 48].map((h) => ({ value: h, label: `${h} ${h === 1 ? 'hour' : 'hours'}` }))} /></label>
-            <label className="jl-row"><Switch checked={s.crawl.catchUpOnLaunch} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, catchUpOnLaunch: v } }); }} /> Catch up when jobleft opens</label>
-            <label className="jl-row"><Switch checked={s.crawl.runInTray} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, runInTray: v } }); }} /> Keep refreshing from the menu bar when the window is closed</label>
+            <label className="jl-row"><Switch aria-label="Catch up when jobleft opens" checked={s.crawl.catchUpOnLaunch} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, catchUpOnLaunch: v } }); }} /> Catch up when jobleft opens</label>
+            <label className="jl-row"><Switch aria-label="Keep refreshing from the menu bar when the window is closed" checked={s.crawl.runInTray} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, runInTray: v } }); }} /> Keep refreshing from the menu bar when the window is closed</label>
           </div>
         )}
       </Panel>

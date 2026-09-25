@@ -34,7 +34,7 @@ export function useCrawl(): { progress: CrawlProgress | undefined; error: boolea
   }, [running]);
   useEffect(() => {
     // when a refresh ends, everything that lists jobs is reloaded
-    if (!running && s.data?.lastRun) invalidate('jobs:', 'tracker', 'dashboard');
+    if (!running && s.data?.lastRun) invalidate('jobs:', 'job:', 'match:', 'tracker', 'dashboard', 'notifications');
   }, [running, s.data?.lastRun?.finishedAt]);
   return { progress: s.data, error: !!s.error };
 }

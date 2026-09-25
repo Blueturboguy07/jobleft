@@ -76,6 +76,11 @@ const server = createServer(async (req, res) => {
   res.end('{"error":{"message":"not found"}}');
 });
 
+server.on('error', (e: NodeJS.ErrnoException) => {
+  if (e.code === 'EADDRINUSE') console.error(`Port ${port} is already in use, so the stand-in AI model cannot start.`);
+  else console.error(`The stand-in AI model cannot start: ${e.message}`);
+  process.exit(1);
+});
 server.listen(port, '127.0.0.1', () => console.log(`Stand-in AI model (OpenAI-compatible) on http://127.0.0.1:${port}/v1 (models standin-7b, standin-14b)`));
 process.on('SIGTERM', () => process.exit(0));
 process.on('SIGINT', () => process.exit(0));

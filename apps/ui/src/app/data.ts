@@ -51,8 +51,11 @@ export function load(key: string): Promise<void> {
   );
 }
 
-/** Reads `key` with `fetcher`. Pass null as the key to skip. */
-export function useApi<T>(key: string | null, fetcher: () => Promise<T>): Snapshot<T> & { reload: () => Promise<void> } {
+/**
+ * Reads `key` with `fetcher`. Pass null as the key to skip. With `revalidate`, data that is already cached is shown at
+ * once and read again in the background every time the screen opens (a job's detail must never show an old status).
+ */
+export function useApi<T>(key: string | null, fetcher: () => Promise<T>, opts: { revalidate?: boolean } = {}): Snapshot<T> & { reload: () => Promise<void> } {
   const k = key ?? '__none__';
   const e = entry(k);
   if (key) e.fetcher = fetcher as () => Promise<unknown>;
@@ -61,7 +64,7 @@ export function useApi<T>(key: string | null, fetcher: () => Promise<T>): Snapsh
   useEffect(() => {
     if (!key) return;
     const en = entry(key);
-    if (!en.loaded && !en.loading) void load(key);
+    if (!en.loading && (!en.loaded || opts.revalidate)) void load(key);
   }, [key]);
   const reload = useCallback(() => (key ? load(key) : Promise.resolve()), [key]);
   return { ...(snap as Snapshot<T>), reload };

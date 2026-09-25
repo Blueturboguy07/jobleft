@@ -123,7 +123,7 @@ function Why({ m }: { m: MatchResultX }) {
 }
 
 export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) {
-  const d = useApi<JobDetailT>(`job:${id}`, () => call('getJob', { params: { jobId: id } }));
+  const d = useApi<JobDetailT>(`job:${id}`, () => call('getJob', { params: { jobId: id } }), { revalidate: true });
   const profile = useProfile();
   const [tab, setTab] = useState<'overview' | 'company'>('overview');
   const [tool, setTool] = useState<'tailor' | 'letter' | 'gaps' | null>(null);
@@ -136,7 +136,8 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
     onClose();
   };
   useLayer(true, () => { void close(); });
-  useEffect(() => { closeRef.current?.focus({ preventScroll: true }); scrollRef.current?.scrollTo({ top: 0 }); }, [id]);
+  // focus goes to the close button once the job is on screen (not before: the button does not exist while it loads)
+  useEffect(() => { closeRef.current?.focus({ preventScroll: true }); scrollRef.current?.scrollTo({ top: 0 }); }, [id, !!d.data]);
   useEffect(() => {
     const pane = scrollRef.current;
     if (!pane) return;
@@ -169,7 +170,12 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
       </div>
     );
   }
-  if (!d.data) return <div className="jl-detail-main"><Loading label="Opening the job" onRetry={() => { void d.reload(); }} /></div>;
+  if (!d.data) return (
+    <div className="jl-detail-main">
+      <div className="jl-actionbar"><Button ref={closeRef} shape="circle" icon={<CloseOutlined />} aria-label="Close job detail and return to the list" onClick={() => { void close(); }} /></div>
+      <Loading label="Opening the job" onRetry={() => { void d.reload(); }} />
+    </div>
+  );
 
   const { job, company, tracker, networkCount, h1bTag } = d.data;
   const match = d.data.match as MatchResultX | null;

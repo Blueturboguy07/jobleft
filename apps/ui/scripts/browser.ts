@@ -175,7 +175,7 @@ export async function launch(): Promise<Browser> {
 export const AUDIT = `(() => {
   const out = { noName: [], lowContrast: [], overflowX: false, offscreen: [], banned: [], text: '' };
   const vis = (e) => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && !e.closest('[aria-hidden="true"],[inert]'); };
-  const name = (e) => (e.getAttribute('aria-label') || e.getAttribute('title') || (e.getAttribute('aria-labelledby') || '').split(' ').map((id) => document.getElementById(id)?.textContent || '').join(' ') || e.textContent || (e.querySelector('img[alt]')?.getAttribute('alt')) || '').trim();
+  const name = (e) => (e.getAttribute('aria-label') || e.getAttribute('title') || (e.getAttribute('aria-labelledby') || '').split(' ').map((id) => document.getElementById(id)?.textContent || '').join(' ') || e.textContent || (e.querySelector('img[alt]')?.getAttribute('alt')) || (e.querySelector('[aria-label]')?.getAttribute('aria-label')) || (e.closest('label')?.textContent) || '').trim();
   for (const e of document.querySelectorAll('button, a[href], [role=button], input:not([type=hidden]), select, textarea, [role=tab], [role=switch], [role=checkbox]')) {
     if (!vis(e)) continue;
     let n = name(e);
