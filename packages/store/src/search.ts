@@ -529,7 +529,7 @@ export function search(reqIn: JobSearchRequest, deps: SearchDeps): JobSearchResp
   deps.vec?.refresh();
   const parsed = parseQuery(req.q);
   const terms = parsed.terms;
-  const scores = sort === 'top_matched' && deps.vec && deps.profileVector ? deps.vec.scoresFor(deps.profileVector) : null;
+  const scores = sort === 'top_matched' && deps.vec && deps.profileVector ? deps.vec.begin(deps.profileVector) : null;
   const hash = createHash('sha1').update(JSON.stringify([terms, filter, sort, sort === 'top_matched' && deps.profileVector ? fpOf(deps.profileVector) : ''])).digest('base64url').slice(0, 16);
 
   let cursor: Cursor | null = null;
@@ -625,7 +625,7 @@ function buildSnapshot(deps: SearchDeps, filter: JobFilter, terms: string[], sor
     if (sort === 'most_recent') {
       key = posted === posted ? Math.max(0, Math.floor((posted - EPOCH_2000_MS) / 1000)) + 1 : 0;
     } else if (sort === 'top_matched') {
-      const s = scores ? scores[rid]! : NaN;
+      const s = scores && deps.vec && deps.profileVector ? deps.vec.scoreOne(rid, deps.profileVector) : NaN;
       if (s === s) key = 2 ** 21 + Math.round(((Math.max(-1, Math.min(1, s)) + 1) / 2) * (2 ** 21 - 1));
       else { key = dayOf(posted); unscored.push(rid); }
     } else if (words) {

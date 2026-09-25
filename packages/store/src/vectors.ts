@@ -24,6 +24,8 @@ export class VectorIndex {
   private dirty = new Set<number>();
   private scoreKey = '';
   private scores = new Float32Array(0);
+  /** 1 = scores[rid] holds the score for the current profile. */
+  private have = new Uint8Array(0);
 
   private readonly db: DatabaseSync;
   readonly model: string;
@@ -47,6 +49,9 @@ export class VectorIndex {
     const sc = new Float32Array(cap).fill(NaN);
     sc.set(this.scores);
     this.scores = sc;
+    const hv = new Uint8Array(cap);
+    hv.set(this.have);
+    this.have = hv;
   }
 
   private allocSlot(rid: number): number {
@@ -142,40 +147,61 @@ export class VectorIndex {
     return true;
   }
 
-  /** Cosine of every fresh vector with the profile vector (vectors are unit length). NaN = not scored. */
-  scoresFor(profile: Float32Array): Float32Array {
+  /**
+   * Starts scoring for a profile vector and returns the score array (NaN = not scored). Scores are made per row on
+   * demand (scoreOne) and kept until the profile or the row's vector changes, so a narrow filter scores few rows.
+   */
+  begin(profile: Float32Array): Float32Array {
     const key = fingerprint(profile);
-    const d = this.dims;
     if (key !== this.scoreKey) {
-      // One contiguous pass over the vector pool (spike S2: a full scan of 500K vectors is about 80 to 110 ms).
-      const scores = this.scores;
-      scores.fill(NaN);
-      const fresh = this.fresh;
-      for (let ci = 0; ci < this.chunks.length; ci++) {
-        const c = this.chunks[ci]!;
-        const base = ci * CHUNK_ROWS;
-        const end = Math.min(CHUNK_ROWS, this.nextSlot - base);
-        for (let s = 0; s < end; s++) {
-          const rid = this.ridOfSlot[base + s]!;
-          if (rid < 0 || fresh[rid] !== 1) continue;
-          let off = s * d;
-          let a0 = 0, a1 = 0, a2 = 0, a3 = 0;
-          for (let i = 0; i < d; i += 4, off += 4) {
-            a0 += c[off]! * profile[i]!;
-            a1 += c[off + 1]! * profile[i + 1]!;
-            a2 += c[off + 2]! * profile[i + 2]!;
-            a3 += c[off + 3]! * profile[i + 3]!;
-          }
-          scores[rid] = a0 + a1 + a2 + a3;
-        }
-      }
+      this.have.fill(0);
+      this.scores.fill(NaN);
       this.scoreKey = key;
       this.dirty.clear();
     } else if (this.dirty.size > 0) {
-      for (const rid of this.dirty) this.scores[rid] = this.fresh[rid] === 1 ? this.dot(rid, profile, d) : NaN;
+      for (const rid of this.dirty) { if (rid < this.have.length) { this.have[rid] = 0; this.scores[rid] = NaN; } }
       this.dirty.clear();
     }
     return this.scores;
+  }
+
+  /** The score of one row for the profile given to begin() (NaN when the row has no current vector). */
+  scoreOne(rid: number, profile: Float32Array): number {
+    if (rid >= this.have.length) return NaN;
+    if (this.have[rid] === 1) return this.scores[rid]!;
+    const v = this.fresh[rid] === 1 ? this.dot(rid, profile, this.dims) : NaN;
+    this.scores[rid] = v;
+    this.have[rid] = 1;
+    return v;
+  }
+
+  /** Scores every row with a current vector (one contiguous pass; spike S2: about 80 to 110 ms at 500K). */
+  scoresFor(profile: Float32Array): Float32Array {
+    const scores = this.begin(profile);
+    const d = this.dims;
+    const fresh = this.fresh;
+    const have = this.have;
+    for (let ci = 0; ci < this.chunks.length; ci++) {
+      const c = this.chunks[ci]!;
+      const base = ci * CHUNK_ROWS;
+      const end = Math.min(CHUNK_ROWS, this.nextSlot - base);
+      for (let s = 0; s < end; s++) {
+        const rid = this.ridOfSlot[base + s]!;
+        if (rid < 0 || have[rid] === 1) continue;
+        have[rid] = 1;
+        if (fresh[rid] !== 1) { scores[rid] = NaN; continue; }
+        let off = s * d;
+        let a0 = 0, a1 = 0, a2 = 0, a3 = 0;
+        for (let i = 0; i < d; i += 4, off += 4) {
+          a0 += c[off]! * profile[i]!;
+          a1 += c[off + 1]! * profile[i + 1]!;
+          a2 += c[off + 2]! * profile[i + 2]!;
+          a3 += c[off + 3]! * profile[i + 3]!;
+        }
+        scores[rid] = a0 + a1 + a2 + a3;
+      }
+    }
+    return scores;
   }
 
   private dot(rid: number, p: Float32Array, d: number): number {
