@@ -152,9 +152,16 @@ export function jobFromText(text: string, applyUrl: string | null): ExternalJobD
     for (const l of lines) { const m = re.exec(l); if (m && m[1]!.trim()) return m[1]!.trim().slice(0, 200); }
     return '';
   };
-  const title = label(/^(?:job\s+)?title\s*[:\-–]\s*(.+)$/i) || label(/^position\s*[:\-–]\s*(.+)$/i) || (lines[0] && lines[0].length <= 120 ? lines[0] : '');
+  let title = label(/^(?:job\s+)?title\s*[:\-–]\s*(.+)$/i) || label(/^position\s*[:\-–]\s*(.+)$/i) || (lines[0] && lines[0].length <= 120 ? lines[0] : '');
   if (!label(/^(?:job\s+)?title\s*[:\-–]\s*(.+)$/i) && !label(/^position\s*[:\-–]\s*(.+)$/i)) warnings.push('The title was taken from the first line. Check it.');
-  const company = label(/^(?:company|employer|organization|organisation)\s*[:\-–]\s*(.+)$/i);
+  let company = label(/^(?:company|employer|organization|organisation)\s*[:\-–]\s*(.+)$/i);
+  // A first line in the common paste form "Title at Company" (or "Title - Company"): the title is the part before
+  // the employer, never "Backend Engineer at Fabrikam" as a title. The employer is taken from it when none is stated.
+  if (title && !label(/^(?:job\s+)?title\s*[:\-–]\s*(.+)$/i) && !label(/^position\s*[:\-–]\s*(.+)$/i)) {
+    const m = /^(.{3,100}?)\s+(?:at|@|-|–|\|)\s+(.{2,80})$/i.exec(title);
+    const same = (a: string, b: string) => a.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === b.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (m && (!company || same(m[2]!, company))) { title = m[1]!.trim(); if (!company) company = m[2]!.trim(); }
+  }
   if (!company) warnings.push('The text does not name the employer.');
   const location = label(/^(?:location|locations|office)\s*[:\-–]\s*(.+)$/i);
   const link = applyUrl ? safeHttpUrl(applyUrl) : null;

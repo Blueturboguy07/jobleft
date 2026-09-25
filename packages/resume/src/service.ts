@@ -298,7 +298,13 @@ export class ResumeService {
     const job = this.#job(p.job_id);
     const profile = this.#profile();
     const v = checkDocument(doc, profile, job);
-    if (v.length) throw new ResumeError('conflict', `Your profile changed since this draft was made, and ${v.length === 1 ? 'a fact' : 'some facts'} no longer trace${v.length === 1 ? 's' : ''} to it (for example "${v[0]!.fact}"). Tailor again.`, { violations: v });
+    if (v.length) {
+      // Two different reasons, two different messages: the base itself no longer traces (the profile changed), or an
+      // accepted change carries a fact the gate flagged (the person ticked a warned change).
+      const baseV = checkDocument(base, profile, job);
+      if (baseV.length) throw new ResumeError('conflict', `Your profile changed since this draft was made, and ${v.length === 1 ? 'a fact' : 'some facts'} no longer trace${v.length === 1 ? 's' : ''} to it (for example "${v[0]!.fact}"). Tailor again.`, { violations: v });
+      throw new ResumeError('conflict', `A change you accepted holds a fact that is not in your profile: "${v[0]!.fact}" (${v[0]!.reason}) Nothing was saved. Untick that change and save again.`, { violations: v });
+    }
     const baseRow = this.#mustRow(resumeId);
     const ver = (this.#o.db.prepare('SELECT COALESCE(MAX(version), 0) AS v FROM resumes WHERE base_resume_id = ? AND job_id = ?').get(resumeId, p.job_id) as { v: number }).v + 1;
     const id = `res_${randomUUID()}`;

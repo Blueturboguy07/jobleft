@@ -385,6 +385,8 @@ function checkMentions(text: string, where: string, ctx: Ctx, opts: { sentence?:
   }
   for (const m of scan.orgs) {
     if (orgTraces(m, pf)) continue;
+    // Words of the job's own title ("Backend Software" in "the Backend Software Engineer role") are not an organisation.
+    if (ctx.job && m.text && ctx.job.titleKey && ctx.job.titleKey.includes(foldKey(m.text)) && foldKey(m.text).length >= 3) continue;
     if (ctx.job && m.key && (m.key === ctx.job.companyKey || ctx.job.companyKey.includes(m.key) || m.key.includes(ctx.job.companyKey))) {
       if (aboutJob(sentence)) continue;
       out.push(v('employer', m.text, where, 'This is the hiring company, not a place you have worked.'));
