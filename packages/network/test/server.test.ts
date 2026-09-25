@@ -175,3 +175,22 @@ test('the dev server writes no network data outside the database, and delete-all
     assert.ok(existsSync(join(home, 'logs', 'network-dev.log')));
   });
 });
+
+test('the screens see jobs, likes and imports made by the CLI while the server runs', async () => {
+  const { StandIn } = await import('../src/dev/standin.ts');
+  const { interimCompanyKey } = await import('../src/company.ts');
+  const { fileService } = await import('./helpers.ts');
+  await withServer(async (s, api) => {
+    const home = join(s.service.db.location()!, '..', '..');
+    const cli = new StandIn(home, interimCompanyKey);
+    await new Promise((r) => setTimeout(r, 20));
+    cli.addJob({ title: 'Backend Engineer', company: 'Stripe', liked: true }, new Date().toISOString());
+    const other = fileService(home);
+    other.service.import(demoFixture(NOW).text);
+    const feed = (await api('GET', '/api/v1/network-dev/jobs')).body;
+    assert.equal(feed.total, 1);
+    assert.equal(feed.items[0].networkCount, 4);
+    assert.equal((await api('GET', '/api/v1/network/coverage')).body[0].count, 4);
+    other.db.close();
+  });
+});

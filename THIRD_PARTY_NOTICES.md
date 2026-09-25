@@ -34,6 +34,15 @@ Local additions that are not in freehire (written new): the per-host pacer, the 
 - Source: the owner's own Python project (`~/Documents/internships`, `pipeline/normalize.py` and `pipeline/dedup.py`). First-party code, no third-party licence applies.
 - jobleft file: `packages/crawler/src/normalize.ts` (URL canonicalisation, company and title normalisers, the two-layer dedupe spine). Two deliberate changes are documented in that file (`gh_jid` is kept; intern words are kept).
 
+### 1.3 Network lane (`packages/network`): no third-party code
+
+- No third-party code or data was copied. The package adds no dependency.
+- One public-domain algorithm was re-typed from its published description: mulberry32, a 32-bit pseudo-random
+  generator (Tommy Ettinger, released to the public domain). File: `packages/network/src/dev/fixture.ts`
+  (`prng`). Use: made-up test fixtures only; it is not part of the Network tool's logic.
+- The connections-file layout (3 note lines, then `First Name, Last Name, URL, Email Address, Company, Position,
+  Connected On`) is a file format, recorded from plan section 7. The fixtures hold made-up people only.
+
 ## 2. Data shipped with the app
 
 None yet. The static-data lane adds entries here (board directory, H-1B sponsor table from US Department of Labor LCA disclosure files, city dictionary with its attribution, skill dictionary).

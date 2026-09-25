@@ -481,6 +481,7 @@ async function command(ctx: Ctx, cmd: string, a: Args): Promise<number> {
         draft = draftFromTemplate({ contact: c, job, profileSummary: summary, variant });
       } else {
         if (!dest) fail('No AI provider is set up. Run `ai use local --url <address>` (a model on this computer works), or add --template for the plain template.');
+        if (dest.remote && process.env.JOBLEFT_OFFLINE === '1') fail('jobleft is offline (JOBLEFT_OFFLINE=1), so a remote AI provider cannot be used. Choose a model on this computer, or add --template.');
         if (dest.remote && !s.remoteApproved(dest.label)) {
           out(`This first draft with ${dest.label} sends it: ${fullName(c)}'s name, title and company; ${job ? `the job "${job.title}" at ${job.company}` : 'no job'}; and this summary of you: "${facts.aboutMe}". Nothing else.`);
           const ok = has(a, 'yes') || await confirm(`Send to ${dest.label}?`);

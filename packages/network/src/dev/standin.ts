@@ -4,7 +4,7 @@
 // It holds job titles, company names, the made-up persona and an AI address. It never holds a connection's data.
 
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Job, Profile } from '@jobleft/contracts';
 import type { CompanyKeyFn } from '../company.ts';
@@ -60,6 +60,7 @@ export class StandIn {
   private state: State;
   private readonly keyFn: CompanyKeyFn;
   private cache: Map<string, Job> = new Map();
+  private loadedMtime = -1;
 
   constructor(home: string, keyFn: CompanyKeyFn) {
     const dir = join(home, 'network-dev');
@@ -67,13 +68,22 @@ export class StandIn {
     this.file = join(dir, 'standin.json');
     this.keyFn = keyFn;
     this.state = emptyState();
-    if (existsSync(this.file)) {
-      try {
-        const s = JSON.parse(readFileSync(this.file, 'utf8')) as Partial<State>;
-        this.state = { ...emptyState(), ...s, profile: { ...DEFAULT_PROFILE, ...(s.profile ?? {}) } } as State;
-      } catch {
-        this.state = emptyState();
-      }
+    this.refresh();
+  }
+
+  /** Reloads the file when another process (the CLI or the dev server) changed it. */
+  private refresh(): void {
+    let mtime = -1;
+    try { mtime = existsSync(this.file) ? statSync(this.file).mtimeMs : -1; } catch { mtime = -1; }
+    if (mtime === this.loadedMtime) return;
+    this.loadedMtime = mtime;
+    this.cache.clear();
+    if (mtime < 0) { this.state = emptyState(); return; }
+    try {
+      const s = JSON.parse(readFileSync(this.file, 'utf8')) as Partial<State>;
+      this.state = { ...emptyState(), ...s, profile: { ...DEFAULT_PROFILE, ...(s.profile ?? {}) } } as State;
+    } catch {
+      this.state = emptyState();
     }
   }
 
@@ -83,13 +93,15 @@ export class StandIn {
     renameSync(tmp, this.file);
     try { chmodSync(this.file, 0o600); } catch { /* best effort */ }
     this.cache.clear();
+    try { this.loadedMtime = statSync(this.file).mtimeMs; } catch { this.loadedMtime = -1; }
   }
 
   // ---------------------------------------------------------------- jobs
 
-  jobs(): StandInJob[] { return this.state.jobs; }
+  jobs(): StandInJob[] { this.refresh(); return this.state.jobs; }
 
   addJob(input: { title: string; company: string; department?: string | null; liked?: boolean }, nowIso: string): StandInJob {
+    this.refresh();
     const title = input.title.trim();
     const company = input.company.trim();
     if (!title || !company) throw new Error('A job needs a title and a company.');
@@ -101,6 +113,7 @@ export class StandIn {
   }
 
   addJobs(list: Array<{ title: string; company: string; department?: string | null; liked?: boolean }>, nowIso: string): number {
+    this.refresh();
     let n = 0;
     for (const input of list) {
       const title = String(input.title ?? '').trim();
@@ -114,7 +127,7 @@ export class StandIn {
     return n;
   }
 
-  like(id: string, liked: boolean): StandInJob | null {
+  like(id: string, liked: boolean): StandInJob | null { this.refresh();
     const j = this.state.jobs.find((x) => x.id === id);
     if (!j) return null;
     j.liked = liked;
@@ -122,7 +135,7 @@ export class StandIn {
     return j;
   }
 
-  removeJob(id: string): boolean {
+  removeJob(id: string): boolean { this.refresh();
     const before = this.state.jobs.length;
     this.state.jobs = this.state.jobs.filter((x) => x.id !== id);
     if (this.state.jobs.length === before) return false;
@@ -130,7 +143,7 @@ export class StandIn {
     return true;
   }
 
-  clearJobs(): number {
+  clearJobs(): number { this.refresh();
     const n = this.state.jobs.length;
     this.state.jobs = [];
     this.save();
@@ -138,7 +151,7 @@ export class StandIn {
   }
 
   /** A job by id, by the last part of its id, or by its title when exactly one job has that title. */
-  findJob(ref: string): StandInJob | null {
+  findJob(ref: string): StandInJob | null { this.refresh();
     const byId = this.state.jobs.find((x) => x.id === ref) ?? this.state.jobs.find((x) => x.id.endsWith(`:${ref}`));
     if (byId) return byId;
     const byTitle = this.state.jobs.filter((x) => x.title.toLowerCase() === ref.trim().toLowerCase());
@@ -150,7 +163,7 @@ export class StandIn {
   }
 
   /** A stand-in job as a contract Job (the facts the Network tool reads: title, company, company key, department). */
-  asJob(id: string): Job | null {
+  asJob(id: string): Job | null { this.refresh();
     const hit = this.cache.get(id);
     if (hit) return hit;
     const j = this.findJob(id);
@@ -173,14 +186,16 @@ export class StandIn {
 
   /** Target companies: the companies of liked stand-in jobs. */
   targets(): Array<{ companyKey: string; companyName: string }> {
+    this.refresh();
     return this.state.jobs.filter((j) => j.liked).map((j) => ({ companyKey: this.companyKeyOf(j), companyName: j.company }));
   }
 
   // ---------------------------------------------------------------- profile
 
-  profile(): StandInProfile { return this.state.profile; }
+  profile(): StandInProfile { this.refresh(); return this.state.profile; }
 
   setProfile(patch: Partial<StandInProfile>): StandInProfile {
+    this.refresh();
     const p = { ...this.state.profile };
     for (const [k, v] of Object.entries(patch)) {
       if (v === undefined) continue;
@@ -192,7 +207,7 @@ export class StandIn {
   }
 
   /** The stand-in profile as a contract Profile, so drafts use the same profileSummary() the app uses. */
-  asProfile(nowIso: string): Profile {
+  asProfile(nowIso: string): Profile { this.refresh();
     const p = this.state.profile;
     return {
       id: 'default',
@@ -211,18 +226,18 @@ export class StandIn {
 
   // ---------------------------------------------------------------- AI choice
 
-  ai(): BridgeConfig { return this.state.ai; }
+  ai(): BridgeConfig { this.refresh(); return this.state.ai; }
 
-  setAi(cfg: BridgeConfig): BridgeConfig {
+  setAi(cfg: BridgeConfig): BridgeConfig { this.refresh();
     this.state.ai = cfg;
     this.state.wallet = { balanceMicros: null, lastChargeMicros: null, at: null };
     this.save();
     return cfg;
   }
 
-  wallet(): WalletSeen { return this.state.wallet; }
+  wallet(): WalletSeen { this.refresh(); return this.state.wallet; }
 
-  setWallet(w: WalletSeen): void {
+  setWallet(w: WalletSeen): void { this.refresh();
     this.state.wallet = w;
     this.save();
   }

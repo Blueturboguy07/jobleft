@@ -496,7 +496,7 @@ than one person, the command lists the ids and does nothing.
 ## 10. Tests
 
 ```sh
-pnpm --filter @jobleft/network test          # 49 unit and route tests (node --test "test/*.test.ts")
+pnpm --filter @jobleft/network test          # 50 unit and route tests (node --test "test/*.test.ts")
 pnpm --filter @jobleft/network typecheck     # tsc, no output files
 node evals/network/csv-fixtures/run.ts       # probe for O1 and O4: 96 labelled checks, prints one JSON line
 node packages/network/scripts/ui-check.ts    # headless Chrome walk through the screens (19 checks), screenshots in /private/tmp/jobleft-network-ui
