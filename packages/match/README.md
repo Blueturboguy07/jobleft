@@ -106,7 +106,7 @@ unknown).
 
 | Part | What it measures | Not enough information when |
 |---|---|---|
-| Experience Level | Is your work history the same kind of work (title of the job vs your roles; related work counts partly; a target title or field of study counts at most 60%), and does your level fit (years counted from your dates, the job's level from its title, the years it asks for, people-leading titles for manager and director roles)? | The kind of work cannot be told from the title or the posting, or your roles cannot be read, or your work dates are missing while the job states a level or years. |
+| Experience Level | Is your work history the same kind of work (title of the job vs your roles; related work counts partly; a target title or field of study counts at most 60%), and does your level fit (your years in this kind of work, the job's level from its title, the years it asks for, people-leading titles for manager and director roles, and a clear step down such as a cashier job after managing a store)? | The kind of work cannot be told from the title or the posting, or your roles cannot be read, or your work dates are missing while the job states a level or years. |
 | Skills | Share of the skills and credentials the posting names that your profile has. Required counts 1, preferred 0.5, named only in the duties 0.6. A related skill (MySQL for PostgreSQL) counts half and still shows as missing. Each skill counts once, however often it repeats. | The posting names fewer than 2 skills and has no requirement list, or it is not in English. |
 | Industry Experience | Is the employer's industry (from the posting's own words, or company data) one you have worked in (from your employers' names, your role text, or a role that sits in one industry, such as nursing)? | The posting does not say the industry, or your roles do not name theirs. |
 
@@ -147,7 +147,8 @@ skills", "Right level: Senior Level", "Pay stated: $80K–$95K a year" or "Pay m
 "Investors: ...". The card shows the first two chips and the first warning.
 
 **Not stated.** The detail lists level, years, pay, sponsorship, industry, work model and job type; each is the
-posting's statement with its quote, or "not stated".
+posting's statement with its quote, or "not stated". The level is read from the title only ("Senior", "II", "Director",
+"Aide"); it is never inferred from the years a posting asks for ("3+ years" is a minimum, not a level).
 
 **Years of experience.** Months covered by your roles, overlaps counted once (January 2020 to December 2022 plus June
 2021 to June 2023 is 3 years 6 months); a current role counts up to this month. For the level and the years a posting
@@ -237,4 +238,8 @@ one person (the match lane) before seeing scores; see evals/match/ranking-pairs/
   state never break a location preference. The CLI and the preview use it automatically once that lane lands.
 - The job's industry needs words in the posting (or company data); many postings do not say it, and the part is then
   "not enough information".
-- The years of experience count all roles with dates; the detail shows the roles so a person can correct their dates.
+- The kind of work of a role is read from its title (about 1,500 title phrases), then its text. A role whose kind
+  cannot be read counts fully toward the years; a job whose kind cannot be read gets "not enough information" for
+  Experience Level.
+- The fixture loader reads `Location:` lines such as "Austin, TX or Remote (US)" (both options kept); jobs from the
+  crawler keep the crawler's places, work model and statements (used when this engine's own reading finds nothing).
