@@ -5,6 +5,7 @@
 // Exit codes: 0 stopped cleanly; 1 could not start; 2 the data folder was refused (newer, read-only, full, not
 // jobleft) and left untouched; 3 another jobleft server already uses this data folder.
 
+import { join } from 'node:path';
 import { newLaunchToken, resolveHome } from './home.ts';
 import { DataFolderError } from './db/open.ts';
 import { AlreadyRunningError, startServer } from './server.ts';
@@ -15,6 +16,9 @@ process.umask(0o077);
 
 const env = process.env;
 const home = resolveHome(env);
+// Any temporary file (Node's or SQLite's) goes inside the data folder, never to the system temp folder (server O6).
+process.env.TMPDIR = join(home, 'tmp');
+process.env.SQLITE_TMPDIR = join(home, 'tmp');
 const token = env.JOBLEFT_LAUNCH_TOKEN || newLaunchToken();
 // The token must not stay in the environment: child processes (the Keychain helper) would inherit it.
 delete process.env.JOBLEFT_LAUNCH_TOKEN;

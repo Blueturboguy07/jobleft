@@ -114,7 +114,7 @@ export function openAndMigrate(dbPath: string): OpenResult {
   }
   try {
     // FULL: a confirmed save is on disk before the answer goes out, even across a power cut (server O4).
-    db.exec('PRAGMA synchronous = FULL; PRAGMA busy_timeout = 5000; PRAGMA secure_delete = ON;');
+    db.exec('PRAGMA synchronous = FULL; PRAGMA busy_timeout = 5000; PRAGMA secure_delete = ON; PRAGMA temp_store = MEMORY;');
   } catch { /* pragmas are best effort */ }
 
   const fresh = !before;

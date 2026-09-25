@@ -16,7 +16,7 @@ export type FromWorker =
 
 const init = workerData as Init;
 const store = new Store(init.dbPath);
-try { store.db.exec('PRAGMA busy_timeout = 10000'); } catch { /* best effort */ }
+try { store.db.exec('PRAGMA busy_timeout = 10000; PRAGMA temp_store = MEMORY;'); } catch { /* best effort */ }
 const pacer = new Pacer(1000);
 const stop = new AbortController();
 

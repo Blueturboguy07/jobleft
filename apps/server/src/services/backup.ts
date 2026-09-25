@@ -94,7 +94,7 @@ export async function createBackup(d: AppData, l: HomeLayout): Promise<{ path: s
     let counts: Record<string, number>;
     let schema: Record<string, number> = {};
     try {
-      s.exec('PRAGMA secure_delete = ON');
+      s.exec('PRAGMA secure_delete = ON; PRAGMA temp_store = MEMORY;');
       if (hasTable(s, 'pairings')) s.exec('DELETE FROM pairings');
       s.exec('PRAGMA journal_mode = DELETE');
       s.exec('VACUUM');

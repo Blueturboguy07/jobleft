@@ -64,7 +64,7 @@ export class AppData {
     this.migrated = { from: opened.from, to: opened.to, fresh: opened.fresh };
     // The crawler's tables (jobs, jobs_fts, boards) on the same file, through the crawler's own Store (Built).
     this.crawlStore = new Store(cfg.layout.db);
-    try { this.crawlStore.db.exec('PRAGMA busy_timeout = 5000'); } catch { /* best effort */ }
+    try { this.crawlStore.db.exec('PRAGMA busy_timeout = 5000; PRAGMA temp_store = MEMORY;'); } catch { /* best effort */ }
     this.kv = new Kv(this.db);
     this.settings = new SettingsService(this.kv);
     this.notifications = new NotificationService(this.db);
