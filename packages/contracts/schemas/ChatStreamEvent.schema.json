@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:ChatStreamEvent",
+  "title": "ChatStreamEvent",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "start"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "publik",
+            "local",
+            "custom",
+            "own_key"
+          ]
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "requestId",
+        "provider",
+        "model"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "delta"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "done"
+        },
+        "incomplete": {
+          "type": "boolean"
+        },
+        "costMicros": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "description": "Integer millionths of a US dollar"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "incomplete",
+        "costMicros"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "error"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "link": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "format": "uri",
+                  "pattern": "^https?://",
+                  "maxLength": 4096,
+                  "description": "Absolute http(s) URL"
+                }
+              },
+              "required": [
+                "label",
+                "url"
+              ]
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "error"
+      ]
+    }
+  ]
+}

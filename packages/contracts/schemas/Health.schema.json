@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:Health",
+  "title": "Health",
+  "type": "object",
+  "properties": {
+    "app": {
+      "const": "jobleft"
+    },
+    "version": {
+      "type": "string"
+    },
+    "apiVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "extensionProtocol": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "app",
+    "version",
+    "apiVersion",
+    "extensionProtocol"
+  ]
+}

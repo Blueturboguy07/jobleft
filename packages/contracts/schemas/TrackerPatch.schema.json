@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:TrackerPatch",
+  "title": "TrackerPatch",
+  "type": "object",
+  "properties": {
+    "liked": {
+      "type": "boolean"
+    },
+    "hidden": {
+      "type": "boolean"
+    },
+    "status": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "applied",
+            "interviewing",
+            "offer_received",
+            "rejected",
+            "archived"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resumeId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "text"
+        ]
+      }
+    },
+    "reminders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 date-time, UTC (\"Z\")"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "at",
+          "text",
+          "done"
+        ]
+      }
+    }
+  },
+  "required": []
+}

@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:PublikConnection",
+  "title": "PublikConnection",
+  "type": "object",
+  "properties": {
+    "state": {
+      "type": "string",
+      "enum": [
+        "disconnected",
+        "connecting",
+        "connected"
+      ]
+    },
+    "wallet": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "claimState": {
+              "type": "string",
+              "enum": [
+                "anonymous",
+                "claimed"
+              ]
+            },
+            "balanceMicros": {
+              "type": "integer",
+              "description": "Integer millionths of a US dollar"
+            },
+            "starterRemainingMicros": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "description": "Integer millionths of a US dollar"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "plan": {
+              "type": "string",
+              "enum": [
+                "none",
+                "basic",
+                "pro"
+              ]
+            },
+            "week": {
+              "type": "object",
+              "properties": {
+                "usedMicros": {
+                  "type": "integer",
+                  "description": "Integer millionths of a US dollar"
+                },
+                "budgetMicros": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "description": "Integer millionths of a US dollar"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "resetsAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "RFC 3339 date-time, UTC (\"Z\")"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "usedMicros",
+                "budgetMicros",
+                "resetsAt"
+              ]
+            },
+            "topUpUrl": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https?://",
+              "maxLength": 4096,
+              "description": "Absolute http(s) URL"
+            },
+            "claimUrl": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uri",
+                  "pattern": "^https?://",
+                  "maxLength": 4096,
+                  "description": "Absolute http(s) URL"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "addCreditUrl": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uri",
+                  "pattern": "^https?://",
+                  "maxLength": 4096,
+                  "description": "Absolute http(s) URL"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time",
+              "description": "RFC 3339 date-time, UTC (\"Z\")"
+            }
+          },
+          "required": [
+            "claimState",
+            "balanceMicros",
+            "starterRemainingMicros",
+            "plan",
+            "week",
+            "topUpUrl",
+            "claimUrl",
+            "addCreditUrl",
+            "updatedAt"
+          ],
+          "title": "PublikWallet",
+          "description": "The publik API balance"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "disclosureVersion": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "state",
+    "wallet",
+    "disclosureVersion"
+  ]
+}

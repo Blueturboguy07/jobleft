@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:FillResponse",
+  "title": "FillResponse",
+  "type": "object",
+  "properties": {
+    "requestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "jobId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "profile",
+              "resume",
+              "eeo",
+              "saved_answer",
+              "ai_draft"
+            ]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "likely",
+              "guess"
+            ]
+          },
+          "needsReview": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fieldId",
+          "values",
+          "source",
+          "confidence",
+          "needsReview"
+        ]
+      }
+    },
+    "unknownFieldIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "base64": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fieldId",
+          "fileName",
+          "mimeType",
+          "base64"
+        ]
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "requestId",
+    "jobId",
+    "fills",
+    "unknownFieldIds",
+    "files",
+    "warnings"
+  ]
+}

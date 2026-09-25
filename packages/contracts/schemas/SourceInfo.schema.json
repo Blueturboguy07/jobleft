@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:SourceInfo",
+  "title": "SourceInfo",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "ats",
+        "job_board",
+        "government",
+        "community",
+        "search_partner"
+      ]
+    },
+    "crawled": {
+      "type": "boolean"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "checkedOn": {
+      "type": "string",
+      "format": "date",
+      "description": "Calendar date YYYY-MM-DD"
+    },
+    "evidenceUrl": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "maxLength": 4096,
+          "description": "Absolute http(s) URL"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "needsKey": {
+      "type": "boolean"
+    },
+    "keySet": {
+      "type": "boolean"
+    },
+    "credit": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https?://",
+              "maxLength": 4096,
+              "description": "Absolute http(s) URL"
+            }
+          },
+          "required": [
+            "text",
+            "url"
+          ],
+          "title": "Credit"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "limits": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "never_run",
+            "ok",
+            "failing",
+            "needs_key",
+            "off",
+            "rate_limited"
+          ]
+        },
+        "lastSuccessAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "description": "RFC 3339 date-time, UTC (\"Z\")"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "openJobs": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastProblem": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nextAllowedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "description": "RFC 3339 date-time, UTC (\"Z\")"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "lastSuccessAt",
+        "openJobs",
+        "lastProblem",
+        "nextAllowedAt"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "kind",
+    "crawled",
+    "reason",
+    "checkedOn",
+    "evidenceUrl",
+    "enabled",
+    "needsKey",
+    "keySet",
+    "credit",
+    "limits",
+    "status"
+  ]
+}

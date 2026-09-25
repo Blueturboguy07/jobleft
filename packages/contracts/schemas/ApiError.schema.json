@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:ApiError",
+  "title": "ApiError",
+  "description": "The body of every error answer",
+  "type": "object",
+  "properties": {
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "bad_request",
+            "unauthorized",
+            "forbidden_origin",
+            "forbidden_host",
+            "not_found",
+            "conflict",
+            "payload_too_large",
+            "unsupported_media_type",
+            "too_early",
+            "rate_limited",
+            "needs_profile",
+            "needs_provider",
+            "not_ready",
+            "insufficient_balance",
+            "provider_error",
+            "provider_timeout",
+            "unsupported_source",
+            "forbidden_source",
+            "offline",
+            "internal"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "details": {},
+        "retryAfterSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "link": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https?://",
+              "maxLength": 4096,
+              "description": "Absolute http(s) URL"
+            }
+          },
+          "required": [
+            "label",
+            "url"
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    }
+  },
+  "required": [
+    "error"
+  ]
+}

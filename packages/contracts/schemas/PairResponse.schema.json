@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:PairResponse",
+  "title": "PairResponse",
+  "type": "object",
+  "properties": {
+    "pairingToken": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "appVersion": {
+      "type": "string"
+    },
+    "protocolVersion": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "pairingToken",
+    "appVersion",
+    "protocolVersion"
+  ]
+}

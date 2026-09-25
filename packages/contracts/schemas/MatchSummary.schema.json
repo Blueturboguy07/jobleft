@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:MatchSummary",
+  "title": "MatchSummary",
+  "type": "object",
+  "properties": {
+    "percent": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "band": {
+      "type": "string",
+      "enum": [
+        "strong",
+        "good",
+        "fair"
+      ]
+    },
+    "whyFit": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "h1b_sponsor_likely",
+              "post_says_sponsors",
+              "comp_benefits",
+              "growth",
+              "top_investors",
+              "unicorn",
+              "skills",
+              "level",
+              "industry",
+              "location",
+              "network"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "positive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "positive"
+        ],
+        "title": "WhyFitChip"
+      },
+      "maxItems": 2
+    }
+  },
+  "required": [
+    "percent",
+    "band",
+    "whyFit"
+  ]
+}

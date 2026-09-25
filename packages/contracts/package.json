@@ -14,6 +14,11 @@
   },
   "scripts": {
     "test": "node --test \"test/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.json"
-  }
+    "typecheck": "tsc -p tsconfig.json",
+    "gen": "node scripts/gen-schemas.ts"
+  },
+  "files": [
+    "src",
+    "schemas"
+  ]
 }

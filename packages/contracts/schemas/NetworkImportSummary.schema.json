@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:NetworkImportSummary",
+  "title": "NetworkImportSummary",
+  "type": "object",
+  "properties": {
+    "imported": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "updated": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unchanged": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "missingFromFile": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "reason"
+        ]
+      }
+    },
+    "notAConnectionsFile": {
+      "type": "boolean"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "imported",
+    "updated",
+    "unchanged",
+    "missingFromFile",
+    "skipped",
+    "notAConnectionsFile",
+    "warnings"
+  ]
+}

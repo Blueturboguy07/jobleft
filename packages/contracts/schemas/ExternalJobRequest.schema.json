@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:ExternalJobRequest",
+  "title": "ExternalJobRequest",
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://",
+      "maxLength": 4096,
+      "description": "Absolute http(s) URL"
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 200000
+    },
+    "applyUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://",
+      "maxLength": 4096,
+      "description": "Absolute http(s) URL"
+    }
+  },
+  "required": []
+}

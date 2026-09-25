@@ -7,7 +7,8 @@ export const PACKAGE_NAME = '@jobleft/crawler';
 
 // Adapter contract and crawl types
 export type {
-  Ats, BoardRef, BoardStats, HttpGetter, Job, Job as CrawledJob, Level, PayPeriod, RawJob, RawPay, Source, WorkMode,
+  Ats, BoardRef, BoardStats, HttpGetter, Job, Job as CrawledJob, Level, PayPeriod, RawJob, RawPay, Source, SourceRegistry,
+  WorkMode,
 } from './types.ts';
 
 // The only code that touches the network

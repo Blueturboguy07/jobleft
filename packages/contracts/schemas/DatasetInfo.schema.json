@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:DatasetInfo",
+  "title": "DatasetInfo",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "dataThrough": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date",
+          "description": "Calendar date YYYY-MM-DD"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "licence": {
+      "type": "string"
+    },
+    "attribution": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceUrl": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "maxLength": 4096,
+          "description": "Absolute http(s) URL"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    },
+    "lastUpdateError": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "version",
+    "dataThrough",
+    "licence",
+    "attribution",
+    "sourceUrl",
+    "bytes",
+    "updatedAt",
+    "lastUpdateError"
+  ]
+}

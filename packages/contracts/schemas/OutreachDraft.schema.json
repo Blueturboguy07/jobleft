@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:OutreachDraft",
+  "title": "OutreachDraft",
+  "type": "object",
+  "properties": {
+    "contactId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "jobId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "variant": {
+      "type": "string",
+      "enum": [
+        "short",
+        "long"
+      ]
+    },
+    "text": {
+      "type": "string"
+    },
+    "charLimit": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ready": {
+      "type": "boolean"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "costMicros": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "description": "Integer millionths of a US dollar"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "contactId",
+    "jobId",
+    "variant",
+    "text",
+    "charLimit",
+    "warnings",
+    "ready",
+    "provider",
+    "costMicros"
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:FormField",
+  "title": "FormField",
+  "type": "object",
+  "properties": {
+    "fieldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "label": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "name": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 200
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "text",
+        "email",
+        "tel",
+        "url",
+        "textarea",
+        "select",
+        "radio",
+        "checkbox",
+        "file",
+        "date",
+        "number",
+        "unknown"
+      ]
+    },
+    "required": {
+      "type": "boolean"
+    },
+    "options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ]
+      },
+      "maxItems": 500
+    },
+    "maxLength": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "section": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 200
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "fieldId",
+    "label",
+    "name",
+    "kind",
+    "required",
+    "options",
+    "maxLength",
+    "section"
+  ]
+}

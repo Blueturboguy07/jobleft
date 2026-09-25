@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:FitIndexStatus",
+  "title": "FitIndexStatus",
+  "type": "object",
+  "properties": {
+    "state": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "indexing",
+        "model_missing",
+        "downloading",
+        "failed"
+      ]
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "modelBytes": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "modelSource": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "maxLength": 4096,
+          "description": "Absolute http(s) URL"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "indexed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "waiting": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "lastRun": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "indexed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "startedAt": {
+              "type": "string",
+              "format": "date-time",
+              "description": "RFC 3339 date-time, UTC (\"Z\")"
+            },
+            "finishedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "indexed",
+            "startedAt",
+            "finishedAt"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "state",
+    "model",
+    "modelBytes",
+    "modelSource",
+    "indexed",
+    "waiting",
+    "lastRun"
+  ]
+}

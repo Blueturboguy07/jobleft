@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:AiSettings",
+  "title": "AiSettings",
+  "description": "AI provider settings (never the key)",
+  "type": "object",
+  "properties": {
+    "provider": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "publik",
+            "local",
+            "custom",
+            "own_key"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "localKind": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "ollama",
+            "llamacpp",
+            "mlx",
+            "lmstudio",
+            "openai_compatible"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "vendor": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "openai",
+            "anthropic",
+            "openrouter",
+            "google"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "baseUrl": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "maxLength": 4096,
+          "description": "Absolute http(s) URL"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "keySet": {
+      "type": "boolean"
+    },
+    "keyHint": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 4
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "meteredFetch": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "pricesPer1000Micros": {
+          "type": "object",
+          "properties": {
+            "search": {
+              "type": "integer",
+              "description": "Integer millionths of a US dollar"
+            },
+            "page": {
+              "type": "integer",
+              "description": "Integer millionths of a US dollar"
+            },
+            "jsPage": {
+              "type": "integer",
+              "description": "Integer millionths of a US dollar"
+            }
+          },
+          "required": [
+            "search",
+            "page",
+            "jsPage"
+          ]
+        }
+      },
+      "required": [
+        "enabled",
+        "pricesPer1000Micros"
+      ]
+    },
+    "updatedAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 date-time, UTC (\"Z\")"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "provider",
+    "localKind",
+    "vendor",
+    "baseUrl",
+    "model",
+    "keySet",
+    "keyHint",
+    "meteredFetch",
+    "updatedAt"
+  ]
+}

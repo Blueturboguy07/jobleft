@@ -47,6 +47,7 @@ function verifyUrl(b: BoardRef): string {
     case 'greenhouse': return `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(b.board)}/jobs`;
     case 'lever': return `https://api.lever.co/v0/postings/${encodeURIComponent(b.board)}?mode=json&limit=1`;
     case 'ashby': return `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(b.board)}`;
+    default: throw new Error(`verify supports greenhouse, lever and ashby only, not "${b.ats}"`);
   }
 }
 

@@ -1,0 +1,391 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:MatchResult",
+  "title": "MatchResult",
+  "description": "The match score of one job for the profile",
+  "type": "object",
+  "properties": {
+    "jobId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "profileVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "engineVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "percent": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "band": {
+      "type": "string",
+      "enum": [
+        "strong",
+        "good",
+        "fair"
+      ]
+    },
+    "subScores": {
+      "type": "object",
+      "properties": {
+        "experienceLevel": {
+          "type": "object",
+          "properties": {
+            "percent": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "points": {
+                    "type": "number"
+                  },
+                  "evidence": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "code",
+                  "text",
+                  "points"
+                ],
+                "title": "Reason"
+              }
+            }
+          },
+          "required": [
+            "percent",
+            "reasons"
+          ],
+          "title": "SubScore"
+        },
+        "skills": {
+          "type": "object",
+          "properties": {
+            "percent": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "points": {
+                    "type": "number"
+                  },
+                  "evidence": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "code",
+                  "text",
+                  "points"
+                ],
+                "title": "Reason"
+              }
+            }
+          },
+          "required": [
+            "percent",
+            "reasons"
+          ],
+          "title": "SubScore"
+        },
+        "industryExperience": {
+          "type": "object",
+          "properties": {
+            "percent": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "points": {
+                    "type": "number"
+                  },
+                  "evidence": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "code",
+                  "text",
+                  "points"
+                ],
+                "title": "Reason"
+              }
+            }
+          },
+          "required": [
+            "percent",
+            "reasons"
+          ],
+          "title": "SubScore"
+        }
+      },
+      "required": [
+        "experienceLevel",
+        "skills",
+        "industryExperience"
+      ]
+    },
+    "whyFit": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "h1b_sponsor_likely",
+              "post_says_sponsors",
+              "comp_benefits",
+              "growth",
+              "top_investors",
+              "unicorn",
+              "skills",
+              "level",
+              "industry",
+              "location",
+              "network"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "positive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "positive"
+        ],
+        "title": "WhyFitChip"
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "sponsorship",
+              "work_authorization",
+              "clearance",
+              "citizenship",
+              "location",
+              "level",
+              "years",
+              "employment_type"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "board_field",
+                      "title",
+                      "description",
+                      "location_text",
+                      "directory",
+                      "dataset",
+                      "web",
+                      "user"
+                    ]
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^https?://",
+                    "maxLength": 4096,
+                    "description": "Absolute http(s) URL"
+                  }
+                },
+                "required": [
+                  "source",
+                  "text"
+                ],
+                "title": "FactEvidence",
+                "description": "The source and the supporting text of one fact"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "message",
+          "evidence"
+        ],
+        "title": "Blocker"
+      }
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "points": {
+            "type": "number"
+          },
+          "evidence": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "code",
+          "text",
+          "points"
+        ],
+        "title": "Reason"
+      }
+    },
+    "skills": {
+      "type": "object",
+      "properties": {
+        "matched": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "preferred": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "matched",
+        "missing",
+        "required",
+        "preferred"
+      ]
+    },
+    "computedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    }
+  },
+  "required": [
+    "jobId",
+    "profileVersion",
+    "engineVersion",
+    "percent",
+    "band",
+    "subScores",
+    "whyFit",
+    "blockers",
+    "reasons",
+    "skills",
+    "computedAt"
+  ]
+}

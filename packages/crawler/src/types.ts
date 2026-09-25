@@ -1,10 +1,12 @@
 // Shared types. Erasable TypeScript only (no enums, no parameter properties) so that
 // Node 24 can run the files directly with type stripping and no build step.
 
+import type { CrawlAtsId } from '@jobleft/contracts';
 import type { Level, PayPeriod } from '@jobleft/parsers';
 export type { Level, PayPeriod };
 
-export type Ats = 'greenhouse' | 'lever' | 'ashby';
+/** An ATS family the crawler may crawl (the contract list: greenhouse, lever, ashby, workable, recruitee, personio). */
+export type Ats = CrawlAtsId;
 export type WorkMode = 'remote' | 'hybrid' | 'onsite' | '';
 
 /** One company board on one ATS. `board` is the token in the public API path. */
@@ -64,7 +66,12 @@ export interface Source {
    */
   readonly fullBoardListing: boolean;
   fetchBoard(board: BoardRef, http: HttpGetter): Promise<RawJob[]>;
+  /** The host this board is fetched from (boards on one host run in series). Built-in adapters use hostFor(). */
+  host?(board: BoardRef): string;
 }
+
+/** Adapters by ATS. A crawl may run with only some of them; a board whose ATS has no adapter fails with a reason. */
+export type SourceRegistry = Partial<Record<Ats, Source>>;
 
 /** A normalised job, ready for the store. */
 export interface Job {

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:SourceAttribution",
+  "title": "SourceAttribution",
+  "type": "object",
+  "properties": {
+    "sourceId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://",
+      "maxLength": 4096,
+      "description": "Absolute http(s) URL"
+    },
+    "credit": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https?://",
+              "maxLength": 4096,
+              "description": "Absolute http(s) URL"
+            }
+          },
+          "required": [
+            "text",
+            "url"
+          ],
+          "title": "Credit"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "firstSeenAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    },
+    "lastSeenAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    }
+  },
+  "required": [
+    "sourceId",
+    "name",
+    "url",
+    "credit",
+    "firstSeenAt",
+    "lastSeenAt"
+  ]
+}

@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:JobSearchRequest",
+  "title": "JobSearchRequest",
+  "type": "object",
+  "properties": {
+    "sort": {
+      "type": "string",
+      "enum": [
+        "recommended",
+        "top_matched",
+        "most_recent"
+      ]
+    },
+    "q": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "filter": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "closed"
+          ]
+        },
+        "countries": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "description": "ISO 3166-1 alpha-2"
+          }
+        },
+        "places": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "placeId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "radiusMiles": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "text",
+              "placeId",
+              "radiusMiles"
+            ],
+            "title": "PlaceQuery"
+          }
+        },
+        "workModels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "onsite",
+              "hybrid",
+              "remote"
+            ]
+          }
+        },
+        "remoteRegions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "employmentTypes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "full_time",
+              "part_time",
+              "contract",
+              "internship",
+              "temporary",
+              "other"
+            ]
+          }
+        },
+        "levels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "intern_new_grad",
+              "entry",
+              "mid",
+              "senior",
+              "lead_staff",
+              "director_exec"
+            ]
+          }
+        },
+        "maxYearsRequired": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50
+        },
+        "postedWithin": {
+          "type": "string",
+          "enum": [
+            "24h",
+            "3d",
+            "7d",
+            "30d"
+          ]
+        },
+        "minAnnualPayUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "h1bSponsorship": {
+          "type": "boolean"
+        },
+        "excludeClearanceRequired": {
+          "type": "boolean"
+        },
+        "excludeUsCitizenOnly": {
+          "type": "boolean"
+        },
+        "jobFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excludedTitles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "industries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excludedIndustries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excludedSkills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "roleTypes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "ic",
+              "manager"
+            ]
+          }
+        },
+        "companies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excludedCompanies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "companyStages": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "early",
+              "growth",
+              "late",
+              "public"
+            ]
+          }
+        },
+        "excludeStaffingAgencies": {
+          "type": "boolean"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "includeUnknown": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "place",
+              "workModel",
+              "employmentType",
+              "level",
+              "years",
+              "postedAt",
+              "pay",
+              "remoteRegion"
+            ]
+          }
+        }
+      },
+      "required": [],
+      "title": "JobFilter"
+    },
+    "cursor": {
+      "type": "string"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    }
+  },
+  "required": [
+    "sort"
+  ]
+}

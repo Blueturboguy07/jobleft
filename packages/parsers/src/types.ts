@@ -1,9 +1,3 @@
-// Value types the parsers produce. Erasable TypeScript only (no enums), so Node 24 runs this file directly.
-
-/** Fine-grained seniority read from a title or a description. `null` elsewhere means "unknown". */
-export type Level =
-  | 'intern' | 'entry' | 'mid' | 'senior' | 'staff' | 'principal' | 'lead'
-  | 'manager' | 'director' | 'vp' | 'exec';
-
-/** The period a pay figure is stated in. */
-export type PayPeriod = 'hour' | 'day' | 'week' | 'month' | 'year';
+// Value types the parsers produce. They are the shared contract types, re-exported for convenience.
+// Level: fine-grained seniority (null elsewhere means "unknown"). PayPeriod: the period a pay figure is stated in.
+export type { Level, PayPeriod } from '@jobleft/contracts';

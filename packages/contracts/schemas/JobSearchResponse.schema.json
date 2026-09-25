@@ -1,0 +1,1235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:JobSearchResponse",
+  "title": "JobSearchResponse",
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "closed"
+                ]
+              },
+              "closedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "RFC 3339 date-time, UTC (\"Z\")"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "closedReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unseen",
+                      "board_empty",
+                      "source_removed",
+                      "user"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "company": {
+                "type": "string",
+                "minLength": 1
+              },
+              "companyKey": {
+                "type": "string"
+              },
+              "ats": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "greenhouse",
+                      "lever",
+                      "ashby",
+                      "workable",
+                      "recruitee",
+                      "personio",
+                      "workday",
+                      "icims",
+                      "smartrecruiters",
+                      "oracle",
+                      "ukg",
+                      "taleo",
+                      "jobvite",
+                      "bamboohr",
+                      "teamtailor",
+                      "breezy",
+                      "other"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "board": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "externalId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https?://",
+                "maxLength": 4096,
+                "description": "Absolute http(s) URL"
+              },
+              "applyUrl": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^https?://",
+                    "maxLength": 4096,
+                    "description": "Absolute http(s) URL"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "canonicalUrl": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https?://",
+                "maxLength": 4096,
+                "description": "Absolute http(s) URL"
+              },
+              "places": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "region": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "country": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[A-Z]{2}$",
+                          "description": "ISO 3166-1 alpha-2"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "placeId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lat": {
+                      "type": "number",
+                      "minimum": -90,
+                      "maximum": 90
+                    },
+                    "lon": {
+                      "type": "number",
+                      "minimum": -180,
+                      "maximum": 180
+                    }
+                  },
+                  "required": [
+                    "text",
+                    "city",
+                    "region",
+                    "country",
+                    "placeId"
+                  ],
+                  "title": "Place"
+                }
+              },
+              "isUs": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "workModel": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "onsite",
+                      "hybrid",
+                      "remote"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "remoteScope": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "regions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "text": {
+                        "type": "string",
+                        "description": "The posting's own words, e.g. 'Remote (US only)'"
+                      }
+                    },
+                    "required": [
+                      "regions",
+                      "text"
+                    ],
+                    "title": "RemoteScope"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "employmentType": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "full_time",
+                      "part_time",
+                      "contract",
+                      "internship",
+                      "temporary",
+                      "other"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "level": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "intern",
+                      "entry",
+                      "mid",
+                      "senior",
+                      "staff",
+                      "principal",
+                      "lead",
+                      "manager",
+                      "director",
+                      "vp",
+                      "exec"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "levels": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "intern_new_grad",
+                    "entry",
+                    "mid",
+                    "senior",
+                    "lead_staff",
+                    "director_exec"
+                  ]
+                },
+                "uniqueItems": true
+              },
+              "yearsRequired": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "min": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "max": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "min",
+                      "max"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "pay": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "min": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "max": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "currency": {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$",
+                        "description": "ISO 4217 currency code"
+                      },
+                      "period": {
+                        "type": "string",
+                        "enum": [
+                          "hour",
+                          "day",
+                          "week",
+                          "month",
+                          "year"
+                        ]
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "board_field",
+                          "description"
+                        ]
+                      },
+                      "ranges": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "annualMin": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "annualMax": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "min",
+                      "max",
+                      "currency",
+                      "period",
+                      "source",
+                      "ranges",
+                      "annualMin",
+                      "annualMax"
+                    ],
+                    "title": "Pay",
+                    "description": "Pay as the posting states it"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "postedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "RFC 3339 date-time, UTC (\"Z\")"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "firstSeenAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "RFC 3339 date-time, UTC (\"Z\")"
+              },
+              "lastSeenAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "RFC 3339 date-time, UTC (\"Z\")"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "RFC 3339 date-time, UTC (\"Z\")"
+              },
+              "department": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "statements": {
+                "type": "object",
+                "properties": {
+                  "sponsorship": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "clearanceRequired": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "usCitizenOnly": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "sponsorship",
+                  "clearanceRequired",
+                  "usCitizenOnly"
+                ],
+                "title": "PostingStatements"
+              },
+              "skills": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "evidence": {
+                "type": "object",
+                "properties": {
+                  "pay": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "board_field",
+                          "title",
+                          "description",
+                          "location_text",
+                          "directory",
+                          "dataset",
+                          "web",
+                          "user"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https?://",
+                        "maxLength": 4096,
+                        "description": "Absolute http(s) URL"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "text"
+                    ],
+                    "title": "FactEvidence",
+                    "description": "The source and the supporting text of one fact"
+                  },
+                  "level": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "board_field",
+                          "title",
+                          "description",
+                          "location_text",
+                          "directory",
+                          "dataset",
+                          "web",
+                          "user"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https?://",
+                        "maxLength": 4096,
+                        "description": "Absolute http(s) URL"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "text"
+                    ],
+                    "title": "FactEvidence",
+                    "description": "The source and the supporting text of one fact"
+                  },
+                  "years": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "board_field",
+                          "title",
+                          "description",
+                          "location_text",
+                          "directory",
+                          "dataset",
+                          "web",
+                          "user"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https?://",
+                        "maxLength": 4096,
+                        "description": "Absolute http(s) URL"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "text"
+                    ],
+                    "title": "FactEvidence",
+                    "description": "The source and the supporting text of one fact"
+                  },
+                  "places": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "board_field",
+                          "title",
+                          "description",
+                          "location_text",
+                          "directory",
+                          "dataset",
+                          "web",
+                          "user"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https?://",
+                        "maxLength": 4096,
+                        "description": "Absolute http(s) URL"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "text"
+                    ],
+                    "title": "FactEvidence",
+                    "description": "The source and the supporting text of one fact"
+                  },
+                  "workModel": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "board_field",
+                          "title",
+                          "description",
+                          "location_text",
+                          "directory",
+                          "dataset",
+                          "web",
+                          "user"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https?://",
+                        "maxLength": 4096,
+                        "description": "Absolute http(s) URL"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "text"
+                    ],
+                    "title": "FactEvidence",
+                    "description": "The source and the supporting text of one fact"
+                  },
+                  "remoteScope": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "board_field",
+                          "title",
+                          "description",
+                          "location_text",
+                          "directory",
+                          "dataset",
+                          "web",
+                          "user"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https?://",
+                        "maxLength": 4096,
+                        "description": "Absolute http(s) URL"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "text"
+                    ],
+                    "title": "FactEvidence",
+                    "description": "The source and the supporting text of one fact"
+                  },
+                  "employmentType": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "board_field",
+                          "title",
+                          "description",
+                          "location_text",
+                          "directory",
+                          "dataset",
+                          "web",
+                          "user"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https?://",
+                        "maxLength": 4096,
+                        "description": "Absolute http(s) URL"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "text"
+                    ],
+                    "title": "FactEvidence",
+                    "description": "The source and the supporting text of one fact"
+                  },
+                  "sponsorship": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "board_field",
+                          "title",
+                          "description",
+                          "location_text",
+                          "directory",
+                          "dataset",
+                          "web",
+                          "user"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https?://",
+                        "maxLength": 4096,
+                        "description": "Absolute http(s) URL"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "text"
+                    ],
+                    "title": "FactEvidence",
+                    "description": "The source and the supporting text of one fact"
+                  },
+                  "clearanceRequired": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "board_field",
+                          "title",
+                          "description",
+                          "location_text",
+                          "directory",
+                          "dataset",
+                          "web",
+                          "user"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https?://",
+                        "maxLength": 4096,
+                        "description": "Absolute http(s) URL"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "text"
+                    ],
+                    "title": "FactEvidence",
+                    "description": "The source and the supporting text of one fact"
+                  },
+                  "usCitizenOnly": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "board_field",
+                          "title",
+                          "description",
+                          "location_text",
+                          "directory",
+                          "dataset",
+                          "web",
+                          "user"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https?://",
+                        "maxLength": 4096,
+                        "description": "Absolute http(s) URL"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "text"
+                    ],
+                    "title": "FactEvidence",
+                    "description": "The source and the supporting text of one fact"
+                  }
+                },
+                "required": [],
+                "title": "JobEvidence"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "sourceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri",
+                      "pattern": "^https?://",
+                      "maxLength": 4096,
+                      "description": "Absolute http(s) URL"
+                    },
+                    "credit": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "text": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri",
+                              "pattern": "^https?://",
+                              "maxLength": 4096,
+                              "description": "Absolute http(s) URL"
+                            }
+                          },
+                          "required": [
+                            "text",
+                            "url"
+                          ],
+                          "title": "Credit"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "firstSeenAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "RFC 3339 date-time, UTC (\"Z\")"
+                    },
+                    "lastSeenAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "RFC 3339 date-time, UTC (\"Z\")"
+                    }
+                  },
+                  "required": [
+                    "sourceId",
+                    "name",
+                    "url",
+                    "credit",
+                    "firstSeenAt",
+                    "lastSeenAt"
+                  ],
+                  "title": "SourceAttribution"
+                },
+                "minItems": 1
+              },
+              "duplicateOf": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contentHash": {
+                "type": "string"
+              },
+              "snippet": {
+                "type": "string",
+                "maxLength": 400
+              },
+              "ephemeral": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "status",
+              "closedAt",
+              "closedReason",
+              "title",
+              "company",
+              "companyKey",
+              "ats",
+              "board",
+              "externalId",
+              "url",
+              "applyUrl",
+              "canonicalUrl",
+              "places",
+              "isUs",
+              "workModel",
+              "remoteScope",
+              "employmentType",
+              "level",
+              "levels",
+              "yearsRequired",
+              "pay",
+              "postedAt",
+              "firstSeenAt",
+              "lastSeenAt",
+              "updatedAt",
+              "department",
+              "statements",
+              "skills",
+              "evidence",
+              "sources",
+              "duplicateOf",
+              "contentHash",
+              "snippet"
+            ],
+            "title": "JobSummary",
+            "description": "A job without its full description"
+          },
+          "match": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "percent": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "band": {
+                    "type": "string",
+                    "enum": [
+                      "strong",
+                      "good",
+                      "fair"
+                    ]
+                  },
+                  "whyFit": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "h1b_sponsor_likely",
+                            "post_says_sponsors",
+                            "comp_benefits",
+                            "growth",
+                            "top_investors",
+                            "unicorn",
+                            "skills",
+                            "level",
+                            "industry",
+                            "location",
+                            "network"
+                          ]
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 60
+                        },
+                        "positive": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "label",
+                        "positive"
+                      ],
+                      "title": "WhyFitChip"
+                    },
+                    "maxItems": 2
+                  }
+                },
+                "required": [
+                  "percent",
+                  "band",
+                  "whyFit"
+                ],
+                "title": "MatchSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "liked": {
+            "type": "boolean"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "trackerStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "applied",
+                  "interviewing",
+                  "offer_received",
+                  "rejected",
+                  "archived"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "networkCount": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "h1bTag": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "likely_by_history",
+                  "post_says_yes",
+                  "post_says_no"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fitScore": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "job",
+          "match",
+          "liked",
+          "hidden",
+          "trackerStatus",
+          "networkCount",
+          "h1bTag",
+          "fitScore"
+        ],
+        "title": "JobListItem"
+      }
+    },
+    "total": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "nextCursor": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fit": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "indexing",
+            "not_ready",
+            "needs_profile"
+          ]
+        },
+        "waiting": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "waiting",
+        "model"
+      ],
+      "title": "FitState"
+    },
+    "tookMs": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "items",
+    "total",
+    "nextCursor",
+    "fit",
+    "tookMs"
+  ]
+}

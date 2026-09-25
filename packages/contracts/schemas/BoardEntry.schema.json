@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:BoardEntry",
+  "title": "BoardEntry",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "ats": {
+      "type": "string",
+      "enum": [
+        "greenhouse",
+        "lever",
+        "ashby",
+        "workable",
+        "recruitee",
+        "personio"
+      ]
+    },
+    "board": {
+      "type": "string",
+      "minLength": 1
+    },
+    "region": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "company": {
+      "type": "string",
+      "minLength": 1
+    },
+    "origin": {
+      "type": "string",
+      "enum": [
+        "directory",
+        "user"
+      ]
+    },
+    "followed": {
+      "type": "boolean"
+    },
+    "hidden": {
+      "type": "boolean"
+    },
+    "disabled": {
+      "type": "boolean"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "not_checked",
+        "live",
+        "failing",
+        "unreachable",
+        "cooldown",
+        "blocked"
+      ]
+    },
+    "lastCheckAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 date-time, UTC (\"Z\")"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lastSuccessAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 date-time, UTC (\"Z\")"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "nextCheckAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 date-time, UTC (\"Z\")"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "openJobs": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lastError": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "ats",
+    "board",
+    "region",
+    "company",
+    "origin",
+    "followed",
+    "hidden",
+    "disabled",
+    "state",
+    "lastCheckAt",
+    "lastSuccessAt",
+    "nextCheckAt",
+    "openJobs",
+    "lastError"
+  ]
+}

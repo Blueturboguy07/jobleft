@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:CrawlBoardReport",
+  "title": "CrawlBoardReport",
+  "type": "object",
+  "properties": {
+    "boardId": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "failed",
+        "cooled",
+        "blocked",
+        "host_skipped",
+        "robots",
+        "forbidden",
+        "no_adapter"
+      ]
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "listed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "inserted": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "updated": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unchanged": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "skipped": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unreadable": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "closed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "closeHeld": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "requests": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "finishedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    }
+  },
+  "required": [
+    "boardId",
+    "status",
+    "reason",
+    "listed",
+    "inserted",
+    "updated",
+    "unchanged",
+    "skipped",
+    "unreadable",
+    "closed",
+    "closeHeld",
+    "requests",
+    "finishedAt"
+  ]
+}

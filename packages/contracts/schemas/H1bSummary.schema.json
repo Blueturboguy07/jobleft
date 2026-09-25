@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:H1bSummary",
+  "title": "H1bSummary",
+  "description": "H-1B filing history of a company (never a \"no\")",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "likely",
+        "some_history"
+      ]
+    },
+    "certifiedFilings": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "window": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "format": "date",
+          "description": "Calendar date YYYY-MM-DD"
+        },
+        "to": {
+          "type": "string",
+          "format": "date",
+          "description": "Calendar date YYYY-MM-DD"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ]
+    },
+    "byYear": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "yearKind": {
+            "type": "string",
+            "enum": [
+              "fiscal",
+              "calendar"
+            ]
+          }
+        },
+        "required": [
+          "year",
+          "count",
+          "partial",
+          "yearKind"
+        ]
+      }
+    },
+    "similarRoleShare": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "roleFamily": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "filerEntities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "dataThrough": {
+      "type": "string",
+      "format": "date",
+      "description": "Calendar date YYYY-MM-DD"
+    },
+    "source": {
+      "type": "string",
+      "description": "e.g. \"US Department of Labor, LCA disclosure data\""
+    },
+    "note": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "certifiedFilings",
+    "window",
+    "byYear",
+    "similarRoleShare",
+    "roleFamily",
+    "filerEntities",
+    "dataThrough",
+    "source",
+    "note"
+  ]
+}

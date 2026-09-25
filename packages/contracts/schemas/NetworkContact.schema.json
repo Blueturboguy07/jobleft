@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:NetworkContact",
+  "title": "NetworkContact",
+  "description": "One of the user's own connections",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "firstName": {
+      "type": "string"
+    },
+    "lastName": {
+      "type": "string"
+    },
+    "profileUrl": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "maxLength": 4096,
+          "description": "Absolute http(s) URL"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "email": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "company": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "companyKey": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "position": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "connectedOn": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date",
+          "description": "Calendar date YYYY-MM-DD"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "maybeGarbled": {
+      "type": "boolean"
+    },
+    "stage": {
+      "type": "string",
+      "enum": [
+        "to_contact",
+        "messaged",
+        "replied",
+        "met",
+        "follow_up_due"
+      ]
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 20000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "followUpOn": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date",
+          "description": "Calendar date YYYY-MM-DD"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "inPlan": {
+      "type": "boolean"
+    },
+    "importedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    }
+  },
+  "required": [
+    "id",
+    "firstName",
+    "lastName",
+    "profileUrl",
+    "email",
+    "company",
+    "companyKey",
+    "position",
+    "connectedOn",
+    "maybeGarbled",
+    "stage",
+    "note",
+    "followUpOn",
+    "inPlan",
+    "importedAt",
+    "updatedAt"
+  ]
+}

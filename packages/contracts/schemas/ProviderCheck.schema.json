@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:ProviderCheck",
+  "title": "ProviderCheck",
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "problem": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "no_provider",
+            "unreachable",
+            "timeout",
+            "key_refused",
+            "model_not_found",
+            "not_ai_server",
+            "balance_too_low",
+            "other"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "message": {
+      "type": "string"
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "checkedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    }
+  },
+  "required": [
+    "ok",
+    "problem",
+    "message",
+    "models",
+    "checkedAt"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:StorageInfo",
+  "title": "StorageInfo",
+  "type": "object",
+  "properties": {
+    "dataDir": {
+      "type": "string"
+    },
+    "dbPath": {
+      "type": "string"
+    },
+    "dbBytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "jobs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "openJobs": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "dataDir",
+    "dbPath",
+    "dbBytes",
+    "jobs",
+    "openJobs"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:ContactRank",
+  "title": "ContactRank",
+  "type": "object",
+  "properties": {
+    "contactId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "score": {
+      "type": "number"
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "text"
+        ]
+      }
+    }
+  },
+  "required": [
+    "contactId",
+    "score",
+    "reasons"
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:AiSettingsUpdate",
+  "title": "AiSettingsUpdate",
+  "type": "object",
+  "properties": {
+    "provider": {
+      "type": "string",
+      "enum": [
+        "publik",
+        "local",
+        "custom",
+        "own_key"
+      ]
+    },
+    "localKind": {
+      "type": "string",
+      "enum": [
+        "ollama",
+        "llamacpp",
+        "mlx",
+        "lmstudio",
+        "openai_compatible"
+      ]
+    },
+    "vendor": {
+      "type": "string",
+      "enum": [
+        "openai",
+        "anthropic",
+        "openrouter",
+        "google"
+      ]
+    },
+    "baseUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://",
+      "maxLength": 4096,
+      "description": "Absolute http(s) URL"
+    },
+    "model": {
+      "type": "string"
+    },
+    "meteredFetchEnabled": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "provider"
+  ]
+}

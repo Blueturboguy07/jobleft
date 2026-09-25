@@ -1,0 +1,819 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:Company",
+  "title": "Company",
+  "description": "A company with sourced, dated facts",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aliases": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "facts": {
+      "type": "object",
+      "properties": {
+        "website": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https?://",
+              "maxLength": 4096,
+              "description": "Absolute http(s) URL"
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uri",
+                      "pattern": "^https?://",
+                      "maxLength": 4096,
+                      "description": "Absolute http(s) URL"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "retrievedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                "licence": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "url",
+                "retrievedAt"
+              ],
+              "title": "SourceRef",
+              "description": "A named source, its link and when jobleft read it"
+            }
+          },
+          "required": [
+            "value",
+            "source"
+          ]
+        },
+        "description": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string"
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uri",
+                      "pattern": "^https?://",
+                      "maxLength": 4096,
+                      "description": "Absolute http(s) URL"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "retrievedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                "licence": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "url",
+                "retrievedAt"
+              ],
+              "title": "SourceRef",
+              "description": "A named source, its link and when jobleft read it"
+            }
+          },
+          "required": [
+            "value",
+            "source"
+          ]
+        },
+        "founded": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "integer"
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uri",
+                      "pattern": "^https?://",
+                      "maxLength": 4096,
+                      "description": "Absolute http(s) URL"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "retrievedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                "licence": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "url",
+                "retrievedAt"
+              ],
+              "title": "SourceRef",
+              "description": "A named source, its link and when jobleft read it"
+            }
+          },
+          "required": [
+            "value",
+            "source"
+          ]
+        },
+        "headquarters": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string"
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uri",
+                      "pattern": "^https?://",
+                      "maxLength": 4096,
+                      "description": "Absolute http(s) URL"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "retrievedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                "licence": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "url",
+                "retrievedAt"
+              ],
+              "title": "SourceRef",
+              "description": "A named source, its link and when jobleft read it"
+            }
+          },
+          "required": [
+            "value",
+            "source"
+          ]
+        },
+        "size": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string"
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uri",
+                      "pattern": "^https?://",
+                      "maxLength": 4096,
+                      "description": "Absolute http(s) URL"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "retrievedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                "licence": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "url",
+                "retrievedAt"
+              ],
+              "title": "SourceRef",
+              "description": "A named source, its link and when jobleft read it"
+            }
+          },
+          "required": [
+            "value",
+            "source"
+          ]
+        },
+        "industries": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uri",
+                      "pattern": "^https?://",
+                      "maxLength": 4096,
+                      "description": "Absolute http(s) URL"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "retrievedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                "licence": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "url",
+                "retrievedAt"
+              ],
+              "title": "SourceRef",
+              "description": "A named source, its link and when jobleft read it"
+            }
+          },
+          "required": [
+            "value",
+            "source"
+          ]
+        },
+        "stage": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string",
+              "enum": [
+                "early",
+                "growth",
+                "late",
+                "public"
+              ]
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uri",
+                      "pattern": "^https?://",
+                      "maxLength": 4096,
+                      "description": "Absolute http(s) URL"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "retrievedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                "licence": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "url",
+                "retrievedAt"
+              ],
+              "title": "SourceRef",
+              "description": "A named source, its link and when jobleft read it"
+            }
+          },
+          "required": [
+            "value",
+            "source"
+          ]
+        },
+        "totalFundingUsd": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "number",
+              "minimum": 0
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uri",
+                      "pattern": "^https?://",
+                      "maxLength": 4096,
+                      "description": "Absolute http(s) URL"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "retrievedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                "licence": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "url",
+                "retrievedAt"
+              ],
+              "title": "SourceRef",
+              "description": "A named source, its link and when jobleft read it"
+            }
+          },
+          "required": [
+            "value",
+            "source"
+          ]
+        },
+        "investors": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uri",
+                      "pattern": "^https?://",
+                      "maxLength": 4096,
+                      "description": "Absolute http(s) URL"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "retrievedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                "licence": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "url",
+                "retrievedAt"
+              ],
+              "title": "SourceRef",
+              "description": "A named source, its link and when jobleft read it"
+            }
+          },
+          "required": [
+            "value",
+            "source"
+          ]
+        },
+        "leaders": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "title"
+                ]
+              }
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uri",
+                      "pattern": "^https?://",
+                      "maxLength": 4096,
+                      "description": "Absolute http(s) URL"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "retrievedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                "licence": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "url",
+                "retrievedAt"
+              ],
+              "title": "SourceRef",
+              "description": "A named source, its link and when jobleft read it"
+            }
+          },
+          "required": [
+            "value",
+            "source"
+          ]
+        },
+        "news": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^https?://",
+                    "maxLength": 4096,
+                    "description": "Absolute http(s) URL"
+                  },
+                  "publishedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Calendar date YYYY-MM-DD"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "outlet": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "title",
+                  "url",
+                  "publishedAt",
+                  "outlet"
+                ]
+              }
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uri",
+                      "pattern": "^https?://",
+                      "maxLength": 4096,
+                      "description": "Absolute http(s) URL"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "retrievedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                "licence": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "url",
+                "retrievedAt"
+              ],
+              "title": "SourceRef",
+              "description": "A named source, its link and when jobleft read it"
+            }
+          },
+          "required": [
+            "value",
+            "source"
+          ]
+        }
+      },
+      "required": []
+    },
+    "h1b": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "likely",
+                "some_history"
+              ]
+            },
+            "certifiedFilings": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "window": {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "Calendar date YYYY-MM-DD"
+                },
+                "to": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "Calendar date YYYY-MM-DD"
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ]
+            },
+            "byYear": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "year": {
+                    "type": "integer"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "partial": {
+                    "type": "boolean"
+                  },
+                  "yearKind": {
+                    "type": "string",
+                    "enum": [
+                      "fiscal",
+                      "calendar"
+                    ]
+                  }
+                },
+                "required": [
+                  "year",
+                  "count",
+                  "partial",
+                  "yearKind"
+                ]
+              }
+            },
+            "similarRoleShare": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "roleFamily": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "filerEntities": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            },
+            "dataThrough": {
+              "type": "string",
+              "format": "date",
+              "description": "Calendar date YYYY-MM-DD"
+            },
+            "source": {
+              "type": "string",
+              "description": "e.g. \"US Department of Labor, LCA disclosure data\""
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "certifiedFilings",
+            "window",
+            "byYear",
+            "similarRoleShare",
+            "roleFamily",
+            "filerEntities",
+            "dataThrough",
+            "source",
+            "note"
+          ],
+          "title": "H1bSummary",
+          "description": "H-1B filing history of a company (never a \"no\")"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "isStaffingAgency": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "factsFreshUntil": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 date-time, UTC (\"Z\")"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    }
+  },
+  "required": [
+    "key",
+    "name",
+    "aliases",
+    "facts",
+    "h1b",
+    "isStaffingAgency",
+    "factsFreshUntil",
+    "updatedAt"
+  ]
+}

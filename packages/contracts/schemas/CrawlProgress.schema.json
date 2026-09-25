@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:CrawlProgress",
+  "title": "CrawlProgress",
+  "type": "object",
+  "properties": {
+    "running": {
+      "type": "boolean"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "first_run",
+            "launch_catch_up",
+            "schedule",
+            "manual"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "boardsDone": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "boardsTotal": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "jobsSeen": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "startedAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 date-time, UTC (\"Z\")"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "nextScheduledAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 date-time, UTC (\"Z\")"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lastRun": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "startedAt": {
+              "type": "string",
+              "format": "date-time",
+              "description": "RFC 3339 date-time, UTC (\"Z\")"
+            },
+            "finishedAt": {
+              "type": "string",
+              "format": "date-time",
+              "description": "RFC 3339 date-time, UTC (\"Z\")"
+            },
+            "boards": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "ok": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "inserted": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "updated": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "closed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "requests": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "startedAt",
+            "finishedAt",
+            "boards",
+            "ok",
+            "failed",
+            "inserted",
+            "updated",
+            "closed",
+            "requests"
+          ],
+          "title": "CrawlRunSummary"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "running",
+    "reason",
+    "boardsDone",
+    "boardsTotal",
+    "jobsSeen",
+    "startedAt",
+    "nextScheduledAt",
+    "lastRun"
+  ]
+}

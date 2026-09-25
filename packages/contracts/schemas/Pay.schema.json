@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:Pay",
+  "title": "Pay",
+  "description": "Pay as the posting states it",
+  "type": "object",
+  "properties": {
+    "min": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "max": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "description": "ISO 4217 currency code"
+    },
+    "period": {
+      "type": "string",
+      "enum": [
+        "hour",
+        "day",
+        "week",
+        "month",
+        "year"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "board_field",
+        "description"
+      ]
+    },
+    "ranges": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "annualMin": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "annualMax": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "min",
+    "max",
+    "currency",
+    "period",
+    "source",
+    "ranges",
+    "annualMin",
+    "annualMax"
+  ]
+}

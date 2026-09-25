@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:ReviewResult",
+  "title": "ReviewResult",
+  "type": "object",
+  "properties": {
+    "requestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "pageUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://",
+      "maxLength": 4096,
+      "description": "Absolute http(s) URL"
+    },
+    "jobId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ats": {
+      "type": "string",
+      "enum": [
+        "greenhouse",
+        "lever",
+        "ashby",
+        "workable",
+        "recruitee",
+        "personio",
+        "workday",
+        "icims",
+        "smartrecruiters",
+        "oracle",
+        "ukg",
+        "taleo",
+        "jobvite",
+        "bamboohr",
+        "teamtailor",
+        "breezy",
+        "other"
+      ]
+    },
+    "filledFieldIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "editedFieldIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "submittedByUser": {
+      "type": "boolean"
+    },
+    "savedAnswers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ]
+      },
+      "maxItems": 100
+    },
+    "at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    }
+  },
+  "required": [
+    "requestId",
+    "pageUrl",
+    "jobId",
+    "ats",
+    "filledFieldIds",
+    "editedFieldIds",
+    "submittedByUser",
+    "savedAnswers",
+    "at"
+  ]
+}

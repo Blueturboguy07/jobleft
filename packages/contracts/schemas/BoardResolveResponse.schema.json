@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:BoardResolveResponse",
+  "title": "BoardResolveResponse",
+  "type": "object",
+  "properties": {
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "boardId": {
+            "type": "string"
+          },
+          "ats": {
+            "type": "string",
+            "enum": [
+              "greenhouse",
+              "lever",
+              "ashby",
+              "workable",
+              "recruitee",
+              "personio"
+            ]
+          },
+          "board": {
+            "type": "string"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "company": {
+            "type": "string"
+          },
+          "openJobs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alreadyAdded": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "boardId",
+          "ats",
+          "board",
+          "region",
+          "company",
+          "openJobs",
+          "alreadyAdded"
+        ]
+      }
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "not_a_link",
+            "broken_link",
+            "unsupported_provider",
+            "forbidden_host",
+            "no_board_found",
+            "blocked_by_robots",
+            "offline"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "message": {
+      "type": "string"
+    },
+    "paidLookup": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "priceMicros": {
+              "type": "integer",
+              "description": "Integer millionths of a US dollar"
+            }
+          },
+          "required": [
+            "priceMicros"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "candidates",
+    "reason",
+    "message",
+    "paidLookup"
+  ]
+}

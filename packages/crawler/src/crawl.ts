@@ -11,7 +11,7 @@ import type { SweepCandidate } from './lifecycle.ts';
 import { dedupeBatch } from './normalize.ts';
 import { SOURCES, hostFor } from './sources/index.ts';
 import type { Store } from './store.ts';
-import type { Ats, BoardRef, BoardStats, HttpGetter, Job, Source } from './types.ts';
+import type { Ats, BoardRef, BoardStats, HttpGetter, Job, SourceRegistry } from './types.ts';
 
 export type BoardStatus = 'ok' | 'failed' | 'cooled' | 'blocked' | 'host-skipped';
 
@@ -53,7 +53,7 @@ export interface HttpMetrics extends HttpGetter {
 export interface CrawlOptions {
   store: Store;
   http: HttpMetrics;
-  sources?: Record<Ats, Source>;
+  sources?: SourceRegistry;
   now?: () => number;
   graceMs?: number;
   /** Close all of a board's postings once it has listed nothing for this long. Default 7 days. */
@@ -88,7 +88,9 @@ export async function crawl(boards: BoardRef[], opts: CrawlOptions): Promise<Run
       ats: b.ats, board: b.board, company: b.company, status: 'ok', error: null, listed: 0, stats,
       elapsedMs: 0, requests: 0, bytesDecoded: 0, bytesWire: 0, rssMb: 0, closed: 0, closedReason: null, closeHeld: null,
     };
-    const host = hostFor(b.ats, b.region);
+    const source = sources[b.ats];
+    if (!source) { base.status = 'failed'; base.error = `no adapter for ATS "${b.ats}"`; stats.failed = 1; return base; }
+    const host = source.host?.(b) ?? hostFor(b.ats, b.region);
     if (http.isTripped?.(host)) { base.status = 'host-skipped'; base.error = 'host tripped earlier in this run'; return base; }
     if (store.isCooledDown(b.ats, b.board, nowMs())) { base.status = 'cooled'; base.error = 'board is in cooldown'; return base; }
 
@@ -96,7 +98,7 @@ export async function crawl(boards: BoardRef[], opts: CrawlOptions): Promise<Run
     const snap0 = http.snapshot?.(host) ?? { requests: 0, bytesDecoded: 0, bytesWire: 0 };
     const nowIso = new Date(nowMs()).toISOString();
     try {
-      const raw = await sources[b.ats].fetchBoard(b, http);
+      const raw = await source.fetchBoard(b, http);
       base.listed = raw.length;
       const jobs: Job[] = [];
       for (const r of raw) {
@@ -144,7 +146,7 @@ export async function crawl(boards: BoardRef[], opts: CrawlOptions): Promise<Run
   // One queue per host, run in parallel.
   const queues = new Map<string, BoardRef[]>();
   for (const b of boards) {
-    const h = hostFor(b.ats, b.region);
+    const h = sources[b.ats]?.host?.(b) ?? hostFor(b.ats, b.region);
     let q = queues.get(h);
     if (!q) { q = []; queues.set(h, q); }
     q.push(b);
@@ -162,7 +164,7 @@ export async function crawl(boards: BoardRef[], opts: CrawlOptions): Promise<Run
   const cutoff = new Date(nowMs() - graceMs).toISOString();
   const cands: SweepCandidate[] = results
     .filter((r) => r.status === 'ok')
-    .map((r) => ({ ats: r.ats, board: r.board, stats: r.stats, fullBoardListing: sources[r.ats].fullBoardListing }));
+    .map((r) => ({ ats: r.ats, board: r.board, stats: r.stats, fullBoardListing: sources[r.ats]?.fullBoardListing ?? false }));
   const allowed = new Set(sweepableBoards(cands).map((c) => `${c.ats}\u0000${c.board}`));
   for (const r of results) {
     if (r.status !== 'ok') continue;

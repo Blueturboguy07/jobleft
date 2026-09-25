@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:TrackerEntry",
+  "title": "TrackerEntry",
+  "description": "The user's own state on one job",
+  "type": "object",
+  "properties": {
+    "jobId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "liked": {
+      "type": "boolean"
+    },
+    "hidden": {
+      "type": "boolean"
+    },
+    "external": {
+      "type": "boolean"
+    },
+    "status": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "applied",
+            "interviewing",
+            "offer_received",
+            "rejected",
+            "archived"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "statusHistory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "applied",
+                  "interviewing",
+                  "offer_received",
+                  "rejected",
+                  "archived"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 date-time, UTC (\"Z\")"
+          }
+        },
+        "required": [
+          "status",
+          "at"
+        ]
+      }
+    },
+    "appliedAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 date-time, UTC (\"Z\")"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resumeId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 date-time, UTC (\"Z\")"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 date-time, UTC (\"Z\")"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "TrackerNote"
+      }
+    },
+    "reminders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 date-time, UTC (\"Z\")"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "done": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "text",
+          "done"
+        ],
+        "title": "Reminder"
+      }
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    }
+  },
+  "required": [
+    "jobId",
+    "liked",
+    "hidden",
+    "external",
+    "status",
+    "statusHistory",
+    "appliedAt",
+    "resumeId",
+    "notes",
+    "reminders",
+    "createdAt",
+    "updatedAt"
+  ]
+}

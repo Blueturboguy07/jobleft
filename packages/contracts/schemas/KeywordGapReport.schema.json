@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:KeywordGapReport",
+  "title": "KeywordGapReport",
+  "type": "object",
+  "properties": {
+    "jobId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "resumeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "requirementsFound": {
+      "type": "boolean"
+    },
+    "terms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "term": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "covered",
+              "in_profile_not_resume",
+              "not_in_profile"
+            ]
+          },
+          "matchedAs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "term",
+          "status",
+          "matchedAs"
+        ]
+      }
+    }
+  },
+  "required": [
+    "jobId",
+    "resumeId",
+    "requirementsFound",
+    "terms"
+  ]
+}

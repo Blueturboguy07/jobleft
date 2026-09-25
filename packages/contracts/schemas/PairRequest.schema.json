@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:PairRequest",
+  "title": "PairRequest",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "pattern": "^[0-9]{6}$"
+    },
+    "extensionId": {
+      "type": "string",
+      "pattern": "^[a-p]{32}$"
+    },
+    "extensionVersion": {
+      "type": "string",
+      "maxLength": 40
+    },
+    "protocolVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "browser": {
+      "type": "string",
+      "maxLength": 80
+    }
+  },
+  "required": [
+    "code",
+    "extensionId",
+    "extensionVersion",
+    "protocolVersion",
+    "browser"
+  ]
+}

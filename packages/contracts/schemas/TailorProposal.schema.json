@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:TailorProposal",
+  "title": "TailorProposal",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "resumeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "jobId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "sectionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "itemId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "field": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sectionId",
+          "itemId",
+          "field",
+          "before",
+          "after",
+          "warning"
+        ]
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "violations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fact": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "skill",
+              "employer",
+              "title",
+              "school",
+              "degree",
+              "date",
+              "duration",
+              "number",
+              "certification",
+              "location",
+              "contact",
+              "other"
+            ]
+          },
+          "where": {
+            "type": "string",
+            "description": "Section, item or sentence that holds it"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fact",
+          "kind",
+          "where",
+          "reason"
+        ],
+        "title": "TruthViolation"
+      }
+    },
+    "provider": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    }
+  },
+  "required": [
+    "id",
+    "resumeId",
+    "jobId",
+    "changes",
+    "gaps",
+    "violations",
+    "provider",
+    "createdAt"
+  ]
+}
