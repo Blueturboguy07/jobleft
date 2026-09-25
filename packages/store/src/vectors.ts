@@ -14,6 +14,7 @@ export class VectorIndex {
   slot = new Int32Array(0);
   fresh = new Uint8Array(0);
   private chunks: Float32Array[] = [];
+  private ridOfSlot = new Int32Array(0);
   private nextSlot = 0;
   private freeSlots: number[] = [];
   lastRev = -1;
@@ -48,12 +49,19 @@ export class VectorIndex {
     this.scores = sc;
   }
 
-  private allocSlot(): number {
-    const s = this.freeSlots.pop();
-    if (s !== undefined) return s;
-    const n = this.nextSlot++;
-    if ((n / CHUNK_ROWS | 0) >= this.chunks.length) this.chunks.push(new Float32Array(CHUNK_ROWS * this.dims));
-    return n;
+  private allocSlot(rid: number): number {
+    let s = this.freeSlots.pop();
+    if (s === undefined) {
+      s = this.nextSlot++;
+      if ((s / CHUNK_ROWS | 0) >= this.chunks.length) {
+        this.chunks.push(new Float32Array(CHUNK_ROWS * this.dims));
+        const r = new Int32Array(this.chunks.length * CHUNK_ROWS).fill(-1);
+        r.set(this.ridOfSlot);
+        this.ridOfSlot = r;
+      }
+    }
+    this.ridOfSlot[s] = rid;
+    return s;
   }
 
   /** The vector of a row (a view into the pool), or null. */
@@ -69,9 +77,12 @@ export class VectorIndex {
   private putHalf(rid: number, bytes: Uint8Array, fresh: boolean): void {
     this.ensureCap(rid);
     let s = this.slot[rid]!;
-    if (s < 0) { s = this.allocSlot(); this.slot[rid] = s; }
+    if (s < 0) { s = this.allocSlot(rid); this.slot[rid] = s; }
     const c = this.chunks[(s / CHUNK_ROWS) | 0]!;
-    if (!unpackHalfInto(bytes, c, (s % CHUNK_ROWS) * this.dims, this.dims)) { this.drop(rid); return; }
+    const off = (s % CHUNK_ROWS) * this.dims;
+    if (bytes.byteLength !== this.dims * 2) { this.drop(rid); return; }
+    if ((bytes.byteOffset & 1) === 0) c.set(new Float16Array(bytes.buffer, bytes.byteOffset, this.dims), off);
+    else if (!unpackHalfInto(bytes, c, off, this.dims)) { this.drop(rid); return; }
     this.fresh[rid] = fresh ? 1 : 0;
     this.dirty.add(rid);
   }
@@ -80,7 +91,7 @@ export class VectorIndex {
   putFloat(rid: number, v: Float32Array, fresh: boolean): void {
     this.ensureCap(rid);
     let s = this.slot[rid]!;
-    if (s < 0) { s = this.allocSlot(); this.slot[rid] = s; }
+    if (s < 0) { s = this.allocSlot(rid); this.slot[rid] = s; }
     const c = this.chunks[(s / CHUNK_ROWS) | 0]!;
     c.set(v.subarray(0, this.dims), (s % CHUNK_ROWS) * this.dims);
     this.fresh[rid] = fresh ? 1 : 0;
@@ -90,7 +101,7 @@ export class VectorIndex {
   private drop(rid: number): void {
     if (rid >= this.slot.length) return;
     const s = this.slot[rid]!;
-    if (s >= 0) this.freeSlots.push(s);
+    if (s >= 0) { this.freeSlots.push(s); this.ridOfSlot[s] = -1; }
     this.slot[rid] = -1;
     this.fresh[rid] = 0;
     this.dirty.add(rid);
@@ -136,8 +147,28 @@ export class VectorIndex {
     const key = fingerprint(profile);
     const d = this.dims;
     if (key !== this.scoreKey) {
-      this.scores.fill(NaN);
-      for (let rid = 0; rid < this.slot.length; rid++) if (this.fresh[rid] === 1) this.scores[rid] = this.dot(rid, profile, d);
+      // One contiguous pass over the vector pool (spike S2: a full scan of 500K vectors is about 80 to 110 ms).
+      const scores = this.scores;
+      scores.fill(NaN);
+      const fresh = this.fresh;
+      for (let ci = 0; ci < this.chunks.length; ci++) {
+        const c = this.chunks[ci]!;
+        const base = ci * CHUNK_ROWS;
+        const end = Math.min(CHUNK_ROWS, this.nextSlot - base);
+        for (let s = 0; s < end; s++) {
+          const rid = this.ridOfSlot[base + s]!;
+          if (rid < 0 || fresh[rid] !== 1) continue;
+          let off = s * d;
+          let a0 = 0, a1 = 0, a2 = 0, a3 = 0;
+          for (let i = 0; i < d; i += 4, off += 4) {
+            a0 += c[off]! * profile[i]!;
+            a1 += c[off + 1]! * profile[i + 1]!;
+            a2 += c[off + 2]! * profile[i + 2]!;
+            a3 += c[off + 3]! * profile[i + 3]!;
+          }
+          scores[rid] = a0 + a1 + a2 + a3;
+        }
+      }
       this.scoreKey = key;
       this.dirty.clear();
     } else if (this.dirty.size > 0) {

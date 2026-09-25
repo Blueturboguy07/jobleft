@@ -99,9 +99,10 @@ CREATE TABLE store_jobs (
   embed_hash    TEXT NOT NULL,
   precedence    INTEGER NOT NULL,
   facets        BLOB NOT NULL,
-  doc           BLOB NOT NULL,
   rev           INTEGER NOT NULL
 );
+-- The full record of each posting (compressed JSON), apart from store_jobs so a scan of the filter columns stays small.
+CREATE TABLE job_docs (rid INTEGER PRIMARY KEY, doc BLOB NOT NULL);
 CREATE INDEX store_jobs_rev ON store_jobs (rev);
 CREATE INDEX store_jobs_company ON store_jobs (company_key);
 CREATE INDEX store_jobs_scope ON store_jobs (board_scope) WHERE status = 1;

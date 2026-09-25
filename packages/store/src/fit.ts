@@ -198,7 +198,7 @@ export class FitIndex {
 
   private pending(rids: number[]): Pending[] {
     if (rids.length === 0) return [];
-    const rows = q(this.db, `SELECT rid, embed_hash, doc FROM store_jobs WHERE status = 1 AND rid IN (${rids.map(() => '?').join(',')})`).all(...rids) as Array<{ rid: number; embed_hash: string; doc: Uint8Array }>;
+    const rows = q(this.db, `SELECT s.rid AS rid, s.embed_hash AS embed_hash, d.doc AS doc FROM store_jobs s JOIN job_docs d ON d.rid = s.rid WHERE s.status = 1 AND s.rid IN (${rids.map(() => '?').join(',')})`).all(...rids) as Array<{ rid: number; embed_hash: string; doc: Uint8Array }>;
     return rows.map((r) => {
       const job = decodeRecord<Job>(r.doc);
       const text = embedTextOf(job);

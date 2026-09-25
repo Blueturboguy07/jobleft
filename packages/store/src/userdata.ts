@@ -115,8 +115,8 @@ export class TrackerStore {
   }
 
   list(view: TrackerView, status?: TrackerStatus): TrackerList {
-    const rows = q(this.db, `SELECT t.*, s.status AS job_status, s.id AS sid, s.closed_at, s.closed_reason, s.first_seen, s.last_seen, s.doc
-      FROM tracker t JOIN job_keys k ON k.key = 'id:' || t.job_id JOIN store_jobs s ON s.rid = k.rid ORDER BY t.updated_at DESC, t.job_id`).all() as unknown as Array<TrackerRow & {
+    const rows = q(this.db, `SELECT t.*, s.status AS job_status, s.id AS sid, s.closed_at, s.closed_reason, s.first_seen, s.last_seen, d.doc AS doc
+      FROM tracker t JOIN job_keys k ON k.key = 'id:' || t.job_id JOIN store_jobs s ON s.rid = k.rid JOIN job_docs d ON d.rid = s.rid ORDER BY t.updated_at DESC, t.job_id`).all() as unknown as Array<TrackerRow & {
       job_status: number; sid: string; closed_at: string | null; closed_reason: string | null; first_seen: string; last_seen: string; doc: Uint8Array }>;
     const counts = { liked: 0, applied: 0, external: 0, hidden: 0, closed: 0, byStatus: { applied: 0, interviewing: 0, offer_received: 0, rejected: 0, archived: 0 } };
     const items: TrackerList['items'] = [];

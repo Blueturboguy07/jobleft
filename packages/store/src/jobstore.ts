@@ -52,8 +52,8 @@ export class JobStore {
 
   /** One job by its id or by an alias id (a merged copy). Closed jobs are returned too (their details stay). */
   get(id: string): Job | null {
-    const r = q(this.db, `SELECT s.id, s.status, s.closed_at, s.closed_reason, s.first_seen, s.last_seen, s.doc FROM job_keys k
-      JOIN store_jobs s ON s.rid = k.rid WHERE k.key = ?`).get(`id:${id}`) as
+    const r = q(this.db, `SELECT s.id, s.status, s.closed_at, s.closed_reason, s.first_seen, s.last_seen, d.doc FROM job_keys k
+      JOIN store_jobs s ON s.rid = k.rid JOIN job_docs d ON d.rid = s.rid WHERE k.key = ?`).get(`id:${id}`) as
       { id: string; status: number; closed_at: string | null; closed_reason: string | null; first_seen: string; last_seen: string; doc: Uint8Array } | undefined;
     if (!r) return null;
     return overlay(decodeRecord<Job>(r.doc), r);

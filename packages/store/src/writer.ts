@@ -131,7 +131,7 @@ export class JobWriter {
   }
 
   private existing(rid: number): ExistingRow | null {
-    const r = q(this.db, 'SELECT rid, id, status, content_hash, precedence, first_seen, doc FROM store_jobs WHERE rid = ?').get(rid) as ExistingRow | undefined;
+    const r = q(this.db, 'SELECT s.rid, s.id, s.status, s.content_hash, s.precedence, s.first_seen, d.doc FROM store_jobs s JOIN job_docs d ON d.rid = s.rid WHERE s.rid = ?').get(rid) as ExistingRow | undefined;
     return r ?? null;
   }
 
@@ -156,13 +156,13 @@ export class JobWriter {
   private insertRow(j: Job, rev: number): number {
     const facets = this.packed(j);
     const r = q(this.db, `INSERT INTO store_jobs (id, status, closed_at, closed_reason, dup_of, company_key, board_scope,
-      posted_at, first_seen, last_seen, updated_at, content_hash, embed_hash, precedence, facets, doc, rev)
-      VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      posted_at, first_seen, last_seen, updated_at, content_hash, embed_hash, precedence, facets, rev)
+      VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
       j.id, j.status === 'open' ? 1 : 0, j.closedAt, j.closedReason, j.companyKey, boardScopeOf(j), j.postedAt,
-      j.firstSeenAt, j.lastSeenAt, j.updatedAt, j.contentHash, embedHashOf(embedTextOf(j)), precedenceOf(j), facets,
-      encodeRecord(j), rev,
+      j.firstSeenAt, j.lastSeenAt, j.updatedAt, j.contentHash, embedHashOf(embedTextOf(j)), precedenceOf(j), facets, rev,
     );
     const rid = Number(r.lastInsertRowid);
+    q(this.db, 'INSERT INTO job_docs (rid, doc) VALUES (?, ?)').run(rid, encodeRecord(j));
     this.writeFts(rid, j, false);
     return rid;
   }
@@ -170,11 +170,12 @@ export class JobWriter {
   private rewriteRow(rid: number, j: Job, rev: number, textChanged: boolean): void {
     q(this.db, `UPDATE store_jobs SET id = ?, status = ?, closed_at = ?, closed_reason = ?, company_key = ?, board_scope = ?,
       posted_at = ?, first_seen = ?, last_seen = ?, updated_at = ?, content_hash = ?, embed_hash = ?, precedence = ?, facets = ?,
-      doc = ?, rev = ? WHERE rid = ?`).run(
+      rev = ? WHERE rid = ?`).run(
       j.id, j.status === 'open' ? 1 : 0, j.closedAt, j.closedReason, j.companyKey, boardScopeOf(j), j.postedAt,
       j.firstSeenAt, j.lastSeenAt, j.updatedAt, j.contentHash, embedHashOf(embedTextOf(j)), precedenceOf(j),
-      this.packed(j), encodeRecord(j), rev, rid,
+      this.packed(j), rev, rid,
     );
+    q(this.db, 'INSERT INTO job_docs (rid, doc) VALUES (?, ?) ON CONFLICT (rid) DO UPDATE SET doc = excluded.doc').run(rid, encodeRecord(j));
     if (textChanged) this.writeFts(rid, j, true);
   }
 
@@ -310,6 +311,7 @@ export class JobWriter {
     q(this.db, 'DELETE FROM job_title_fts WHERE rowid = ?').run(rid);
     q(this.db, 'DELETE FROM job_vectors WHERE rid = ?').run(rid);
     q(this.db, 'DELETE FROM job_keys WHERE rid = ?').run(rid);
+    q(this.db, 'DELETE FROM job_docs WHERE rid = ?').run(rid);
     q(this.db, 'DELETE FROM store_jobs WHERE rid = ?').run(rid);
     q(this.db, 'INSERT INTO job_tombstones (rid, rev) VALUES (?, ?) ON CONFLICT (rid) DO UPDATE SET rev = excluded.rev').run(rid, rev);
   }

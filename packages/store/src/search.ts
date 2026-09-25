@@ -362,10 +362,55 @@ function matchWords(db: DatabaseSync, cap: number, terms: string[]): WordMatch {
 interface Snapshot {
   id: string;
   hash: string;
-  rids: Int32Array;
-  primary: Float64Array;
+  /** Candidates in row order, with their primary sort keys (larger first; ties: smaller rid first). */
+  cands: Int32Array;
+  keys: Float64Array;
+  /** The full order, made on the first request for page 2 or later. */
+  sorted: { rids: Int32Array; primary: Float64Array } | null;
   createdAt: number;
   lastUsed: number;
+}
+
+function sortedOf(s: Snapshot): { rids: Int32Array; primary: Float64Array } {
+  if (!s.sorted) s.sorted = order(s.cands, s.cands.length, s.keys);
+  return s.sorted;
+}
+
+/** The best k candidates, best first (one pass with a small heap; no full sort for page 1). */
+function topK(cands: Int32Array, keys: Float64Array, k: number): { rids: number[]; prim: number[] } {
+  const n = cands.length;
+  const hk: number[] = [];
+  const hr: number[] = [];
+  // worse(a, b): a sorts after b.
+  const worse = (ka: number, ra: number, kb: number, rb: number) => ka < kb || (ka === kb && ra > rb);
+  const down = (i: number) => {
+    for (;;) {
+      const l = 2 * i + 1, r = l + 1;
+      let m = i;
+      if (l < hk.length && worse(hk[l]!, hr[l]!, hk[m]!, hr[m]!)) m = l;
+      if (r < hk.length && worse(hk[r]!, hr[r]!, hk[m]!, hr[m]!)) m = r;
+      if (m === i) return;
+      [hk[i], hk[m]] = [hk[m]!, hk[i]!];
+      [hr[i], hr[m]] = [hr[m]!, hr[i]!];
+      i = m;
+    }
+  };
+  const up = (i: number) => {
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (!worse(hk[i]!, hr[i]!, hk[p]!, hr[p]!)) return;
+      [hk[i], hk[p]] = [hk[p]!, hk[i]!];
+      [hr[i], hr[p]] = [hr[p]!, hr[i]!];
+      i = p;
+    }
+  };
+  for (let i = 0; i < n; i++) {
+    const key = keys[i]!, rid = cands[i]!;
+    if (hk.length < k) { hk.push(key); hr.push(rid); up(hk.length - 1); }
+    else if (k > 0 && worse(hk[0]!, hr[0]!, key, rid)) { hk[0] = key; hr[0] = rid; down(0); }
+  }
+  const idx = hk.map((_, i) => i).sort((a, b) => (hk[b]! - hk[a]!) || (hr[a]! - hr[b]!));
+  return { rids: idx.map((i) => hr[i]!), prim: idx.map((i) => hk[i]!) };
 }
 
 const SNAPSHOT_MAX = 24;
@@ -495,34 +540,44 @@ export function search(reqIn: JobSearchRequest, deps: SearchDeps): JobSearchResp
   }
 
   let snap = cursor ? snapStore(mem).get(cursor.s) ?? null : null;
-  let start = 0;
-  if (!snap) {
-    snap = buildSnapshot(deps, filter, terms, sort, scores, hash);
-    if (cursor) start = positionAfter(snap, cursor.k[0], cursor.k[1]);
-  } else {
-    start = cursor!.p;
-  }
-  snap.lastUsed = Date.now();
-
-  // Page: the next `limit` rows that are still visible (a job closed or hidden meanwhile is skipped).
-  const page: number[] = [];
-  const pagePrim: number[] = [];
-  let p = start;
   const wantOpen = (filter.status ?? 'open') === 'open';
   const visible = (rid: number) => {
     const fl = mem.flags[rid]!;
     return (fl & F_EXISTS) !== 0 && (fl & F_HIDDEN) === 0 && ((fl & F_OPEN) !== 0) === wantOpen;
   };
-  while (p < snap.rids.length && page.length < limit) {
-    const rid = snap.rids[p]!;
-    if (visible(rid)) { page.push(rid); pagePrim.push(snap.primary[p]!); }
-    p++;
-  }
+  let page: number[] = [];
+  let pagePrim: number[] = [];
+  let p = 0;
   let total = 0;
-  for (let i = 0; i < snap.rids.length; i++) if (visible(snap.rids[i]!)) total++;
   let more = false;
-  for (let i = p; i < snap.rids.length; i++) if (visible(snap.rids[i]!)) { more = true; break; }
-  const nextCursor = more ? encodeCursor({ v: 1, s: snap.id, p, h: hash, k: [pagePrim[pagePrim.length - 1]!, page[page.length - 1]!] }) : null;
+  if (!cursor) {
+    // Page 1: every candidate is visible right now; take the best `limit` without sorting the rest.
+    snap = buildSnapshot(deps, filter, terms, sort, scores, hash);
+    const top = topK(snap.cands, snap.keys, limit);
+    page = top.rids;
+    pagePrim = top.prim;
+    p = page.length;
+    total = snap.cands.length;
+    more = total > page.length;
+  } else {
+    let start: number;
+    if (!snap) {
+      snap = buildSnapshot(deps, filter, terms, sort, scores, hash);
+      start = positionAfter(sortedOf(snap), cursor.k[0], cursor.k[1]);
+    } else start = cursor.p;
+    const s = sortedOf(snap);
+    // The next `limit` rows that are still visible (a job closed or hidden meanwhile is skipped).
+    p = start;
+    while (p < s.rids.length && page.length < limit) {
+      const rid = s.rids[p]!;
+      if (visible(rid)) { page.push(rid); pagePrim.push(s.primary[p]!); }
+      p++;
+    }
+    for (let i = 0; i < snap.cands.length; i++) if (visible(snap.cands[i]!)) total++;
+    for (let i = p; i < s.rids.length; i++) if (visible(s.rids[i]!)) { more = true; break; }
+  }
+  snap.lastUsed = Date.now();
+  const nextCursor = more && page.length > 0 ? encodeCursor({ v: 1, s: snap.id, p, h: hash, k: [pagePrim[pagePrim.length - 1]!, page[page.length - 1]!] }) : null;
 
   const items = materialize(deps, page, terms, scores);
   const fit: FitState = {
@@ -541,7 +596,7 @@ function fpOf(v: Float32Array): string {
   return String(h);
 }
 
-function positionAfter(s: Snapshot, prim: number, rid: number): number {
+function positionAfter(s: { rids: Int32Array; primary: Float64Array }, prim: number, rid: number): number {
   // Order: primary descending, then rid ascending. First position strictly after (prim, rid).
   let lo = 0, hi = s.rids.length;
   while (lo < hi) {
@@ -593,8 +648,7 @@ function buildSnapshot(deps: SearchDeps, filter: JobFilter, terms: string[], sor
     n++;
   }
   if (unscored.length > 0 && deps.requestFit) deps.requestFit(unscored.slice(0, 20_000));
-  const o = order(cands, n, prim);
-  const snap: Snapshot = { id: randomBytes(9).toString('base64url'), hash, rids: o.rids, primary: o.primary, createdAt: Date.now(), lastUsed: Date.now() };
+  const snap: Snapshot = { id: randomBytes(9).toString('base64url'), hash, cands: cands.slice(0, n), keys: prim.slice(0, n), sorted: null, createdAt: Date.now(), lastUsed: Date.now() };
   putSnapshot(mem, snap);
   return snap;
 }
@@ -602,7 +656,7 @@ function buildSnapshot(deps: SearchDeps, filter: JobFilter, terms: string[], sor
 function materialize(deps: SearchDeps, rids: number[], terms: string[], scores: Float32Array | null): JobListItem[] {
   if (rids.length === 0) return [];
   const { db, mem } = deps;
-  const rows = q(db, `SELECT rid, id, status, closed_at, closed_reason, first_seen, last_seen, doc FROM store_jobs WHERE rid IN (${rids.map(() => '?').join(',')})`)
+  const rows = q(db, `SELECT s.rid AS rid, s.id AS id, s.status AS status, s.closed_at AS closed_at, s.closed_reason AS closed_reason, s.first_seen AS first_seen, s.last_seen AS last_seen, d.doc AS doc FROM store_jobs s JOIN job_docs d ON d.rid = s.rid WHERE s.rid IN (${rids.map(() => '?').join(',')})`)
     .all(...rids) as Array<{ rid: number; id: string; status: number; closed_at: string | null; closed_reason: string | null; first_seen: string; last_seen: string; doc: Uint8Array }>;
   const byRid = new Map(rows.map((r) => [Number(r.rid), r]));
   const ids = rows.map((r) => r.id);
