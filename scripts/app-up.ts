@@ -6,6 +6,9 @@
 //      JOBLEFT_UI_DIR when apps/ui/dist exists. The server's log is $JOBLEFT_HOME/logs/server.log.
 //   4. It waits up to 15 s for GET /api/v1/health, then prints http://127.0.0.1:<port>/#token=<token> and exits 0.
 //      On time-out it prints the last log lines and exits 1.
+//   5. i-core: `--persona nurse-tx|backend-remote` then saves the test persona "Jordan Testwell" as the profile (the
+//      same call the preference step makes), so the first-run board choice and the first crawl start at once.
+//      `--home <dir>` sets JOBLEFT_HOME for this run.
 // Every other JOBLEFT_* variable in your shell (JOBLEFT_HOST_MAP, JOBLEFT_PUBLIK_BASE_URL, JOBLEFT_OFFLINE, ...) is
 // passed to the server.
 
@@ -13,10 +16,16 @@ import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, openSync, readFileSync } from 'node:fs';
 import { request } from 'node:http';
+import { personaProfile } from '../apps/server/src/core/persona.ts';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
+const argv = process.argv.slice(2).filter((a) => a !== '--');
+const flag = (name: string): string | null => { const i = argv.indexOf(name); return i >= 0 && argv[i + 1] ? argv[i + 1]! : null; };
+const persona = flag('--persona');
+if (persona && !['nurse-tx', 'backend-remote'].includes(persona)) { process.stderr.write('--persona must be nurse-tx or backend-remote.\n'); process.exit(2); }
+if (flag('--home')) process.env.JOBLEFT_HOME = flag('--home')!;
 const home = process.env.JOBLEFT_HOME || join(repo, '.jobleft-dev');
 const runFile = join(home, 'run', 'server.json');
 const logFile = join(home, 'logs', 'server.log');
@@ -50,12 +59,30 @@ function tail(): string {
   try { return readFileSync(logFile, 'utf8').split('\n').slice(-20).join('\n'); } catch { return '(no log yet)'; }
 }
 
+function putJson(port: number, token: string, path: string, body: unknown): Promise<number> {
+  const data = Buffer.from(JSON.stringify(body));
+  return new Promise((resolve) => {
+    const req = request({ host: '127.0.0.1', port, path, method: 'PUT', agent: false, timeout: 10_000,
+      headers: { 'x-jobleft-token': token, 'content-type': 'application/json', 'content-length': data.length } }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode ?? 0)); });
+    req.on('error', () => resolve(0));
+    req.on('timeout', () => { req.destroy(); resolve(0); });
+    req.end(data);
+  });
+}
+
+async function applyPersona(port: number, token: string): Promise<void> {
+  if (!persona) return;
+  const status = await putJson(port, token, '/api/v1/profile', personaProfile(persona as 'nurse-tx' | 'backend-remote'));
+  process.stdout.write(status === 200 ? `Saved the test persona "Jordan Testwell" (${persona}). The first crawl has started.\n` : `Could not save the persona (HTTP ${status}).\n`);
+}
+
 mkdirSync(home, { recursive: true, mode: 0o700 });
 mkdirSync(join(home, 'logs'), { recursive: true, mode: 0o700 });
 
 const live = readRun();
 if (live && await isJobleft(live.port)) {
   process.stdout.write(`jobleft is already running (data folder ${home}).\nOpen: http://127.0.0.1:${live.port}/#token=${live.token}\n`);
+  await applyPersona(live.port, live.token);
   process.exit(0);
 }
 
@@ -72,6 +99,7 @@ while (Date.now() - t0 < 15_000) {
   const r = readRun();
   if (r && r.pid === child.pid && r.token === token && await isJobleft(r.port)) {
     process.stdout.write(`jobleft is running (data folder ${home}, process ${r.pid}).\nOpen: http://127.0.0.1:${r.port}/#token=${token}\nStop it with: pnpm app:down\n`);
+    await applyPersona(r.port, token);
     process.exit(0);
   }
   if (child.exitCode !== null) break;

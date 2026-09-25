@@ -1,9 +1,13 @@
 // The running app: configuration, the open database and every service built on it. Restore and delete-all close
 // and reopen the data (AppData) while the server keeps listening; requests during that moment answer "not ready".
 
+import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { nowIso, nowMs, type SavedFilter } from '@jobleft/contracts';
 import { Store } from '@jobleft/crawler';
+import { createStaticDataRoutes, PoliteFetch, type StaticDataRoutes } from '@jobleft/static-data';
+import { FeedService } from './core/feed.ts';
+import { seedBoards } from './core/seed.ts';
 import { openAndMigrate } from './db/open.ts';
 import type { HomeLayout } from './home.ts';
 import { AiService } from './interim/ai.ts';
@@ -55,10 +59,14 @@ export class AppData {
   readonly publik: PublikService;
   readonly ai: AiService;
   readonly boards: BoardsService;
+  readonly feed: FeedService;
   readonly migrated: { from: number; to: number; fresh: boolean };
   private timers: NodeJS.Timeout[] = [];
+  private staticRoutes: StaticDataRoutes | null = null;
+  private readonly cfg: AppConfig;
 
   constructor(cfg: AppConfig) {
+    this.cfg = cfg;
     const opened = openAndMigrate(cfg.layout.db);
     this.db = opened.db;
     this.migrated = { from: opened.from, to: opened.to, fresh: opened.fresh };
@@ -85,9 +93,51 @@ export class AppData {
     this.boards = new BoardsService({
       db: this.db, dbPath: cfg.layout.db, crawlStore: this.crawlStore, hostMap: cfg.hostMap, offline, settings: () => this.settings.get(), log: cfg.log,
       afterRun: () => this.savedFilterAlerts(),
+      requestLog: join(cfg.layout.logs, 'requests.ndjson'),
+      seeded: () => new Set(this.kv.get<string[]>('core.seededBoards') ?? []),
+    });
+    this.feed = new FeedService({
+      db: this.db, jobs: this.jobs,
+      profile: () => (this.profile.exists() ? this.profile.get() : null),
+      h1b: () => { try { return this.staticData().h1b; } catch { return null; } },
     });
     const orphans = this.resumes.removeOrphans();
     if (orphans) cfg.log.info('resumes.orphans_removed', { count: orphans });
+  }
+
+  /**
+   * The shipped datasets (H-1B filings, places) and company facts (static-data), loaded on first use. Company-fact
+   * requests go only to the documented fact sources (Wikidata, SEC, GLEIF), only when the person asks for a refresh.
+   */
+  staticData(): StaticDataRoutes {
+    if (!this.staticRoutes) {
+      const pf = new PoliteFetch({ offline: this.cfg.offline });
+      this.staticRoutes = createStaticDataRoutes({
+        dataDir: this.cfg.layout.datasets, db: this.db, fetchText: (u) => pf.text(u),
+        manifestUrl: process.env.JOBLEFT_DATASET_MANIFEST_URL || null,
+      });
+    }
+    return this.staticRoutes;
+  }
+
+  /**
+   * i-core first-run choice: after the preference step (the first profile save that states a job function, a title,
+   * a place or a work model), a person with no boards gets the starting boards for their field and the first crawl
+   * starts at once. Runs once per data folder.
+   */
+  afterProfileSaved(): void {
+    if (this.kv.get<boolean>('core.seedDone')) return;
+    const p = this.profile.get();
+    const pr = p.preferences;
+    if (!(pr.jobFunctions.length || pr.targetTitles.length || pr.places.length || pr.workModels.length || pr.countries.length)) return;
+    this.kv.set('core.seedDone', true);
+    if (this.boards.count() > 0) { this.boards.runNow(undefined, 'first_run').catch(() => { /* offline: the scheduler retries */ }); return; }
+    let list: ReturnType<typeof seedBoards> = [];
+    try { list = seedBoards(pr); } catch (e) { this.cfg.log.warn('seed.failed', { error: e instanceof Error ? e.name : 'error' }); }
+    const added = this.boards.seed(list);
+    this.kv.set('core.seededBoards', added);
+    this.cfg.log.info('seed.added', { boards: added.length });
+    if (added.length) this.boards.runNow(undefined, 'first_run').catch((e) => this.cfg.log.warn('seed.crawl_not_started', { error: e instanceof Error ? e.message : 'error' }));
   }
 
   /** Background work: reminders, follow-ups and the crawl scheduler. Never before the server answers. */

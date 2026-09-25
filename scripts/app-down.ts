@@ -10,7 +10,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
-const home = process.env.JOBLEFT_HOME || join(repo, '.jobleft-dev');
+const argv = process.argv.slice(2);
+const hi = argv.indexOf('--home');
+const home = (hi >= 0 && argv[hi + 1]) || process.env.JOBLEFT_HOME || join(repo, '.jobleft-dev');
 const runFile = join(home, 'run', 'server.json');
 
 interface RunInfo { pid: number; port: number; token: string }

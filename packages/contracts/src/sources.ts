@@ -96,6 +96,10 @@ export const CrawlProgressSchema = named(obj({
   startedAt: nullable(IsoDateTimeSchema),
   nextScheduledAt: nullable(IsoDateTimeSchema),
   lastRun: nullable(CrawlRunSummarySchema),
+}, {
+  // Added by the i-core lane (additive): a plain note when the last refresh attempt could not reach the job boards
+  // (offline), naming the attempt time and the last successful refresh. Absent = nothing to report.
+  offlineNote: str(),
 }), 'CrawlProgress');
 
 /** One board's line in the crawl report (crawler O4, O9; sources-ats O4, O13). */

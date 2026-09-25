@@ -94,6 +94,10 @@ export const JobListItemSchema = named(obj({
   h1bTag: nullable(enm(['likely_by_history', 'post_says_yes', 'post_says_no'])),
   /** Vector fit in Top Matched order; null when not scored yet (the job is still shown, marked "not scored"). */
   fitScore: nullable(num()),
+}, {
+  // Added by the i-core lane (additive): the sponsor tag in plain words with its basis and data date, for example
+  // "H-1B sponsor likely: 513 certified filings, Oct 2024 to Jun 2026 (US Dept. of Labor LCA data)". Absent = no tag.
+  h1bNote: str(),
 }), 'JobListItem');
 
 export const JobSearchResponseSchema = named(obj({

@@ -203,6 +203,11 @@ function ftsQuery(q: string): { match: string | null; exact: string[] } {
   return { match: tokens.length ? tokens.join(' ') : null, exact };
 }
 
+export interface CandidateRow {
+  id: number; title: string; company: string; location: string; work_mode: string; remote: number;
+  employment_type: string; level: string | null; is_us: number | null; sort_rec: number | null;
+}
+
 export interface SearchDeps {
   hasProfile: () => boolean;
   networkCount: (companyKey: string) => number | null;
@@ -312,11 +317,12 @@ export class JobsService {
     return { jobs: Number(n.n), openJobs: Number(o.n) };
   }
 
-  search(req: JobSearchRequest, deps: SearchDeps): JobSearchResponse {
-    const t0 = performance.now();
+  /**
+   * The WHERE clause of a search (every filter and the words), over `srv_job_index x` for open jobs or `jobs x` for
+   * closed ones. `restrictIds` (i-core): crawler row ids a filter computed outside SQL (the H-1B filter) must be in.
+   */
+  buildWhere(req: JobSearchRequest, restrictIds?: number[] | null): { T: string; where: string[]; args: SQLInputValue[]; closed: boolean } {
     const filter: JobFilter = req.filter ?? {};
-    const sort = req.sort;
-    const limit = req.limit ?? 20;
     const closed = filter.status === 'closed';
     // Open jobs: the narrow index table. Closed jobs (rare): the crawler's table itself.
     const T = closed ? 'jobs x' : 'srv_job_index x';
@@ -413,13 +419,59 @@ export class JobsService {
     }
     // Facts this build does not have yet: a filter on them matches nothing (unless unknowns are allowed).
     if (filter.maxYearsRequired !== undefined && !unknownOk.has('years')) nothing();
-    if (filter.remoteRegions?.length && !unknownOk.has('remoteRegion')) nothing();
-    if (filter.h1bSponsorship) nothing();
+    // i-core: remote regions. "US" keeps remote jobs open to people in the US (is_us); a remote scope that names only
+    // other regions ("Remote (Europe only)") fails it. Other regions are not judged by this build.
+    if (filter.remoteRegions?.length) {
+      const parts: string[] = [];
+      if (filter.remoteRegions.includes('US')) parts.push("(x.is_us = 1 AND (x.remote = 1 OR x.work_mode = 'remote'))");
+      if (unknownOk.has('remoteRegion')) parts.push('x.is_us IS NULL');
+      where.push(parts.length ? `(${parts.join(' OR ')})` : '0');
+    }
+    if (restrictIds) { where.push('x.id IN (SELECT value FROM json_each(?))'); args.push(JSON.stringify(restrictIds)); }
+    else if (filter.h1bSponsorship) nothing();
     if (filter.industries?.length || filter.companyStages?.length || filter.roleTypes?.length) nothing();
 
     // Jobs the person hid never appear: a short list of row ids (hidden jobs are few).
     const hidden = this.hiddenRowIds();
     if (hidden.length) where.push(`x.id NOT IN (${hidden.join(',')})`);
+    return { T, where, args, closed };
+  }
+
+  /** i-core: the narrow facts of every job a search matches (the personal ranking reads them). */
+  candidates(req: JobSearchRequest, restrictIds?: number[] | null): CandidateRow[] {
+    const { T, where, args, closed } = this.buildWhere(req, restrictIds);
+    const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const rec = closed ? 'COALESCE(julianday(x.posted_at), julianday(x.first_seen))' : 'x.sort_rec';
+    const wm = closed ? "COALESCE(x.work_mode, '')" : 'x.work_mode';
+    return this.db.prepare(`SELECT x.id AS id, x.title AS title, x.company AS company, x.location AS location, ${wm} AS work_mode, x.remote AS remote,
+      x.employment_type AS employment_type, x.level AS level, x.is_us AS is_us, ${rec} AS sort_rec FROM ${T} ${w}`).all(...args) as unknown as CandidateRow[];
+  }
+
+  /** i-core: list items for crawler row ids, in the given order. */
+  itemsFor(ids: number[], deps: SearchDeps): JobListItem[] {
+    const byId = new Map<number, Row>();
+    if (ids.length) {
+      for (const r of this.db.prepare(`${SELECT} WHERE j.id IN (${ids.map(() => '?').join(',')})`).all(...ids) as unknown as Row[]) byId.set(r.id, r);
+    }
+    const items: JobListItem[] = [];
+    for (const id of ids) {
+      const r = byId.get(id);
+      if (!r) continue;
+      const job = rowToJob(r);
+      items.push({
+        job: toSummary(job), match: null, liked: r.t_liked === 1, hidden: r.t_hidden === 1,
+        trackerStatus: (r.t_status as TrackerStatus | null) ?? null, networkCount: deps.networkCount(job.companyKey), h1bTag: null, fitScore: null,
+      });
+    }
+    return items;
+  }
+
+  search(req: JobSearchRequest, deps: SearchDeps, restrictIds?: number[] | null): JobSearchResponse {
+    const t0 = performance.now();
+    const filter: JobFilter = req.filter ?? {};
+    const sort = req.sort;
+    const limit = req.limit ?? 20;
+    const { T, where, args, closed } = this.buildWhere(req, restrictIds);
 
     const keyExpr = closed
       ? (sort === 'most_recent' ? 'julianday(x.posted_at)' : 'COALESCE(julianday(x.posted_at), julianday(x.first_seen))')
@@ -443,26 +495,7 @@ export class JobsService {
     const more = ids.length > limit;
     const pageIds = more ? ids.slice(0, limit) : ids;
     const last = pageIds[pageIds.length - 1];
-    const byId = new Map<number, Row>();
-    if (pageIds.length) {
-      for (const r of this.db.prepare(`${SELECT} WHERE j.id IN (${pageIds.map(() => '?').join(',')})`).all(...pageIds.map((x) => x.id)) as unknown as Row[]) byId.set(r.id, r);
-    }
-    const items: JobListItem[] = [];
-    for (const { id } of pageIds) {
-      const r = byId.get(id);
-      if (!r) continue;
-      const job = rowToJob(r);
-      items.push({
-        job: toSummary(job),
-        match: null,
-        liked: r.t_liked === 1,
-        hidden: r.t_hidden === 1,
-        trackerStatus: (r.t_status as TrackerStatus | null) ?? null,
-        networkCount: deps.networkCount(job.companyKey),
-        h1bTag: null,
-        fitScore: null,
-      });
-    }
+    const items = this.itemsFor(pageIds.map((x) => x.id), deps);
     return {
       items,
       total,

@@ -120,6 +120,9 @@ export const JobDetailSchema = named(obj({
   tracker: nullable(TrackerEntrySchema),
   networkCount: nullable(int({ minimum: 1 })),
   h1bTag: nullable(enm(['likely_by_history', 'post_says_yes', 'post_says_no'])),
+}, {
+  // Added by the i-core lane (additive): the sponsor tag in plain words with its basis and data date. Absent = no tag.
+  h1bNote: str(),
 }), 'JobDetail');
 
 export const TrackerListSchema = named(obj({
