@@ -11,6 +11,7 @@ import { parsePay, payFromBoard, type PayResult } from './pay.ts';
 import { parseLocationText, placeFromAddress, placesFromText, usFromFacts } from './places.ts';
 import { parseEmploymentType, parseStatements } from './statements.ts';
 import { clip } from './text.ts';
+import { US_STATES } from './geo-us.ts';
 import { parseWorkModel } from './workmodel.ts';
 import { parseYearsRequired } from './years.ts';
 
@@ -60,7 +61,12 @@ function safe<T>(warnings: string[], what: string, f: () => T, fallback: T): T {
 
 function placeWords(places: Place[]): string[] {
   const out: string[] = [];
-  for (const p of places) { if (p.city) out.push(p.city); if (p.region && p.region.length > 2) out.push(p.region); }
+  for (const p of places) {
+    if (p.city) out.push(p.city);
+    if (p.region && p.region.length > 2) out.push(p.region);
+    // A tier written for "Colorado" names a job in Denver, CO.
+    if (p.country === 'US' && p.region && US_STATES[p.region]) out.push(US_STATES[p.region]);
+  }
   return out;
 }
 

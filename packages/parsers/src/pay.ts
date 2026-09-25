@@ -2,7 +2,7 @@
 // than a missing one (parsers O2, O3, O4). Never an estimate, never a default, never another job's pay.
 import type { FactEvidence, Pay, PayPeriod } from '@jobleft/contracts';
 import { COUNTRY_CURRENCY, CURRENCY_SCALE, CUR_PRE, CUR_SUF, currencyOfMarker } from './currency.ts';
-import { clauseStart, cutOtherJobs, normalizeText, snippet } from './text.ts';
+import { clauseEnd, clauseStart, cutOtherJobs, normalizeText, snippet } from './text.ts';
 
 /** The pay the old spike API returned. Kept for callers of `parsePayFromText`. */
 export interface ParsedPay {
@@ -238,6 +238,10 @@ function scanAmounts(text: string): Amount[] {
       if (!/(?:USD|EUR|GBP|CAD|AUD|CHF|INR|Rs|R\$|RM|Rp)$/.test(before2)) continue;
     }
     let raw = m[0];
+    // Codes with a hyphen or a letter glued on are not money: "W-2", "I-9", "COVID-19", "H-1B", "2B".
+    if (/[A-Za-z]-$/.test(text.slice(Math.max(0, numStart - 2), numStart))) continue;
+    const glued = text.slice(numStart + raw.length, numStart + raw.length + 12);
+    if (/^[A-Za-z]/.test(glued) && !/^(?:[kKmMbBtT](?![A-Za-z])|lakhs?|lpa|lacs?|per|an?(?=\s)|hrs?|hour|hourly|yrs?|year|yearly|annum|annual(?:ly)?|months?|monthly|mo|wks?|weeks?|weekly|days?|daily|ph|pa|p\.|usd|eur|gbp|cad|aud|chf|inr|mxn|brl)(?![a-z])/i.test(glued)) continue;
     // Marker before: "$", "USD ", "US$", "€ ", "(" between marker and number is allowed ("$(76,000").
     const sliceStart = Math.max(0, numStart - 8);
     const before = text.slice(sliceStart, numStart).replace(/\(\s*$/, '');
@@ -493,8 +497,9 @@ function buildCandidates(text: string, opts: PayParseOptions): Cand[] {
     if (noMarker && !(ctx.cue || heading)) continue;
     // A figure with no currency needs a "k", a period after it, or a period word in its own label ("Hourly rate: 25.00").
     if (noMarker && !explicit && !(a.mult || b?.mult)) {
+      // Only right after a label that ends in ":" (or "of", "is"): "Hourly rate: 25.00", "an hourly wage of 18.50".
       const label = text.slice(Math.max(clauseStart(text, start, /[.!?;\n•|]/), thisPrevEnd, start - 60), start);
-      if (!(periodBefore(label) && lastMatch(PAY_CUE, label))) continue;
+      if (!(periodBefore(label) && lastMatch(PAY_CUE, label) && /(?::|\bof|\bis)\s*$/i.test(label))) continue;
     }
     // A range of salary size with a pay word close by, but not in its own clause ("... with an $125,000 to
     // $145,000. Base salary may vary ..."). Only for ranges and "k" figures, never for small numbers.
@@ -541,7 +546,7 @@ function buildCandidates(text: string, opts: PayParseOptions): Cand[] {
     const labelStart = Math.max(clauseStart(text, start, /[.!?;\n•|]/), thisPrevEnd, start - 90);
     out.push({
       start, end, min, max, currency, period, explicit, kind: ctx.kind, score,
-      label: text.slice(labelStart, start) + ' ' + text.slice(end, Math.min(text.length, end + 50)),
+      label: text.slice(labelStart, start) + ' ' + text.slice(end, Math.min(clauseEnd(text, end, /[.!?;\n•|]/), end + 50)),
     });
   }
   return out;
