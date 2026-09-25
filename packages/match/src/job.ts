@@ -236,7 +236,12 @@ function jobIndustries(job: Job, a: AnalyzedText, company: Company | null, famil
 export function readJob(job: Job, company: Company | null): JobFacts {
   const a = analyzeText(job.description ?? '');
   const liveWords = a.live.filter((t) => /\p{L}/u.test(t.raw)).length;
-  const language = textLanguage(a.live.map((t) => t.raw).join(' ')) ?? textLanguage(job.title);
+  // Language from the ordinary words only: a list of skill names is not prose in any language.
+  const skillSpans = scanSkills(a.live);
+  const inSkill = new Set<number>();
+  for (const m of skillSpans) for (let k = m.i; k < m.i + m.len; k++) inSkill.add(k);
+  const prose = a.live.filter((_, k) => !inSkill.has(k)).map((t) => t.raw).join(' ');
+  const language = textLanguage(prose) ?? textLanguage(job.title);
   const fam = jobFamily(job, a);
   const requirements = language === 'other' ? [] : readRequirements(a);
   const years = primaryYears(requirements);

@@ -280,6 +280,14 @@ function writtenAsName(doc: ScanDoc, i: number, len: number): boolean {
   return /^[,;.:)!?/]/.test(last.sepAfter) || next.lower === 'and' || next.lower === 'or';
 }
 
+/** The name is the whole line (a bullet in a list): nothing else on its line. */
+function wholeLine(doc: ScanDoc, i: number, len: number): boolean {
+  const line = doc.tokens[i].line;
+  const before = doc.tokens[i - 1];
+  const after = doc.tokens[i + len];
+  return (!before || before.line !== line) && (!after || after.line !== line);
+}
+
 export const CONTEXT_RULES: Record<string, (doc: ScanDoc, i: number, len: number) => boolean> = {
   prog: (doc, i, len) => {
     if (hyphenated(doc, i, len)) return false;
@@ -288,14 +296,14 @@ export const CONTEXT_RULES: Record<string, (doc: ScanDoc, i: number, len: number
     if (next && /^\d/.test(next.raw) && next.sepBefore === '') return false;
     if (prev && /^\d+$/.test(prev.raw)) return false; // "30 C"
     if (neighbors(doc, i, len, 4, PROG_ANCHORS)) return true;
-    // "Proficiency in C." inside a posting about software: the name follows "in", "with", "using" or "of" and ends
-    // its clause.
-    return writtenAsName(doc, i, len) && docHas(doc, 'prog', PROG_ANCHORS, 3);
+    // "Proficiency in C." or a bullet "- Go" inside a posting about software: the name follows "in", "with",
+    // "using" or "of" and ends its clause, or it is the whole line.
+    return (writtenAsName(doc, i, len) || wholeLine(doc, i, len)) && docHas(doc, 'prog', PROG_ANCHORS, 3);
   },
   stats: (doc, i, len) => {
     if (hyphenated(doc, i, len)) return false;
     if (neighbors(doc, i, len, 4, STATS_ANCHORS)) return true;
-    return writtenAsName(doc, i, len) && docHas(doc, 'stats', STATS_ANCHORS, 2);
+    return (writtenAsName(doc, i, len) || wholeLine(doc, i, len)) && docHas(doc, 'stats', STATS_ANCHORS, 2);
   },
   ios: (doc, i, len) => neighbors(doc, i, len, 6, IOS_ANCHORS),
   office: (doc, i, len) => neighbors(doc, i, len, 4, OFFICE_ANCHORS),

@@ -278,7 +278,7 @@ export function readRequirements(a: AnalyzedText): PostedRequirement[] {
     if (NO_EXPERIENCE.test(t)) {
       const m = NO_EXPERIENCE.exec(t)!;
       out.push({ kind: 'years', importance: 'required', label: 'No experience needed', quote: quoteAround(text, s.start + m.index, s.start + m.index + m[0].length, 200), start: s.start, detail: { minYears: 0, maxYears: 0, general: true } });
-    } else if (YEARS_CONTEXT.test(t) && !YEARS_NOT.test(t)) {
+    } else if ((YEARS_CONTEXT.test(t) || section === 'required' || section === 'preferred') && !YEARS_NOT.test(t)) {
       const imp = importanceOf(t, section) ?? (section === 'duties' || section === 'intro' || section === 'other' ? 'required' : null);
       if (imp && imp !== 'obtainable') {
         const found = yearsIn(t);
