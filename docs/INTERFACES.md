@@ -598,7 +598,7 @@ and the scheduler, a directory refresh with dead-token pruning, and Common Crawl
 | Export | What |
 |---|---|
 | `BoardService` | `new BoardService({ db, directory, http, sources, now?, newHttp?, paid?, offline?, resolveDeadlineMs? })`. `list({ q?, view?, cursor?, limit? })`, `get(id)`, `resolve(url, { acceptPaidLookup? })` (adds nothing; answers within 25 s), `add({ ats, board, region? })` (throws `BoardError('conflict')` when the person already added it), `update(id, { followed?, hidden?, disabled? })`, `export()` (NDJSON lines: every `BoardEntry` field plus `source`, `boardUrl`, `apiUrl`), `due(now, { intervalHours, catchUp })`, `recordCheck(id, outcome, { now?, storeOpenJobs? })`, `hiddenBoards()` (the store lane leaves these boards' jobs out of the feed), `counts()`, `listPending()`, `addPending()`, `removePending()` |
-| `CrawlScheduler` | `new CrawlScheduler({ boards, crawlStore, http, sources, intervalHours, now?, onProgress?, newHttp?, offline?, batchSize?, graceMs? })`. `start({ catchUp })`, `stop()`, `runNow(boardIds?)`, `runOnce({ boardIds?, reason?, intervalHours? })`, `progress()`, `lastReport()` |
+| `CrawlScheduler` | `new CrawlScheduler({ boards, crawlStore, http, sources, intervalHours, now?, onProgress?, newHttp?, offline?, batchSize?, graceMs? })` (`DEFAULT_GRACE_MS` 24 h). `start({ catchUp })`, `stop()`, `runNow(boardIds?)`, `runOnce({ boardIds?, reason?, intervalHours? })`, `progress()`, `lastReport()` |
 | `BoardError` | `code`: `conflict`, `not_found`, `bad_request`, `unsupported_source`, `forbidden_source` (map to the local API error codes) |
 | `PaidPageFetcher` | `{ enabled, prices(), fetchPage(url, { js, maxPriceMicros }) }`, structurally sources-other's `MeteredFetchClient`. Used only when the person accepts the offer |
 | Directory | `BoardDirectory` (`size`, `get`, `has`, `all`, `ids`, `search(q, limit)`), `loadActiveDirectory({ home?, env? })` (`JOBLEFT_BOARD_DIRECTORY`, then `$JOBLEFT_HOME/datasets/board-directory.json`, then the shipped file), `readDirectoryFile`, `parseDirectoryFile`, `nameKey`, `nameWords`, `BUNDLED_DIRECTORY_PATH`, `DIRECTORY_FORMAT` (`jobleft-board-directory/1`). A directory row is a static-data `DirectoryRow` plus `id`, `lastVerified`, `status` (`live`, `suspect`, `unverified`) |
@@ -619,13 +619,13 @@ export type { Evidence, PageBoard, PageScan } from './page.ts';
 export { forbiddenProvider, isForbiddenHost, jobSite, unsupportedProvider } from './hosts.ts';
 export { BusyPacer, ForbiddenHostError, HostBusyError, OfflineError, RedirectLog, SqlitePacer, createBoardHttp, httpStateFor, networkCode, offlineFromEnv, redirectLogFor, } from './http.ts';
 export type { BoardHttpOptions, BoardHttpState } from './http.ts';
-export { boardSources } from './sources.ts';
+export { boardSources, unreadableRegion } from './sources.ts';
 export { classifyError, verifyBoard } from './verify.ts';
 export type { CheckFailure, VerifyResult } from './verify.ts';
 export { migrateBoards, SCHEMA_VERSION } from './db.ts';
 export { BoardError, BoardService, UNREACHABLE_AFTER, backoffMs, priceText } from './service.ts';
 export type { BoardErrorCode, BoardServiceOptions, CheckOutcome, ListView, PaidPageFetcher } from './service.ts';
-export { CrawlScheduler, outcomeOf } from './scheduler.ts';
+export { CrawlScheduler, DEFAULT_GRACE_MS, outcomeOf } from './scheduler.ts';
 export type { SchedulerOptions } from './scheduler.ts';
 export { detectBoard } from './discover.ts';
 export type { DetectBoardResult } from './discover.ts';
@@ -636,7 +636,10 @@ Rules: every resolve and refresh request goes through the polite client (one pac
 requests to one host, robots.txt, Retry-After); forbidden hosts (LinkedIn, Indeed, Glassdoor, SmartRecruiters,
 Workday, iCIMS, Oracle, UKG, Taleo) get no request, also not as a redirect or embed target; an employer name comes
 from the board or the directory, never from link text or a guess; one failed check never makes a board unreachable,
-two in a row do, with a stated next check date; a failed, empty or broken answer never closes jobs; a directory
+two in a row do, with a stated next check date; a failed, empty or broken answer never closes jobs (the scheduler passes `graceMs` 24 h to `crawl()`: a job missing
+from a fully read board for 24 hours closes); a 429 waits at least its Retry-After (15 minutes or more), a 403 6 hours
+doubling; a host that cannot be reached leaves its boards unchecked, and a host outage never makes boards
+unreachable; a directory
 update never removes, renames or re-enables a person's boards or choices; no paid lookup without the person's
 acceptance of a price shown in dollars. CLI `jobleft-boards` (`packages/boards/src/cli.ts`; from the root:
 `node packages/boards/src/cli.ts <command>` or `pnpm --filter @jobleft/boards run boards <command>`): `list`,
