@@ -114,7 +114,7 @@ function JobSearch({ onRecommended }: { onRecommended: boolean }) {
   return (
     <Input className="jl-search" allowClear prefix={<SearchOutlined aria-hidden="true" />} placeholder="Search title, company or words" value={v}
       aria-label="Search jobs by title, company or words"
-      onChange={(e) => { const q = e.target.value; setV(q); if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => commit(q), 300); }}
+      onChange={(e) => { const q = e.target.value; setV(q); if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => commit(q), 120); }}
       onPressEnter={() => commit(v)} />
   );
 }

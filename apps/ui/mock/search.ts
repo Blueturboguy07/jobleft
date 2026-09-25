@@ -206,7 +206,8 @@ export function search(deps: SearchDeps, req: JobSearchRequest): JobSearchRespon
   const rows: Array<{ rec: JobRec; key: Key; match: MatchResult | null }> = [];
   for (const rec of state.jobs.values()) {
     if (!matcher(rec)) continue;
-    const match = deps.profile ? deps.matchFor(rec) : null;
+    // "most recent" orders by time only: the match is worked out for the page's jobs, not for every job that passes the filter
+    const match = deps.profile && sort !== 'most_recent' ? deps.matchFor(rec) : null;
     rows.push({ rec, key: keyOf(sort === 'top_matched' && !deps.profile ? 'recommended' : sort, rec, match, now), match });
   }
   rows.sort((a, b) => cmp(a.key, b.key));
@@ -219,7 +220,8 @@ export function search(deps: SearchDeps, req: JobSearchRequest): JobSearchRespon
     start = lo;
   }
   const page = rows.slice(start, start + limit);
-  const items: JobListItem[] = page.map(({ rec, match }) => {
+  const items: JobListItem[] = page.map(({ rec, match: m0 }) => {
+    const match = m0 ?? (deps.profile ? deps.matchFor(rec) : null);
     const t = state.data.tracker[rec.job.id];
     const company = state.companies.get(rec.job.companyKey) ?? null;
     return {

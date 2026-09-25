@@ -47,7 +47,7 @@ export async function launch(): Promise<Browser> {
     '--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
     '--disable-extensions', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-default-apps',
     '--disable-features=Translate,OptimizationHints,MediaRouter,AutofillServerCommunication', '--no-pings', '--hide-scrollbars=false',
-    '--force-device-scale-factor=1', 'about:blank',
+    '--force-device-scale-factor=1', '--js-flags=--expose-gc', 'about:blank',
   ], { stdio: ['ignore', 'ignore', 'pipe'] });
   const wsUrl = await new Promise<string>((resolve, reject) => {
     let buf = '';
