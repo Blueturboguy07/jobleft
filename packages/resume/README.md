@@ -46,6 +46,7 @@ Rebuild the fixtures with `pnpm --filter @jobleft/resume run fixtures` and `node
 | `jr profile adopt <resumeId> [--replace]` | Saves an import as your profile. Without `--replace` it never overwrites an existing profile (your corrections) |
 | `jr profile set <path> <value>` | Corrects one field, for example `jr profile set work.1.startDate 2021-02` or `jr profile set skills.5.name Postgres` |
 | `jr profile add-skill <name>` / `remove-skill <name>` | Adds or removes a skill, in your own words |
+| `jr profile add-link <url> [--label <label>]` / `remove-link <url>` | Adds or removes a link, exactly as typed |
 | `jr profile put <file.json>` / `export --out <file>` | Replaces the profile from JSON, or writes it out |
 | `jr job add --file <posting.txt or .html> --title <t> --company <c> [--city "Seattle, WA"]` | Adds a job posting; prints its id (`ext:...`) |
 | `jr job list` / `job show <jobId>` | Lists or shows the jobs you added |
@@ -99,7 +100,7 @@ under "AI suggestions rejected by the truth gate" and is not in the changes. The
 
 **O5 Header never changes.** Put unusual values in the profile, for example
 `jr profile set personal.firstName José`, `jr profile set personal.email "jordan.testwell+jobs@example.com"` and a
-long link in `personal.links.0.url`. Export PDF and Word files of tailored versions and letters for jobs in different
+long link (`jr profile add-link "https://example.com/jordan/portfolio/2026/a-very-long-path/index.html?ref=resume"`). Export PDF and Word files of tailored versions and letters for jobs in different
 cities: the name, email, phone, city and links are the profile's, character for character. A link longer than the line
 is set in a smaller font, never cut. Letters outside the standard PDF fonts ("Łukasz", "Nguyễn") are kept: the PDF
 embeds a TrueType font from your computer. If no font on the computer has a character, the PDF is refused with a

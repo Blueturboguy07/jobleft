@@ -28,6 +28,7 @@ Data folder: $JOBLEFT_HOME (or --home <dir>). Nothing is written anywhere else.
   profile adopt <resumeId> [--replace]           Save an import's proposed profile as your profile
   profile set <path> <value>                     Correct one field, e.g.  profile set work.0.startDate 2021-02
   profile add-skill <name> | remove-skill <name> Add or remove a skill in your own words
+  profile add-link <url> [--label L] | remove-link <url>
   profile put <file.json> | export [--out f]     Replace the profile from JSON, or write it out
   job add --file <posting.txt|.html> --title <t> --company <c> [--city "Austin, TX"] [--url <u>]
   job list | job show <jobId>
@@ -223,6 +224,21 @@ async function run(argv: string[]): Promise<number> {
           }
           writeProfile(p, prof);
           say(sub === 'add-skill' ? `Added "${name}" to your profile (in your words). Tailoring may now use it.` : `Removed "${name}" from your profile.`);
+          return 0;
+        }
+        if (sub === 'add-link' || sub === 'remove-link') {
+          const url = pos(a, 2, 'a link');
+          const prof = snapshotOf(readProfile(p));
+          if (sub === 'add-link') {
+            if (!/^https?:\/\//i.test(url)) throw new ResumeError('bad_request', 'A link must start with http:// or https://.');
+            if (!prof.personal.links.some((l) => l.url === url)) prof.personal.links.push({ label: flag(a, 'label') ?? 'Website', url });
+          } else {
+            const before = prof.personal.links.length;
+            prof.personal.links = prof.personal.links.filter((l) => l.url !== url);
+            if (prof.personal.links.length === before) { say('That link is not in your profile.'); return 2; }
+          }
+          writeProfile(p, prof);
+          say(sub === 'add-link' ? `Added the link ${url} (exactly as typed).` : `Removed the link ${url}.`);
           return 0;
         }
         if (sub === 'put') {
