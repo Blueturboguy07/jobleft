@@ -34,9 +34,31 @@ Local additions that are not in freehire (written new): the per-host pacer, the 
 - Source: the owner's own Python project (`~/Documents/internships`, `pipeline/normalize.py` and `pipeline/dedup.py`). First-party code, no third-party licence applies.
 - jobleft file: `packages/crawler/src/normalize.ts` (URL canonicalisation, company and title normalisers, the two-layer dedupe spine). Two deliberate changes are documented in that file (`gh_jid` is kept; intern words are kept).
 
+### 1.3 Store lane (`packages/store`): nothing copied
+
+- The BERT WordPiece tokenizer (`packages/store/src/embed/tokenizer.ts`) is written from the published algorithm
+  (BertNormalizer, BertPreTokenizer, greedy longest-match WordPiece, `[CLS] $A [SEP]`). No code was copied. It was
+  checked (outputs only) against the Hugging Face tokenizer of the spike S2 copy of `@huggingface/transformers` 4.3.0
+  (Apache-2.0), which was run read-only from `spikes/s2-snapshot` and is not a dependency.
+- The float16 conversion, zstd record format, search, filters, dedupe and fit queue are written new.
+
 ## 2. Data shipped with the app
 
 None yet. The static-data lane adds entries here (board directory, H-1B sponsor table from US Department of Labor LCA disclosure files, city dictionary with its attribution, skill dictionary).
+
+### 2.1 Downloaded on first use (not shipped): the fit model
+
+| Item | Source | Licence | Where it goes |
+|---|---|---|---|
+| BAAI/bge-small-en-v1.5, fp32 ONNX (`onnx/model.onnx`, `vocab.txt`, `tokenizer_config.json`, `config.json`) | https://huggingface.co/BAAI/bge-small-en-v1.5, revision `5c38ec7c405ec4b44b94cc5a9bb96e735b38267a`; sha256 of each file pinned in `packages/store/src/embed/model.ts` | MIT (model card) | `$JOBLEFT_HOME/models/bge-small-en-v1.5-5c38ec7/`, verified before use |
+
+### 2.2 Runtime dependencies (installed by pnpm, shipped with the app)
+
+| Package | Version | Licence | Use |
+|---|---|---|---|
+| onnxruntime-node | 1.30.0 | MIT | Runs the fit model on the CPU (`packages/store`). Its install script (downloads CUDA files on Linux only) does not run and is not needed on macOS: the macOS binary is in the package |
+| onnxruntime-common | 1.30.0 | MIT | Tensor types for onnxruntime-node |
+| adm-zip 0.6.1, global-agent 4.1.3 and their dependencies (define-data-property, define-properties, es-define-property, es-errors, escape-string-regexp, globalthis, gopd, has-property-descriptors, matcher, object-keys, semver, serialize-error, type-fest) | as locked | MIT, BSD-3-Clause (global-agent), ISC (semver), MIT or CC0-1.0 (type-fest) | Used only by onnxruntime-node's install script, which never runs; installed because they are declared dependencies |
 
 ## 3. Development tools (not shipped in the app)
 

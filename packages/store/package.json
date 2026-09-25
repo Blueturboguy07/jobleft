@@ -4,7 +4,7 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
-  "description": "The local SQLite database for everything the user owns, job search with filters, and fit indexing.",
+  "description": "The local job store: SQLite (node:sqlite, WAL), word search, every filter, fit order with bge-small-en-v1.5 on ONNX Runtime, and the person's records.",
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"
@@ -14,12 +14,16 @@
   },
   "scripts": {
     "test": "node --test \"test/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "cli": "node src/cli.ts"
   },
   "dependencies": {
     "@jobleft/contracts": "workspace:*",
     "@jobleft/crawler": "workspace:*",
     "@jobleft/static-data": "workspace:*",
     "onnxruntime-node": "1.30.0"
+  },
+  "bin": {
+    "jobleft-store": "./src/cli.ts"
   }
 }
