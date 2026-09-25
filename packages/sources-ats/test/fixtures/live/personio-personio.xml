@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<workzag-jobs>
+
+<position>
+    <id>1834171</id>
+    <subcompany>Personio SE &amp; Co. KG</subcompany>
+    <office>Munich</office>
+    <additionalOffices>
+        <office>Berlin</office>
+    </additionalOffices>
+    <department>Product and Tech</department>
+    <recruitingCategory>Engineering</recruitingCategory>
+    <name>Staff Software Engineer, Data Platform</name>
+    <jobDescriptions>
+        <jobDescription>
+            <name>The Role: How you&#039;ll make an impact at Personio</name>
+            <value>
+                <![CDATA[<strong>This position is hybrid based in either Dublin or Munich locations</strong><br><br>At Personio, your work transforms the way millions of people experience work every day. Join our Product &amp; Technology team, where we drive our customers’ outcomes by designing, developing and delivering innovative and high quality products. Be empowered to take ownership of your areas and make an impact on your team, our product, and our customers. <br><br>The Data <em>Platform</em> team is on a mission to enable all Personio engineers to build data rich experiences across Personio’s product. We are a rapidly growing, enablement-focused domain that strives to create secure, reusable, and extensible systems that accelerate the ability of our internal teams to create customer value, at scale. <br><br>To support our mission, we are looking for a Software Engineer with expertise in event-driven architecture and tooling, effective data governance, developer experience as well as continuously enhancing system reliability and operational excellence. You’ll partner with product and engineering peers across the organization to build a reliable, resilient, scalable and future-proof Personio data <em>platform</em>.]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Role Responsibilities: What you&#039;ll do</name>
+            <value>
+                <![CDATA[<ul><li>You will conceptualize and own technical solutions end-to-end. Organizing effective groups of engineers to brainstorm, design and deliver impactful work.</li><li>You will invest in experimenting and building <em>platform</em> solutions that improve the developer experience for all product teams.</li><li>Your scope will include everything from how software components are built, tested, deployed, released and monitored across all environments, from the local machine straight through to our production clusters.</li><li>You will foster relationships and work closely with product teams to support them through <em>platform</em> specific migrations. Learn from and understand the challenges they face so that you can translate them into result-oriented solutions that help improve the reliability of the <em>platform</em>. </li><li>You will also spend time teaching engineers (especially new joiners) how to use our <em>tools</em>, whether by giving internal talks, organizing internal onboarding workshops or writing documentation and tutorials.</li><li>You will help your team manage technical debt, refactor existing solutions, and introduce and improve the team’s approach to principles and processes such as system architecture, design patterns, coding principles and code review.</li><li>You will use your existing experience to help drive the <em>platform</em> forward with new ideas and strategies that help maintain the quality, reliability, security, performance and cost effectiveness of the product and <em>platform</em>.</li></ul><strong>How you’ll go about it: </strong><ul><li>Influencing and strengthening team culture while identifying areas for improvement. </li><li>Demonstrate technical excellence through hands-on involvement in projects and continuous learning.</li><li>Maintain open and clear communication and foster a collaborative work environment with team members, stakeholders, and management. </li><li>Ensure that technical documentation is comprehensive and up-to-date.</li><li>Uphold high coding standards and participate in code reviews. </li><li>Continuously drive innovation and improvements.</li></ul><br>]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Role Requirements: What you need to succeed</name>
+            <value>
+                <![CDATA[<ul><li>10+ years of software engineering experience building and designing scalable applications, <em>tools</em> or distributed systems. You understand the needs of software engineers working in product teams, you’ve been in their shoes, and can empathize with them. You want to help your fellow engineers to achieve maximum efficiency.</li><li>You have experience designing, building, documenting and distributing robust and delightful <em>platform</em> solutions end to end. Systems you build are consistently of high quality, reliable and operational excellence.</li><li>You have a deep understanding and an interest for <em>DevOps</em> <em>tools</em> and technologies such as: Kubernetes, <em>AWS</em> (CDK, ECS, Fargate etc.), Gitlab, DataDog, Sentry, Projen, Backstage, Docker and in particular progress delivery automation (CI/CD pipelines, feature flags, canary deployments, service mesh).</li><li>Proficiency in Kafka operations and building <em>platform</em> <em>tools</em> that utilize Kafka. Hands-on experience with database technologies (Debezium, data capture and more) is nice to have.</li><li>You’re interested in development processes and practices (merge requests, approvals, trunk-based vs branch-based development, etc), and are eager to optimize and automate them. </li><li>Experience in prototype, build, deploy and operate data streaming applications with technology like Kafka Streams. </li><li>Experience acting as a mentor or role model to other engineers is a plus. Ideally leading pair and mob programming sessions, as well as setting up and running technical brainstorming and solution design sessions.</li><li>You strike a balance between a strategic and tactical mindset. You are capable of working with your engineering manager to translate the <em>platform</em>'s strategic vision into tactical, achievable objectives for the team.</li></ul>]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Why Personio</name>
+            <value>
+                <![CDATA[Personio is an equal opportunities employer, committed to building an integrative culture where everyone feels welcomed and supported. We embrace uniqueness and understand that our diverse, values-driven culture makes us stronger. We are proud to have an inclusive workplace environment that will foster your development no matter your gender, civil status, family status, sexual orientation, religion, age, disability, education level, or race.<br><br>Aside from our people, culture, and mission, check out some of the other benefits that make Personio a great place to work:<br><br><ul><li>Receive a competitive reward package – reevaluated each year – that includes salary, benefits, and pre-IPO equity</li><li>Enjoy 28 days of paid vacation, plus an additional day after 2 and 4 years (because we love what we do, but we also love vacation!)</li><li>Make an impact on the environment and society with 2 (fully paid) Impact Days –  one for an individual project of your choice and one for a company-wide initiative</li><li>Receive generous family leave, child support, mental health support, and sabbatical opportunities with PersonioCares</li><li>Find your best way to work with our office-led, remote-friendly PersonioFlex! Most teams offer a roughly 50% remote, 50% in-office working framework</li><li>Invest in your development with an annual personal development budget to use on professional memberships, external certifications, conferences, and more</li><li>Connect with your fellow Personios at regular company and team events like All Company Culture Week and local year-end celebrations</li><li>Engage in a high-impact working environment with flat hierarchies and short decision-making processes</li></ul>]]>
+            </value>
+        </jobDescription>
+    </jobDescriptions>
+    <employmentType>permanent</employmentType>
+    <seniority>experienced</seniority>
+    <schedule>full-time</schedule>
+    <yearsOfExperience>7-10</yearsOfExperience>
+    <occupation>software_and_web_development</occupation>
+    <occupationCategory>it_software</occupationCategory>
+    <createdAt>2024-11-13T14:10:41+00:00</createdAt>
+</position>
+
+</workzag-jobs>

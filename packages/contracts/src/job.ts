@@ -6,14 +6,19 @@ import {
 } from './common.ts';
 import { arr, bool, enm, int, named, nullable, num, obj, str, type Infer } from './schema.ts';
 
-/** ATS families jobleft may crawl (an adapter exists or is planned in Phase 1). */
-export const CRAWL_ATS_IDS = ['greenhouse', 'lever', 'ashby', 'workable', 'recruitee', 'personio'] as const;
+/**
+ * ATS families jobleft may crawl (an adapter exists or is planned in Phase 1).
+ * Added by the sources-ats lane (additive): teamtailor (documented RSS feed) and gem (documented Job Board API).
+ */
+export const CRAWL_ATS_IDS = ['greenhouse', 'lever', 'ashby', 'workable', 'recruitee', 'personio', 'teamtailor', 'gem'] as const;
 /**
  * ATS families jobleft can RECOGNISE from a URL (external jobs, autofill). Recognising never means crawling:
  * workday, icims, oracle, ukg, taleo and smartrecruiters get no request (see docs/INTERFACES.md, "Never-crawl hosts").
+ * bamboohr, breezy, jazzhr and rippling are recognised but not crawled (docs/sources/<ats>.md says why).
  */
 export const ATS_IDS = [
-  ...CRAWL_ATS_IDS, 'workday', 'icims', 'smartrecruiters', 'oracle', 'ukg', 'taleo', 'jobvite', 'bamboohr', 'teamtailor', 'breezy', 'other',
+  ...CRAWL_ATS_IDS, 'workday', 'icims', 'smartrecruiters', 'oracle', 'ukg', 'taleo', 'jobvite', 'bamboohr', 'breezy',
+  'jazzhr', 'rippling', 'other',
 ] as const;
 export const CrawlAtsIdSchema = enm(CRAWL_ATS_IDS);
 export const AtsIdSchema = enm(ATS_IDS);

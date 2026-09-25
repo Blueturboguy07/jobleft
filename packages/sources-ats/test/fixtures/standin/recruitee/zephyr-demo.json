@@ -1,0 +1,106 @@
+{
+ "offers": [
+  {
+   "id": 900001,
+   "guid": "zd001",
+   "slug": "offer-1",
+   "status": "published",
+   "company_name": "Zephyr Demo GmbH",
+   "careers_url": "https://zephyr-demo.recruitee.com/o/offer-1",
+   "careers_apply_url": "https://zephyr-demo.recruitee.com/o/offer-1/c/new",
+   "created_at": "2026-09-01 08:00:00 UTC",
+   "published_at": "2026-09-02 09:30:00 UTC",
+   "updated_at": "2026-09-03 10:00:00 UTC",
+   "remote": false,
+   "hybrid": false,
+   "on_site": true,
+   "employment_type_code": "fulltime_permanent",
+   "salary": {
+    "min": "4000",
+    "max": "5000",
+    "period": "month",
+    "currency": "BRL"
+   },
+   "requirements": "<ul><li>Forklift licence</li></ul>",
+   "department": "Operations",
+   "title": "Warehouse Lead",
+   "location": "São Paulo, São Paulo, Brazil",
+   "locations": [
+    {
+     "id": 1,
+     "name": "São Paulo",
+     "city": "São Paulo",
+     "state": "São Paulo",
+     "country": "Brazil",
+     "country_code": "BR"
+    }
+   ],
+   "description": "<p>Lead the night crew.</p>"
+  },
+  {
+   "id": 900002,
+   "guid": "zd002",
+   "slug": "offer-2",
+   "status": "published",
+   "company_name": "Zephyr Demo GmbH",
+   "careers_url": "https://zephyr-demo.recruitee.com/o/offer-2",
+   "careers_apply_url": "https://zephyr-demo.recruitee.com/o/offer-2/c/new",
+   "created_at": "2026-09-01 08:00:00 UTC",
+   "published_at": null,
+   "updated_at": "2026-09-03 10:00:00 UTC",
+   "remote": true,
+   "hybrid": false,
+   "on_site": false,
+   "employment_type_code": "fulltime_permanent",
+   "salary": {
+    "min": null,
+    "max": null,
+    "period": null,
+    "currency": null
+   },
+   "requirements": "",
+   "department": "Support",
+   "title": "Customer Support Agent",
+   "location": "",
+   "locations": [],
+   "description": "<p>Answer tickets from home.</p>"
+  },
+  {
+   "id": 900003,
+   "guid": "zd003",
+   "slug": "offer-3",
+   "status": "published",
+   "company_name": "Zephyr Demo GmbH",
+   "careers_url": "https://zephyr-demo.recruitee.com/o/offer-3",
+   "careers_apply_url": "https://zephyr-demo.recruitee.com/o/offer-3/c/new",
+   "created_at": "2026-09-01 08:00:00 UTC",
+   "published_at": "2026-09-02 09:30:00 UTC",
+   "updated_at": "2026-09-03 10:00:00 UTC",
+   "remote": false,
+   "hybrid": false,
+   "on_site": true,
+   "employment_type_code": "parttime_permanent",
+   "salary": {
+    "min": null,
+    "max": null,
+    "period": null,
+    "currency": null
+   },
+   "requirements": "",
+   "department": "Engineering",
+   "title": "ソフトウェアエンジニア",
+   "location": "Tokyo, Japan",
+   "locations": [
+    {
+     "id": 3,
+     "name": "Tokyo",
+     "city": "Tokyo",
+     "state": "Tokyo",
+     "country": "Japan",
+     "country_code": "JP"
+    }
+   ],
+   "description": "&lt;p&gt;東京のチームで働きます。&lt;/p&gt;&lt;ul&gt;&lt;li&gt;TypeScript&lt;/li&gt;&lt;/ul&gt;"
+  }
+ ]
+}

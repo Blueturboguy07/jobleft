@@ -1,0 +1,7 @@
+[
+  { "ats": "workable", "board": "northwind-demo", "company": "Northwind Demo Labs" },
+  { "ats": "recruitee", "board": "zephyr-demo", "company": "Zephyr Demo" },
+  { "ats": "personio", "board": "acme-demo", "company": "Acme Demo" },
+  { "ats": "teamtailor", "board": "acme-demo", "company": "Acme Demo Retail" },
+  { "ats": "gem", "board": "acme-demo", "company": "Acme Demo Health" }
+]

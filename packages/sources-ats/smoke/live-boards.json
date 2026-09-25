@@ -1,0 +1,16 @@
+[
+  { "ats": "workable", "board": "huggingface", "company": "Hugging Face" },
+  { "ats": "workable", "board": "careers-ewingirrigation", "company": "Ewing Outdoor Supply" },
+  { "ats": "workable", "board": "careers", "company": "Workable" },
+  { "ats": "recruitee", "board": "bunq", "company": "bunq" },
+  { "ats": "recruitee", "board": "projectivegroup", "company": "Projective Group" },
+  { "ats": "personio", "board": "personio", "company": "Personio" },
+  { "ats": "personio", "board": "cardmarket", "company": "Cardmarket", "region": "com" },
+  { "ats": "personio", "board": "deskbird", "company": "deskbird", "region": "com" },
+  { "ats": "teamtailor", "board": "career", "company": "Teamtailor" },
+  { "ats": "teamtailor", "board": "nanlabs", "company": "NaNLABS", "region": "na" },
+  { "ats": "teamtailor", "board": "thestudio", "company": "THE/STUDIO", "region": "na" },
+  { "ats": "gem", "board": "gem", "company": "Gem" },
+  { "ats": "gem", "board": "motion", "company": "Motion" },
+  { "ats": "gem", "board": "mission", "company": "Mission" }
+]

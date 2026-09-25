@@ -502,42 +502,71 @@ per-host concurrency from the scheduler, `feed:<id>` and `external` families, a 
 
 ### `@jobleft/sources-ats`
 
-Status: **Stub**. Purpose: Workable, Recruitee and Personio adapters (then more), the ATS source list (crawled or not,
-why, checked when), and ATS detection from a URL. Owns: routes marked `sources-ats` (none yet; `listSources` merges its list).
+Status: **Built** (sources-ats lane, 2026-09-25). Purpose: the Workable, Recruitee, Personio, Teamtailor and Gem
+adapters, the ATS source list (crawled or not, why, checked when), and ATS detection from a URL. Reviewed and not built:
+BambooHR, Breezy, JazzHR (no documented public feed) and Rippling (terms not verifiable); see `docs/sources/`. Owns:
+routes marked `sources-ats` (none; `listSources` merges its list). Contract change (additive): `CRAWL_ATS_IDS` gained
+`teamtailor` and `gem`; `ATS_IDS` gained `jazzhr` and `rippling`.
 
 <!-- BEGIN GENERATED: sig:packages/sources-ats -->
 ```ts
-import type { AtsId, CrawlAtsId, SourceInfo } from '@jobleft/contracts';
-import type { SourceRegistry } from '@jobleft/crawler';
-/** The lane's adapters (workable, recruitee, personio, ...). Merge with @jobleft/crawler SOURCES: { ...SOURCES, ...ATS_SOURCES }. */
-export declare const ATS_SOURCES: SourceRegistry;
-/** What a URL says about the ATS behind it. Pure string work: it sends no request. */
-export interface AtsDetection {
-    ats: AtsId;
-    /** The board token, when the URL names one. */
-    board: string | null;
-    region: string | null;
-    /** The posting id, when the URL is a single job page (for example a Greenhouse gh_jid). */
-    jobId: string | null;
-    /** true only for CrawlAtsId families; false for workday, icims, smartrecruiters and the rest. */
-    crawlable: boolean;
-}
-/** Recognises board and job URLs of known ATS families (case, tracking parameters and trailing slashes ignored). */
-export declare function detectAts(url: string): AtsDetection | null;
-/** The public API host of an ATS board (regional hosts included). */
-export declare function atsHost(ats: CrawlAtsId, region: string | null): string;
-/**
- * The ATS source list: every family jobleft crawls (with evidence that the feed is public) and every family it does
- * not (with a reason and the date the reason was checked). Status fields are filled by the server at run time.
- */
-export declare const ATS_SOURCE_LIST: ReadonlyArray<Omit<SourceInfo, 'enabled' | 'keySet' | 'status'>>;
+export { ATS_SOURCES, allSources, BUILTIN_SOURCES, crawledAtsIds } from './registry.ts';
+export { ashbyOverallPay, greenhouseUrlFor, GREENHOUSE_EU_HOST } from './adapters/builtins.ts';
+export { parseEuropeanPay } from './pay-text.ts';
+export { cleanDescription, descriptionText, statedPay, textField } from './util.ts';
+export { decodeEntitiesFull, stripControls } from './entities.ts';
+export { polishRaw, polishSource } from './polish.ts';
+export { atsName, classifyUrl, detectAts, neverContactHost } from './detect.ts';
+export type { AtsDetection, UrlClassification, UrlVerdict } from './detect.ts';
+export { atsHost, boardHost, normalRegion, SUBDOMAIN_FAMILIES } from './hosts.ts';
+export { ATS_SOURCE_DETAILS, ATS_SOURCE_LIST, notCrawledReason } from './source-list.ts';
+export type { AtsSourceDetail, AtsSourceEntry } from './source-list.ts';
+export { gem, gemUrl, mapGem } from './adapters/gem.ts';
+export { mapPersonio, personio, personioBody, personioUrl } from './adapters/personio.ts';
+export { mapRecruitee, recruitee, recruiteePay, recruiteeUrl } from './adapters/recruitee.ts';
+export { mapTeamtailorItem, teamtailor, TEAMTAILOR_MAX_PAGES, TEAMTAILOR_PAGE_SIZE, teamtailorJobId, teamtailorPageUrl, } from './adapters/teamtailor.ts';
+export { mapWorkable, workable, workableUrl } from './adapters/workable.ts';
+export { BoardTokenError, FeedFormatError, PagingError, SourceChangedError } from './errors.ts';
+export { child, childText, children, decodeXmlEntities, parseXml, text } from './xml.ts';
+export type { XmlElement, XmlNode } from './xml.ts';
+export { plainReason } from './report.ts';
+export { buildHealthReport } from './report.ts';
+export type { AtsHealth, BoardHealth, HealthReport } from './report.ts';
+export { politeFetch } from './polite-fetch.ts';
+export type { PoliteFetchOptions } from './polite-fetch.ts';
 ```
 <!-- END GENERATED: sig:packages/sources-ats -->
 
-Rules: every adapter uses only the `HttpGetter` it is given; `fullBoardListing` is true only when one answer is the
-whole board (a paged adapter reads every page, and a page failure fails the board); descriptions go through
-`htmlToText`; never a request to SmartRecruiters, Workday, iCIMS, Oracle, UKG or Taleo. The server merges
-`{ ...SOURCES, ...ATS_SOURCES }`.
+Key signatures (the block above only lists the re-exports of `src/index.ts`):
+
+| Export | Signature and meaning |
+|---|---|
+| `ATS_SOURCES` | `SourceRegistry` = `{ workable, recruitee, personio, teamtailor, gem }`. `BUILTIN_SOURCES` = the crawler's `greenhouse`, `lever`, `ashby` run through this package's repairs (Greenhouse EU host and posted date, every Lever place, Ashby overall pay, clean text). `allSources()` returns `{ ...BUILTIN_SOURCES, ...ATS_SOURCES }`: use it, not `{ ...SOURCES, ...ATS_SOURCES }` |
+| `detectAts` | `(url: string) => AtsDetection \| null`; `AtsDetection { ats: AtsId; board: string \| null; region: string \| null; jobId: string \| null; crawlable: boolean }`. Pure string work. Board tokens are lower case; `region` is `"eu"` (Lever, Greenhouse EU links), `"com"` (Personio .com), `"na"` (Teamtailor North America), or the Workday `wdN` shard |
+| `classifyUrl` | `(url, notCrawledReason?) => { verdict: 'crawlable' \| 'job_link_without_board' \| 'not_crawled' \| 'never' \| 'unknown' \| 'invalid'; detection; message }`; `message` is one plain sentence. Pass `notCrawledReason` to name the reason |
+| `neverContactHost` | `(hostname) => { name, why } \| null` for LinkedIn, Indeed, Glassdoor, SmartRecruiters, Workday, iCIMS, Taleo, Oracle, UKG |
+| `atsHost` | `(ats: CrawlAtsId, region: string \| null) => string`. For the sub-domain families (Recruitee, Personio, Teamtailor) it is the parent domain |
+| `boardHost` | `(ref: { ats, board, region? }) => string`: the exact host of one board (`acme.recruitee.com`, `acme.jobs.personio.com`, `acme.na.teamtailor.com`) |
+| `ATS_SOURCE_LIST` | `ReadonlyArray<Omit<SourceInfo, 'enabled' \| 'keySet' \| 'status'>>`. Ids: `ats:<family>` for ATS families, `site:linkedin`, `site:indeed`, `site:glassdoor`. `ATS_SOURCE_DETAILS` adds `ats`, `docsFile`, `quote`, `quoteSource` |
+| `buildHealthReport` | `(run: RunReport, store: Store) => HealthReport`: per board (status, plain reason, flag, last checked, listed, read, new, updated, closed, open) and per ATS totals that add up |
+| `plainReason` | `(crawlerError: string) => string`: one plain sentence for a failed board (404, 429, 5xx, timeout, HTML, invalid JSON, cut-off XML, redirect, robots, ...) |
+| `politeFetch` | `(opts?) => typeof fetch`: a `fetchImpl` for `HttpClient` that keeps 1 s (+100 ms) between the sending of any two requests to a host, obeys Retry-After (429 and 503) per host, keeps a robots.txt `Crawl-delay` between every two requests to a host (the crawler's `Pacer` applies it only from the second request after robots.txt; a delay over `maxWaitMs`, 60 s, fails the request at once), does not let those waits use up the request timeout (`timeoutMs`, set it to the `HttpClient`'s), reads bodies with a size limit while they stream (`maxBodyBytes`, 64 MiB), turns Latin-1 feeds into UTF-8, remembers why a robots.txt could not be read (`robotsProblemFor`), and refuses never-contact hosts before any request |
+
+Rules: every adapter uses only the `HttpGetter` it is given (the XML adapters also need its `getText`, which the
+crawler's `HttpClient` has); `fullBoardListing` is true for all five: one answer is the whole board, and the paged
+Teamtailor adapter reads every page and fails the board when a page fails, repeats, or passes 100 pages; a listing that
+has lost its list field fails the board (it never looks empty); a listed job without id or title is returned as
+`unreadable`, never dropped silently; board tokens are checked before any request (a sub-domain token must be a DNS
+label, a path token a slug), so a token cannot point a request at another host; links that are not absolute http(s)
+are dropped; extra escape layers (`&amp;lt;p&amp;gt;`) are removed from descriptions and short fields before the crawler's `htmlToText`; never a request to SmartRecruiters, Workday, iCIMS, Oracle, UKG or
+Taleo. The server uses `allSources()`. Greenhouse boards accept `"region": "eu"` (host `boards-api.eu.greenhouse.io`; that host is not in the approved-hosts table (section 9, Outbound hosts) until the owner adds it).
+
+CLI `jobleft-ats` (`packages/sources-ats/src/cli.ts`, run from the repository root with `node packages/sources-ats/src/cli.ts`):
+`sources [--json]`, `detect <url>... [--json]`, `crawl --boards <file> --db <file> [--out <report.json>] [--log <requests.ndjson>]
+[--grace-hours 48] [--max-requests 3000] [--now <RFC 3339>]`, `jobs --db <file> [--ats] [--board] [--status open|closed|all] [--full] [--json]`,
+`report --db <file> [--json]`, `standin --dir <folder> [--port 4600] [--log <file>] [--boards-out <file>] [--map-out <file>]`.
+Environment: `JOBLEFT_HOST_MAP` (each sub-domain board needs its own entry; `standin` prints a ready map), `JOBLEFT_OFFLINE=1`
+(crawl sends nothing), `JOBLEFT_NOW`. The package README has a walkthrough.
 
 ### `@jobleft/sources-other`
 
@@ -1470,7 +1499,7 @@ The app contacts only these hosts, and only for these reasons. Anything else is 
 
 | Host | Why | When |
 |---|---|---|
-| Approved public ATS APIs: `boards-api.greenhouse.io`, `api.lever.co`, `api.eu.lever.co`, `api.ashbyhq.com`, and the Workable, Recruitee and Personio feed hosts once their adapters land | Job boards | Crawls; 1 request per second per host; robots.txt obeyed |
+| Approved public ATS APIs: `boards-api.greenhouse.io`, `api.lever.co`, `api.eu.lever.co`, `api.ashbyhq.com`, `apply.workable.com`, `<board>.recruitee.com`, `<board>.jobs.personio.de`, `<board>.jobs.personio.com`, `<board>.teamtailor.com`, `<board>.na.teamtailor.com`, `api.gem.com` | Job boards | Crawls; 1 request per second per host; robots.txt obeyed |
 | Hosts of links the person pastes (careers pages, job pages) | Resolve a board or read an added job | On the person's action only; same polite client |
 | Approved non-ATS feed hosts (sources-other) | Job feeds | Only when that source is on |
 | The fit model host (`JOBLEFT_MODEL_BASE_URL`) | Download bge-small-en-v1.5 once | First fit indexing; never on every launch |
@@ -1487,7 +1516,10 @@ Refused before any request, in code (`DENY_HOST` in `packages/crawler/src/http.t
 pasted links: LinkedIn (`linkedin.com`, `licdn.com`), Indeed, Glassdoor, SmartRecruiters, Workday
 (`myworkdayjobs.com`, `myworkdaysite.com`, `workday.com`). Held back until the owner approves: iCIMS, Oracle, UKG,
 Taleo (the lanes add their hosts to the refused list; recognising them from a URL for autofill sends no request).
-Redirects are never followed automatically.
+Redirects are never followed automatically. The sources-ats lane refuses all of these hosts, including iCIMS
+(`icims.com`), Oracle (`oraclecloud.com`), UKG (`ultipro.com`, `ukg.net`, `ukg.com`) and Taleo (`taleo.net`), in
+`neverContactHost` (`@jobleft/sources-ats`), which its `politeFetch` wrapper and `classifyUrl` use; the crawler's own
+`DENY_HOST` does not list those four yet (crawler lane).
 
 ## 11. Testing conventions
 
