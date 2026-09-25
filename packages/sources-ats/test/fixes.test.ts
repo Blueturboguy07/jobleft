@@ -14,7 +14,7 @@ import { ashby, ashbyOverallPay, greenhouse, lever } from '../src/adapters/built
 import { parseEuropeanPay } from '../src/pay-text.ts';
 import { descriptionText, textField } from '../src/util.ts';
 import { decodeEntitiesFull, ENTITY_COUNT, stripControls } from '../src/entities.ts';
-import { politeFetch, resetRobotsProblems, robotsProblemFor } from '../src/polite-fetch.ts';
+import { BoundedPacer, politeFetch, resetRobotsProblems, robotsProblemFor } from '../src/polite-fetch.ts';
 import { plainReason } from '../src/report.ts';
 import { atsHost, normalRegion } from '../src/hosts.ts';
 import { HERE } from './helpers.ts';
@@ -112,6 +112,7 @@ test('a Crawl-delay longer than the wait cap fails at once with its true reason,
   await f('https://slow.example.org/robots.txt');
   await assert.rejects(f('https://slow.example.org/feed'), (e: Error) => {
     assert.equal(e.name, 'CrawlDelayError');
+    assert.ok(e instanceof HttpError, 'an HttpError, so the crawler client does not retry it (each retry would wait the delay again)');
     assert.match(plainReason(`${e.name}: ${e.message}`) ?? '', /asks for 100000 seconds between requests.*longer than jobleft waits/);
     return true;
   });
@@ -281,4 +282,24 @@ test('a Latin-1 feed (Content-Type charset or XML declaration) is read as UTF-8 
   assert.equal(await (await f2('https://b.example.org/x')).text(), 'Grüße');
   const f3 = politeFetch({ fetchImpl: (async () => new Response('Zürich', { headers: { 'content-type': 'text/plain; charset=utf-8' } })) as typeof fetch, minGapMs: 0, marginMs: 0 });
   assert.equal(await (await f3('https://c.example.org/x')).text(), 'Zürich');
+});
+
+test('the crawler pacer never reserves an absurd Crawl-delay for the next request to a host', async () => {
+  const slept: number[] = [];
+  let clock = 0;
+  const pacer = new BoundedPacer(1000, 60_000, () => clock, async (ms) => { slept.push(ms); clock += ms; });
+  await pacer.wait('slow.example.org');
+  await pacer.wait('slow.example.org', 100_000_000); // robots.txt says Crawl-delay: 100000
+  await pacer.wait('slow.example.org', 100_000_000);
+  assert.deepEqual(slept, [1000, 60_000]);
+});
+
+test('a broken or cut-off answer gets a plain sentence, not "terminated"', () => {
+  assert.match(plainReason('TypeError: terminated') ?? '', /stopped in the middle or its compression was broken/);
+});
+
+test('a CDATA marker inside a JSON description keeps its words', () => {
+  assert.equal(descriptionText('<![CDATA[<p>Lead sales in <em>São Paulo</em>.</p>]]>'), 'Lead sales in São Paulo.');
+  assert.equal(descriptionText('<p>A</p><![CDATA[B &amp; C]]><p>D</p>'), 'A\n\nB & C\n\nD'.replace(/\n\n/g, '\n'));
+  assert.equal(descriptionText('text <![CDATA[ unterminated'), 'text  unterminated'.replace('  ', ' '));
 });

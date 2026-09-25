@@ -11,13 +11,14 @@
 //   standin --dir <folder> [--port 4600] [--log <file>] [--boards-out <file>] [--map-out <file>]
 // Environment: JOBLEFT_HOST_MAP sends real ATS hosts to loopback stand-ins; JOBLEFT_OFFLINE=1 sends nothing.
 
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { crawl, HttpClient, hostMapFromEnv, Store, USER_AGENT } from '@jobleft/crawler';
 import type { BoardRef } from '@jobleft/crawler';
 import { atsName, classifyUrl } from './detect.ts';
 import { stripControls } from './entities.ts';
-import { politeFetch } from './polite-fetch.ts';
+import { BoundedPacer, politeFetch } from './polite-fetch.ts';
 import { allSources } from './registry.ts';
 import { buildHealthReport, plainReason } from './report.ts';
 import { ATS_SOURCE_DETAILS, notCrawledReason } from './source-list.ts';
@@ -53,6 +54,42 @@ function need(args: Args, k: string): string {
   const v = flag(args, k);
   if (!v) { console.error(`missing --${k}`); process.exit(2); }
   return v;
+}
+
+/** A number flag, checked before anything runs: a plain message and exit 2 when it is not a number in range. */
+function numFlag(args: Args, k: string, dflt: number, opts: { min: number; integer?: boolean }): number {
+  const raw = flag(args, k);
+  if (raw === undefined) return dflt;
+  const v = raw.trim() === '' ? NaN : Number(raw);
+  if (!Number.isFinite(v) || v < opts.min || (opts.integer && !Number.isInteger(v))) {
+    console.error(`--${k} must be ${opts.integer ? 'a whole number' : 'a number'} of ${opts.min} or more, not "${raw}"`);
+    process.exit(2);
+  }
+  return v;
+}
+
+/** A path flag whose folder must exist, checked before the crawl starts (not after it, when the work would be lost). */
+function outFlag(args: Args, k: string): string | undefined {
+  const p = flag(args, k);
+  if (p === undefined) return undefined;
+  const dir = dirname(p);
+  if (!existsSync(dir) || !statSync(dir).isDirectory()) {
+    console.error(`--${k} ${p}: the folder ${dir} does not exist; make it first`);
+    process.exit(2);
+  }
+  return p;
+}
+
+/** Opens an existing database read-only, or prints one plain sentence and exits 2 (never a stack dump). */
+function openReadOnly(args: Args): DatabaseSync {
+  const path = need(args, 'db');
+  if (!existsSync(path)) { console.error(`the database ${path} does not exist; run crawl first`); process.exit(2); }
+  try {
+    return new DatabaseSync(path, { readOnly: true });
+  } catch (e) {
+    console.error(`cannot read the database ${path}: ${(e as Error).message}`);
+    process.exit(2);
+  }
 }
 
 function pad(s: string, n: number): string { return s.length >= n ? s.slice(0, n) : s + ' '.repeat(n - s.length); }
@@ -108,6 +145,10 @@ function readBoards(path: string): BoardRef[] {
 async function cmdCrawl(args: Args): Promise<void> {
   const boards = readBoards(need(args, 'boards'));
   const dbPath = need(args, 'db');
+  const graceHours = numFlag(args, 'grace-hours', 48, { min: 0 });
+  const maxRequests = numFlag(args, 'max-requests', 3000, { min: 1, integer: true });
+  const outPath = outFlag(args, 'out');
+  const logPath = outFlag(args, 'log');
   if (process.env.JOBLEFT_OFFLINE === '1') {
     console.log('offline: JOBLEFT_OFFLINE=1 is set, so no request was sent and nothing changed');
     return;
@@ -124,14 +165,14 @@ async function cmdCrawl(args: Args): Promise<void> {
     process.env.JOBLEFT_NOW ??= new Date(runStart).toISOString();
   }
   const now = (): number => runStart;
-  const logPath = flag(args, 'log');
   const store = new Store(dbPath);
   const http = new HttpClient({
-    maxRequests: Number(flag(args, 'max-requests') ?? 3000),
+    maxRequests,
+    pacer: new BoundedPacer(),
     hostMap: hostMapFromEnv(),
     fetchImpl: politeFetch({ onRequest: logPath ? (e) => appendFileSync(logPath, JSON.stringify(e) + '\n') : undefined }),
   });
-  const graceMs = Number(flag(args, 'grace-hours') ?? 48) * 3600 * 1000;
+  const graceMs = graceHours * 3600 * 1000;
   const run = await crawl(boards, {
     store, http, sources: allSources(), graceMs, now,
     onBoard: (r) => {
@@ -144,7 +185,6 @@ async function cmdCrawl(args: Args): Promise<void> {
   if (!nowArg) run.finishedAt = new Date().toISOString();
   const health = buildHealthReport(run, store);
   const out = { userAgent: USER_AGENT, totalRequests: http.totalRequests, hosts: Object.fromEntries(http.stats), health, run };
-  const outPath = flag(args, 'out');
   if (outPath) writeFileSync(outPath, JSON.stringify(out, null, 2));
   console.log('\nper ATS: boards ok/failed, jobs listed, read, new, closed, open after the run');
   for (const a of health.byAts) {
@@ -168,7 +208,7 @@ interface JobRow {
 }
 
 function cmdJobs(args: Args): void {
-  const db = new DatabaseSync(need(args, 'db'), { readOnly: true });
+  const db = openReadOnly(args);
   const where: string[] = [];
   const params: string[] = [];
   const ats = flag(args, 'ats'); if (ats) { where.push('ats = ?'); params.push(ats.toLowerCase()); }
@@ -212,7 +252,7 @@ function cmdJobs(args: Args): void {
 // ---------------------------------------------------------------- report (from the database)
 
 function cmdReport(args: Args): void {
-  const db = new DatabaseSync(need(args, 'db'), { readOnly: true });
+  const db = openReadOnly(args);
   const rows = db.prepare(`
     SELECT b.ats, b.board, b.company, b.region, b.consecutive_failures, b.cooldown_until, b.last_attempt_at,
            b.last_success_at, b.last_yield_at, b.last_error, b.last_ingested, b.empty_streak,
@@ -272,14 +312,21 @@ async function cmdStandin(args: Args): Promise<void> {
 
 const [cmd, ...rest] = process.argv.slice(2);
 const args = parseArgs(rest);
-switch (cmd) {
-  case 'sources': cmdSources(args); break;
-  case 'detect': cmdDetect(args); break;
-  case 'crawl': await cmdCrawl(args); break;
-  case 'jobs': cmdJobs(args); break;
-  case 'report': cmdReport(args); break;
-  case 'standin': await cmdStandin(args); break;
-  default:
-    console.error('usage: node packages/sources-ats/src/cli.ts <sources|detect|crawl|jobs|report|standin> [flags]');
-    process.exit(2);
+try {
+  switch (cmd) {
+    case 'sources': cmdSources(args); break;
+    case 'detect': cmdDetect(args); break;
+    case 'crawl': await cmdCrawl(args); break;
+    case 'jobs': cmdJobs(args); break;
+    case 'report': cmdReport(args); break;
+    case 'standin': await cmdStandin(args); break;
+    default:
+      console.error('usage: node packages/sources-ats/src/cli.ts <sources|detect|crawl|jobs|report|standin> [flags]');
+      process.exit(2);
+  }
+} catch (e) {
+  // One plain sentence, never a stack dump (a database that is not SQLite, a folder that is read-only, a bad host map...).
+  const message = e instanceof Error ? e.message.split('\n')[0] : String(e);
+  console.error(`jobleft-ats ${cmd}: ${message}`);
+  process.exit(1);
 }

@@ -29,6 +29,7 @@ export function plainReason(error: string | null | undefined): string | null {
   }
   if (/^HttpError/.test(e) && status && Number(status) >= 500) return `the board's server failed (HTTP ${status}) after retries`;
   if (/^HttpError/.test(e) && status) return `the board answered HTTP ${status}, so nothing was read`;
+  if (/^TypeError: terminated|Z_DATA_ERROR|incorrect header check|unexpected end of file/i.test(e)) return 'the answer stopped in the middle or its compression was broken, so nothing was read';
   if (/TimeoutError|timed out|timeout/i.test(e)) return 'the board did not answer in time (20 seconds per try, 3 tries)';
   if (/AbortError/.test(e)) return 'the request was stopped before the board answered';
   if (/fetch failed|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ECONNRESET|socket/i.test(e)) return 'the host could not be reached';

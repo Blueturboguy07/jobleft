@@ -208,7 +208,7 @@ file between crawls.
 ## Tests and checks
 
 ```sh
-pnpm --filter @jobleft/sources-ats test        # 59 tests, no live request, about 40 s
+pnpm --filter @jobleft/sources-ats test        # 62 tests, no live request, about 40 s
 pnpm --filter @jobleft/sources-ats typecheck
 ```
 

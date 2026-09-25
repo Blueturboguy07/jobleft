@@ -85,6 +85,8 @@ function unescapeEncodedLayer(s: string): string {
 export function htmlToPlain(input: string): string {
   if (!input) return '';
   let s = unescapeEncodedLayer(input);
+  // A CDATA marker inside a JSON description (`<![CDATA[<p>text</p>]]>`) would otherwise be dropped as one "tag" with its words.
+  s = s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<!\[CDATA\[|\]\]>/g, '');
   s = s.replace(/<(script|style|head|noscript)\b[\s\S]*?<\/\1\s*>/gi, ' ');
   s = s.replace(/<!--[\s\S]*?-->/g, ' ');
   s = s.replace(/<br\s*\/?>/gi, '\n');

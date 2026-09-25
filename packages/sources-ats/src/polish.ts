@@ -6,7 +6,7 @@
 //     "45.000" for 45 and invent an hourly rate. An API pay is never replaced.
 
 import type { HttpGetter, RawJob, Source } from '@jobleft/crawler';
-import { cleanDescription, descriptionText, textField } from './util.ts';
+import { descriptionText, escapeHtml, textField } from './util.ts';
 import { parseEuropeanPay } from './pay-text.ts';
 
 export function polishRaw(r: RawJob): RawJob {
@@ -18,7 +18,7 @@ export function polishRaw(r: RawJob): RawJob {
     company: textField(r.company),
     location: r.location.includes('; ') ? r.location.split('; ').map(textField).filter(Boolean).join('; ') : textField(r.location),
     department: textField(r.department),
-    descriptionHtml: cleanDescription(r.descriptionHtml),
+    descriptionHtml: escapeHtml(text),
   };
   if (!out.pay) {
     const p = parseEuropeanPay(text);

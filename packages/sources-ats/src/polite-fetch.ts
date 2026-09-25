@@ -18,7 +18,7 @@
 //      report does not say "robots.txt disallows this feed" (see `robotsProblemFor`).
 // It can also report every request (time, host, status) to a log callback. It never adds or changes a header.
 
-import { HttpError, parseRobots, PRODUCT_TOKEN } from '@jobleft/crawler';
+import { HttpError, Pacer, parseRobots, PRODUCT_TOKEN } from '@jobleft/crawler';
 import { neverContactHost } from './detect.ts';
 
 export interface PoliteFetchOptions {
@@ -45,9 +45,10 @@ class RetryAfterError extends Error {
     this.name = 'RetryAfterError';
   }
 }
-class CrawlDelayError extends Error {
+/** An HttpError on purpose: the crawler's client retries every other error from fetch, and each retry would wait the delay again. */
+class CrawlDelayError extends HttpError {
   constructor(host: string, seconds: number, maxSeconds: number) {
-    super(`robots.txt on ${host} asks for ${seconds} s between requests (Crawl-delay), longer than the ${maxSeconds} s jobleft waits`);
+    super(0, `https://${host}/robots.txt`, `robots.txt on ${host} asks for ${seconds} s between requests (Crawl-delay), longer than the ${maxSeconds} s jobleft waits`);
     this.name = 'CrawlDelayError';
   }
 }
@@ -234,4 +235,20 @@ export function politeFetch(opts: PoliteFetchOptions = {}): typeof fetch {
     }
   };
   return wrapped as typeof fetch;
+}
+
+/**
+ * The crawler's Pacer reserves a robots.txt Crawl-delay for the NEXT request to a host as soon as it hands one over, so
+ * a delay of 100000 s would make the second board on that host wait about 27 hours. This Pacer caps the extra interval
+ * at `maxWaitMs`; `politeFetch` keeps the real delay up to the same cap and refuses the request beyond it.
+ */
+export class BoundedPacer extends Pacer {
+  private readonly cap: number;
+  constructor(intervalMs = 1000, maxWaitMs = 60_000, now?: () => number, sleep?: (ms: number) => Promise<void>) {
+    super(intervalMs, now, sleep);
+    this.cap = maxWaitMs;
+  }
+  override wait(host: string, extraIntervalMs = 0): Promise<void> {
+    return super.wait(host, Math.min(extraIntervalMs, this.cap));
+  }
 }
