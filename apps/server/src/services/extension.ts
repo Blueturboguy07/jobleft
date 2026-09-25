@@ -13,12 +13,12 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 import {
-  EXTENSION_PROTOCOL_VERSION, type DraftRequest, type DraftResponse, type ExtensionStatus, type FillRequest, type FillResponse,
+  EXTENSION_PROTOCOL_VERSION, nowIso, type DraftRequest, type DraftResponse, type ExtensionStatus, type FillRequest, type FillResponse,
   type FormField, type PageInfo, type PageInfoRequest, type Profile, type Resume, type ReviewResponse, type ReviewResult,
 } from '@jobleft/contracts';
-import { answerFill, contactLeaks, isNeverHost, openQuestions, templateDraft, type ResumeFile } from '@jobleft/extension';
+import { answerFill, classify, contactLeaks, isNeverHost, openQuestions, templateDraft, type ResumeFile } from '@jobleft/extension';
 import type { AppData } from '../app.ts';
-import { tx } from '../db/util.ts';
+import { newId, tx } from '../db/util.ts';
 import { ApiFailure } from '../errors.ts';
 import { addExternal } from '../interim/external.ts';
 import { missingProfileFields } from '../interim/profile.ts';
@@ -115,7 +115,33 @@ export class ExtensionService {
       draft: async (fields) => this.makeDrafts(fields, profile),
     });
     if (req.resumeId && !resume) out.warnings.push('The resume you picked has no file that can be attached, so the resume box stays empty.');
+    this.applySavedAnswers(req, out);
     return out;
+  }
+
+  /**
+   * Answers the person chose to remember (review.savedAnswers) go into a field whose question is the same words and
+   * that the engine could not classify. A sensitive or never-answered topic never gets one this way.
+   */
+  private applySavedAnswers(req: FillRequest, out: FillResponse): void {
+    const rows = this.d.db.prepare('SELECT label_key, value FROM srv_saved_answers').all() as Array<{ label_key: string; value: string }>;
+    if (rows.length === 0) return;
+    const saved = new Map(rows.map((r) => [r.label_key, r.value]));
+    for (const n of [...(out.notes ?? [])]) {
+      if (n.topic !== 'unknown') continue;
+      const f = req.fields.find((x) => x.fieldId === n.fieldId);
+      const v = f ? saved.get(labelKey(f.label)) : undefined;
+      if (!f || v === undefined) continue;
+      let value: string | null = v;
+      if (f.kind === 'select' || f.kind === 'radio') {
+        const want = norm(v);
+        value = f.options.find((o) => norm(o.label) === want || norm(o.value) === want)?.value ?? null;
+      } else if (f.kind === 'checkbox' || f.kind === 'file' || (f.maxLength !== null && [...v].length > f.maxLength)) value = null;
+      if (value === null) continue;
+      out.fills.push({ fieldId: f.fieldId, values: [value], source: 'saved_answer', confidence: 'exact', needsReview: false, item: 'Saved answer' });
+      out.unknownFieldIds = out.unknownFieldIds.filter((id) => id !== f.fieldId);
+      out.notes = (out.notes ?? []).filter((x) => x.fieldId !== f.fieldId);
+    }
   }
 
   /** One facts-only draft per open question. A question the profile cannot answer truthfully gets none. */
@@ -151,9 +177,18 @@ export class ExtensionService {
     }
     // A resume id that is not a saved resume is dropped, so the tracker never points at nothing.
     const resumeId = r.resumeId && this.d.resumes.get(r.resumeId) ? r.resumeId : null;
+    const now = nowIso();
     tx(this.d.db, () => {
       this.d.db.prepare(`INSERT OR IGNORE INTO srv_extension_reviews (request_id, extension_id, job_id, page_url, ats, submitted, filled, edited, at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(r.requestId, extensionId, jobId, pageLog(r.pageUrl), r.ats, r.submittedByUser ? 1 : 0, r.filledFieldIds.length, r.editedFieldIds.length, r.at);
+      for (const a of r.savedAnswers) {
+        const key = labelKey(a.label);
+        // Only a question the engine has no topic for can be remembered: never a sensitive one, never pay or age.
+        if (!key || classify({ fieldId: 'x', label: a.label, name: null, kind: 'text', required: false, options: [], maxLength: null, section: null }).topic !== 'unknown') continue;
+        this.d.db.prepare(`INSERT INTO srv_saved_answers (id, label, label_key, value, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(label_key) DO UPDATE SET label = excluded.label, value = excluded.value, updated_at = excluded.updated_at`)
+          .run(newId('ans'), a.label, key, a.value, now, now);
+      }
     });
     if (!r.submittedByUser || !jobId) return { trackerEntry: jobId ? this.d.tracker.get(jobId) : null };
     const cur = this.d.tracker.get(jobId);
@@ -162,6 +197,12 @@ export class ExtensionService {
     return { trackerEntry: this.d.tracker.patch(jobId, { status: 'applied', resumeId }) };
   }
 }
+
+function labelKey(s: string): string {
+  return s.toLowerCase().replace(/[*:?]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
+}
+
+function norm(s: string): string { return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }
 
 /** The address kept in the review log: origin and path only (no query, which can carry tokens). */
 function pageLog(u: string): string {
