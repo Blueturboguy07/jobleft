@@ -150,7 +150,7 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_CLOCK_OFFSET` | same | `0` | Run the clock ahead or behind: `72h`, `-30m`, `3d`, `90s`, `1500ms` |
 | `JOBLEFT_HOST_MAP` | crawler `hostMapFromEnv()` (Built) | none | JSON map from a real ATS host to a LOOPBACK mock origin, for example `{"boards-api.greenhouse.io":"http://127.0.0.1:4010"}` |
 | `JOBLEFT_PUBLIK_BASE_URL` | ai-engine, sources-other | `https://publikhq.com/api/v1` | Lanes and tests MUST point this at a local stand-in. No lane calls publikhq.com |
-| `JOBLEFT_PUBLIK_APP_TOKEN` | ai-engine | none | The publik app token. None exists yet (gate G-publik); without it, connect answers a plain error |
+| `JOBLEFT_PUBLIK_APP_TOKEN` | ai-engine | none | The publik app token. None exists yet (gate G-publik); without it, connect answers a plain error. The server's interim publik client uses it only when `JOBLEFT_PUBLIK_BASE_URL` is a loopback address (tests), and ignores it otherwise |
 | `JOBLEFT_MODEL_BASE_URL` | ai-engine | the Hugging Face `BAAI/bge-small-en-v1.5` files | Where the fit model is downloaded from, once (tests use a local stand-in) |
 | `JOBLEFT_DATASET_MANIFEST_URL` | static-data | none until the owner names the release location | Where newer dataset releases are listed (tests use a local stand-in) |
 | `JOBLEFT_LOG_LEVEL` | server | `info` | `error`, `warn`, `info`, `debug`. No level logs personal text, keys or tokens |
