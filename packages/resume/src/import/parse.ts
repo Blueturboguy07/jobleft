@@ -62,10 +62,12 @@ function markHeadings(lines: SrcLine[]): Array<{ line: SrcLine; heading: Kind | 
     const caps = letters.length >= 4 && letters === letters.toUpperCase() && words.length <= 4 && !isTerm;
     const bigger = body > 0 && line.size >= body * 1.08 && (line.bold || line.size >= body * 1.15);
     if (styled || caps || bigger) {
-      // A short bold line right before a date line is an entry title, not a section.
-      const next = lines[i + 1];
-      if (next && !styled && !caps && hasDateRange(next.text)) return { line, heading: null };
+      // An entry heading (an employer, school or job title, often in capitals) sits right above its dates, or names
+      // an organisation or a role; a section heading does not.
+      const near = lines.slice(i + 1, i + 3).map((l) => l.text);
+      if (!styled && near.some((x) => hasDateRange(x))) return { line, heading: null };
       if (hasDateRange(t) || findDateRange(t)) return { line, heading: null };
+      if (!styled && (orgScore(t) > 0 || titleScore(t) >= 2)) return { line, heading: null };
       return { line, heading: 'unknown' };
     }
     return { line, heading: null };
