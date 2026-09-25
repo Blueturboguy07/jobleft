@@ -231,13 +231,14 @@ function jobIndustries(job: Job, a: AnalyzedText, company: Company | null, famil
     seen.add(key);
     const cur = scores.get(h.industry) ?? { score: 0, strong: null, weak: [], source: 'posting' as const };
     if (h.strength === 'strong') { cur.score += 3; cur.strong ??= quoteAround(a.text, h.start, h.end, 140); }
-    else { cur.score += 1; cur.weak.push(a.text.slice(h.start, h.end)); }
+    else { cur.score += 1; cur.weak.push(quoteAround(a.text, h.start, h.end, 140)); }
     scores.set(h.industry, cur);
   }
   const out: JobFacts['industries'] = [];
   for (const [industry, v] of scores) {
     if (v.score < 3) continue;
-    out.push({ industry, score: v.score, evidence: v.strong ?? v.weak.join(', '), source: v.source });
+    // The evidence is always the posting's own words (a strong phrase's sentence, else the first weak phrase's).
+    out.push({ industry, score: v.score, evidence: v.strong ?? v.weak[0], source: v.source });
   }
   out.sort((x, y) => y.score - x.score || (x.industry < y.industry ? -1 : 1));
   if (!out.length && family) {
