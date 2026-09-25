@@ -134,6 +134,29 @@ test('facts that a job does not state stay null; pay, dates and text come back a
   } finally { await s.stop(); cleanup(s.home); }
 });
 
+test('keys a contract does not declare are never stored, even names such as constructor or toString', async () => {
+  const s = await startTest('unknown');
+  try {
+    const odd = { constructor: { prototype: { polluted: 1 } }, toString: 'x', hasOwnProperty: 1, valueOf: [1], bogus: true };
+    const f = await s.call('POST', '/api/v1/filters', { name: 'odd', filter: { ...odd, workModels: ['remote'] }, sort: 'recommended', ...odd });
+    assert.equal(f.status, 200, f.text);
+    assert.deepEqual(f.json.filter, { workModels: ['remote'] });
+    assert.deepEqual((await s.call('GET', '/api/v1/filters')).json[0].filter, { workModels: ['remote'] });
+    const p = await s.call('PUT', '/api/v1/profile', { ...PERSONA, ...odd, personal: { ...PERSONA.personal, ...odd } });
+    assert.equal(p.status, 200, p.text);
+    const back = (await s.call('GET', '/api/v1/profile')).json;
+    for (const k of Object.keys(odd)) {
+      assert.ok(!Object.hasOwn(back, k), `profile kept ${k}`);
+      assert.ok(!Object.hasOwn(back.personal, k), `profile.personal kept ${k}`);
+    }
+    assert.equal(back.personal.email, PERSONA.personal.email);
+    assert.equal(({} as Record<string, unknown>).polluted, undefined, 'no prototype was changed');
+    const set = await s.call('PUT', '/api/v1/settings', { crawl: { intervalHours: 12, catchUpOnLaunch: false, runInTray: true, ...odd }, notifications: { reminders: true, alerts: false }, ...odd });
+    assert.equal(set.status, 200, set.text);
+    assert.deepEqual(Object.keys(set.json.crawl).sort(), ['catchUpOnLaunch', 'intervalHours', 'runInTray']);
+  } finally { await s.stop(); cleanup(s.home); }
+});
+
 test('resume uploads: the real type is checked, and files come back byte for byte', async () => {
   const s = await startTest('resume');
   try {

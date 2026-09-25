@@ -5,7 +5,8 @@
 // Exit codes: 0 stopped cleanly; 1 could not start; 2 the data folder was refused (newer, read-only, full, not
 // jobleft) and left untouched; 3 another jobleft server already uses this data folder.
 
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { parseArgs } from 'node:util';
 import { newLaunchToken, resolveHome } from './home.ts';
 import { DataFolderError } from './db/open.ts';
 import { AlreadyRunningError, startServer } from './server.ts';
@@ -14,8 +15,34 @@ import { APP_VERSION } from './version.ts';
 // Every file the server makes is readable by this user only (server O1 step 6).
 process.umask(0o077);
 
+const USAGE = `usage: node apps/server/src/main.ts [--home <data folder>] [--port <port>]
+       node apps/server/src/main.ts --help | --version
+
+Starts the jobleft server. The data folder is --home, else JOBLEFT_HOME, else
+~/Library/Application Support/jobleft. Use a scratch folder for tests.
+Every setting is in apps/server/README.md section 3.5 (environment variables).
+`;
+
+// Arguments are read BEFORE anything touches a data folder: --help, --version or a wrong argument starts nothing.
+let args: { home?: string; port?: string; help?: boolean; version?: boolean };
+try {
+  args = parseArgs({
+    allowPositionals: false,
+    options: { home: { type: 'string' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' }, version: { type: 'boolean', short: 'v' } },
+  }).values;
+} catch (e) {
+  process.stderr.write(`jobleft did not start: ${e instanceof Error ? e.message.split('\n')[0] : 'bad arguments'}\n${USAGE}`);
+  process.exit(1);
+}
+if (args.help) { process.stdout.write(USAGE); process.exit(0); }
+if (args.version) { process.stdout.write(`jobleft server ${APP_VERSION}\n`); process.exit(0); }
+if (args.home !== undefined && args.home.trim() === '') { process.stderr.write(`jobleft did not start: --home needs a folder.\n${USAGE}`); process.exit(1); }
+if (args.port !== undefined && !/^\d{1,5}$/.test(args.port)) { process.stderr.write(`jobleft did not start: --port needs a number.\n${USAGE}`); process.exit(1); }
+
 const env = process.env;
-const home = resolveHome(env);
+if (args.home !== undefined) env.JOBLEFT_HOME = resolve(args.home);
+if (args.port !== undefined) env.JOBLEFT_PORT = args.port;
+const home = resolve(resolveHome(env));
 // Any temporary file (Node's or SQLite's) goes inside the data folder, never to the system temp folder (server O6).
 process.env.TMPDIR = join(home, 'tmp');
 process.env.SQLITE_TMPDIR = join(home, 'tmp');

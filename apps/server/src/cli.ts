@@ -31,17 +31,25 @@ import { countsOf } from './services/backup.ts';
 
 process.umask(0o077);
 
-const { positionals, values } = parseArgs({
-  allowPositionals: true,
-  options: { home: { type: 'string' }, count: { type: 'string' }, schema: { type: 'string' } },
-});
-const cmd = positionals[0];
-
 function die(msg: string): never { process.stderr.write(`${msg}\n`); process.exit(1); }
 
-if (!cmd || !['seed-jobs', 'fixture', 'counts', 'api-counts'].includes(cmd)) {
-  die('usage: cli.ts seed-jobs --home <dir> --count <n> | fixture --home <dir> --schema 1|future | counts --home <dir> | api-counts --home <dir>');
+const USAGE = 'usage: cli.ts seed-jobs --home <dir> --count <n> | fixture --home <dir> --schema 1|future | counts --home <dir> | api-counts --home <dir>';
+
+let parsed: { positionals: string[]; values: { home?: string; count?: string; schema?: string; help?: boolean } };
+try {
+  parsed = parseArgs({
+    allowPositionals: true,
+    options: { home: { type: 'string' }, count: { type: 'string' }, schema: { type: 'string' }, help: { type: 'boolean', short: 'h' } },
+  });
+} catch (e) {
+  // An unknown or malformed option: one plain line and the usage, never a stack trace.
+  die(`${e instanceof Error ? e.message.split('\n')[0] : 'bad arguments'}\n${USAGE}`);
 }
+const { positionals, values } = parsed;
+const cmd = positionals[0];
+
+if (values.help) { process.stdout.write(`${USAGE}\n`); process.exit(0); }
+if (!cmd || !['seed-jobs', 'fixture', 'counts', 'api-counts'].includes(cmd)) die(USAGE);
 if (!values.home) die('--home <dir> is required (a scratch data folder, never your real one)');
 
 /** The count per kind read through the running server's API (server O4, O7, O12). */

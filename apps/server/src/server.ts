@@ -171,7 +171,14 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       log.debug('request', { method, route: routeName, status: res.statusCode, ms: Math.round(performance.now() - t0) });
     });
 
-    // 1. Host (DNS rebinding).
+    // 1. Host (DNS rebinding). Node keeps only the first of several Host lines, so a request that sends more than one
+    // is refused here (RFC 9112: 400), never judged by its first line alone.
+    let hostLines = 0;
+    for (let i = 0; i < req.rawHeaders.length; i += 2) if (req.rawHeaders[i]!.toLowerCase() === 'host') hostLines++;
+    if (hostLines > 1) {
+      sendError(req, res, new ApiFailure('bad_request', 'A request may carry only one Host header.'));
+      return;
+    }
     if (!hostAllowed(headerValue(req, 'host'), port)) {
       sendError(req, res, new ApiFailure('forbidden_host', 'This address is not allowed. Use http://127.0.0.1 with the app\'s port.'));
       return;
@@ -179,6 +186,11 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     // Dot segments ("..", "%2e%2e") and backslashes are refused before the URL is normalised, so a path can never
     // climb out of /api/ or out of the UI folder.
     const rawPath = (req.url ?? '/').split('?')[0]!;
+    // Only origin-form paths ("/..."): "//x" would read as a host name and "*" or a full URL is not a page here.
+    if (!rawPath.startsWith('/') || rawPath.startsWith('//')) {
+      sendError(req, res, new ApiFailure('not_found', 'There is nothing here.'));
+      return;
+    }
     for (const seg of rawPath.split('/')) {
       let d: string;
       try { d = decodeURIComponent(seg); } catch { sendError(req, res, new ApiFailure('bad_request', 'The address is not valid.')); return; }

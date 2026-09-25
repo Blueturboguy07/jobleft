@@ -8,13 +8,46 @@ import { chmodSync, createReadStream, existsSync, mkdirSync, readdirSync, readFi
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
-import { CLI, cleanup, raw, scratchHome, spawnServer, waitExit } from './helpers.ts';
+import { CLI, MAIN, cleanup, raw, scratchHome, spawnServer, waitExit } from './helpers.ts';
 
 function hashes(dir: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const f of readdirSync(dir)) out[f] = createHash('sha256').update(readFileSync(join(dir, f))).digest('hex');
   return out;
 }
+
+test('--help, --version and a wrong argument start nothing and touch no data folder; --home picks the folder', async () => {
+  const home = scratchHome('args');
+  const target = join(home, 'never-made');
+  const env = { PATH: process.env.PATH ?? '', JOBLEFT_HOME: target };
+  const run = (args: string[]) => new Promise<{ code: number | null; out: string }>((resolve) => {
+    const c = spawn(process.execPath, [MAIN, ...args], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    c.stdout.on('data', (d) => { out += d; });
+    c.stderr.on('data', (d) => { out += d; });
+    c.on('exit', (code) => resolve({ code, out }));
+  });
+  assert.deepEqual([(await run(['--help'])).code], [0]);
+  assert.match((await run(['--version'])).out, /^jobleft server \d/);
+  for (const bad of [['--bogus'], ['extra'], ['--port', 'abc'], ['--home', '']]) {
+    const r = await run(bad);
+    assert.equal(r.code, 1, bad.join(' '));
+    assert.match(r.out, /usage:/);
+    assert.ok(!r.out.includes('    at '), 'no stack trace');
+  }
+  assert.ok(!existsSync(target), 'no data folder was made');
+  // --home wins over JOBLEFT_HOME.
+  const chosen = join(home, 'chosen');
+  const token = 'args-test-token-args-test-token-args-test-00';
+  const c = spawn(process.execPath, [MAIN, '--home', chosen], { env: { ...env, JOBLEFT_LAUNCH_TOKEN: token, JOBLEFT_SECRET_STORE: 'memory', JOBLEFT_QUIET: '1' }, stdio: 'ignore' });
+  for (let i = 0; i < 100 && !existsSync(join(chosen, 'run', 'server.json')); i++) await new Promise((r) => setTimeout(r, 50));
+  const port = JSON.parse(readFileSync(join(chosen, 'run', 'server.json'), 'utf8')).port as number;
+  assert.equal((await raw(port, { path: '/api/v1/storage', headers: { 'x-jobleft-token': token } })).json.dataDir, chosen);
+  c.kill('SIGTERM');
+  assert.equal(await waitExit(c), 0);
+  assert.ok(!existsSync(target), 'JOBLEFT_HOME was not used');
+  cleanup(home);
+});
 
 test('a second server on the same data folder exits, and the first keeps working', async () => {
   const home = scratchHome('single');

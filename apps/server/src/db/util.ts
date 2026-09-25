@@ -2,7 +2,7 @@
 
 import { randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import type { JsonSchema } from '@jobleft/contracts';
+import { validate, type JsonSchema } from '@jobleft/contracts';
 import { storageProblem, writeFailed } from '../errors.ts';
 
 /**
@@ -49,22 +49,23 @@ export function b(v: boolean): number { return v ? 1 : 0; }
 export function prune(schema: JsonSchema, value: unknown): unknown {
   if (value === null || value === undefined) return value;
   if (schema.anyOf) {
-    for (const branch of schema.anyOf) {
-      if (branch.type === 'null' && value === null) return null;
-      if (branch.type === 'object' && typeof value === 'object' && !Array.isArray(value)) return prune(branch, value);
-      if (branch.type === 'array' && Array.isArray(value)) return prune(branch, value);
-    }
-    return value;
+    // The branch the value really matches (as the validator judged it), so a second object branch keeps its keys.
+    const fit = schema.anyOf.find((branch) => validate(branch, value, 1).ok)
+      ?? schema.anyOf.find((branch) => (branch.type === 'object' && typeof value === 'object' && !Array.isArray(value))
+        || (branch.type === 'array' && Array.isArray(value)));
+    return fit ? prune(fit, value) : value;
   }
   if (Array.isArray(value)) {
     return schema.items ? value.map((v) => prune(schema.items!, v)) : value;
   }
   if (typeof value === 'object' && schema.type === 'object') {
-    if (!schema.properties) return value; // a record (rec): keys are data
+    const props = schema.properties;
+    if (!props) return value; // a record (rec): keys are data
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      const ps = schema.properties[k];
-      if (ps && v !== undefined) out[k] = prune(ps, v);
+      // Own keys only: "constructor", "toString" or "__proto__" never match through Object.prototype.
+      if (v === undefined || !Object.hasOwn(props, k)) continue;
+      Object.defineProperty(out, k, { value: prune(props[k]!, v), enumerable: true, writable: true, configurable: true });
     }
     return out;
   }

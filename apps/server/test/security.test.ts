@@ -3,6 +3,7 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LOCAL_API, buildPath, type RouteSpec } from '@jobleft/contracts';
+import { connect } from 'node:net';
 import { cleanup, raw, startTest, type TestServer } from './helpers.ts';
 
 let s: TestServer;
@@ -51,6 +52,29 @@ test('a foreign Host is refused even with the right token (DNS rebinding)', asyn
   }
   const ok = await raw(s.port, { path: '/api/v1/settings', host: `localhost:${s.port}`, headers: { 'x-jobleft-token': s.token } });
   assert.equal(ok.status, 200);
+});
+
+/** One raw HTTP/1.1 exchange over a socket, for requests that node:http cannot send (two Host lines, "//x" targets). */
+function rawSocket(port: number, text: string): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const sock = connect(port, '127.0.0.1');
+    let buf = '';
+    sock.on('data', (d) => { buf += d.toString('utf8'); });
+    sock.on('close', () => resolve({ status: Number(/^HTTP\/1\.1 (\d{3})/.exec(buf)?.[1] ?? 0), text: buf }));
+    sock.on('error', reject);
+    sock.write(text);
+  });
+}
+
+test('a request with two Host lines, or a target that is not a plain path, is refused', async () => {
+  const two = await rawSocket(s.port, `GET /api/v1/settings HTTP/1.1\r\nHost: 127.0.0.1:${s.port}\r\nHost: attacker.example\r\nx-jobleft-token: ${s.token}\r\nConnection: close\r\n\r\n`);
+  assert.equal(two.status, 400, two.text);
+  assert.ok(!two.text.includes('"crawl"'), 'no settings in the answer');
+  for (const target of ['//etc/passwd', '//attacker.example/api/v1/settings', `http://attacker.example/api/v1/settings`, `http://127.0.0.1:${s.port}/api/v1/settings`]) {
+    const r = await rawSocket(s.port, `GET ${target} HTTP/1.1\r\nHost: 127.0.0.1:${s.port}\r\nx-jobleft-token: ${s.token}\r\nConnection: close\r\n\r\n`);
+    assert.ok(r.status === 404 || r.status === 400, `${target} -> ${r.status}`);
+    assert.ok(!r.text.includes('root:') && !r.text.includes('"crawl"'), target);
+  }
 });
 
 test('foreign and null Origins are refused, with no CORS header echoed', async () => {
