@@ -76,6 +76,11 @@ export function sniff(bytes: Uint8Array): 'pdf' | 'docx' | null {
 /** A display file name: the last path part only, no control characters, at most 200 characters. */
 export function safeFileName(raw: string | null, fallback: string): string {
   let n = raw ?? '';
+  // The contract sends the name URI-encoded. A client that sends raw UTF-8 bytes instead (curl -H 'x-jobleft-filename:
+  // résumé.pdf') reaches Node as one Latin-1 character per byte: read those bytes back as UTF-8 when they are valid.
+  if (/[\u0080-ÿ]/.test(n) && !/[^\u0000-ÿ]/.test(n)) {
+    try { n = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.from(n, 'latin1')); } catch { /* keep as sent */ }
+  }
   try { n = decodeURIComponent(n); } catch { /* keep as sent */ }
   n = n.split(/[\\/]/).pop() ?? '';
   n = n.replace(/[\u0000-\u001f\u007f]/g, '').trim();

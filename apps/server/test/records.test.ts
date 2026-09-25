@@ -167,6 +167,13 @@ test('resume uploads: the real type is checked, and files come back byte for byt
     const ok = await s.call('POST', '/api/v1/resumes/import', PDF, { 'content-type': 'application/pdf', 'x-jobleft-filename': '..%2F..%2Fevil.pdf' });
     assert.equal(ok.status, 200);
     assert.equal(ok.json.resume.file.fileName, 'evil.pdf');
+    // Non-Latin names come back character for character, URI-encoded (the contract) or sent as raw UTF-8 bytes.
+    const name = 'Jördan résumé 履歴書 🎯.pdf';
+    const enc = await s.call('POST', '/api/v1/resumes/import', PDF, { 'content-type': 'application/pdf', 'x-jobleft-filename': encodeURIComponent(name) });
+    assert.equal(enc.json.resume.file.fileName, name);
+    const rawUtf8 = await s.call('POST', '/api/v1/resumes/import', PDF, { 'content-type': 'application/pdf', 'x-jobleft-filename': Buffer.from(name, 'utf8').toString('latin1') });
+    assert.equal(rawUtf8.json.resume.file.fileName, name);
+    for (const id of [enc.json.resume.id, rawUtf8.json.resume.id]) assert.equal((await s.call('DELETE', `/api/v1/resumes/${id}`)).status, 200);
     const back = await s.call('GET', `/api/v1/resumes/${ok.json.resume.id}/export?format=pdf`);
     assert.equal(back.status, 200);
     assert.equal(back.headers['content-type'], 'application/pdf');
