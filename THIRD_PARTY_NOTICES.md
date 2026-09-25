@@ -34,6 +34,23 @@ Local additions that are not in freehire (written new): the per-host pacer, the 
 - Source: the owner's own Python project (`~/Documents/internships`, `pipeline/normalize.py` and `pipeline/dedup.py`). First-party code, no third-party licence applies.
 - jobleft file: `packages/crawler/src/normalize.ts` (URL canonicalisation, company and title normalisers, the two-layer dedupe spine). Two deliberate changes are documented in that file (`gh_jid` is kept; intern words are kept).
 
+### 1.3 pdf.js font metrics (Apache-2.0), resume lane
+
+- Source: Mozilla pdf.js 6.1.200 (`src/core/metrics.js` and `src/core/encodings.js`), as bundled in the npm package `unpdf` 1.8.1 (`dist/pdfjs.mjs`). pdf.js is Apache-2.0; the widths are Adobe's Core 14 AFM metrics for Helvetica and Helvetica-Bold, which Adobe allows to be copied and distributed.
+- What was taken: data only. The glyph widths of Helvetica and Helvetica-Bold and the WinAnsiEncoding glyph list, extracted by `packages/resume/scripts/extract-helvetica-metrics.ts` into a width table per WinAnsi byte.
+- jobleft file: `packages/resume/src/render/helvetica-metrics.ts` (generated; its header names the source).
+- Licence text: Apache License 2.0, https://www.apache.org/licenses/LICENSE-2.0 (pdf.js, Copyright Mozilla Foundation).
+
+### 1.4 Designs studied for the resume lane (no code copied)
+
+| Source | Licence | What was studied | jobleft files written new from the idea |
+|---|---|---|---|
+| srbhr/Resume-Matcher `apps/backend/app/services/resume_preservation.py` (commit a09ef5da) | Apache-2.0 | New-number check on rewritten bullets, grounding similarity warning | `packages/resume/src/truth.ts`, `src/tailor.ts` (`numbersKept`, `warnFor`) |
+| career-ops-hq/career-ops `verify-cv-facts.mjs` (commit de7f7fe8) | MIT | Metric, employer and title claims checked against the source CV before any PDF | `packages/resume/src/facts.ts`, `src/truth.ts` |
+| reactive-resume `packages/import/src/plain-text.ts`, `packages/resume/src/ats-pdf/` (commit 73ed3f9b) | MIT | Section alias table, entry grouping by dates, weighted readability categories with caps | `packages/resume/src/import/parse.ts`, `src/lexicon.ts`, `src/ats.ts` |
+
+Resume-Matcher's job-description skill adder (`improver.py`) was deliberately not used.
+
 ## 2. Data shipped with the app
 
 None yet. The static-data lane adds entries here (board directory, H-1B sponsor table from US Department of Labor LCA disclosure files, city dictionary with its attribution, skill dictionary).
@@ -44,6 +61,14 @@ None yet. The static-data lane adds entries here (board directory, H-1B sponsor 
 |---|---|---|---|
 | typescript | 7.0.2 | Apache-2.0 | Type checking only (`tsc --noEmit`). Platform binaries come as optional dependencies; no install script |
 | @types/node | 24.13.6 | MIT | Node 24 type definitions |
+
+## 3a. Runtime dependencies (shipped with the app)
+
+| Package | Version | Licence | Used by | Use |
+|---|---|---|---|---|
+| unpdf | 1.8.1 | MIT (bundles Mozilla pdf.js 6.1.200, Apache-2.0) | `@jobleft/resume` | Reads PDF files (text, positions, fonts, operators) for resume import and the readability check. No install script; its optional peer `@napi-rs/canvas` is not installed. Called with bytes only and no font, CMap or wasm URL, so it makes no network request |
+
+Fonts: when a PDF needs letters outside the standard PDF fonts, `@jobleft/resume` embeds a TrueType font found on the person's own computer (Arial, Liberation Sans or DejaVu Sans, or the files named in `JOBLEFT_PDF_FONT`) into that person's own PDF. No font file ships with jobleft.
 
 ## 4. Install scripts that run
 

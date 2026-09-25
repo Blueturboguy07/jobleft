@@ -1,0 +1,15 @@
+import type { ChatStreamEvent, Company, FillRequest, FillResponse, Job, JobSearchResponse, MatchResult, NetworkContact, PairRequest, Profile, PublikWallet, Resume, ReviewResult, TrackerEntry } from '../src/index.ts';
+export declare const job: Job;
+export declare const profile: Profile;
+export declare const match: MatchResult;
+export declare const tracker: TrackerEntry;
+export declare const contact: NetworkContact;
+export declare const wallet: PublikWallet;
+export declare const company: Company;
+export declare const resume: Resume;
+export declare const searchResponse: JobSearchResponse;
+export declare const chatEvents: ChatStreamEvent[];
+export declare const pairRequest: PairRequest;
+export declare const fillRequest: FillRequest;
+export declare const fillResponse: FillResponse;
+export declare const reviewResult: ReviewResult;

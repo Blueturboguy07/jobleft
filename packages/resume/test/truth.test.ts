@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { ResumeDocument } from '@jobleft/contracts';
-import { profile as contractProfile } from '../../contracts/test/fixtures.ts';
 import { documentFromProfile } from '../src/document.ts';
 import { refusedFacts, truthGate } from '../src/truth.ts';
 import { J_GAP, jordanProfile } from './helpers.ts';
@@ -18,7 +17,11 @@ test('a document built from the profile passes the gate (Jordan and the contract
   const p = jordanProfile();
   assert.deepEqual(truthGate(documentFromProfile(p), p, null), []);
   assert.deepEqual(truthGate(documentFromProfile(p), p, J_GAP()), []);
-  assert.deepEqual(truthGate(documentFromProfile(contractProfile), contractProfile, null), []);
+  // The shape of the contracts fixture profile (one current job, a user-typed skill, a summary with "3 years").
+  const c = jordanProfile();
+  c.work = [{ id: 'w1', company: 'Northwind Sample Labs', title: 'Software Engineer', employmentType: 'full_time', location: 'Austin, TX', startDate: '2023-06', endDate: null, current: true, summary: null, bullets: ['Cut batch-job time by 30%.'] }];
+  c.skills = [{ name: 'TypeScript', years: 3, source: 'resume' }, { name: 'PostgreSQL', years: null, source: 'user' }];
+  assert.deepEqual(truthGate(documentFromProfile(c), c, null), []);
 });
 
 test('a job skill in the Skills list, a bullet or the summary is refused', () => {
