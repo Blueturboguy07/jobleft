@@ -57,6 +57,11 @@ test('level: grades give way to the stated years (O5 angle 4)', () => {
   assert.deepEqual(lv('Associate', 'We need 3-5 years of experience in credit analysis.'), ['mid']);
   assert.deepEqual(lv('Staff Engineer - Geotechnical', 'Requires 0-2 years of experience; EIT preferred.'), ['entry']);
   assert.deepEqual(lv('Senior Accountant', 'You have 3+ years of accounting experience.'), ['mid', 'senior']);
+  assert.deepEqual(lv('Tech Lead Manager, Payments', 'You have 2+ years of experience.'), ['lead_staff'], 'a manager is a role, not a grade');
+  assert.deepEqual(lv('Staff Software Engineer', 'You have 3+ years of experience with Go.'), ['lead_staff']);
+  assert.deepEqual(lv('Product Manager', 'You have 3+ years of product experience.'), ['mid']);
+  assert.deepEqual(lv('Leader in Training'), ['entry', 'mid']);
+  assert.deepEqual(lv('Associate General Counsel, Privacy'), ['senior', 'lead_staff']);
   assert.deepEqual(levelsOf('senior', { min: 5, max: null }), ['senior']);
   assert.deepEqual(levelsOf(null, { min: 2, max: null }), ['entry', 'mid']);
   assert.deepEqual(levelsOf(null, null), []);
