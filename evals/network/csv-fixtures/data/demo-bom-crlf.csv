@@ -1,0 +1,37 @@
+﻿Notes:
+"When exporting your connection data, you may notice that some of the email addresses are missing. You will only see email addresses for connections who have allowed their connections to see or download their email address using this setting https://www.linkedin.com/psettings/privacy/email. You can learn more here https://www.linkedin.com/help/linkedin/answer/261"
+
+First Name,Last Name,URL,Email Address,Company,Position,Connected On
+Avery,Quill,https://www.linkedin.com/in/avery-quill-fx1,avery.quill@example.com,"Stripe, Inc.",Technical Recruiter,16 Aug 2026
+Blake,Ormond,https://www.linkedin.com/in/blake-ormond-fx2,,"Stripe, Inc.","Engineering Manager, Payments",17 Jul 2024
+Casey,Brandt,https://www.linkedin.com/in/casey-brandt-fx3,,"Stripe, Inc.",Software Engineer II,14 Mar 2015
+Devon,Marsh,https://www.linkedin.com/in/devon-marsh-fx4,devon.marsh@example.com,stripe,Senior Recruiting Coordinator,17 Jul 2024
+Emery,Solt,https://www.linkedin.com/in/emery-solt-fx5,,Stripe Partners Ltd,Partner,02 Feb 2020
+Finley,Hart,https://www.linkedin.com/in/finley-hart-fx6,,Apple,iOS Engineer,11 Nov 2019
+Gray,Ives,https://www.linkedin.com/in/gray-ives-fx7,gray.ives@example.com,Apple,Executive Assistant to the CEO,16 Aug 2026
+Harper,Lund,https://www.linkedin.com/in/harper-lund-fx8,,Apple Leisure Group,Travel Sales Manager,05 May 2018
+Indigo,Park,https://www.linkedin.com/in/indigo-park-fx9,,,Student,20 Aug 2021
+Jules,Varga,https://www.linkedin.com/in/jules-varga-fx10,,,,
+Kai,Moreau,https://www.linkedin.com/in/kai-moreau-fx11,,Meta,Product Designer,09 Sep 2022
+Lane,Okafor,https://www.linkedin.com/in/lane-okafor-fx12,,Metaview,Account Executive,09 Sep 2022
+Morgan,Tate,https://www.linkedin.com/in/morgan-tate-fx13,,Block,Data Scientist,17 Jan 2023
+Noor,Haddad,https://www.linkedin.com/in/noor-haddad-fx14,,Blockchain Labs,Founder & CEO,17 Jan 2023
+Olivia,Núñez,https://www.linkedin.com/in/olivia-nunez-fx15,,"Acme Robotics, LLC","Directora de Ingeniería, Pagos",03 Jun 2021
+Pat,O'Neil,https://www.linkedin.com/in/pat-oneil-fx16,,The Home Depot,Store Manager,28 Dec 2016
+Sam 🚀,Rivera,https://www.linkedin.com/in/sam-rivera-fx17,,Initrode,Growth Marketer,30 Apr 2024
+张,伟,https://www.linkedin.com/in/zhang-wei-fx18,,Initrode,Machine Learning Engineer,30 Apr 2024
+山田,太郎,https://www.linkedin.com/in/yamada-taro-fx19,,Globex Japan,シニアエンジニア,12 Jul 2023
+דוד,כהן,https://www.linkedin.com/in/david-cohen-fx20,,Globex Israel,Head of Engineering,12 Jul 2023
+JosÃ©,GarcÃ­a,https://www.linkedin.com/in/jose-garcia-fx21,,Initrode,Talent Acquisition Partner,01 Oct 2020
+"å¼ ",ä¼Ÿ,https://www.linkedin.com/in/garbled-fx22,,Globex,Engineer,01 Oct 2020
+Quinn,Abara,https://www.linkedin.com/in/quinn-abara-fx23,,Self-employed,Consultant,15 Feb 2019
+Remy,Castel,https://www.linkedin.com/in/remy-castel-fx24,,Stealth Startup,Co-Founder,15 Feb 2019
+Sloane,Pike,https://www.linkedin.com/in/sloane-pike-fx25,sloane.pike@example.com,Umbrella Health,Chief of Staff to the CEO,16 Aug 2026
+Tamsin,Wolfe,https://www.linkedin.com/in/tamsin-wolfe-fx26,,Umbrella Health,VP of Engineering,22 Mar 2014
+Uma,Reyes,https://www.linkedin.com/in/uma-reyes-fx27,uma.reyes@example.com,Umbrella Health,Account Executive,17 Jul 2024
+Val,Stone,https://www.linkedin.com/in/val-stone-fx28,,Globex,Recruiter,08 Aug 2022
+Val,Stone,https://www.linkedin.com/in/val-stone-fx29,,Initrode,Nurse,09 Aug 2022
+Wren,Adler,https://www.linkedin.com/in/wren-adler-fx30,,Amazon Web Services (AWS),Solutions Architect,10 Oct 2021
+Xan,Birch,https://www.linkedin.com/in/xan-birch-fx31,,Amazon Web Services,Software Development Engineer,10 Oct 2021
+Gray,Ives,https://www.linkedin.com/in/gray-ives-fx7,gray.ives@example.com,Apple,Executive Assistant to the CEO,16 Aug 2026
+Broken,Row,https://www.linkedin.com/in/broken-fx99

@@ -350,6 +350,8 @@ export async function startDevServer(opts: DevServerOptions): Promise<DevServer>
       if (isNetwork) {
         try {
           out = await handleNetworkRoute(hit!.name as NetworkRouteName, { params, query, body }, deps);
+          // A follow-up date set to today (or earlier) reminds at once, not at the next tick.
+          if (hit!.name === 'updateContact' && (body as { followUpOn?: unknown } | undefined)?.followUpOn) checkReminders();
         } catch (e) {
           if (e instanceof NetworkApiError) throw new HttpError(e.code, e.message, e.details, e.link);
           throw e;

@@ -1,0 +1,28 @@
+{
+  "files": {
+    "demo.csv": {
+      "people": 31, "skippedLines": [36, 37],
+      "counts": { "Stripe": 4, "Stripe, Inc.": 4, "Apple": 2, "Figma": null, "Stripe Partners Ltd": 1, "Apple Leisure Group": 1, "Meta": 1, "Metaview": 1, "Block": 1, "Blockchain Labs": 1, "": null },
+      "blankCompanyPeople": 2,
+      "exact": [{ "lastName": "Núñez", "field": "position", "value": "Directora de Ingeniería, Pagos" }, { "lastName": "Núñez", "field": "company", "value": "Acme Robotics, LLC" }, { "firstName": "Sam 🚀", "field": "lastName", "value": "Rivera" }],
+      "garbledFirstNames": ["JosÃ©"], "notGarbledFirstNames": ["张", "山田", "דוד"],
+      "blankEmailLastNames": ["Ormond", "Brandt"]
+    },
+    "demo-bom-crlf.csv": { "people": 31, "skippedLines": [36, 37], "counts": { "Stripe": 4, "Apple": 2 } },
+    "broken-quotes.csv": {
+      "people": 4, "skippedLines": [6, 9, 10],
+      "counts": { "Stripe": 1, "Acme": 3 },
+      "exact": [{ "firstName": "Cy", "field": "position", "value": "Engineer, Platform" }, { "firstName": "Cy", "field": "company", "value": "Acme, Co" }]
+    },
+    "messages.csv": { "notAConnectionsFile": true },
+    "spreadsheet.csv": { "notAConnectionsFile": true },
+    "lookalikes.csv": {
+      "people": 24, "skippedLines": [],
+      "counts": {
+        "Meta": 1, "Metaview": 1, "Meta Platforms": 1, "Block": 2, "Blockchain Labs": 1, "Apple": 3, "Apple Leisure Group": 1,
+        "Home Depot": 2, "The Home Depot, Inc.": 2, "Stripe": 2, "Stripe Partners": 1, "Bain & Company": 2, "Initrode": 2,
+        "Stealth Startup": null, "Self-employed": null, "": null, "N/A": null
+      }
+    }
+  }
+}

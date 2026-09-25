@@ -1,0 +1,28 @@
+Notes:
+"When exporting your connection data, you may notice that some of the email addresses are missing. You will only see email addresses for connections who have allowed their connections to see or download their email address using this setting https://www.linkedin.com/psettings/privacy/email. You can learn more here https://www.linkedin.com/help/linkedin/answer/261"
+
+First Name,Last Name,URL,Email Address,Company,Position,Connected On
+Person0,Lookalike,https://www.linkedin.com/in/lookalike-0,,Meta,Product Designer,01 Jan 2024
+Person1,Lookalike,https://www.linkedin.com/in/lookalike-1,,Metaview,Account Executive,01 Jan 2024
+Person2,Lookalike,https://www.linkedin.com/in/lookalike-2,,"Meta Platforms, Inc.",Engineer,01 Jan 2024
+Person3,Lookalike,https://www.linkedin.com/in/lookalike-3,,Block,Data Scientist,01 Jan 2024
+Person4,Lookalike,https://www.linkedin.com/in/lookalike-4,,Blockchain Labs,Founder,01 Jan 2024
+Person5,Lookalike,https://www.linkedin.com/in/lookalike-5,,"Block, Inc.",Recruiter,01 Jan 2024
+Person6,Lookalike,https://www.linkedin.com/in/lookalike-6,,Apple,iOS Engineer,01 Jan 2024
+Person7,Lookalike,https://www.linkedin.com/in/lookalike-7,,Apple Inc.,Designer,01 Jan 2024
+Person8,Lookalike,https://www.linkedin.com/in/lookalike-8,,Apple Leisure Group,Sales,01 Jan 2024
+Person9,Lookalike,https://www.linkedin.com/in/lookalike-9,,apple,Engineer,01 Jan 2024
+Person10,Lookalike,https://www.linkedin.com/in/lookalike-10,,The Home Depot,Store Manager,01 Jan 2024
+Person11,Lookalike,https://www.linkedin.com/in/lookalike-11,,Home Depot,Analyst,01 Jan 2024
+Person12,Lookalike,https://www.linkedin.com/in/lookalike-12,,"Stripe, Inc.",Recruiter,01 Jan 2024
+Person13,Lookalike,https://www.linkedin.com/in/lookalike-13,,STRIPE INC,Engineer,01 Jan 2024
+Person14,Lookalike,https://www.linkedin.com/in/lookalike-14,,Stripe Partners Ltd,Partner,01 Jan 2024
+Person15,Lookalike,https://www.linkedin.com/in/lookalike-15,,Bain & Company,Consultant,01 Jan 2024
+Person16,Lookalike,https://www.linkedin.com/in/lookalike-16,,Bain,Consultant,01 Jan 2024
+Person17,Lookalike,https://www.linkedin.com/in/lookalike-17,,,,01 Jan 2024
+Person18,Lookalike,https://www.linkedin.com/in/lookalike-18,,Self-employed,Consultant,01 Jan 2024
+Person19,Lookalike,https://www.linkedin.com/in/lookalike-19,,Stealth Startup,Founder,01 Jan 2024
+Person20,Lookalike,https://www.linkedin.com/in/lookalike-20,,Stealth Startup,CTO,01 Jan 2024
+Person21,Lookalike,https://www.linkedin.com/in/lookalike-21,,N/A,Student,01 Jan 2024
+Person22,Lookalike,https://www.linkedin.com/in/lookalike-22,,Initrode LLC,Engineer,01 Jan 2024
+Person23,Lookalike,https://www.linkedin.com/in/lookalike-23,,Initrode,Nurse,01 Jan 2024
