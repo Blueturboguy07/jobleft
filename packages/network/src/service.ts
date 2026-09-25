@@ -485,9 +485,12 @@ export class NetworkService {
       const key = list[0]!.companyKey;
       const ranks = key ? rankContacts(list.map((c) => ({ ...c })), { companyKey: key, job: null, now: this.nowFn(), timeZone: this.tz }) : list.map((c) => ({ contactId: c.id, score: 0, reasons: [] }));
       const byId = new Map(list.map((c) => [c.id, c]));
+      const names = new Map<string, number>();
+      for (const c of list) if (c.company) names.set(c.company, (names.get(c.company) ?? 0) + 1);
+      const best = [...names.entries()].sort((a, b) => b[1] - a[1] || Number(a[0] === a[0].toLowerCase()) - Number(b[0] === b[0].toLowerCase()) || (a[0] < b[0] ? -1 : 1))[0]?.[0];
       out.push({
         companyKey: key,
-        companyName: list[0]!.company ?? 'Unknown company',
+        companyName: best ?? 'Unknown company',
         contacts: ranks.map((r) => {
           const c = byId.get(r.contactId)!;
           const stage: OutreachStage = c.followUpDue && c.stage !== 'met' ? 'follow_up_due' : c.stage;

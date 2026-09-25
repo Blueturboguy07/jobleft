@@ -96,6 +96,26 @@ export function demoFixture(now: number): { text: string; expect: { people: numb
   };
 }
 
+/**
+ * A newer export of the demo fixture (network O9, O13): Blake Ormond has a new position, Yara Voss (Figma) is new,
+ * and Jules Varga is no longer in the file. Everyone else is the same. No duplicate or broken row.
+ */
+export function demoNewerFixture(now: number): { text: string; expect: { people: number; updated: string[]; added: string[]; missing: string[] } } {
+  const lines = demoFixture(now).text.split('\n');
+  const header = lines.indexOf(HEADER);
+  const rows = lines.slice(header + 1).filter((l) => l && !l.startsWith('Broken,'));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const l of rows) {
+    if (seen.has(l)) continue; // drop the duplicate row
+    seen.add(l);
+    if (l.startsWith('Jules,Varga,')) continue;
+    out.push(l.startsWith('Blake,Ormond,') ? l.replace('"Engineering Manager, Payments"', '"Director of Engineering, Payments"') : l);
+  }
+  out.push(rowLine({ first: 'Yara', last: 'Voss', url: 'https://www.linkedin.com/in/yara-voss-fx32', email: '', company: 'Figma', position: 'Product Designer', connectedOn: dateText(new Date(now - 5 * 86_400_000)) }));
+  return { text: fileText(out), expect: { people: out.length, updated: ['Blake Ormond'], added: ['Yara Voss'], missing: ['Jules Varga'] } };
+}
+
 /** A deterministic pseudo-random generator (mulberry32), so the same seed gives the same file. */
 function prng(seed: number): () => number {
   let a = seed >>> 0;

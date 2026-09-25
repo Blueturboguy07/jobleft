@@ -16,7 +16,7 @@ import { draftFacts, draftFromTemplate, draftMessages, draftOutreach, profileSum
 import { NetworkService, type NetworkContactView } from './service.ts';
 import { decodeCsvBytes, displayDate, isIsoDate, localTimeZone } from './text.ts';
 import { bridgeDestination, createBridgeClient, normalizeBaseUrl } from './dev/ai-bridge.ts';
-import { demoFixture, syntheticFixture } from './dev/fixture.ts';
+import { demoFixture, demoNewerFixture, syntheticFixture } from './dev/fixture.ts';
 import { feedPage } from './dev/feed.ts';
 import { MOCK_MODES, startMockAi, type MockMode } from './dev/mock-ai.ts';
 import { showDesktopNotification } from './dev/notify.ts';
@@ -125,8 +125,9 @@ function companyKeyFromArgs(ctx: Ctx, a: Args, pos: number): { key: string; name
 function jobFromArgs(ctx: Ctx, a: Args) {
   const id = flag(a, 'job');
   if (!id) return null;
-  const j = ctx.standin.asJob(id);
-  if (!j) fail(`No stand-in job "${id}". See \`jobs list\`.`);
+  const found = ctx.standin.findJob(id);
+  const j = found ? ctx.standin.asJob(found.id) : null;
+  if (!j) fail(`No stand-in job "${id}" (give its id, or a title that only one job has). See \`jobs list\`.`);
   return j;
 }
 
@@ -175,7 +176,7 @@ Stand-ins (until the app wires the job store, profile and AI settings)
 Tools
   serve [--port <p>] [--no-notify] [--offline]   The screens and the local API (token-protected, 127.0.0.1 only)
   mock-ai [--port 4031] [--mode ok] [--publik] [--balance 5] [--price 0.01] [--log <file>]
-  fixture demo --out <file> | fixture synthetic --rows <n> [--seed 42] --out <file>
+  fixture demo --out <file> | fixture demo-newer --out <file> | fixture synthetic --rows <n> [--seed 42] --out <file>
   bench [--rows 30000] [--jobs 2000]      Import and feed timings on a made-up file (in a temp folder)
 `;
 
@@ -218,6 +219,12 @@ async function run(argv: string[]): Promise<number> {
       const f = demoFixture(nowMs());
       writeFileSync(file, f.text);
       out(`Wrote ${file}: ${f.expect.people} made-up people, then 2 rows that must be skipped (${f.expect.skipped.map((s) => `line ${s.line}: ${s.why}`).join('; ')}).`);
+      return 0;
+    }
+    if (kind === 'demo-newer') {
+      const f = demoNewerFixture(nowMs());
+      writeFileSync(file, f.text);
+      out(`Wrote ${file}: ${f.expect.people} made-up people. Changed: ${f.expect.updated.join(', ')} (new position). New: ${f.expect.added.join(', ')}. Gone from this file: ${f.expect.missing.join(', ')}.`);
       return 0;
     }
     if (kind === 'synthetic') {
@@ -428,8 +435,8 @@ async function command(ctx: Ctx, cmd: string, a: Args): Promise<number> {
     case 'remind': {
       const r = s.takeReminders();
       if (!r.count || !r.text) { out('No new reminders (each follow-up date reminds once).'); return 0; }
-      const shown = showDesktopNotification(r.text.title, r.text.body);
-      out(`${r.text.body}${shown ? ' (desktop notification shown)' : ' (no desktop notifications on this system)'}`);
+      const shown = showDesktopNotification(r.text.title, r.text.body, { wait: true });
+      out(`${r.text.body} ${shown === 'shown' ? '(desktop notification shown)' : shown === 'off' ? '(desktop notifications are off: JOBLEFT_NO_OS_NOTIFY=1)' : '(this system has no desktop notifications for this tool)'}`);
       return 0;
     }
     case 'ai': {
@@ -565,18 +572,19 @@ function jobs(ctx: Ctx, a: Args): number {
       if (!title || !company) fail('Give --title and --company.');
       const j = st.addJob({ title, company, department: flag(a, 'department') ?? null, liked: has(a, 'like') }, now);
       const n = ctx.service.countFor(st.companyKeyOf(j));
-      out(`Added ${j.id}: ${j.title} | ${j.company}${j.liked ? ' (liked)' : ''}.${n ? ` You know ${n} ${n === 1 ? 'person' : 'people'} at ${j.company}.` : ''}`);
+      const end = (x: string) => (x.endsWith('.') ? x : `${x}.`);
+      out(`Added ${j.id}: ${j.title} | ${end(`${j.company}${j.liked ? ' (liked)' : ''}`)}${n ? ` You know ${n} ${n === 1 ? 'person' : 'people'} at ${end(j.company)}` : ''}`);
       return 0;
     }
     case 'like':
     case 'unlike': {
-      const j = st.like(st.findJob(a._[2] ?? '')?.id ?? '', sub === 'like');
+      const j = st.like(st.findJob(a._.slice(2).join(' '))?.id ?? '', sub === 'like');
       if (!j) fail('No such stand-in job.');
       out(`${sub === 'like' ? 'Liked' : 'Unliked'} ${j.title} | ${j.company}.`);
       return 0;
     }
     case 'remove': {
-      const j = st.findJob(a._[2] ?? '');
+      const j = st.findJob(a._.slice(2).join(' '));
       if (!j || !st.removeJob(j.id)) fail('No such stand-in job.');
       out(`Removed ${j.title} | ${j.company}.`);
       return 0;

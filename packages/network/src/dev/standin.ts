@@ -137,8 +137,12 @@ export class StandIn {
     return n;
   }
 
-  findJob(idOrPrefix: string): StandInJob | null {
-    return this.state.jobs.find((x) => x.id === idOrPrefix) ?? this.state.jobs.find((x) => x.id.endsWith(`:${idOrPrefix}`)) ?? null;
+  /** A job by id, by the last part of its id, or by its title when exactly one job has that title. */
+  findJob(ref: string): StandInJob | null {
+    const byId = this.state.jobs.find((x) => x.id === ref) ?? this.state.jobs.find((x) => x.id.endsWith(`:${ref}`));
+    if (byId) return byId;
+    const byTitle = this.state.jobs.filter((x) => x.title.toLowerCase() === ref.trim().toLowerCase());
+    return byTitle.length === 1 ? byTitle[0]! : null;
   }
 
   companyKeyOf(j: StandInJob): string {
