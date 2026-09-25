@@ -229,6 +229,7 @@ export class NetworkService {
     }
     for (const list of byName.values()) list.sort((a, b) => (a.file_line ?? 0) - (b.file_line ?? 0) || (a.id < b.id ? -1 : 1));
     const matched = new Set<string>();
+    const fileUrls = new Set(rows.filter((r) => r.profileUrl).map((r) => urlIdentity(r.profileUrl!)));
     const insert = this.db.prepare(`INSERT INTO network_contacts (id, url_key, name_key, first_name, last_name, profile_url, email,
       company, company_key, company_raw_key, position, connected_on, maybe_garbled, stage, note, follow_up_on, in_plan, reminded_for,
       in_latest_file, file_line, search_text, imported_at, updated_at)
@@ -247,8 +248,12 @@ export class NetworkService {
       let hit: ContactRow | undefined = urlKey ? byUrl.get(urlKey) : undefined;
       if (hit && matched.has(hit.id)) hit = undefined;
       if (!hit) {
-        const candidates = (byName.get(nk) ?? []).filter((c) => !matched.has(c.id) && (!urlKey || !c.url_key));
-        hit = candidates.find((c) => c.company === r.company && c.position === r.position) ?? candidates[0];
+        // No link match: the same name and Connected On date. A contact that has a link is taken only when its link
+        // is gone from this file (the link changed) and it is the only such contact.
+        const candidates = (byName.get(nk) ?? []).filter((c) => !matched.has(c.id) && (!urlKey || !c.url_key || !fileUrls.has(c.url_key)));
+        const noLink = candidates.filter((c) => !urlKey || !c.url_key);
+        const pool = noLink.length ? noLink : candidates.length === 1 && r.connectedOn ? candidates : [];
+        hit = pool.find((c) => c.company === r.company && c.position === r.position) ?? pool[0];
       }
       const keys = keysForCompany(r.company, this.keyFn);
       const st = searchText({ first_name: r.firstName, last_name: r.lastName, company: r.company, position: r.position, email: r.email });

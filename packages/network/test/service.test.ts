@@ -235,3 +235,17 @@ test('counts follow changes made by another process (another connection to the s
     a.db.close(); b.db.close();
   } finally { h.done(); }
 });
+
+test('a changed profile link keeps the person (same name and Connected On, old link gone from the file)', () => {
+  const s = memoryService();
+  s.import(fileText(base));
+  const avery = s.list({ q: 'Avery' })[0]!;
+  s.update(avery.id, { note: 'still me' });
+  const moved = base.map((l) => l.replace('/in/aq,', '/in/avery-q-new,'));
+  const r = s.import(fileText(moved));
+  assert.equal(r.imported, 0);
+  assert.equal(r.updated, 1);
+  assert.equal(s.total(), 5);
+  assert.equal(s.get(avery.id)!.note, 'still me');
+  assert.equal(s.get(avery.id)!.profileUrl, 'https://www.linkedin.com/in/avery-q-new');
+});
