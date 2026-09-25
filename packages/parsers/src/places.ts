@@ -45,7 +45,7 @@ type Tok =
   | { kind: 'noise' }
   | { kind: 'zip'; state: string | null };
 
-const PLACEHOLDER = /^(?:n\/?a|na|none|tbd|tba|tbc|unknown|various|varies|multiple|multiple locations?|several locations|many locations|all locations|any location|locations?|flexible|flexible location|see (?:job )?description|see below|other|others|nowhere|xx|x|-|—|\.|\?|global locations|various locations|\d+ locations?|to be determined|home|field|field based|field-based|mobile|travel|traveling|travelling|on the road)$/i;
+const PLACEHOLDER = /^(?:n\/?a|na|none|tbd|tba|tbc|unknown|various|varies|multiple|multiple locations?|multiple cities|various cities|several cities|multiple sites|multiple offices|all offices|any office|select locations|various locations in the us|several locations|many locations|all locations|any location|locations?|flexible|flexible location|see (?:job )?description|see below|other|others|nowhere|xx|x|-|—|\.|\?|global locations|various locations|\d+ locations?|to be determined|home|field|field based|field-based|mobile|travel|traveling|travelling|on the road)$/i;
 const ORG_WORDS = /\b(?:schools?|academy|college|university|univ|campus|hospital|clinic|medical center|health center|center for|centre for|store|warehouse|plant|facility|headquarters|hq|office|offices|building|bldg|tower|plaza|mall|pvt|ltd|llc|inc|corp|gmbh|s\.a\.|b\.v\.|limited|company|group|partners|branch|site|depot|distribution center|fulfillment center|dc|lab|labs|studio|studios|factory|terminal|yard|shop|restaurant|cafe|café|hotel|resort|casino|club|church|library|station|base|hub|kitchen|bakery|venue|arena|stadium|park & ride)\b/i;
 const STREET = /\b(?:st|street|ave|avenue|road|rd|blvd|boulevard|drive|dr|lane|ln|way|suite|ste|floor|fl|flr|building|bldg|room|rm|unit|parkway|pkwy|highway|hwy|court|ct|place|pl|square|sq|terrace|circle|cir|trail|pike|route|rte|av|avenida|rua|calle|carrera|strasse|straße|stationsplein|boulevard|via|viale|rue|andar|piso|po box|p\.o\. box)\b/i;
 const UK_POSTCODE = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
@@ -116,6 +116,8 @@ function classify(raw: string): Tok {
   if (macro && usCity.length === 0 && wCity.length === 0) return { kind: 'macro', region: macro };
   const fr = FOREIGN_REGION_BY_KEY.get(k);
   if (fr && usCity.length === 0 && wCity.length === 0) return { kind: 'fregion', cc: fr[0], name: fr[1] };
+  // A province far better known than the US town of the same name ("Ontario" is Canada's province).
+  if (fr && k === 'ontario') return { kind: 'fregion', cc: fr[0], name: fr[1] };
   if (usCity.length || wCity.length) {
     const name = wCity.length && !usCity.length ? (WORLD_CITY_NAMES.get(k) ?? titleCase(t)) : titleCase(t);
     return { kind: 'city', name, key: k, us: usCity, world: wCity };
@@ -244,7 +246,7 @@ function splitSegments(text: string): string[] {
   const protectedText = text.replace(SPLIT_KEEP, (m) => m.replace(/ and /gi, ' §AND§ '))
     .replace(/\([^()]*\)/g, (m) => m.replace(/\//g, '§SL§').replace(/;/g, ',').replace(/\|/g, ','));
   return protectedText
-    .split(/\s*(?:;|\||•|·|\n|\s\/\s|(?<=[a-z)])\/(?=[A-Za-z(])|\s+or\s+|\s+and\s+|\s+&\s+|\s+y\s+|\s+et\s+|\s+und\s+|\s+e\s+(?=[A-Z]))\s*/)
+    .split(/\s*(?:;|\||•|·|\n|\s\/\s|(?<=[a-z)])\/(?=[A-Za-z(])|\s+or\s+|\s+OR\s+(?=[A-Z][a-z])|\s+and\s+|\s+&\s+|\s+y\s+|\s+et\s+|\s+und\s+|\s+e\s+(?=[A-Z]))\s*/)
     .map((s) => s.replace(/ §AND§ /g, ' and ').replace(/§SL§/g, '/').trim())
     .filter(Boolean);
 }
@@ -438,6 +440,10 @@ function placesFromPiece(piece: string, context: string): Place[] {
       case 'noise': case 'zip': break;
       case 'city':
         if (cur.cityTok && keyOf(cur.cityTok.name) === tok.key) { addText(raw); break; } // "Paris, Paris, France"
+        // "Richland, Washington", "Albany, New York": a state name after a city is the state.
+        if ((cur.cityTok || cur.city) && !cur.region && !cur.stateHint && !cur.country && (tok.key === 'washington' || tok.key === 'new york')) {
+          cur.stateHint = tok.key === 'washington' ? 'WA' : 'NY'; addText(raw); break;
+        }
         if (cur.city || cur.cityTok || cur.region || cur.country || cur.stateHint) flush();
         cur.cityTok = tok; addText(raw);
         break;

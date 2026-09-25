@@ -44,9 +44,10 @@ const TEXT_RULES: Array<{ re: RegExp; model: WorkModel }> = [
   { re: /\b(?:this\s+is\s+)?not\s+(?:a\s+)?(?:fully\s+)?remote\s+(?:position|role|job|opportunity)\b|\b(?:no|not)\s+remote\s+(?:work|option|options|opportunit\w+)\b|\bremote\s+work\s+is\s+not\s+(?:available|possible|an\s+option|offered|permitted)\b|\bnot\s+eligible\s+for\s+remote\b|\bthis\s+(?:role|position|job)\s+(?:is\s+not|isn't|cannot\s+be)\s+(?:performed\s+)?remote(?:ly)?\b|\bno\s+remote\b/i, model: 'onsite' },
   { re: /\b(?:this|the)\s+(?:role|position|job|opportunity)\s+(?:is|will\s+be)\s+(?:a\s+)?(?:100%\s+|fully\s+|entirely\s+|completely\s+)?(?:on-?site|in[- ]office|in[- ]person|office[- ]based)\b/i, model: 'onsite' },
   { re: /\b(?:100%|fully|full[- ]time|five\s+days|5\s+days)\s+(?:on-?site|in[- ]office|in[- ]person|in\s+the\s+office)\b|\bon-?site\s+(?:role|position|job|opportunity|five|5)\b|\b(?:5|five)\s+days\s+(?:a|per)\s+week\s+(?:in|at)\s+(?:the|our)\s+office\b/i, model: 'onsite' },
-  { re: /\b(?:must|required\s+to|expected\s+to|need\s+to|will\s+need\s+to)\s+(?:work|be|report)\s+(?:on-?site|in[- ]person|in\s+(?:the|our)\s+office|onsite|in\s+office)\b(?!\s+(?:\d|one|two|three|four)\s+days?)(?![^.\n]{0,40}\b(?:days?\s+(?:a|per)\s+week|x\s+(?:a|per)\s+week))/i, model: 'onsite' },
+  { re: /\b(?:must|required\s+to|expected\s+to|need\s+to|will\s+need\s+to)\s+(?:work|be|report)\s+(?:on-?site|in[- ]person|in\s+(?:the|our)\s+office|onsite|in\s+office)\b(?!\s+(?:\d|one|two|three|four)\s+days?)(?![^.\n]{0,40}\b(?:days?\s+(?:a|per)\s+week|x\s+(?:a|per)\s+week|\d{1,2}\s*%|percent|half|part\s+of))/i, model: 'onsite' },
+  { re: /\b(?:on-?site|in[- ]office|in[- ]person|in\s+the\s+office)\s+(?:at\s+least\s+|a\s+minimum\s+of\s+|about\s+|roughly\s+)?\d{1,2}\s*%\s+of\s+the\s+time\b/i, model: 'hybrid' },
   // Hybrid: a schedule of office days, or the word with a work noun.
-  { re: /\bhybrid\s+(?:role|position|schedule|work(?:ing)?(?:\s+(?:model|schedule|environment|arrangement|policy))?|arrangement|opportunity|job|setup|set-up|basis|remote|in-office|office)\b/i, model: 'hybrid' },
+  { re: /\bhybrid\s+(?:role|position|schedule|arrangement|opportunity|job|setup|set-up|basis|remote|in-office|office|work(?:ing)?\s+(?:model|schedule|arrangement|pattern|mode|setup|policy|environment|structure))\b|\bhybrid\s+work(?:ing)?\s*:|\b(?:this\s+is\s+an?|offers?\s+an?|on\s+an?|in\s+an?|follows?\s+an?|with\s+an?|we\s+(?:use|follow|operate|work)\s+(?:an?\s+)?)\s*(?:full[- ]time,?\s+)?hybrid\b/i, model: 'hybrid' },
   { re: /\b(?:this|the)\s+(?:role|position|job|opportunity)\s+is\s+(?:a\s+)?hybrid\b|\bhybrid\s+(?:in|from|out\s+of|at)\s+(?:our\s+)?[A-Z]/, model: 'hybrid' },
   { re: /\b(?:\d|one|two|three|four)\s*(?:\+|or\s+more)?\s*(?:days?|x)\s*(?:a|per|each|\/|every)\s*week\s+(?:in|at|from|on)\s+(?:the\s+|our\s+)?(?:office|hq|headquarters|studio|campus|site|location|clinic|facility|lab)\b/i, model: 'hybrid' },
   { re: /\b(?:in[- ](?:the[- ])?office|on-?site|in[- ]person)\s+(?:at\s+least\s+|a\s+minimum\s+of\s+)?(?:\d|one|two|three|four)\s*(?:\+|or\s+more)?\s*(?:days?|x|times)\s*(?:a|per|each|\/)?\s*(?:week)?\b/i, model: 'hybrid' },
@@ -130,12 +131,24 @@ export function regionsOfArea(area: string): { regions: string[]; states: string
   return { regions: [...regions], states: [...states] };
 }
 
+/** "If you are near one of our offices, you'll be hybrid": a condition for some people, not the job's model. */
+const CONDITIONAL = /\b(?:if\s+(?:you\s+(?:are|live|reside|'re)|you're|located|local)|for\s+(?:those|candidates|employees)\s+(?:near|within|living|located|based)|those\s+near|when\s+(?:near|local)|unless)\b/i;
+
 function textSignals(text: string): Signal[] {
   const out: Signal[] = [];
   for (const { re, model } of TEXT_RULES) {
-    re.lastIndex = 0;
-    const m = re.exec(text);
-    if (m) out.push({ model, source: 'description', text: snippet(text, m.index, m.index + m[0].length, 220), strong: true });
+    const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+    let m: RegExpExecArray | null;
+    let tries = 0;
+    while ((m = g.exec(text)) !== null && tries++ < 20) {
+      const sStart = Math.max(text.lastIndexOf('.', m.index), text.lastIndexOf('\n', m.index), m.index - 160);
+      const lead = text.slice(Math.max(0, sStart), m.index);
+      // "not remote-only", "remote-first, but not remote-only": a negated phrase says nothing.
+      if (model === 'remote' && /\bnot\s+(?:a\s+|an\s+)?(?:fully\s+)?$/i.test(lead)) continue;
+      if (CONDITIONAL.test(lead)) continue;
+      out.push({ model, source: 'description', text: snippet(text, m.index, m.index + m[0].length, 220), strong: true });
+      break;
+    }
   }
   return out;
 }
