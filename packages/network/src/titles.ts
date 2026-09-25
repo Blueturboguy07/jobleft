@@ -38,7 +38,7 @@ function norm(title: string): string {
   let s = fold(title);
   s = s.replace(/[‐-―]/g, '-');
   s = s.replace(/&/g, ' and ');
-  s = s.replace(/[|/,;:()[\]{}"'!?·•@]+/g, ' ');
+  s = s.replace(/[|/,;:()[\]{}"'!?·•@.]+/g, ' ');
   s = s.replace(/\s-\s/g, ' ');
   s = s.replace(/\s+/g, ' ').trim();
   return ` ${s} `;
@@ -76,11 +76,11 @@ const NOT_SENIORITY = [
   / lead (?:generation|gen|qualification|nurturing|management specialist)/,
   / (?:talent|people|hr|human resources|business|channel|alliance|alliances|solutions|strategic|account|partner|sales|customer|success|implementation|integration|technology|learning|brand|creative|finance|marketing|product|growth|community|agency|client|university|campus|ecosystem) partners?(?: [a-z]+)?/,
   / partner (?:manager|management|success|marketing|engineer|operations|development|programs|enablement|sales|lead|director)/,
-  / (?:product|process|service|content|platform|feature|technical|data|business|system|application|budget|risk) owner/,
+  / (?:product|process|service|content|platform|feature|technical|data|system|application|budget|risk) owner/,
 ];
 
 const SENIORITY_PATTERNS: Array<[Seniority, RegExp[]]> = [
-  ['intern', [/ (?:intern|internship|co-op|coop|summer analyst|summer associate|working student) /]],
+  ['intern', [/ (?:intern|internship|co-op|coop|summer analyst|summer associate|working student|student) /]],
   ['founder', [/ (?:co-? ?founder|cofounder|founder|founding partner|owner) /]],
   ['exec', [
     / (?:ceo|cto|cfo|coo|cmo|cpo|cio|ciso|cro|chro|cdo|cso|cco|cao|clo|cbo) /,
@@ -93,7 +93,7 @@ const SENIORITY_PATTERNS: Array<[Seniority, RegExp[]]> = [
   ['vp', [/ (?:senior |executive |group )?(?:vice president|vice-president|vp|svp|evp|gvp|avp) /]],
   ['director', [/ (?:senior |associate |assistant |group |executive |managing )?director /, / head of [a-z]+/, /^ head /]],
   ['manager', [/ (?:senior |sr )?(?:manager|mgr) /]],
-  ['lead', [/ (?:principal|staff|distinguished|lead|tech lead|team lead) /]],
+  ['lead', [/ (?:principal|distinguished|lead|tech lead|team lead) /, / staff (?:[a-z]+ ){0,2}(?:engineer|developer|scientist|designer|researcher|architect|product manager|swe|sre|analyst)s? /]],
   ['senior', [/ (?:senior|sr|snr|iii|iv) /]],
   ['junior', [/ (?:junior|jr|entry level|entry-level|graduate|new grad|trainee|apprentice) /]],
 ];
