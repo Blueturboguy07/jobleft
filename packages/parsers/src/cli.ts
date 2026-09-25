@@ -13,6 +13,7 @@ import { extractFacts, type PostingFacts } from './facts.ts';
 import { postingsFromBoard, type BoardFormat, type PostingInput } from './board.ts';
 import { countryName } from './places.ts';
 import { formatPay, PAY_FILTER_RULE } from './pay-filter.ts';
+import { htmlToText } from './html.ts';
 
 const USER_AGENT = 'jobleft-build/0.1 (research build; no personal data)';
 const FORMATS: BoardFormat[] = ['greenhouse', 'lever', 'ashby', 'workable', 'recruitee', 'personio', 'jsonld'];
@@ -40,7 +41,8 @@ function usage(): string {
     'Commands:',
     '  text [FILE|-] [--title T] [--location L] [--workplace W] [--html]',
     '      One posting as plain text (or HTML with --html), from a file or standard input.',
-    '      Without --title the first non-empty line is the title.',
+    '      Without --title, a "Job title:" line or else the first line is the title. --country US sets the country',
+    '      used to name a bare "$" or a figure with no currency.',
     '  board <FILE|URL> [--format greenhouse|lever|ashby|workable|recruitee|personio|jsonld] [--table|--ndjson]',
     '      Every posting in a job-board answer (a JSON file, or a loopback URL of a local mock board).',
     '      The format is detected when --format is not given. Output: a JSON array (default), NDJSON or a table.',
@@ -140,8 +142,11 @@ async function main(argv: string[]): Promise<number> {
   if (cmd === 'rule') { process.stdout.write(PAY_FILTER_RULE + '\n'); return 0; }
   if (cmd === 'text') {
     const raw = readInput(args._[1]);
-    const lines = raw.split(/\r?\n/).map((l) => l.trim());
-    const title = typeof args.title === 'string' ? args.title : (lines.find(Boolean) ?? '');
+    const lines = (args.html ? htmlToText(raw) : raw).split(/\r?\n/).map((l) => l.trim());
+    // A "Job title:" line wins; else the first line that is not page furniture.
+    const labeled = lines.map((l) => /^(?:job\s+title|title|position|role)\s*:\s*(.{2,120})$/i.exec(l)?.[1]).find(Boolean);
+    const firstReal = lines.find((l) => l && !/^(?:skip\s+to|menu|home|sign\s+in|log\s+in|apply(?:\s+now)?|share|save|back\s+to|search\s+jobs|jobs?)\b/i.test(l) && l.length <= 150);
+    const title = typeof args.title === 'string' ? args.title : (labeled ?? firstReal ?? '');
     const input: PostingInput = {
       title,
       location: typeof args.location === 'string' ? args.location : null,

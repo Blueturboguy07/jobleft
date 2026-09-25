@@ -67,7 +67,7 @@ Run all commands from the repository root. You need Node 24 and pnpm.
    node packages/parsers/src/cli.ts text posting.html --html  # a saved HTML page
    ```
 
-   Without `--title`, the first non-empty line is the title. `--location "Austin, TX"` and `--workplace remote` add the board fields that a paste does not have.
+   Without `--title`, a "Job title:" line, or else the first line, is the title. `--location "Austin, TX"`, `--workplace remote` and `--country US` add the board fields that a paste does not have.
 
 5. Point the CLI at your own local mock board.
 
