@@ -19,6 +19,7 @@ import { DraftModal } from '../../components/DraftModal.tsx';
 import { CompanyMark } from '../../components/JobCard.tsx';
 import { InlineError } from '../../components/States.tsx';
 import { calendarDate, dateText, dateTimeText, plural } from '../../lib/format.ts';
+import { noteKeep, patchFresh, reminderKeep } from '../../lib/trackerEdit.ts';
 
 export function SecHead({ icon, title, id, right }: { icon: ReactNode; title: string; id?: string; right?: ReactNode }) {
   return (
@@ -216,18 +217,18 @@ export function NotesSection({ job, entry, onChange }: { job: Job; entry: Tracke
   const notes = entry?.notes ?? [];
   const reminders = entry?.reminders ?? [];
   useDirty(`note:${job.id}`, !!newNote.trim() || (!!editing && editing.text !== (notes.find((n) => n.id === editing.id)?.text ?? '')), 'your note');
-  const save = async (body: TrackerPatch, ok: string): Promise<boolean> => {
+  // every save reads the newest copy first (see lib/trackerEdit.ts), so a second window never overwrites the first
+  const save = async (build: (fresh: TrackerEntry | null) => TrackerPatch | null, ok: string): Promise<boolean> => {
     setBusy(true); setErr(null);
     try {
-      const e = await call('updateTracker', { params: { jobId: job.id }, body });
-      onChange(e);
+      const r = await patchFresh(job.id, build);
+      if (r.entry) onChange(r.entry);
       afterTrackerChange();
+      if (r.stale) { ui.message?.info('That was already changed in another window. This list is up to date now.'); return false; }
       ui.message?.success(ok);
       return true;
     } catch (e) { setErr(e as UiError); return false; } finally { setBusy(false); }
   };
-  const keep = notes.map((n) => ({ id: n.id, text: n.text }));
-  const keepRem = reminders.map((r) => ({ id: r.id, at: r.at, text: r.text, done: r.done }));
   return (
     <section className="jl-detail-sec" aria-labelledby="sec-notes-h" id="sec-notes">
       <SecHead icon={<EditOutlined />} title="Your notes and reminders" id="sec-notes-h"
@@ -235,7 +236,7 @@ export function NotesSection({ job, entry, onChange }: { job: Job; entry: Tracke
           <label className="jl-row">Status
             <Select style={{ width: 170 }} value={entry?.status ?? 'none'} disabled={busy} aria-label="Application status"
               options={[{ value: 'none', label: 'Not applied' }, ...TRACKER_STATUSES.map((s) => ({ value: s, label: TRACKER_STATUS_LABELS[s] }))]}
-              onChange={(v) => { void save({ status: v === 'none' ? null : (v as TrackerStatus) }, v === 'none' ? 'Status cleared.' : `Moved to ${TRACKER_STATUS_LABELS[v as TrackerStatus]}.`); }} />
+              onChange={(v) => { void save(() => ({ status: v === 'none' ? null : (v as TrackerStatus) }), v === 'none' ? 'Status cleared.' : `Moved to ${TRACKER_STATUS_LABELS[v as TrackerStatus]}.`); }} />
           </label>
         } />
       <InlineError error={err} />
@@ -246,7 +247,7 @@ export function NotesSection({ job, entry, onChange }: { job: Job; entry: Tracke
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Input.TextArea value={editing.text} onChange={(e) => setEditing({ id: n.id, text: e.target.value })} autoSize={{ minRows: 2 }} aria-label="Edit note" maxLength={20000} />
                 <Space>
-                  <Button size="small" type="primary" shape="round" loading={busy} disabled={!editing.text.trim()} onClick={async () => { if (await save({ notes: keep.map((k) => (k.id === n.id ? { id: n.id, text: editing.text } : k)) }, 'Note saved.')) setEditing(null); }}>Save</Button>
+                  <Button size="small" type="primary" shape="round" loading={busy} disabled={!editing.text.trim()} onClick={async () => { if (await save((f) => (f?.notes.some((x) => x.id === n.id) ? { notes: noteKeep(f).map((k) => (k.id === n.id ? { id: n.id, text: editing.text } : k)) } : null), 'Note saved.')) setEditing(null); }}>Save</Button>
                   <Button size="small" shape="round" onClick={() => setEditing(null)}>Cancel</Button>
                 </Space>
               </Space>
@@ -254,7 +255,7 @@ export function NotesSection({ job, entry, onChange }: { job: Job; entry: Tracke
               <div className="jl-row" style={{ alignItems: 'flex-start' }}>
                 <p className="jl-grow" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{n.text}</p>
                 <Button size="small" type="text" icon={<EditOutlined />} aria-label="Edit note" onClick={() => setEditing({ id: n.id, text: n.text })} />
-                <Button size="small" type="text" icon={<DeleteOutlined />} aria-label="Delete note" onClick={() => { void save({ notes: keep.filter((k) => k.id !== n.id) }, 'Note deleted.'); }} />
+                <Button size="small" type="text" icon={<DeleteOutlined />} aria-label="Delete note" onClick={() => { void save((f) => ({ notes: noteKeep(f).filter((k) => k.id !== n.id) }), 'Note deleted.'); }} />
               </div>
             )}
             <span className="jl-source">Written {dateText(n.createdAt)}{n.updatedAt !== n.createdAt ? `, changed ${dateText(n.updatedAt)}` : ''}</span>
@@ -262,23 +263,23 @@ export function NotesSection({ job, entry, onChange }: { job: Job; entry: Tracke
         ))}
         <Input.TextArea value={newNote} onChange={(e) => setNewNote(e.target.value)} autoSize={{ minRows: 2 }} placeholder="Add a note, for example who you talked to" aria-label="New note" maxLength={20000} />
         <Button shape="round" icon={<PlusOutlined />} style={{ alignSelf: 'flex-start' }} disabled={!newNote.trim()} loading={busy}
-          onClick={async () => { if (await save({ notes: [...keep, { text: newNote.trim() }] }, 'Note saved.')) setNewNote(''); }}>Save note</Button>
+          onClick={async () => { const text = newNote.trim(); if (await save((f) => ({ notes: [...noteKeep(f), { text }] }), 'Note saved.')) setNewNote(''); }}>Save note</Button>
       </div>
       <h3 className="jl-subhead"><CalendarOutlined /> Reminders</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {!reminders.length && <span className="jl-muted">No reminders. jobleft shows a notification at the time you set.</span>}
         {reminders.map((r) => (
           <div key={r.id} className="jl-row">
-            <Checkbox checked={r.done} onChange={(e) => { void save({ reminders: keepRem.map((k) => (k.id === r.id ? { ...k, done: e.target.checked } : k)) }, e.target.checked ? 'Reminder done.' : 'Reminder open again.'); }} aria-label={`Done: ${r.text}`} />
+            <Checkbox checked={r.done} onChange={(e) => { const done = e.target.checked; void save((f) => ({ reminders: reminderKeep(f).map((k) => (k.id === r.id ? { ...k, done } : k)) }), done ? 'Reminder done.' : 'Reminder open again.'); }} aria-label={`Done: ${r.text}`} />
             <span className="jl-grow" style={r.done ? { textDecoration: 'line-through', color: 'var(--jl-text3)' } : undefined}>{dateTimeText(r.at)}: {r.text || 'Follow up'}</span>
-            <Button size="small" type="text" icon={<DeleteOutlined />} aria-label="Delete reminder" onClick={() => { void save({ reminders: keepRem.filter((k) => k.id !== r.id) }, 'Reminder deleted.'); }} />
+            <Button size="small" type="text" icon={<DeleteOutlined />} aria-label="Delete reminder" onClick={() => { void save((f) => ({ reminders: reminderKeep(f).filter((k) => k.id !== r.id) }), 'Reminder deleted.'); }} />
           </div>
         ))}
         <div className="jl-row jl-wrap">
           <Input type="datetime-local" value={remAt} onChange={(e) => setRemAt(e.target.value)} style={{ width: 220 }} aria-label="Reminder date and time" min={toLocalInput(new Date().toISOString())} />
           <Input value={remText} onChange={(e) => setRemText(e.target.value)} placeholder="What to do" aria-label="Reminder text" style={{ width: 240 }} maxLength={500} />
           <Button shape="round" icon={<PlusOutlined />} disabled={!remAt} loading={busy}
-            onClick={async () => { if (await save({ reminders: [...keepRem, { at: new Date(remAt).toISOString(), text: remText.trim() || 'Follow up', done: false }] }, 'Reminder set.')) { setRemAt(''); setRemText(''); } }}>Add reminder</Button>
+            onClick={async () => { const at = new Date(remAt).toISOString(); const text = remText.trim() || 'Follow up'; if (await save((f) => ({ reminders: [...reminderKeep(f), { at, text, done: false }] }), 'Reminder set.')) { setRemAt(''); setRemText(''); } }}>Add reminder</Button>
         </div>
       </div>
     </section>

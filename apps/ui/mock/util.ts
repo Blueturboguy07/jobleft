@@ -3,7 +3,8 @@
 // packages/contracts exactly; it is NOT the product server.
 
 import { createHash, randomBytes } from 'node:crypto';
-import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync, existsSync, unlinkSync } from 'node:fs';
+import { appendFileSync, closeSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync, existsSync, unlinkSync } from 'node:fs';
+import type { IncomingMessage } from 'node:http';
 import { dirname } from 'node:path';
 
 /** A small seeded PRNG (mulberry32). The same seed gives the same fixtures on every machine. */
@@ -120,3 +121,23 @@ export function sleep(ms: number): Promise<void> {
 
 /** Loopback ports of the stand-ins (the API mock uses the real app range 47821 to 47830). */
 export const PORTS = { publik: 47910, ai: 47911, boards: 47920 } as const;
+
+/**
+ * A traffic log for a stand-in: one JSON line per request it receives (time, method, address, whether a key came with
+ * it, the request body up to 6,000 characters). It is what a network monitor would show for the local API's calls to
+ * the employer sites, the AI model and publik, so a test can search it for personal data. Call the returned function
+ * with every incoming request, in the same tick as the request arrives.
+ */
+export function trafficLogger(file: string | null): (req: IncomingMessage) => void {
+  if (!file) return () => undefined;
+  mkdirSync(dirname(file), { recursive: true });
+  return (req) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => { if (chunks.reduce((n, x) => n + x.length, 0) < 6000) chunks.push(c); });
+    req.on('end', () => {
+      try {
+        appendFileSync(file, JSON.stringify({ at: new Date().toISOString(), method: req.method, url: req.url, userAgent: req.headers['user-agent'] ?? null, hasKey: !!req.headers.authorization, body: Buffer.concat(chunks).toString('utf8').slice(0, 6000) }) + '\n');
+      } catch { /* the log is a convenience: never stop the stand-in */ }
+    });
+  };
+}

@@ -8,7 +8,7 @@ import { CopyOutlined } from '@ant-design/icons';
 import type { NetworkContact, OutreachDraft } from '@jobleft/contracts';
 import { call, type UiError } from '../app/api.ts';
 import { invalidate } from '../app/data.ts';
-import { ui } from '../app/layers.ts';
+import { confirmDiscard, ui, useDirty } from '../app/layers.ts';
 import { useAiSettings } from '../app/session.ts';
 import { AiNote, afterAiStep, ensureAiConsent } from './AiNote.tsx';
 import { InlineError } from './States.tsx';
@@ -21,6 +21,8 @@ export function DraftModal({ contact, jobId, jobLabel, open, onClose }: { contac
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<UiError | null>(null);
   useEffect(() => { if (!open) { setDraft(null); setText(''); setErr(null); } }, [open]);
+  const edited = !!draft && text !== draft.text;
+  useDirty('outreach-draft', edited, 'your edited message');
   if (!contact) return null;
   const name = `${contact.firstName} ${contact.lastName}`.trim();
   const run = async () => {
@@ -40,7 +42,7 @@ export function DraftModal({ contact, jobId, jobLabel, open, onClose }: { contac
     } catch (e) { ui.message?.error((e as UiError).message); }
   };
   return (
-    <Modal open={open} onCancel={onClose} title={`Message to ${name}`} footer={null} width={620} destroyOnClose>
+    <Modal open={open} onCancel={async () => { if (await confirmDiscard(edited ? ['your edited message'] : [])) onClose(); }} title={`Message to ${name}`} footer={null} width={620} destroyOnClose>
       <Space direction="vertical" style={{ width: '100%' }} size={12}>
         <span className="jl-muted">{contact.position ?? 'No title in your file'}{contact.company ? ` at ${contact.company}` : ''}{jobLabel ? ` · about ${jobLabel}` : ''}</span>
         <Radio.Group value={variant} onChange={(e) => setVariant(e.target.value)} aria-label="Message length">

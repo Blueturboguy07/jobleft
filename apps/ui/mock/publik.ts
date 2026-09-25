@@ -8,7 +8,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PORTS, parseArgs, readJson, sleep, writeJsonAtomic } from './util.ts';
+import { PORTS, parseArgs, trafficLogger, readJson, sleep, writeJsonAtomic } from './util.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const args = parseArgs(process.argv.slice(2));
@@ -18,6 +18,7 @@ mkdirSync(dir, { recursive: true });
 const stateFile = join(dir, 'publik-state.json');
 const ledgerFile = join(dir, 'ledger.ndjson');
 const legacyWording = !!args['legacy-wording'];
+const logTraffic = trafficLogger(args.traffic ? String(args.traffic) : join(dir, '..', 'traffic', 'publik.ndjson'));
 
 interface S { balanceMicros: number; priceMicros: number; searchPriceMicros: number; keys: string[]; claimState: 'anonymous' | 'claimed' }
 const s: S = readJson<S>(stateFile, { balanceMicros: 5_000_000, priceMicros: 10_000, searchPriceMicros: 5_000, keys: [], claimState: 'anonymous' });
@@ -74,6 +75,7 @@ function tooLow(res: ServerResponse): void {
 }
 
 const server = createServer(async (req, res) => {
+  logTraffic(req);
   const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
   const p = url.pathname.replace(/^\/api\/v1/, '');
   if (url.pathname.startsWith('/__admin/')) {

@@ -8,13 +8,14 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { BoardFile, CompanyFixture, RawPosting } from './fixtures.ts';
-import { PORTS, parseArgs } from './util.ts';
+import { PORTS, parseArgs, trafficLogger } from './util.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const args = parseArgs(process.argv.slice(2));
 const home = resolve(String(args.home ?? join(HERE, '..', '.mock-home')));
 const port = Number(args.port ?? PORTS.boards);
 const boardsDir = join(home, 'boards');
+const logTraffic = trafficLogger(args.traffic ? String(args.traffic) : join(home, 'traffic', 'boards.ndjson'));
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -51,6 +52,7 @@ function payLine(p: RawPosting): string | null {
 }
 
 const server = createServer((req, res) => {
+  logTraffic(req);
   const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
   const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
 

@@ -11,6 +11,7 @@ import { navigate } from '../app/router.ts';
 import { afterTrackerChange } from '../app/session.ts';
 import { EmptyState, ErrorState, Loading } from '../components/States.tsx';
 import { dateText, dateTimeText, plural } from '../lib/format.ts';
+import { patchFresh, reminderKeep } from '../lib/trackerEdit.ts';
 import { useTrackerView } from './jobs/TrackerTabs.tsx';
 
 type Item = TrackerList['items'][number];
@@ -120,8 +121,9 @@ export function TrackerScreen() {
             {reminders.slice(0, 12).map(({ r, it }) => (
               <div key={r.id} className="jl-row" style={{ padding: '4px 0' }}>
                 <Checkbox aria-label={`Done: ${r.text}`} onChange={async (e) => {
+                  const done = e.target.checked;
                   try {
-                    await call('updateTracker', { params: { jobId: it.job.id }, body: { reminders: it.entry.reminders.map((x) => ({ id: x.id, at: x.at, text: x.text, done: x.id === r.id ? e.target.checked : x.done })) } });
+                    await patchFresh(it.job.id, (f) => (f?.reminders.some((x) => x.id === r.id) ? { reminders: reminderKeep(f).map((x) => (x.id === r.id ? { ...x, done } : x)) } : null));
                     afterTrackerChange();
                   } catch (err) { ui.message?.error((err as UiError).message); }
                 }} />

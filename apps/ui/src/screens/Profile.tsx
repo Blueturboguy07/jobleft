@@ -2,7 +2,7 @@
 // work authorization and equal-employment answers. Each block is edited in a drawer; closing it with unsaved
 // changes asks first, and a failed save keeps what you typed and says so.
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Checkbox, Drawer, Input, InputNumber, Segmented, Select, Space, Tag } from 'antd';
 import { EditOutlined, PlusOutlined, DeleteOutlined, ArrowUpOutlined, LockOutlined } from '@ant-design/icons';
 import type { EducationEntry, Profile, ProfileInput, WorkEntry } from '@jobleft/contracts';
@@ -12,7 +12,7 @@ import { invalidate, setCached } from '../app/data.ts';
 import { confirmDiscard, ui, useDirty } from '../app/layers.ts';
 import { navigate } from '../app/router.ts';
 import { displayName, useProfile } from '../app/session.ts';
-import { ErrorState, InlineError, Loading } from '../components/States.tsx';
+import { ConflictNotice, ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, STAGE_OPTIONS, TYPE_OPTIONS } from '../lib/filters.ts';
 import { typeText, yearMonthText } from '../lib/format.ts';
 import { INDUSTRY_SUGGESTIONS, PlacePicker, SKILL_SUGGESTIONS } from './jobs/Filters.tsx';
@@ -57,14 +57,21 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
   const [d, setD] = useState<ProfileInput>(() => toInput(profile));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<UiError | null>(null);
-  useEffect(() => { if (block) { setD(toInput(profile)); setErr(null); } }, [block]);
+  const [newer, setNewer] = useState<Profile | null>(null);
+  const openedVersion = useRef(profile.version);
+  useEffect(() => { if (block) { setD(toInput(profile)); setErr(null); setNewer(null); openedVersion.current = profile.version; } }, [block]);
   const base = useMemo(() => JSON.stringify(toInput(profile)), [profile]);
   const dirty = !!block && JSON.stringify(d) !== base;
   useDirty('profile-drawer', dirty, 'your profile');
   const close = async () => { if (await confirmDiscard(dirty ? ['your profile'] : [])) onClose(); };
-  const save = async () => {
+  const save = async (overwrite = false) => {
     setBusy(true); setErr(null);
     try {
+      // another window may have saved the profile since this drawer opened: ask before overwriting it
+      if (!overwrite) {
+        const latest = await call('getProfile');
+        if (latest.version !== openedVersion.current) { setNewer(latest); return; }
+      }
       const p = await call('putProfile', { body: d });
       setCached('profile', () => p);
       invalidate('jobs:', 'job:', 'match:', 'dashboard');
@@ -198,6 +205,7 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
   return (
     <Drawer open={!!block} width="min(760px, 94vw)" title={`Edit: ${BLOCKS.find((b) => b.id === block)?.label ?? ''}`} onClose={() => { void close(); }}
       footer={<div className="jl-row"><span className="jl-grow">{err ? '' : dirty ? <span style={{ color: 'var(--jl-warn)' }}>Unsaved changes</span> : <span className="jl-muted">No changes</span>}</span><Button shape="round" onClick={() => { void close(); }}>Cancel</Button><Button type="primary" shape="round" loading={busy} disabled={!dirty} onClick={() => { void save(); }}>Save</Button></div>}>
+      {newer && <div style={{ marginBottom: 12 }}><ConflictNotice what="profile" busy={busy} onKeepMine={() => { setNewer(null); void save(true); }} onLoadNewer={() => { setCached('profile', () => newer); setD(toInput(newer)); openedVersion.current = newer.version; setNewer(null); }} /></div>}
       {err && <div style={{ marginBottom: 12 }}><InlineError error={err} onRetry={() => { void save(); }} /><p className="jl-small" style={{ marginTop: 6 }}>Your changes are still here. Nothing was saved.</p></div>}
       {body}
     </Drawer>

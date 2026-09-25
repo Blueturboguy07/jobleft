@@ -28,7 +28,7 @@ const demoFile = join(home, 'run', 'demo.json');
 const serverFile = join(home, 'run', 'server.json');
 
 const FILES: Record<string, { file: string; args: string[] }> = {
-  ai: { file: 'ai.ts', args: [] },
+  ai: { file: 'ai.ts', args: ['--traffic', join(home, 'traffic', 'ai.ndjson')] },
   publik: { file: 'publik.ts', args: ['--dir', join(home, 'publik-standin')] },
   boards: { file: 'boards-server.ts', args: ['--home', home] },
 };

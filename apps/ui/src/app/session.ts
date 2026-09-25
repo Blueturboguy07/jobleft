@@ -55,6 +55,11 @@ export function useCrawlWatcher(): void {
     document.addEventListener('visibilitychange', again);
     return () => { window.removeEventListener('focus', again); document.removeEventListener('visibilitychange', again); };
   }, []);
+  // reminders and new-job alerts come from the local service on their own schedule: the badge follows within seconds
+  useEffect(() => {
+    const t = setInterval(() => { if (document.visibilityState === 'visible') invalidate('notifications'); }, 12000);
+    return () => clearInterval(t);
+  }, []);
   const prevRunning = useRef(running);
   useEffect(() => {
     if (prevRunning.current && !running) invalidate('jobs:', 'job:', 'match:', 'tracker', 'dashboard', 'notifications', 'boards', 'sources');

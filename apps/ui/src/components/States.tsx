@@ -2,7 +2,7 @@
 // every error says what failed in plain words and offers a retry, and no loader spins without words for long.
 
 import { Component, useEffect, useState, type ReactNode } from 'react';
-import { Button, Spin } from 'antd';
+import { Alert, Button, Space, Spin } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import type { UiError } from '../app/api.ts';
 import { openExternal } from '../app/api.ts';
@@ -75,6 +75,21 @@ export function InlineError({ error, onRetry }: { error: UiError | null; onRetry
       {error.link && <Button size="small" onClick={() => openExternal(error.link!.url)}>{error.link.label}</Button>}
       {onRetry && <Button size="small" icon={<ReloadOutlined />} onClick={onRetry}>Try again</Button>}
     </div>
+  );
+}
+
+/**
+ * Two windows edited the same record. The person's own text stays in the editor; nothing is overwritten until they
+ * choose which version to keep.
+ */
+export function ConflictNotice({ what, onLoadNewer, onKeepMine, busy }: { what: string; onLoadNewer: () => void; onKeepMine: () => void; busy?: boolean }) {
+  return (
+    <Alert type="warning" showIcon role="alert" message={`This ${what} was changed in another window after you opened it.`}
+      description="Your edits are still here. Nothing has been overwritten. Choose which version to keep."
+      action={<Space direction="vertical" size={6}>
+        <Button size="small" shape="round" type="primary" loading={busy} onClick={onKeepMine}>Save my version</Button>
+        <Button size="small" shape="round" onClick={onLoadNewer}>Load the newer one (drops my edits)</Button>
+      </Space>} />
   );
 }
 

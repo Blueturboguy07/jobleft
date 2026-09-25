@@ -2,7 +2,7 @@
 // edited here and saved with Save; leaving with unsaved changes asks first, and a failed save keeps the text.
 // The readability check grades the exact exported PDF, on this Mac, for free.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Checkbox, Drawer, Dropdown, Input, Select, Space, Tag } from 'antd';
 import { Tooltip } from '../components/Tip.tsx';
 import { ArrowDownOutlined, ArrowUpOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, StarFilled, SaveOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
@@ -11,7 +11,7 @@ import { call, download, type UiError } from '../app/api.ts';
 import { invalidate, setCached, useApi } from '../app/data.ts';
 import { confirmDiscard, ui, useDirty, useLayer } from '../app/layers.ts';
 import { navigate } from '../app/router.ts';
-import { EmptyState, ErrorState, InlineError, Loading } from '../components/States.tsx';
+import { ConflictNotice, EmptyState, ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { ago, plural } from '../lib/format.ts';
 
 let idSeq = 0;
@@ -95,7 +95,9 @@ export function ResumeEditor({ id }: { id: string }) {
   const [busy, setBusy] = useState<'save' | 'ats' | null>(null);
   const [err, setErr] = useState<UiError | null>(null);
   const [report, setReport] = useState(false);
-  useEffect(() => { if (r.data && !doc) setDoc(structuredClone(r.data.document)); }, [r.data]);
+  const [newer, setNewer] = useState<Resume | null>(null);
+  const openedAt = useRef<string | null>(null);
+  useEffect(() => { if (r.data && !doc) { setDoc(structuredClone(r.data.document)); openedAt.current = r.data.updatedAt; } }, [r.data]);
   const dirty = useMemo(() => !!doc && !!r.data && JSON.stringify(doc.sections) !== JSON.stringify(r.data.document.sections), [doc, r.data]);
   useDirty(`resume:${id}`, dirty, 'this resume');
   const close = async () => { if (await confirmDiscard(dirty ? ['this resume'] : [])) navigate('resume'); };
@@ -105,13 +107,19 @@ export function ResumeEditor({ id }: { id: string }) {
   if (!r.data || !doc) return <div className="jl-page"><Loading label="Opening the resume" /></div>;
   const res = r.data;
 
-  const save = async () => {
+  const save = async (overwrite = false) => {
     setBusy('save'); setErr(null);
     try {
+      // another window may have saved this resume since it was opened here: ask before overwriting it
+      if (!overwrite) {
+        const latest = await call('getResume', { params: { resumeId: id } });
+        if (openedAt.current && latest.updatedAt !== openedAt.current) { setNewer(latest); return; }
+      }
       const clean: ResumeDocument = { ...doc, sections: doc.sections.map((s) => ({ ...s, items: s.items.map((i) => ({ ...i, bullets: i.bullets.map((b) => b.trim()).filter(Boolean) })) })) };
       const n = await call('updateResume', { params: { resumeId: id }, body: { document: clean } });
       setCached<Resume>(`resume:${id}`, () => n);
       setDoc(structuredClone(n.document));
+      openedAt.current = n.updatedAt;
       invalidate('resumes');
       ui.message?.success('Resume saved.');
     } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
@@ -160,6 +168,7 @@ export function ResumeEditor({ id }: { id: string }) {
           <div className="jl-sev critical"><strong>{count('critical')}</strong> <span className="jl-small">important</span></div>
           <div className="jl-sev optional"><strong>{count('optional')}</strong> <span className="jl-small">nice to fix</span></div>
         </div>
+        {newer && <div style={{ marginBottom: 12 }}><ConflictNotice what="resume" busy={busy === 'save'} onKeepMine={() => { setNewer(null); void save(true); }} onLoadNewer={() => { setCached<Resume>(`resume:${id}`, () => newer); setDoc(structuredClone(newer.document)); openedAt.current = newer.updatedAt; setNewer(null); }} /></div>}
         <InlineError error={err} onRetry={err ? () => { void save(); } : undefined} />
         {dirty && <p className="jl-small" style={{ color: 'var(--jl-warn)', margin: '8px 0' }} role="status">You have unsaved changes.</p>}
         <div className="jl-paper" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>

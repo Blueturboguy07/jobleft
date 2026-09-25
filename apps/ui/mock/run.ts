@@ -47,7 +47,7 @@ function start(name: string, file: string, extra: string[]): void {
 const pass = argv.filter((a, i) => !['--balance', '--price', '--legacy-wording', '--build'].includes(a) && !(['--balance', '--price'].includes(argv[i - 1] ?? '')));
 start('boards', 'boards-server.ts', ['--home', home]);
 start('publik', 'publik.ts', ['--dir', join(home, 'publik-standin'), ...(args.balance !== undefined ? ['--balance', String(args.balance)] : []), ...(args.price !== undefined ? ['--price', String(args.price)] : []), ...(args['legacy-wording'] ? ['--legacy-wording'] : [])]);
-start('ai', 'ai.ts', []);
+start('ai', 'ai.ts', ['--traffic', join(home, 'traffic', 'ai.ndjson')]);
 setTimeout(() => {
   if (stopping) return;
   start('api', 'server.ts', [...pass.filter((a) => a !== '--home' && a !== home && a !== String(args.home)), '--home', home]);

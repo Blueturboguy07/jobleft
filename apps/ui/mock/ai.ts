@@ -4,11 +4,12 @@
 // Run: node apps/ui/mock/ai.ts [--port 47911] [--delay-ms 30]
 
 import { createServer, type IncomingMessage } from 'node:http';
-import { PORTS, parseArgs, sleep } from './util.ts';
+import { PORTS, parseArgs, trafficLogger, sleep } from './util.ts';
 
 const args = parseArgs(process.argv.slice(2));
 const port = Number(args.port ?? PORTS.ai);
 const delay = Number(args['delay-ms'] ?? 30);
+const logTraffic = trafficLogger(args.traffic ? String(args.traffic) : null);
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((r) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => r(b)); });
@@ -42,6 +43,7 @@ function reply(messages: Msg[]): string {
 }
 
 const server = createServer(async (req, res) => {
+  logTraffic(req);
   const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
   if (url.pathname === '/v1/models') {
     res.writeHead(200, { 'content-type': 'application/json' });
