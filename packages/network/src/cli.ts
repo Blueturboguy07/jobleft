@@ -78,6 +78,8 @@ function open(): Ctx {
   return { home, service, standin, keyFn: k.fn, keySource: k.source, close: () => db.close() };
 }
 
+// A reader that stops early (`jn list | head`) is normal: exit quietly.
+process.stdout.on('error', (e: NodeJS.ErrnoException) => { if (e.code === 'EPIPE') process.exit(0); throw e; });
 const out = (s = '') => process.stdout.write(s + '\n');
 const json = (v: unknown) => out(JSON.stringify(v, null, 2));
 
