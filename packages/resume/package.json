@@ -17,8 +17,9 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@jobleft/contracts": "workspace:*",
     "@jobleft/ai-engine": "workspace:*",
-    "@jobleft/static-data": "workspace:*"
+    "@jobleft/contracts": "workspace:*",
+    "@jobleft/static-data": "workspace:*",
+    "unpdf": "1.8.1"
   }
 }

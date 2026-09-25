@@ -866,6 +866,35 @@
         "pronouns"
       ],
       "title": "EeoAnswers"
+    },
+    "extraSections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "lines"
+        ],
+        "title": "ExtraSection"
+      }
     }
   },
   "required": [

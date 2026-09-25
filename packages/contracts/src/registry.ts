@@ -17,7 +17,7 @@ import { MatchResultSchema, MatchSummarySchema } from './match.ts';
 import {
   CompanyCoverageSchema, ContactRankSchema, NetworkContactSchema, NetworkImportSummarySchema, OutreachDraftSchema,
 } from './network.ts';
-import { ProfileInputSchema, ProfileSchema } from './profile.ts';
+import { ExtraSectionSchema, ProfileInputSchema, ProfileSchema } from './profile.ts';
 import {
   AtsReportSchema, CoverLetterSchema, KeywordGapReportSchema, ResumeDocumentSchema, ResumeSchema, TailorProposalSchema,
 } from './resume.ts';
@@ -34,7 +34,7 @@ export const SCHEMAS: Readonly<Record<string, JsonSchema>> = {
   // core records
   Job: JobSchema, JobSummary: JobSummarySchema, Pay: PaySchema, Place: PlaceSchema, SourceAttribution: SourceAttributionSchema,
   Company: CompanySchema, H1bSummary: H1bSummarySchema,
-  Profile: ProfileSchema, ProfileInput: ProfileInputSchema,
+  Profile: ProfileSchema, ProfileInput: ProfileInputSchema, ExtraSection: ExtraSectionSchema,
   Resume: ResumeSchema, ResumeDocument: ResumeDocumentSchema, AtsReport: AtsReportSchema, KeywordGapReport: KeywordGapReportSchema,
   TailorProposal: TailorProposalSchema, CoverLetter: CoverLetterSchema,
   MatchResult: MatchResultSchema, MatchSummary: MatchSummarySchema,

@@ -125,8 +125,23 @@ const PROFILE_INPUT_FIELDS = {
   eeo: EeoAnswersSchema,
 };
 
+/**
+ * A resume section the profile has no field for (Publications, Awards, Languages, Volunteering...), kept as the
+ * person wrote it so nothing from an import is lost (resume O2). Its lines count as the person's own facts.
+ * Added in contracts 1.1.0 (optional; readers treat "missing" as none).
+ */
+export const ExtraSectionSchema = named(obj({
+  id: IdSchema,
+  title: str({ minLength: 1 }),
+  lines: arr(str()),
+}), 'ExtraSection');
+
+const PROFILE_OPTIONAL_FIELDS = {
+  extraSections: arr(ExtraSectionSchema),
+};
+
 /** The editable profile (PUT /api/v1/profile, and the proposal a resume import returns). */
-export const ProfileInputSchema = named(obj(PROFILE_INPUT_FIELDS), 'ProfileInput', 'The editable part of the profile');
+export const ProfileInputSchema = named(obj(PROFILE_INPUT_FIELDS, PROFILE_OPTIONAL_FIELDS), 'ProfileInput', 'The editable part of the profile');
 
 export const ProfileSchema = named(obj({
   /** One local user: always "default". */
@@ -135,7 +150,7 @@ export const ProfileSchema = named(obj({
   /** Hash of the facts; MatchResult.profileVersion refers to it. */
   version: str(),
   updatedAt: IsoDateTimeSchema,
-}), 'Profile', "The user's own facts, preferences and answers");
+}, PROFILE_OPTIONAL_FIELDS), 'Profile', "The user's own facts, preferences and answers");
 
 export type Link = Infer<typeof LinkSchema>;
 export type Personal = Infer<typeof PersonalSchema>;
@@ -146,5 +161,6 @@ export type SkillEntry = Infer<typeof SkillEntrySchema>;
 export type JobPreferences = Infer<typeof JobPreferencesSchema>;
 export type WorkAuthorization = Infer<typeof WorkAuthorizationSchema>;
 export type EeoAnswers = Infer<typeof EeoAnswersSchema>;
+export type ExtraSection = Infer<typeof ExtraSectionSchema>;
 export type ProfileInput = Infer<typeof ProfileInputSchema>;
 export type Profile = Infer<typeof ProfileSchema>;

@@ -290,6 +290,7 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `listCoverLetters` | GET | `/api/v1/cover-letters` | launch | resume | `{ jobId }` | — | `CoverLetter[]` | Cover letters for a job |
 | `createCoverLetter` | POST | `/api/v1/cover-letters` | launch | resume | — | `{ jobId, resumeId }` | `CoverLetter` | Draft a cover letter (truth-gated) |
 | `updateCoverLetter` | PATCH | `/api/v1/cover-letters/:letterId` | launch | resume | — | `{ text?, instruction? }` | `CoverLetter` | Edit by hand (text) or by request (instruction); truth rules hold |
+| `exportCoverLetter` | GET | `/api/v1/cover-letters/:letterId/export` | launch | resume | `{ format }` | — | file | Download a cover letter as a one-page PDF or a Word file (added in contracts 1.1.0) |
 | `getMatch` | GET | `/api/v1/match/:jobId` | launch | match | — | — | `MatchResult` | Match score of a job (409 needs_profile without a profile) |
 | `fitIndexStatus` | GET | `/api/v1/index/status` | launch | store | — | — | `FitIndexStatus` | Fit indexing: indexed, waiting, last run, model |
 | `crawlStatus` | GET | `/api/v1/crawl/status` | launch | boards | — | — | `CrawlProgress` | Crawl progress (boards done of total) |
