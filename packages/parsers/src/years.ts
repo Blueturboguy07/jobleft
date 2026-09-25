@@ -25,7 +25,7 @@ const EXP_TIGHT = /^\s*(?:of\s+)?(?:(?:relevant|related|professional|progressive
 
 /** Things with years that are not an experience requirement. */
 const NOT_EXP_AFTER = /^\s*(?:of\s+age|old\b|or\s+older|of\s+(?:college|university|school|schooling|education|study|studies|coursework|post-?secondary|high\s+school|service\b(?!\s+experience)|history|operation|business|existence|growth)|in\s+(?:business|operation|a\s+row)|ago\b|consecutive|in\s+a\s+row|degree|college|program|contract|commitment|term|warranty|plan\b|vesting|cliff|guarantee|lease|agreement|residency\s+program|apprenticeship\s+program)/i;
-const NOT_EXP_LEAD = /\b(?:age|aged|ages|older\s+than|be\s+at\s+least|must\s+be|vest\w*|vesting|over\s+the\s+next|within(?:\s+the)?(?:\s+(?:last|past|first|next))?|in\s+the\s+(?:last|past|next|first)|during\s+the\s+(?:last|past)|for\s+(?:the\s+)?(?:last|past)|every|each|after|once|since|founded|established|serving|served|been|history|anniversary|renew\w*|valid\s+for|commit\w*\s+(?:to|for))\s*$/i;
+const NOT_EXP_LEAD = /\b(?:age|aged|ages|older\s+than|be\s+at\s+least|must\s+be|vest\w*|vesting|over\s+the\s+(?:next|last|past|previous|coming)|in\s+(?:just\s+)?(?:under|over|less\s+than)|within(?:\s+the)?(?:\s+(?:last|past|first|next))?|in\s+the\s+(?:last|past|next|first)|during\s+the\s+(?:last|past)|for\s+(?:the\s+)?(?:last|past)|every|each|after|once|since|founded|established|serving|served|been|history|anniversary|renew\w*|valid\s+for|commit\w*\s+(?:to|for))\s*$/i;
 /** The company or its team has the years ("our team has 20+ years", "a family business with over 50 years"). */
 const COMPANY_HAS = /(?:\b(?:we|we've|we're|our\s+(?:[\w-]+\s+){0,2}(?:team|company|firm|founders?|leaders(?:hip)?|clinicians|staff|people|experts|partners|business|organization|family)|the\s+(?:company|firm|team)|founders?|company|firm|business|organization)\s+(?:have|has|bring|brings|combine|combines|boast|boasts|possess|possesses|with)\b[^.;\n]{0,40}$)|\bfor\s+(?:over|more\s+than|nearly|almost|about|close\s+to)\s*$/i;
 const PREFERRED = /\b(?:prefer(?:red|ably|ence)?|nice[- ]to[- ]have|a\s+plus|is\s+a\s+plus|bonus|ideally|desired|desirable|would\s+be\s+(?:great|nice|a\s+plus)|an?\s+asset|advantage(?:ous)?|plus\b|optional|deseable|souhaité|wünschenswert)\b/i;
@@ -109,13 +109,17 @@ export function parseYearsRequired(input: string): YearsResult | null {
     const after = text.slice(end, end + 120);
     const lead = text.slice(Math.max(0, idx - 60), idx);
     if (NOT_EXP_AFTER.test(after)) continue;
-    if (NOT_EXP_LEAD.test(lead)) continue;
+    // The qualifier ("over", "at least") is part of the match; the lead phrase runs up to the number.
+    const leadQ = (lead + (m[1] ?? '')).replace(/\s+$/, ' ');
+    if (NOT_EXP_LEAD.test(lead) || NOT_EXP_LEAD.test(leadQ.trimEnd())) continue;
     // "candidates with over 5 years" is a requirement; "our team has 20+ years" and "for over 50 years" are not.
-    if (COMPANY_HAS.test(lead) && !/\b(?:candidates?|applicants?|you|your|ideal|successful|someone|somebody|individual|person|professional|looking\s+for|seeking|need|require)\b[^.;\n]{0,40}$/i.test(lead)) continue;
+    if ((COMPANY_HAS.test(lead) || COMPANY_HAS.test(leadQ.trimEnd())) && !/\b(?:candidates?|applicants?|you|your|ideal|successful|someone|somebody|individual|person|professional|looking\s+for|seeking|need|require)\b[^.;\n]{0,40}$/i.test(lead)) continue;
     if (qual === 'up to') continue; // "up to 5 years" is never a minimum
     if (!(EXP_TIGHT.test(after) || EXP_AFTER.test(after))) continue;
     if (/\bage\b|\bold\b/i.test(after.slice(0, 20))) continue;
     if (b !== null && b < a) { const t = a; a = b; b = t; }
+    // "6 months to 1 year of experience": the lowest that meets it is under a year.
+    if (/\b\d{1,2}\s*(?:months?|mos?)\s*(?:to|-|–|or)\s*$/i.test(lead)) { b = a; a = 0; }
     if (qual === 'more than' || qual === 'over' || qual === 'in excess of' || qual === 'upwards of') b = null;
     if (a > 30 || (b !== null && b > 40)) continue;
     const s = indexOfStart(sentStarts, idx);
