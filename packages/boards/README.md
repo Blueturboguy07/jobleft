@@ -19,7 +19,7 @@ Everything below runs from the repository root with Node 24 and pnpm 12. Nothing
 
 ```sh
 pnpm install
-alias jb='node packages/boards/src/cli.ts'      # the jobleft-boards CLI
+jb() { node packages/boards/src/cli.ts "$@"; }   # the jobleft-boards CLI (a shell function: works in bash and zsh)
 jb help
 ```
 
@@ -72,16 +72,16 @@ logged (time, host, path, headers) to the `--log` file.
 ```sh
 node packages/boards/scripts/mock-hosts.ts --config packages/boards/examples/mock-config.json \
   --log /private/tmp/jl-requests.ndjson > /private/tmp/jl-env.sh &
-source /private/tmp/jl-env.sh     # sets JOBLEFT_HOST_MAP and JOBLEFT_PAID_FETCH_URL
+sleep 1; source /private/tmp/jl-env.sh     # sets JOBLEFT_HOST_MAP and JOBLEFT_PAID_FETCH_URL
 export JOBLEFT_HOME=/private/tmp/jl-demo
-export JOBLEFT_BOARD_DIRECTORY=$PWD/packages/boards/examples/demo-directory.json   # a 4-board directory
+export JOBLEFT_BOARD_DIRECTORY=$PWD/packages/boards/examples/demo-directory.json   # a 5-board directory
 ```
 
 `JOBLEFT_HOST_MAP` sends a real provider host to a loopback server (only loopback targets are accepted).
 `JOBLEFT_BOARD_DIRECTORY` swaps the 3,600-board directory for a small file (`none` = an empty directory), so a
 refresh asks only the boards you care about. The mock config format is described at the top of
 `scripts/mock-hosts.ts`; each board can follow a script of answers (`ok`, `404`, `500`, `403`, `timeout`, `empty`,
-`broken`, `429:<seconds>`).
+`broken`, `429:<seconds>`). Stop the mock hosts with `pkill -f mock-hosts.ts` when you are done.
 
 ### Paste a link (O1, O2, O3, O10)
 
@@ -121,7 +121,7 @@ jb add 'https://careers.mock.example/two-boards.html' --pick 1 --yes
 jb add --ats lever --board beta --yes                            # the confirmed add, without a link
 jb search 'Stripe, Inc.'                                         # same first entry as "stripe" and "STRIPE"
 jb follow greenhouse:stripe
-jb hide greenhouse:deadco
+jb hide greenhouse:quietco
 jb disable greenhouse:flaky
 jb list --view user          # views: all, followed, user, hidden, disabled, failing
 ```
@@ -136,7 +136,10 @@ added keeps the name it had when you added it.
 ```sh
 jb refresh                     # one refresh now: every board not hidden, disabled or waiting for its next check
 jb list                        # state per board: live with its open-job count, warning, unreachable, blocked
-jb show greenhouse:deadco      # e.g. unreachable ... (last check <time>, next check <time + 1 day>)
+jb show greenhouse:deadco      # warning: The board answered "not found" (HTTP 404). (one failure: asked again)
+jb refresh
+jb show greenhouse:deadco      # unreachable ... (last check <time>, next check <time + 1 day>)
+jb refresh                     # deadco gets no request now (the mock log shows it)
 jb report --failed             # the last refresh, board by board, with a plain reason
 jb status
 jb jobs greenhouse:acme --all  # the jobs a board's refreshes stored; closed ones show when and why

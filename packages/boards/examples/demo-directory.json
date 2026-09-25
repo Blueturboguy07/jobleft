@@ -3,12 +3,62 @@
  "version": "demo",
  "generatedAt": "2026-09-25T00:00:00Z",
  "notice": "A tiny directory for demos against the mock hosts (scripts/mock-hosts.ts). Not shipped.",
- "sources": [{ "id": "demo", "name": "Demo rows for the mock hosts", "url": "https://example.com/", "licence": "CC0-1.0", "licenceUrl": null, "rows": 4 }],
+ "sources": [
+  {
+   "id": "demo",
+   "name": "Demo rows for the mock hosts",
+   "url": "https://example.com/",
+   "licence": "CC0-1.0",
+   "licenceUrl": null,
+   "rows": 5
+  }
+ ],
  "counts": {},
  "rows": [
-  {"ats":"greenhouse","slug":"stripe","name":"Stripe","region":null,"source":"demo","lastVerified":null,"status":"unverified"},
-  {"ats":"greenhouse","slug":"deadco","name":"Dead Co","region":null,"source":"demo","lastVerified":null,"status":"unverified"},
-  {"ats":"greenhouse","slug":"flaky","name":"Flaky Inc","region":null,"source":"demo","lastVerified":null,"status":"unverified"},
-  {"ats":"lever","slug":"beta","name":"Beta Labs","region":null,"source":"demo","lastVerified":null,"status":"unverified"}
+  {
+   "ats": "greenhouse",
+   "slug": "stripe",
+   "name": "Stripe",
+   "region": null,
+   "source": "demo",
+   "lastVerified": null,
+   "status": "unverified"
+  },
+  {
+   "ats": "greenhouse",
+   "slug": "deadco",
+   "name": "Dead Co",
+   "region": null,
+   "source": "demo",
+   "lastVerified": null,
+   "status": "unverified"
+  },
+  {
+   "ats": "greenhouse",
+   "slug": "flaky",
+   "name": "Flaky Inc",
+   "region": null,
+   "source": "demo",
+   "lastVerified": null,
+   "status": "unverified"
+  },
+  {
+   "ats": "lever",
+   "slug": "beta",
+   "name": "Beta Labs",
+   "region": null,
+   "source": "demo",
+   "lastVerified": null,
+   "status": "unverified"
+  },
+  {
+   "ats": "greenhouse",
+   "slug": "quietco",
+   "name": "Quiet Co",
+   "region": null,
+   "source": "demo",
+   "lastVerified": null,
+   "status": "unverified"
+  }
  ]
 }
