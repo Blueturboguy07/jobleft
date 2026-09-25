@@ -1,7 +1,7 @@
 // Every way a board can fail, in plain words. The crawl report and `jobleft-crawl status` show these sentences.
 
 import {
-  AbortedError, BlockedError, BudgetError, CutOffError, DeniedHostError, HeldBackHostError, HostMapError, HostTrippedError,
+  AbortedError, BlockedError, BudgetError, CutOffError, DeniedHostError, HeldBackHostError, HostFailingError, HostMapError, HostTrippedError,
   HostWaitError, HttpError, NetworkError, NotFoundError, NotJobDataError, NotModifiedError, PrivateAddressError, RedirectError,
   RequestTimeoutError, RobotsError, TooLargeError,
 } from './http.ts';
@@ -61,23 +61,28 @@ export function describeFailure(e: unknown): Failure {
   if (e instanceof PrivateAddressError) return { status: 'forbidden', code: 'private_address', message: e.message, blameless: true };
   if (e instanceof HostMapError) return { status: 'forbidden', code: 'bad_origin', message: e.message, blameless: true };
   if (e instanceof RobotsError) {
+    let where = e.url;
+    try { const u = new URL(e.url); where = `${u.pathname} on ${u.host}`; } catch { /* keep the raw address */ }
     return e.disallowed
-      ? { status: 'robots', code: 'robots', message: `the host's robots.txt does not allow this address (${e.message.replace(/^robots\.txt: /, '')})`, blameless: true }
+      ? { status: 'robots', code: 'robots', message: `the host's robots.txt does not allow ${where}; jobleft sent no request there`, blameless: true }
       : { status: 'robots', code: 'robots_unreadable', message: `${e.message.replace(/^robots\.txt: /, '').replace(/ for https?:\/\/\S+$/, '')}; jobleft does not crawl a host whose robots.txt it cannot read`, blameless: true };
   }
   if (e instanceof HostWaitError) {
     return { status: 'deferred', code: 'host_wait', message: `the host asked jobleft to wait until ${new Date(e.untilMs).toISOString()}; the board waits for a later run`, blameless: true };
   }
   if (e instanceof HostTrippedError) return { status: 'host-skipped', code: 'host_skipped', message: 'the host refused two requests in a row earlier in this run; its other boards wait for a later run', blameless: true };
+  if (e instanceof HostFailingError) return { status: 'host-skipped', code: 'host_skipped', message: `${e.message.replace(/^host \S+ /, 'the host ')}`, blameless: true };
   if (e instanceof BudgetError) return { status: 'deferred', code: 'budget', message: `the request budget of this run is used up (${e.message}); the board waits for the next run`, blameless: true };
   if (e instanceof AbortedError) return { status: 'deferred', code: 'stopped', message: 'the run stopped before this board finished; it resumes next time', blameless: true };
   if (e instanceof BoardDeadlineError) return { status: 'failed', code: 'deadline', message: e.message, blameless: false };
   if (e instanceof TooManyJobsError) return { status: 'failed', code: 'too_many_jobs', message: e.message, blameless: false };
   if (e instanceof RedirectError) {
     const where = e.targetHost ?? 'an address it did not name';
-    let msg = `the board answered with a redirect (HTTP ${e.status}) to ${where}; jobleft does not follow redirects`;
+    let msg = e.loop
+      ? `the board redirects to itself (a redirect loop, HTTP ${e.status}); jobleft does not follow redirects`
+      : `the board answered with a redirect (HTTP ${e.status}) to ${where}; jobleft does not follow redirects`;
     if (e.forbidden) msg += ` (${forbiddenReason(e.forbidden)})`;
-    else if (e.privateTarget) msg += ' (the target is on this computer or the local network)';
+    else if (e.privateTarget && !e.loop) msg += ' (the target is on this computer or the local network)';
     return { status: 'failed', code: 'redirect', message: msg, blameless: false };
   }
   if (e instanceof BlockedError) {

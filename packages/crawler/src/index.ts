@@ -26,7 +26,7 @@ export type { ForbiddenHost, ForbiddenKind } from './hosts.ts';
 
 // The only code that touches the network
 export {
-  AbortedError, BlockedError, BoardHttp, BudgetError, CutOffError, DeniedHostError, HeldBackHostError, HostMapError,
+  AbortedError, BlockedError, BoardHttp, BudgetError, CutOffError, DeniedHostError, HeldBackHostError, HostFailingError, HostMapError,
   HostTrippedError, HostWaitError, HttpClient, HttpError, NetworkError, NotFoundError, NotJobDataError, NotModifiedError, Pacer,
   PRODUCT_TOKEN, PrivateAddressError, RedirectError, RequestTimeoutError, RobotsError, TooLargeError, USER_AGENT, checkHostMap,
   hostMapFromEnv, parseJobJson,
@@ -34,6 +34,9 @@ export {
 export type {
   BoardHttpOptions, HostRecord, HostStateStore, HostStats, HttpOptions, HttpResult, RequestOptions, RobotsRecord, Validators,
 } from './http.ts';
+
+export { nodeTransport } from './transport.ts';
+export type { TransportOptions } from './transport.ts';
 
 // Failures in plain words
 export { BoardDeadlineError, TooManyJobsError, describeFailure } from './failures.ts';

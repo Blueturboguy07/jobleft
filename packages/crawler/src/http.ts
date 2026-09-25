@@ -19,6 +19,7 @@ import { productTokenOf, checkUserAgent } from './config.ts';
 import { forbiddenHostOf, forbiddenReason, isLocalName, isPrivateAddress, loopbackOrigin } from './hosts.ts';
 import type { ForbiddenHost } from './hosts.ts';
 import { parseRobots, ALLOW_ALL, DISALLOW_ALL } from './robots.ts';
+import { nodeTransport } from './transport.ts';
 import type { RobotsRules } from './robots.ts';
 import type { HttpGetter } from './types.ts';
 
@@ -89,9 +90,17 @@ export class RedirectError extends HttpError {
   targetHost: string | null;
   forbidden: ForbiddenHost | null;
   privateTarget: boolean;
+  /** The Location points back at the address that was asked for. */
+  loop: boolean;
   constructor(status: number, url: string, location: string, allowHeldBack: readonly string[] = []) {
     let targetHost: string | null = null;
-    try { targetHost = new URL(location, url).hostname.toLowerCase(); } catch { /* unparsable Location */ }
+    let loop = false;
+    try {
+      const t = new URL(location, url);
+      targetHost = t.hostname.toLowerCase();
+      const a = new URL(url);
+      loop = t.host === a.host && t.pathname === a.pathname;
+    } catch { /* unparsable Location */ }
     const forbidden = targetHost ? forbiddenHostOf(targetHost, allowHeldBack) : null;
     const privateTarget = targetHost !== null && (isPrivateAddress(targetHost) || isLocalName(targetHost));
     super(status, url, `redirect not followed: HTTP ${status} for ${url} to ${targetHost ?? (location || '(no location)')}`);
@@ -100,6 +109,7 @@ export class RedirectError extends HttpError {
     this.targetHost = targetHost;
     this.forbidden = forbidden;
     this.privateTarget = privateTarget;
+    this.loop = loop;
   }
 }
 /** The reply is not job data: a web page, broken JSON or JSON without the expected job list. */
@@ -166,6 +176,11 @@ export class BudgetError extends Error {
 export class HostTrippedError extends Error {
   constructor(host: string) { super(`host ${host} tripped after repeated 403/429; skipped for the rest of the run`); this.name = 'HostTrippedError'; }
 }
+/** The host failed many requests in a row in this run (server errors, dropped connections): its other boards wait. */
+export class HostFailingError extends Error {
+  host: string;
+  constructor(host: string, n: number) { super(`host ${host} failed ${n} requests in a row; its other boards wait for a later run`); this.name = 'HostFailingError'; this.host = host; }
+}
 /** The host asked jobleft to wait longer than the run waits (Retry-After, or a block from an earlier run). */
 export class HostWaitError extends Error {
   host: string;
@@ -186,6 +201,11 @@ export class HostWaitError extends Error {
  */
 export class Pacer {
   intervalMs: number;
+  /**
+   * Added to every gap. Requests are spaced by their start on this computer; the margin keeps the spacing above the
+   * interval as the host sees it, even when one request leaves a little later than planned. Default 100 ms.
+   */
+  marginMs = 100;
   private next = new Map<string, number>();
   private blocked = new Map<string, number>();
   private now: () => number;
@@ -198,7 +218,7 @@ export class Pacer {
   /** The pacer's clock (real time, or a test clock). */
   clock(): number { return this.now(); }
   async wait(host: string, extraIntervalMs = 0): Promise<void> {
-    const gap = Math.max(this.intervalMs, extraIntervalMs);
+    const gap = Math.max(this.intervalMs, extraIntervalMs) + this.marginMs;
     for (let guard = 0; guard < 1000; guard++) {
       const t = this.now();
       const start = Math.max(t, this.next.get(host) ?? 0, this.blocked.get(host) ?? 0);
@@ -285,6 +305,8 @@ export interface RequestOptions {
   origin?: string | null;
   /** Send If-None-Match / If-Modified-Since. A 304 answer throws NotModifiedError. */
   validators?: Validators | null;
+  /** Retries after a server error or a dropped connection for this request (at most the client's own setting). */
+  retries?: number;
 }
 
 export interface HttpResult {
@@ -340,13 +362,18 @@ export class HttpClient implements HttpGetter {
   private seeded = new Set<string>();
   private blockedRun = new Map<string, number>();
   private tripped = new Set<string>();
+  /** Server errors and dropped connections in a row, per host (across its boards): fewer retries as it grows. */
+  private failStreak = new Map<string, number>();
+  private failing = new Set<string>();
+  /** Hosts whose connection is warm: after the first answer the spacing restarts from that answer. */
+  private warm = new Set<string>();
   private hostMap: Record<string, string>;
 
   constructor(opts: HttpOptions = {}) {
     this.hostMap = checkHostMap(opts.hostMap ?? {});
     this.userAgent = checkUserAgent(opts.userAgent ?? USER_AGENT);
     this.productToken = productTokenOf(this.userAgent);
-    this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.fetchImpl = opts.fetchImpl ?? nodeTransport({ allowLocal: (u) => loopbackOrigin(u.origin) !== null });
     this.pacer = opts.pacer ?? new Pacer();
     this.timeoutMs = opts.timeoutMs ?? 60_000;
     this.robotsTimeoutMs = opts.robotsTimeoutMs ?? Math.min(15_000, this.timeoutMs);
@@ -450,6 +477,12 @@ export class HttpClient implements HttpGetter {
       this.state?.noteRequest(paceHost, this.pacer.clock());
     }
     if (failure || !res) throw failure ?? new NetworkError(url, 'ERROR', 'no reply');
+    if (!this.warm.has(paceHost)) {
+      // The first answer on a new connection may have waited for the connection itself (DNS, TCP, TLS). Space the next
+      // request from this answer, so the host never sees two requests closer than the interval.
+      this.warm.add(paceHost);
+      this.pacer.seed(paceHost, this.pacer.clock());
+    }
     st.statuses[String(res.status)] = (st.statuses[String(res.status)] ?? 0) + 1;
     const ok = res.status >= 200 && res.status < 300;
     const cap = ok ? this.maxBody : ERROR_BODY_CAP;
@@ -603,6 +636,7 @@ export class HttpClient implements HttpGetter {
     const host = u.host;
     if (!mapped) await this.checkAddress(u.hostname);
     if (this.tripped.has(host)) throw new HostTrippedError(host);
+    if (this.failing.has(host)) throw new HostFailingError(host, this.failStreak.get(host) ?? 0);
     this.seedFromState(host);
     const waitMs = this.pacer.blockedUntil(host) - this.pacer.clock();
     if (waitMs > this.maxRetryAfterMs) throw new HostWaitError(host, this.pacer.blockedUntil(host), 'it asked jobleft to slow down');
@@ -611,10 +645,19 @@ export class HttpClient implements HttpGetter {
     if (!rules.allows(u.pathname + u.search)) throw new RobotsError(target, `${u.pathname} is disallowed`, true);
     let lastErr: unknown = null;
     let waitedForRetryAfter = false;
-    for (let attempt = 0; attempt <= this.retries; attempt++) {
+    // A host that keeps failing gets fewer retries: 2, then 1, then none.
+    const retries = Math.max(0, Math.min(opts.retries ?? this.retries, this.retries) - (this.failStreak.get(host) ?? 0));
+    const fail = (e: unknown) => {
+      const n = (this.failStreak.get(host) ?? 0) + 1;
+      this.failStreak.set(host, n);
+      if (n >= 6) this.failing.add(host);
+      lastErr = e;
+    };
+    for (let attempt = 0; attempt <= retries; attempt++) {
       if (attempt > 0 && this.retryDelayMs > 0) await new Promise((r) => setTimeout(r, this.retryDelayMs * attempt));
       if (opts.signal?.aborted) throw new AbortedError(target);
       await this.pacer.wait(host, rules.crawlDelayMs);
+      if (this.tripped.has(host)) throw new HostTrippedError(host);
       const headers = this.baseHeaders(accept);
       const v = opts.validators;
       if (v && v.url === url) {
@@ -625,10 +668,11 @@ export class HttpClient implements HttpGetter {
       try {
         r = await this.rawRequest(target, headers, real.host, host, this.timeoutMs, opts.signal);
       } catch (e) {
-        if (e instanceof NetworkError || e instanceof CutOffError) { lastErr = e; continue; } // transient: retry
+        if (e instanceof NetworkError || e instanceof CutOffError) { fail(e); continue; } // transient: retry
         throw e; // timeout, too large, budget, stopped: no retry
       }
       const s = r.status;
+      if (s < 500) this.failStreak.set(host, 0);
       if (s >= 200 && s < 300) {
         this.blockedRun.set(host, 0);
         return {
@@ -665,7 +709,7 @@ export class HttpClient implements HttpGetter {
         throw new BlockedError(s, url);
       }
       if (s === 404 || s === 410) throw new NotFoundError(s, url);
-      if (s >= 500) { lastErr = new HttpError(s, url); continue; }
+      if (s >= 500) { fail(new HttpError(s, url)); continue; }
       throw new HttpError(s, url);
     }
     throw lastErr instanceof Error ? lastErr : new Error(`request failed: ${url}`);
@@ -706,6 +750,8 @@ export interface BoardHttpOptions {
   signal?: AbortSignal;
   /** Most requests this board may make (paged adapters). Default 200. */
   maxRequests?: number;
+  /** Retries per request for this board (a board that failed last time gets none). */
+  retries?: number;
 }
 
 /** What one board's adapter sees of the network. Records the validators of its first reply. */
@@ -728,6 +774,7 @@ export class BoardHttp implements HttpGetter {
     const first = this.requests === 1;
     const r = await this.client.fetchOk(url, {
       accept, signal: this.opts.signal, origin: this.opts.origin ?? null, validators: first ? this.opts.validators ?? null : null,
+      retries: this.opts.retries,
     });
     if (first) this.validators = { url, etag: r.etag, lastModified: r.lastModified };
     this.bytes += r.body.length;

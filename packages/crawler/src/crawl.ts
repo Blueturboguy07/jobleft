@@ -310,7 +310,9 @@ export async function crawl(input: BoardRef[], opts: CrawlOptions): Promise<RunR
     const onAbort = () => ac.abort();
     opts.signal?.addEventListener('abort', onAbort);
     const validators = !confirm && source.conditional ? store.getValidators(b.ats, b.board) : null;
-    const bh = http.forBoard ? http.forBoard({ origin: b.origin ?? null, validators, signal: ac.signal }) : null;
+    // A board that failed last time is asked once, without retries: a failing board costs its host less and less.
+    const failedBefore = (store.getBoard(b.ats, b.board)?.consecutive_failures ?? 0) > 0;
+    const bh = http.forBoard ? http.forBoard({ origin: b.origin ?? null, validators, signal: ac.signal, retries: failedBefore ? 0 : undefined }) : null;
     const measure = () => {
       r.elapsedMs = Date.now() - t0;
       if (bh) { r.requests = bh.requests; r.bytesDecoded = bh.bytes; r.bytesWire = bh.bytes; }
