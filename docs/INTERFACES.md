@@ -395,7 +395,7 @@ Details and change rules: `packages/contracts/README.md`.
 
 ### `@jobleft/parsers`
 
-Status: **Built** (parsers lane, 49 tests; `pnpm --filter @jobleft/parsers test`). Pure functions only: no network, no clock, no files. Deterministic.
+Status: **Built** (parsers lane, 51 tests; `pnpm --filter @jobleft/parsers test`). Pure functions only: no network, no clock, no files. Deterministic.
 Purpose: every fact of a posting (pay, seniority, required years, places, US or not, work model and remote area,
 employment type, posting statements), each with `FactEvidence`, or `null`/`[]` when the posting does not state it.
 Everything the crawler, sources-other (added jobs) and store need is in `extractFacts`.

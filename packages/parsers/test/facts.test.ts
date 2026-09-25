@@ -160,3 +160,23 @@ test('facts: the crawler RawJob maps in one call', async () => {
   }));
   assert.deepEqual([f.pay?.min, f.pay?.source, f.workModel, f.isUs, f.levels[0], f.places.length], [90000, 'board_field', 'remote', true, 'senior', 1]);
 });
+
+test('facts: common US-posting languages (Spanish, Portuguese, French, German) keep their facts (O11 angle 4)', () => {
+  const row = (title: string, location: string, description: string) => {
+    const f = extractFacts({ title, location, description });
+    return [f.pay?.min, f.pay?.max, f.pay?.currency, f.pay?.period, f.places[0]?.country, f.workModel];
+  };
+  assert.deepEqual(row('Enfermera Registrada', 'Miami, FL', 'Salario: $30 a $38 por hora. Modelo híbrido, 2 días a la semana en la oficina.'), [30, 38, 'USD', 'hour', 'US', 'hybrid']);
+  assert.deepEqual(row('Développeur Senior (H/F)', 'Paris, France', 'Salaire : 45 - 55 K€ brut annuel. Télétravail partiel possible, 2 jours par semaine au bureau.'), [45000, 55000, 'EUR', 'year', 'FR', 'hybrid']);
+  assert.deepEqual(row('Analista de Dados Pleno', 'São Paulo, SP', 'Salário: R$ 8.000 a R$ 10.000 por mês. Trabalho 100% remoto.'), [8000, 10000, 'BRL', 'month', 'BR', 'remote']);
+  assert.deepEqual(row('Kundenservice (m/w/d)', 'Berlin', 'Bruttojahresgehalt: 38.000 € - 42.000 €. Hybrides Arbeiten.'), [38000, 42000, 'EUR', 'year', 'DE', 'hybrid']);
+  assert.deepEqual(row('Cajero', 'Monterrey, NL, México', 'Sueldo: $9,000 mensuales.'), [9000, 9000, 'MXN', 'month', 'MX', null]);
+});
+
+test('facts: pathological inputs stay fast (O11 angle 1)', () => {
+  const t0 = performance.now();
+  for (const d of ['1 000 '.repeat(30000), '5 years of experience or 3 years '.repeat(3000), '('.repeat(50000) + '$20/hr', '$'.repeat(100000)]) {
+    extractFacts({ title: 'x', description: d });
+  }
+  assert.ok(performance.now() - t0 < 8000);
+});
