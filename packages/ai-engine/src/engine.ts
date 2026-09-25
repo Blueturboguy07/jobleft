@@ -65,6 +65,13 @@ const LOCAL_LABEL: Record<LocalServerKind, string> = { ollama: 'Ollama', llamacp
 
 type Running = { controller: AbortController; provider: AiProviderKind };
 
+/** A key never rides in the address (it would land in logs and error messages): "https://user:pass@host" is refused. */
+function refuseCredentialsInUrl(typed: string): void {
+  let u: URL;
+  try { u = new URL(typed); } catch { return; }
+  if (u.username || u.password) throw new AiError('bad_request', 'The address must not hold a user name, password or key. Put the key in the key field. Nothing was saved.');
+}
+
 export class AiEngine {
   readonly publik: PublikClient;
   private readonly store: AiSettingsStore;
@@ -148,6 +155,7 @@ export class AiEngine {
         const kind: LocalServerKind = update.localKind ?? (same ? prev.localKind : null) ?? 'ollama';
         const typed = update.baseUrl ?? (same && prev.localKind === kind ? prev.baseUrl : null) ?? LOCAL_DEFAULT_URLS[kind];
         if (!typed) throw new AiError('bad_request', 'Type the address of the local AI server, for example http://127.0.0.1:8080.');
+        refuseCredentialsInUrl(typed);
         const base = normalizeBaseUrl(typed);
         if (!isLoopbackHost(parseBaseUrl(base).hostname)) {
           throw new AiError('bad_request', 'A local provider must run on this computer (127.0.0.1 or localhost). For a server elsewhere, choose "custom address".');
@@ -160,6 +168,7 @@ export class AiEngine {
       case 'custom': {
         const typed = update.baseUrl ?? (same ? prev.baseUrl : null);
         if (!typed) throw new AiError('bad_request', 'Type the address of the AI server, for example https://example.org/v1.');
+        refuseCredentialsInUrl(typed);
         next.baseUrl = normalizeBaseUrl(typed);
         next.model = update.model ?? (same && prev.baseUrl === next.baseUrl ? prev.model : null);
         break;

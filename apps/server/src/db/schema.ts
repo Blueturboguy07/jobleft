@@ -11,6 +11,9 @@
 
 import { CRAWLER_SCHEMA_VERSION } from '@jobleft/crawler';
 import { RESUME_SCHEMA_VERSION } from '@jobleft/resume';
+import { NETWORK_SCHEMA_VERSION } from '@jobleft/network';
+import { SCHEMA_VERSION as BOARDS_SCHEMA_VERSION } from '@jobleft/boards';
+import { STORE_SCHEMA_VERSION } from '@jobleft/store';
 
 export interface Migration {
   version: number;
@@ -210,4 +213,9 @@ export const SERVER_SCHEMA_VERSION = SERVER_MIGRATIONS[SERVER_MIGRATIONS.length 
 // i-core and i-resume: every owner whose tables live in the app database (docs/INTERFACES.md section 3).
 // 'resume': the resumes, tailor_proposals and cover_letters tables (i-resume wires the resume lane into the app database).
 // 'crawler': the crawler's own Store records its steps in the same schema_migrations table, so a second start must know it.
-export const KNOWN_OWNERS: Readonly<Record<string, number>> = { server: SERVER_SCHEMA_VERSION, crawler: CRAWLER_SCHEMA_VERSION, 'static-data': 1, resume: RESUME_SCHEMA_VERSION };
+export const KNOWN_OWNERS: Readonly<Record<string, number>> = {
+  server: SERVER_SCHEMA_VERSION, crawler: CRAWLER_SCHEMA_VERSION, 'static-data': 1, resume: RESUME_SCHEMA_VERSION,
+  network: NETWORK_SCHEMA_VERSION, boards: BOARDS_SCHEMA_VERSION, store: STORE_SCHEMA_VERSION,
+  // The assistant's tables (packages/assistant, owner "ai-engine"), when the assistant is wired in.
+  'ai-engine': 1,
+};

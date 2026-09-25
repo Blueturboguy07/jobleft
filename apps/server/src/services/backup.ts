@@ -44,6 +44,9 @@ function hasTable(db: DatabaseSync, name: string): boolean {
 /** The count per kind, read from a database file (the live one, a snapshot or a restored one). */
 export function countsOf(db: DatabaseSync): Record<string, number> {
   const q = (table: string, where = '') => hasTable(db, table) ? Number((db.prepare(`SELECT count(*) AS n FROM ${table} ${where}`).get() as { n: number }).n) : 0;
+  // An older folder may lack the engine's `resumes` table (the engine makes it and adopts the stand-in rows on open).
+  const hasResumes = !!db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'resumes'").get();
+  const notAdopted = (cond: string) => { const parts = [cond, hasResumes ? 'id NOT IN (SELECT id FROM resumes)' : ''].filter(Boolean); return parts.length ? `WHERE ${parts.join(' AND ')}` : ''; };
   return {
     profile: q('srv_profile'),
     trackedJobs: q('srv_tracker'),
@@ -52,8 +55,9 @@ export function countsOf(db: DatabaseSync): Record<string, number> {
     notes: q('srv_tracker_notes'),
     reminders: q('srv_tracker_reminders'),
     savedFilters: q('srv_saved_filters'),
-    resumes: q('resumes') + q('srv_resumes'),
-    resumeFiles: q('resumes', "WHERE file_json IS NOT NULL") + q('srv_resumes', 'WHERE file_path IS NOT NULL'),
+    // Stand-in rows an older folder still holds count once: the engine adopts them into `resumes` on open.
+    resumes: q('resumes') + q('srv_resumes', notAdopted('')),
+    resumeFiles: q('resumes', "WHERE file_json IS NOT NULL") + q('srv_resumes', notAdopted('file_path IS NOT NULL')),
     contacts: q('network_contacts'),
     chats: q('srv_chats'),
     chatMessages: q('srv_chat_messages'),
@@ -238,6 +242,10 @@ export async function restoreBackup(app: App, upload: string): Promise<Record<st
       try {
         const ins = probe.db.prepare(`INSERT OR REPLACE INTO pairings (extension_id, token_hash, browser, extension_version, paired_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)`);
         for (const r of pairingRows) ins.run(r.extension_id, r.token_hash, r.browser, r.extension_version, r.paired_at, r.last_seen_at);
+        // Keys never travel in a backup, so the restored AI state must not say a key is set (its hints are dropped;
+        // the person saves the key again on this computer).
+        const aiState = probe.kv.get<{ keyHints?: Record<string, string | null> }>('ai:ai.engine');
+        if (aiState && aiState.keyHints && Object.keys(aiState.keyHints).length) probe.kv.set('ai:ai.engine', { ...aiState, keyHints: {} });
         counts = countsOf(probe.db);
       } finally { await probe.close(); }
     } catch (e) {

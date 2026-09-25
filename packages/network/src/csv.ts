@@ -267,7 +267,9 @@ export function parseConnectionsCsv(input: string): ParseResult {
     if (dateText && !connectedOn) badDates++;
     if (!firstName && !lastName && !profileUrl) {
       const any = f.some((x) => clean(x) !== '');
-      skipped.push({ line: rec.startLine, reason: any ? 'No name and no profile link on this row.' : 'Empty row.' });
+      // A row with nothing in it (LinkedIn's export ends with one) is not a person and is not reported.
+      if (!any) continue;
+      skipped.push({ line: rec.startLine, reason: 'No name and no profile link on this row.' });
       continue;
     }
     const row: ParsedConnection = {

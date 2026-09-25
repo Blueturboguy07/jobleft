@@ -69,7 +69,14 @@ function jobOr404(d: AppData, id: string) {
 async function aiJson<K extends RouteName & keyof AiRouteHandlers>(c: Ctx<K>, name: K): Promise<Out> {
   const r = await createAiRouteHandlers(c.d.ai.engine)[name]({ params: c.params, query: c.query as Record<string, string>, body: c.body, signal: c.gone });
   if ('sse' in r) throw new ApiFailure('internal', 'That answer cannot be streamed.');
-  if (r.status >= 400) throw apiFailureOf({ status: r.status, ...(r.json as object) });
+  if (r.status >= 400) {
+    // The engine's own error body (code, message, details, link) becomes the server's error with the same status;
+    // it is not an exception, so apiFailureOf (which reads AiError instances) would call every one "provider_error".
+    const err = (r.json as { error?: { code?: string; message?: string; details?: unknown; link?: unknown } }).error ?? {};
+    throw new ApiFailure((err.code ?? 'provider_error') as ApiFailure['code'], err.message ?? 'The AI request failed.', {
+      ...(err.details !== undefined ? { details: err.details } : {}), ...(err.link ? { link: err.link as { label: string; url: string } } : {}),
+    });
+  }
   return { json: r.json };
 }
 

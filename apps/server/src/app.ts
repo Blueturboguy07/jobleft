@@ -101,6 +101,7 @@ export class AppData {
       afterRun: () => this.savedFilterAlerts(),
       requestLog: join(cfg.layout.logs, 'requests.ndjson'),
       seeded: () => new Set(this.kv.get<string[]>('core.seededBoards') ?? []),
+      autoCrawl: () => (cfg.env ?? process.env).JOBLEFT_AUTO_CRAWL !== '0',
     });
     this.feed = new FeedService({
       db: this.db, jobs: this.jobs,
@@ -137,13 +138,15 @@ export class AppData {
     const pr = p.preferences;
     if (!(pr.jobFunctions.length || pr.targetTitles.length || pr.places.length || pr.workModels.length || pr.countries.length)) return;
     this.kv.set('core.seedDone', true);
-    if (this.boards.count() > 0) { this.boards.runNow(undefined, 'first_run').catch(() => { /* offline: the scheduler retries */ }); return; }
+    // JOBLEFT_AUTO_CRAWL=0 (tests): the boards are seeded, but no crawl of real employer boards starts on its own.
+    const auto = (this.cfg.env ?? process.env).JOBLEFT_AUTO_CRAWL !== '0';
+    if (this.boards.count() > 0) { if (auto) this.boards.runNow(undefined, 'first_run').catch(() => { /* offline: the scheduler retries */ }); return; }
     let list: ReturnType<typeof seedBoards> = [];
     try { list = seedBoards(pr); } catch (e) { this.cfg.log.warn('seed.failed', { error: e instanceof Error ? e.name : 'error' }); }
     const added = this.boards.seed(list);
     this.kv.set('core.seededBoards', added);
     this.cfg.log.info('seed.added', { boards: added.length });
-    if (added.length) this.boards.runNow(undefined, 'first_run').catch((e) => this.cfg.log.warn('seed.crawl_not_started', { error: e instanceof Error ? e.message : 'error' }));
+    if (added.length && auto) this.boards.runNow(undefined, 'first_run').catch((e) => this.cfg.log.warn('seed.crawl_not_started', { error: e instanceof Error ? e.message : 'error' }));
   }
 
   /** Background work: reminders, follow-ups and the crawl scheduler. Never before the server answers. */

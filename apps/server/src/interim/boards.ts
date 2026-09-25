@@ -45,6 +45,8 @@ export interface CrawlOptions {
   requestLog?: string | null;
   /** Board ids the first-run choice added (shown with origin "directory"). */
   seeded?: () => Set<string>;
+  /** false = no crawl starts on its own (first run, launch catch-up, schedule). Tests set JOBLEFT_AUTO_CRAWL=0; a person's crawl button still works. */
+  autoCrawl?: () => boolean;
 }
 
 export class BoardsService {
@@ -199,7 +201,9 @@ export class BoardsService {
     const p = this.progress;
     return {
       running: p !== null, reason: p?.reason ?? null, boardsDone: p?.done ?? 0, boardsTotal: p?.total ?? 0, jobsSeen: p?.seen ?? 0,
-      startedAt: p?.startedAt ?? null, nextScheduledAt: next, lastRun: lastOk.summary,
+      // lastRun is the last finished run, failed boards included: a person must see that the last try failed.
+      // The offline note below names the last run that brought jobs.
+      startedAt: p?.startedAt ?? null, nextScheduledAt: next, lastRun: last.summary,
       ...(this.offlineAt || this.o.offline()
         ? { offlineNote: `Offline: jobleft could not reach the job boards${this.offlineAt ? ` (last try ${this.offlineAt.slice(0, 16).replace('T', ' ')} UTC)` : ''}. You see your stored jobs; last refreshed ${lastOk.finishedAt ? `${lastOk.finishedAt.slice(0, 16).replace('T', ' ')} UTC` : 'never'}.` }
         : {}),
@@ -312,6 +316,7 @@ export class BoardsService {
     const tick = (catchUp: boolean) => {
       try {
         if (this.stopped || this.runningP || this.o.offline() || this.count() === 0) return;
+        if (this.o.autoCrawl && !this.o.autoCrawl()) return;
         const s = this.o.settings();
         if (catchUp && !s.crawl.catchUpOnLaunch) return;
         const last = this.lastRun().finishedAt;

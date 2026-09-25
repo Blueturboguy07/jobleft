@@ -164,12 +164,13 @@ export class PublikClient {
     if (!Number.isInteger(disclosureVersion) || disclosureVersion !== PUBLIK_DISCLOSURE_VERSION) {
       throw new AiError('bad_request', 'Show the current publik disclosure and accept it before connecting.');
     }
-    const current = await this.status();
-    if (current.state === 'connected') return current; // one connection, one key: never a second mint
-    if (this.connecting) throw new AiError('bad_request', 'publik is already connecting. Wait a moment.');
+    // No app token: say so before anything is read or sent (a status read would turn into "unreachable").
     if (!this.appToken) {
       throw new AiError('not_ready', 'Connecting to publik is not available in this build yet (it has no publik app token). Choose a local model or your own key instead.');
     }
+    const current = await this.status();
+    if (current.state === 'connected') return current; // one connection, one key: never a second mint
+    if (this.connecting) throw new AiError('bad_request', 'publik is already connecting. Wait a moment.');
     this.connecting = true;
     try {
       // Nothing half-done is kept: the key is saved only after a valid answer, and state only after the key.

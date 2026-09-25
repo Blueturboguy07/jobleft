@@ -4,7 +4,7 @@
 // files/resumes/ (inside the data folder only).
 
 import { randomUUID } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import type { AtsReport, CoverLetter, Job, KeywordGapReport, Profile, ProfileInput, Resume, ResumeDocument, TailorProposal } from '@jobleft/contracts';
@@ -331,6 +331,16 @@ export class ResumeService {
 
   async export(resumeId: string, format: 'pdf' | 'docx'): Promise<ExportedFile> {
     const { row, doc } = this.#doc(resumeId);
+    // An uploaded resume that was never edited comes back as the person's own file, byte for byte, when the format
+    // matches. Anything edited or tailored is rendered from the document.
+    if (row.kind === 'base' && row.version === 1 && row.file_json) {
+      const file = parse<{ fileName?: string; mimeType?: string }>(row.file_json);
+      const path = join(this.#o.filesDir, `${row.id}.${format}`);
+      const mime = format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      if (file?.mimeType === mime && existsSync(path)) {
+        return { fileName: file.fileName || `${row.id}.${format}`, mimeType: mime, bytes: new Uint8Array(readFileSync(path)), leftOut: [] };
+      }
+    }
     const base = safeFileName(`${doc.header.name || 'Resume'}_${row.kind === 'tailored' ? (parse<{ company: string }>(row.job_label_json)?.company ?? 'job') : row.name}`);
     if (format === 'pdf') {
       const r = renderResumePdf(doc);

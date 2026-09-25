@@ -1,12 +1,14 @@
 // Server O3: the person controls extension pairing; the extension reaches only its own routes.
 
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { cleanup, PERSONA, raw, startTest } from './helpers.ts';
 
 const EXT = 'abcdefghijklmnopabcdefghijklmnop';
 const ORIGIN = `chrome-extension://${EXT}`;
-const PDF = Buffer.from('%PDF-1.4\n% pairing test\n%%EOF\n');
+// A real one-page PDF (the resume engine reads it; a fake header is refused as damaged).
+const PDF = readFileSync(new URL('../../../packages/resume/test/fixtures/jordan-one-column.pdf', import.meta.url));
 
 test('pairing needs the person, five wrong codes void it, and unpairing stops the token at once', async () => {
   const s = await startTest('pair');

@@ -5,9 +5,9 @@
 import { existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import type { Job, Profile, Resume } from '@jobleft/contracts';
+import type { Job, Profile, Resume, ResumeDocument } from '@jobleft/contracts';
 import type { AiClient } from '@jobleft/ai-engine';
-import { ResumeError, ResumeService, builtinSkillDictionary } from '@jobleft/resume';
+import { ResumeError, ResumeService, builtinSkillDictionary, documentFromProfile } from '@jobleft/resume';
 import { ApiFailure } from '../errors.ts';
 
 export const PDF = 'application/pdf';
@@ -35,6 +35,29 @@ export class ResumeBridge {
   constructor(opts: { db: DatabaseSync; filesDir: string; profile: () => Profile; job: (id: string) => Job | null; ai: () => AiClient }) {
     this.db = opts.db; this.dir = opts.filesDir;
     this.svc = new ResumeService({ db: opts.db, filesDir: opts.filesDir, profile: opts.profile, job: opts.job, ai: opts.ai, skills: builtinSkillDictionary() });
+    this.adoptInterimResumes(opts.profile);
+  }
+
+  /**
+   * An older data folder kept resumes in the server's stand-in table (srv_resumes) with the file under the same
+   * files folder. Each one becomes a base resume of the engine once, with its file record kept byte for byte; the
+   * document is read from the person's profile (the stand-in stored no readable document).
+   */
+  private adoptInterimResumes(profile: () => Profile): void {
+    const has = this.db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'srv_resumes'").get();
+    if (!has) return;
+    type Old = { id: string; name: string; is_primary: number; file_name: string | null; file_mime: string | null; file_bytes: number | null; file_sha256: string | null; created_at: string; updated_at: string };
+    const rows = this.db.prepare('SELECT id, name, is_primary, file_name, file_mime, file_bytes, file_sha256, created_at, updated_at FROM srv_resumes WHERE id NOT IN (SELECT id FROM resumes)').all() as Old[];
+    if (!rows.length) return;
+    let doc: ResumeDocument | null = null;
+    try { doc = documentFromProfile(profile()); } catch { doc = null; }
+    const ins = this.db.prepare(`INSERT INTO resumes (id, name, target_title, is_primary, kind, version, file_json, document_json, import_report_json, proposed_profile_json, snapshot_json, snapshot_source, created_at, updated_at)
+      VALUES (?, ?, NULL, ?, 'base', 1, ?, ?, NULL, NULL, NULL, 'profile', ?, ?)`);
+    for (const r of rows) {
+      const file = r.file_name && r.file_mime && r.file_sha256 ? { fileName: r.file_name, mimeType: r.file_mime, bytes: r.file_bytes ?? 0, sha256: r.file_sha256 } : null;
+      const d = doc ?? { header: { name: '', email: null, phone: null, city: null, links: [] }, sections: [] };
+      ins.run(r.id, r.name, r.is_primary, file ? JSON.stringify(file) : null, JSON.stringify(d), r.created_at, r.updated_at);
+    }
   }
 
   list(): Resume[] { return this.svc.list(); }

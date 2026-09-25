@@ -91,7 +91,7 @@ export function startBoards(opts: { file: string; port?: number; logFile?: LogFi
 }
 
 /** A Greenhouse posting in the list API's shape (content is entity-encoded HTML, as Greenhouse serves it). */
-export function greenhouseJob(id: number, o: { title: string; location?: string; content?: string; posted?: string | null; board: string; pay?: { min: number; max: number } | null }): Record<string, unknown> {
+export function greenhouseJob(id: number, o: { title: string; location?: string; content?: string; posted?: string | null; board: string; pay?: { min: number; max: number; period?: 'hour' | 'year' } | null }): Record<string, unknown> {
   const html = o.content ?? '<p>About the role.</p>';
   return {
     id,
@@ -104,7 +104,8 @@ export function greenhouseJob(id: number, o: { title: string; location?: string;
     updated_at: '2026-09-24T10:00:00-04:00',
     metadata: [],
     departments: [],
-    ...(o.pay ? { pay_input_ranges: [{ min_cents: o.pay.min * 100, max_cents: o.pay.max * 100, currency_type: 'USD' }] } : {}),
+    // Like a real board: the range carries a title that names its unit (a range with no unit is not read as pay).
+    ...(o.pay ? { pay_input_ranges: [{ min_cents: o.pay.min * 100, max_cents: o.pay.max * 100, currency_type: 'USD', title: o.pay.period === 'hour' ? 'Hourly rate' : 'Annual salary' }] } : {}),
   };
 }
 

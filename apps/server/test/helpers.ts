@@ -52,7 +52,8 @@ export async function startTest(tag: string, extra: { home?: string; env?: Recor
   const token = newLaunchToken();
   const server = await startServer({
     home, launchToken: token, secrets: memorySecrets(), dev: extra.dev ?? true, offline: extra.offline ?? false,
-    env: { JOBLEFT_LOG_LEVEL: 'debug', ...(extra.env ?? {}) },
+    // No crawl of real employer boards starts on its own in a test (a test that wants one passes JOBLEFT_AUTO_CRAWL: '1' with its own host map).
+    env: { JOBLEFT_LOG_LEVEL: 'debug', JOBLEFT_AUTO_CRAWL: '0', ...(extra.env ?? {}) },
   });
   const port = server.port;
   return {

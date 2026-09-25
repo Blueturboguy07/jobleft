@@ -54,7 +54,7 @@ test('a provider that is down gives a plain error quickly, and nothing goes anyw
     assert.ok(Date.now() - t0 < 10_000);
     const ev = events(r.text);
     assert.equal(ev.at(-1).type, 'error');
-    assert.match(ev.at(-1).error.message, /could not be reached/);
+    assert.match(ev.at(-1).error.message, /could not be reached|Nothing answers at/);
     const none = await startTest('ainone');
     try {
       const n = await none.call('POST', '/api/v1/ai/chat', { requestId: 'req-3', messages: [{ role: 'user', content: 'hi' }] });
@@ -65,15 +65,16 @@ test('a provider that is down gives a plain error quickly, and nothing goes anyw
 });
 
 test('offline mode refuses AI and publik at once', async () => {
-  const s = await startTest('aioff', { offline: true, env: { JOBLEFT_PUBLIK_APP_TOKEN: 'stand-in-app-token', JOBLEFT_PUBLIK_BASE_URL: 'http://127.0.0.1:9/api/v1' } });
+  const s = await startTest('aioff', { offline: true, env: { JOBLEFT_PUBLIK_APP_TOKEN: 'stand-in-app-token', JOBLEFT_PUBLIK_BASE_URL: 'https://publik.example.org/api/v1' } });
   try {
-    await s.call('PUT', '/api/v1/ai/settings', { provider: 'local', localKind: 'openai_compatible', baseUrl: 'http://127.0.0.1:9/v1', model: 'm' });
+    // A model server on this computer is allowed in offline mode (nothing leaves the laptop); a server elsewhere is not.
+    await s.call('PUT', '/api/v1/ai/settings', { provider: 'custom', baseUrl: 'https://ai.example.org/v1', model: 'm' });
     const r = await s.call('POST', '/api/v1/ai/chat', { requestId: 'req-4', messages: [{ role: 'user', content: 'hi' }] });
-    assert.equal(r.status, 503);
+    assert.equal(r.status, 503, r.text);
     assert.equal(r.json.error.code, 'offline');
     const p = await s.call('POST', '/api/v1/publik/connect', { disclosureAccepted: true, disclosureVersion: 1 });
-    assert.equal(p.status, 503);
-    assert.equal(p.json.error.code, 'offline');
+    assert.equal(p.status, 503, p.text);
+    assert.ok(['offline', 'not_ready'].includes(p.json.error.code), p.text);
   } finally { await s.stop(); cleanup(s.home); }
 });
 

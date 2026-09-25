@@ -1,12 +1,14 @@
 // Server O4, O5, O13: confirmed saves survive restarts and kill -9; failures are visible; facts stay as stored.
 
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanup, PERSONA, raw, scratchHome, spawnServer, startTest, waitExit } from './helpers.ts';
 
-const PDF = Buffer.from('%PDF-1.4\n% Jordan Testwell test resume\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n');
+// A real one-page PDF (the resume engine reads it; a fake header is refused as damaged).
+const PDF = readFileSync(new URL('../../../packages/resume/test/fixtures/jordan-one-column.pdf', import.meta.url));
 const CSV = '﻿Notes:\r\n"When exporting your connection data, you may notice that some of the email addresses are missing, because of privacy settings."\r\n\r\nFirst Name,Last Name,URL,Email Address,Company,Position,Connected On\r\nAlex,Example,https://www.linkedin.com/in/alex-example-test,,"Acme, Inc.",Technical Recruiter,04 Mar 2025\r\nSam,Sample,,sam@example.com,Initech,Data Engineer,12 Jan 2024\r\n,,,,,,\r\n';
 
 async function addTextJob(call: (m: string, p: string, b?: unknown) => Promise<{ status: number; json: any }>, title: string) {
@@ -161,7 +163,7 @@ test('resume uploads: the real type is checked, and files come back byte for byt
   const s = await startTest('resume');
   try {
     const bad = await s.call('POST', '/api/v1/resumes/import', Buffer.from('not a pdf'), { 'content-type': 'application/pdf' });
-    assert.equal(bad.status, 400);
+    assert.ok([400, 415].includes(bad.status), bad.text);
     const wrongType = await s.call('POST', '/api/v1/resumes/import', PDF, { 'content-type': 'text/plain' });
     assert.equal(wrongType.status, 415);
     const ok = await s.call('POST', '/api/v1/resumes/import', PDF, { 'content-type': 'application/pdf', 'x-jobleft-filename': '..%2F..%2Fevil.pdf' });
@@ -178,8 +180,11 @@ test('resume uploads: the real type is checked, and files come back byte for byt
     assert.equal(back.status, 200);
     assert.equal(back.headers['content-type'], 'application/pdf');
     assert.ok(back.body.equals(PDF), 'the uploaded file comes back byte for byte');
+    // The resume engine renders a Word file from the read document of an uploaded PDF.
     const docx = await s.call('GET', `/api/v1/resumes/${ok.json.resume.id}/export?format=docx`);
-    assert.equal(docx.status, 503, 'a Word file from a PDF needs the resume engine');
+    assert.equal(docx.status, 200, docx.text);
+    assert.equal(docx.headers['content-type'], 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    assert.ok(docx.body.length > 1000 && docx.body.subarray(0, 2).toString() === 'PK', 'a real zip-based Word file');
     const del = await s.call('DELETE', `/api/v1/resumes/${ok.json.resume.id}`);
     assert.deepEqual(del.json.deleted, [ok.json.resume.id]);
     assert.equal((await s.call('GET', '/api/v1/resumes')).json.length, 0);

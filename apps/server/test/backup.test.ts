@@ -10,7 +10,8 @@ import { inflateRawSync } from 'node:zlib';
 import { ZipWriter } from '../src/services/zip.ts';
 import { cleanup, PERSONA, scratchHome, startTest, type TestServer } from './helpers.ts';
 
-const PDF = Buffer.from('%PDF-1.4\n% backup test resume\n%%EOF\n');
+// A real one-page PDF (the resume engine reads it; a fake header is refused as damaged).
+const PDF = readFileSync(new URL('../../../packages/resume/test/fixtures/jordan-one-column.pdf', import.meta.url));
 const CSV = 'First Name,Last Name,URL,Email Address,Company,Position,Connected On\nAlex,Example,,,Acme,Recruiter,04 Mar 2025\n';
 const MARKER = 'sk-test-MARKER123-abcdefghijklmnop';
 
