@@ -27,7 +27,7 @@ export interface OpenAiDriverOptions {
   /** Sees every answer's status and headers (publik reads its x-publik-* headers here). */
   onResponse?: (status: number, headers: Record<string, string>) => void;
   /** A provider-specific reading of a failed answer (publik 402). null = use the general rules. */
-  classify?: (status: number, headers: Record<string, string>, raw: string) => AiError | null;
+  classify?: (status: number, headers: Record<string, string>, raw: string) => AiError | null | Promise<AiError | null>;
   /** Cost of one answer from the response headers (publik), or null. */
   costFromHeaders?: (headers: Record<string, string>) => number | null;
 }
@@ -71,8 +71,8 @@ export class OpenAiDriver implements ProviderDriver {
     return { headers, keySet: !!key };
   }
 
-  private fail(res: HttpResponse, raw: string, keySet: boolean): AiError {
-    const special = this.o.classify?.(res.status, res.headers, raw);
+  private async fail(res: HttpResponse, raw: string, keySet: boolean): Promise<AiError> {
+    const special = await this.o.classify?.(res.status, res.headers, raw);
     if (special) return special;
     return classifyHttpFailure(res.status, res.headers['content-type'], raw, { label: this.o.label, model: this.model, keySet });
   }
@@ -106,9 +106,9 @@ export class OpenAiDriver implements ProviderDriver {
       if (body.response_format && res.status === 400 && /response_format|json_schema|json_object|grammar|schema/i.test(raw)) {
         delete body.response_format;
         res = await post();
-        if (res.status >= 400) throw this.fail(res, await res.text(), keySet);
+        if (res.status >= 400) throw await this.fail(res, await res.text(), keySet);
       } else {
-        throw this.fail(res, raw, keySet);
+        throw await this.fail(res, raw, keySet);
       }
     }
     this.o.onResponse?.(res.status, res.headers);
@@ -206,7 +206,7 @@ export class OpenAiDriver implements ProviderDriver {
     const { headers, keySet } = await this.headers();
     const res = await send({ method: 'GET', url: `${root}/models`, headers, signal, connectTimeoutMs: this.o.connectTimeoutMs, idleTimeoutMs: Math.min(this.o.idleTimeoutMs ?? 30_000, 30_000) });
     const raw = await res.text();
-    if (res.status >= 400) throw this.fail(res, raw, keySet);
+    if (res.status >= 400) throw await this.fail(res, raw, keySet);
     return parseModelList(res.headers['content-type'], raw, this.o.label);
   }
 
@@ -215,7 +215,7 @@ export class OpenAiDriver implements ProviderDriver {
     const { headers, keySet } = await this.headers();
     const res = await send({ method: 'POST', url: `${root}/embeddings`, headers, body: JSON.stringify({ model, input: texts }), signal, connectTimeoutMs: this.o.connectTimeoutMs, idleTimeoutMs: this.o.idleTimeoutMs });
     const raw = await res.text();
-    if (res.status >= 400) throw this.fail(res, raw, keySet);
+    if (res.status >= 400) throw await this.fail(res, raw, keySet);
     this.o.onResponse?.(res.status, res.headers);
     const parsed = tryJson(raw) as Record<string, any> | undefined;
     const data = parsed?.data;
