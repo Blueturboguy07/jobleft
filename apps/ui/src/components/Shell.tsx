@@ -168,9 +168,12 @@ export function ConnectionBanner() {
     void ping();
     const t = setInterval(() => { void ping(); }, local ? 20000 : 4000);
     const on = () => setOnline(true), off = () => setOnline(false);
+    let lastSoon = 0;
+    const soon = () => { if (Date.now() - lastSoon > 1000) { lastSoon = Date.now(); void ping(); } };
     window.addEventListener('online', on);
     window.addEventListener('offline', off);
-    return () => { alive = false; clearInterval(t); window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+    window.addEventListener('jl-unreachable', soon);
+    return () => { alive = false; clearInterval(t); window.removeEventListener('online', on); window.removeEventListener('offline', off); window.removeEventListener('jl-unreachable', soon); };
   }, [local]);
   if (!local) return <Alert className="jl-banner" type="error" banner showIcon message="jobleft's local service is not answering. Your data is safe on this Mac; jobleft keeps trying to reconnect." />;
   if (!online) return <Alert className="jl-banner" type="warning" banner showIcon message="This Mac reports no internet connection. Your saved jobs, tracker, resumes and profile still work. Steps that need the internet can fail until it is back." />;

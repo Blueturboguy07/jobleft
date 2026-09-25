@@ -7,7 +7,7 @@
 
 import { attachDemo, startDemo, summary, type Demo } from './lib.ts';
 
-const ALL = ['nav', 'facts', 'filters', 'signals', 'detail', 'tracker', 'persist', 'states', 'money', 'privacy', 'keyboard', 'layout', 'perf'];
+const ALL = ['brand', 'nav', 'facts', 'filters', 'signals', 'detail', 'tracker', 'persist', 'states', 'money', 'privacy', 'keyboard', 'layout', 'perf'];
 const argv = process.argv.slice(2);
 const get = (k: string) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? argv[i + 1] : undefined; };
 const only = argv.includes('--all') ? ALL : (get('only') ?? 'nav').split(',');

@@ -61,6 +61,7 @@ export async function launch(): Promise<Browser> {
   const ws = new WebSocket(wsUrl);
   await new Promise((r) => ws.addEventListener('open', r, { once: true }));
   let id = 0;
+  let frontId = '';
   const pending = new Map<number, { res: (v: unknown) => void; rej: (e: Error) => void }>();
   const listeners: Array<(m: { method: string; params: unknown; sessionId?: string }) => void> = [];
   ws.addEventListener('message', (ev) => {
@@ -80,7 +81,15 @@ export async function launch(): Promise<Browser> {
     async page() {
       const { targetId } = await send<{ targetId: string }>('Target.createTarget', { url: 'about:blank' });
       const { sessionId } = await send<{ sessionId: string }>('Target.attachToTarget', { targetId, flatten: true });
-      const s = <T>(m: string, p: Record<string, unknown> = {}) => send<T>(m, p, sessionId);
+      // Several pages share one window: a page that is not in front does not paint or take clicks, so the driver brings
+      // a page to the front before it types, clicks, reads or takes a picture (only when another page was in front).
+      const s = async <T>(m: string, p: Record<string, unknown> = {}): Promise<T> => {
+        if (frontId !== sessionId && (m.startsWith('Input.') || m === 'Runtime.evaluate' || m === 'Page.captureScreenshot')) {
+          frontId = sessionId;
+          await send('Page.bringToFront', {}, sessionId);
+        }
+        return send<T>(m, p, sessionId);
+      };
       await s('Page.enable');
       await s('Runtime.enable');
       await s('Network.enable');

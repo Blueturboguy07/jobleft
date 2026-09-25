@@ -67,7 +67,7 @@ function StatusStrip({ it }: { it: Item }) {
   );
 }
 
-function ListBody({ list, view, emptyArt, emptyTitle, emptyText, strip, filterText }: { list: ReturnType<typeof useTrackerView>; view: TrackerView; emptyArt: 'heart' | 'send' | 'link' | 'hidden' | 'box'; emptyTitle: string; emptyText: string; strip?: boolean; filterText?: string }) {
+function ListBody({ list, view, emptyArt, emptyTitle, emptyText, strip, filterText, emptyAction }: { list: ReturnType<typeof useTrackerView>; view: TrackerView; emptyArt: 'heart' | 'send' | 'link' | 'hidden' | 'box'; emptyTitle: string; emptyText: string; strip?: boolean; filterText?: string; emptyAction?: React.ReactNode }) {
   const profile = useProfile();
   const profileSet = profileIsSet(profile.data);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -78,7 +78,7 @@ function ListBody({ list, view, emptyArt, emptyTitle, emptyText, strip, filterTe
   if (!list.data) return <SkeletonCards n={2} />;
   if (!items.length) {
     return <EmptyState art={emptyArt} title={filterText ? 'No job matches that search' : emptyTitle} text={filterText ? 'Try other words.' : emptyText}
-      action={view !== 'external' && !filterText ? <Button type="primary" shape="round" onClick={() => navigate('jobs')}>Browse recommended jobs</Button> : undefined} />;
+      action={view !== 'external' && !filterText ? <Button type="primary" shape="round" onClick={() => navigate('jobs')}>Browse recommended jobs</Button> : (!filterText ? emptyAction : undefined)} />;
   }
   const rowH = strip ? ROW + 44 : ROW;
   return (
@@ -190,7 +190,8 @@ export function ExternalTab() {
         <p className="jl-small jl-muted">jobleft reads the page once to get the job's facts. It never reads LinkedIn, Indeed or Glassdoor; paste the posting text for those.</p>
         {result && <Alert type={result.type} showIcon message={result.msg} closable onClose={() => setResult(null)} />}
       </div>
-      <ListBody list={list} view="external" emptyArt="link" emptyTitle="No added jobs yet" emptyText="Paste a job link or the posting text in the box above. jobleft adds the job with its facts, checks your match and lets you tailor a resume." />
+      <ListBody list={list} view="external" emptyArt="link" emptyTitle="No added jobs yet" emptyText="Paste a job link or the posting text in the box above. jobleft adds the job with its facts, checks your match and lets you tailor a resume."
+        emptyAction={<Button type="primary" shape="round" onClick={() => document.querySelector<HTMLElement>('input[aria-label="Job link"], textarea[aria-label="Posting text"]')?.focus()}>Go to the paste box</Button>} />
     </div>
   );
 }

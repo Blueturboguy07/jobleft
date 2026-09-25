@@ -90,8 +90,9 @@ export async function run(demo: Demo, outDir: string): Promise<void> {
     // employer sites down, then a refresh
     await ctl('boards', 'stop');
     await p.clickText('Refresh now');
-    await p.waitFor("!document.querySelector('.jl-progress')", 40000);
-    await sleep(800);
+    await p.waitFor("document.querySelector('.jl-progress')", 15000);
+    await p.waitFor("!document.querySelector('.jl-progress')", 90000);
+    await sleep(1200);
     let t = await bodyText(p);
     await shot(p, dir, '03-refresh-employers-down');
     const boardsNote = /could not|failed|unavailable|not answering|down|try again/i.test(t);
@@ -143,8 +144,13 @@ export async function run(demo: Demo, outDir: string): Promise<void> {
       check(ok, `O10 with the network off, ${r} still opens`);
     }
     // a chat message while offline
+    // (a model on this computer works without the internet, so this step uses publik, which is off the computer)
+    await demo.api.call('connectPublik', { body: { disclosureAccepted: true, disclosureVersion: 1 } }).catch(() => undefined);
+    await demo.api.call('putAiSettings', { body: { provider: 'publik' } }).catch(() => undefined);
     await p.eval(`location.hash = '#/assistant'`);
-    await sleep(700);
+    await p.eval('location.reload()');
+    await p.waitFor("document.querySelector('.jl-shell')", 10000);
+    await sleep(1200);
     await p.eval(`document.querySelector('textarea[aria-label="Message to the assistant"]').focus()`);
     await p.type('Help me plan my job search this week.');
     await p.press('Enter');

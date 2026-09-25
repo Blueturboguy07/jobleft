@@ -79,7 +79,10 @@ export async function call<K extends RouteName>(name: K, input?: CallInput<K>): 
   try {
     return await client.call(name, input);
   } catch (e) {
-    throw toUiError(e);
+    const err = toUiError(e);
+    // a call that cannot reach the local service tells the banner at once (it does not wait for its next check)
+    if (err.code === 'unreachable') window.dispatchEvent(new Event('jl-unreachable'));
+    throw err;
   }
 }
 
