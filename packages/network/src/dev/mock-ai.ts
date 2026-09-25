@@ -53,9 +53,11 @@ interface Facts {
 
 function readFacts(messages: Array<{ role: string; content: string }>): { facts: Facts; sender: string | null } {
   const all = messages.map((m) => m.content).join('\n');
-  const m = /<<FACTS>>\s*([\s\S]*?)\s*<<END FACTS>>/.exec(all);
+  const user = messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
+  const blocks = [...user.matchAll(/<<FACTS>>\s*([\s\S]*?)\s*<<END FACTS>>/g)];
   let facts: Facts = {};
-  if (m) { try { facts = JSON.parse(m[1]!) as Facts; } catch { facts = {}; } }
+  const last = blocks[blocks.length - 1];
+  if (last) { try { facts = JSON.parse(last[1]!) as Facts; } catch { facts = {}; } }
   const s = /Sign off with the sender's name: ([^\n]+?)\.\s*$/m.exec(all);
   return { facts, sender: s ? s[1]!.trim() : null };
 }
@@ -66,7 +68,7 @@ function draftFor(mode: MockMode, custom: string, facts: Facts, sender: string |
   const senderFirst = sender ? sender.split(/\s+/)[0] : null;
   const where = facts.job?.title && facts.job?.company
     ? `the ${facts.job.title} role at ${facts.job.company}`
-    : facts.contact?.company ? `working at ${facts.contact.company}` : 'your work';
+    : facts.contact?.company ? `working at ${facts.contact.company.replace(/[.]+$/, '')}` : 'your work';
   const longer = facts.kind === 'longer message';
   const base = facts.job
     ? `Hi ${first},${me} I'm interested in ${where} and would value your perspective. Would you be open to a short chat?`

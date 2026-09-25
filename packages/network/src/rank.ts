@@ -68,7 +68,8 @@ export function scoreContact(c: RankInput, ctx: RankContext): ContactRank {
 
   if (t.seniority) {
     score += RANK_POINTS.seniority[t.seniority];
-    reasons.push({ code: `seniority_${t.seniority}`, text: `${SENIORITY_TEXT[t.seniority]}: "${title}".` });
+    const label = t.seniorityWords === 'chief of staff' ? 'Chief-of-staff title (a senior role, not a C-level officer)' : SENIORITY_TEXT[t.seniority];
+    reasons.push({ code: `seniority_${t.seniority}`, text: `${label}: "${title}".` });
   }
 
   if (!title) reasons.push({ code: 'no_title', text: 'No title in your file, so role fit is unknown.' });

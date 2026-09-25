@@ -304,6 +304,7 @@ export function parseConnectionsCsv(input: string): ParseResult {
     rows.push(row);
   }
 
+  skipped.sort((x, y) => x.line - y.line);
   if (badUrls) warnings.push(`${badUrls} ${badUrls === 1 ? 'row has' : 'rows have'} a URL that is not a web address; it is not shown.`);
   if (badDates) warnings.push(`${badDates} ${badDates === 1 ? 'row has' : 'rows have'} a Connected On date that could not be read without guessing; it shows as unknown.`);
   if (garbled) warnings.push(`${garbled} ${garbled === 1 ? 'name looks' : 'names look'} garbled by the export. ${garbled === 1 ? 'It is' : 'They are'} shown exactly as in the file.`);
