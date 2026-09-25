@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DatabaseSync } from 'node:sqlite';
 import {
-  ERROR_STATUS, JSON_BODY_LIMIT, LAUNCH_TOKEN_HEADER, LOCAL_API, RAW_BODY_LIMIT, arr, bool, enm, formatDollars, int, matchRoute, nowMs,
+  ERROR_STATUS, JSON_BODY_LIMIT, LAUNCH_TOKEN_HEADER, LOCAL_API, RAW_BODY_LIMIT, arr, bool, enm, formatDollars, matchRoute, nowMs,
   nullable, obj, str, validate, type ErrorCode, type JsonSchema, type RouteSpec,
 } from '@jobleft/contracts';
 import { resolveCompanyKey } from '../company.ts';
@@ -78,7 +78,6 @@ const DEV_ROUTES: Record<string, DevRoute> = {
   devStatus: { method: 'GET', path: '/api/v1/network-dev/status' },
   devRemindNow: { method: 'POST', path: '/api/v1/network-dev/reminders/check', body: obj({}) },
 };
-void int;
 
 function matchDevRoute(method: string, pathname: string): { name: string; params: Record<string, string> } | null {
   const segs = pathname.split('/').filter(Boolean);
@@ -122,6 +121,9 @@ const SECURITY_HEADERS: Record<string, string> = {
   'cross-origin-opener-policy': 'same-origin',
   'permissions-policy': 'camera=(), microphone=(), geolocation=()',
 };
+
+/** Query parameter names that would carry a token. A token in a URL is refused (it ends up in logs and history). */
+const TOKEN_PARAM_NAMES = new Set(['token', 'access_token', 'launch_token', 'x-jobleft-token', 'x-jobleft-pairing', 'pairing', 'auth', 'authorization', 'apikey', 'api_key', 'key']);
 
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'";
 
@@ -298,8 +300,10 @@ export async function startDevServer(opts: DevServerOptions): Promise<DevServer>
       }
 
       // 3. No token in a URL.
-      for (const k of url.searchParams.keys()) {
-        if (/token|x-jobleft|auth|key/i.test(k)) throw new HttpError('unauthorized', 'Tokens in a URL are refused. Send the token in the x-jobleft-token header.');
+      for (const [k, v] of url.searchParams) {
+        if (TOKEN_PARAM_NAMES.has(k.toLowerCase()) || tokenOk(v, token)) {
+          throw new HttpError('unauthorized', 'Tokens in a URL are refused. Send the token in the x-jobleft-token header.');
+        }
       }
 
       const hit = matchRoute(method, url.pathname);
