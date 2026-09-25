@@ -67,7 +67,7 @@ Oct 1, 2024 to Jun 30, 2026. Sponsorship is unknown, not ruled out.` The answer 
 
 ### 1.2 How names match (no similarity scores)
 
-1. A reviewed alias entry (`data/company-aliases.json`, 199 entries) maps a brand to its legal filers: `Ramp` to Ramp Business Corporation, `Notion` to Notion Labs, `OpenAI` to OpenAI OpCo, `Meta`, `Facebook` and `Instagram` to Meta Platforms, `AWS` to Amazon Web Services, `Robinhood` to Robinhood Markets (never "Robinhood Group"). Each entry states its basis.
+1. A reviewed alias entry (`data/company-aliases.json`, 222 entries) maps a brand to its legal filers: `Ramp` to Ramp Business Corporation, `Notion` to Notion Labs, `OpenAI` to OpenAI OpCo, `Meta`, `Facebook` and `Instagram` to Meta Platforms, `AWS` to Amazon Web Services, `Robinhood` to Robinhood Markets (never "Robinhood Group"). Each entry states its basis.
 2. Otherwise filers whose legal name has the same `companyKey`. The key removes case, accents, punctuation, "&" or "+" versus "and", a leading "The" and legal suffixes (Inc, Inc., LLC, L.L.C., Corp, Corporation, Co, Ltd, LLP, PLC, PBC, GmbH and similar). It never removes ordinary words ("Technologies", "Group", "Services", "Holdings", "Labs").
 3. Otherwise filers whose trade name (`TRADE_NAME_DBA`, or a "d/b/a" part of the name) has the same key (`Carta` finds eShares, Inc.).
 4. Inside one key, filings under a different FEIN in a different state are a different company and are left out (listed under "Left out"). Example: `Databricks` keeps Databricks, Inc. (San Francisco, 810) and leaves out DATA BRICKS INC (Columbia, MD, 7). When no FEIN clearly dominates, the answer is `unknown`.
@@ -305,7 +305,7 @@ every mock release mode, and run the company-fact rules on recorded source answe
 
 - The shipped H-1B data ends on 2026-06-30 (the newest DOL file). DOL publishes a new file each quarter.
 - Past filings are not a promise: an LCA certification is not a visa approval, and H-1B rules changed after some of these filings.
-- The alias table covers 199 reviewed brands. Other brands whose legal name differs are `unknown` until reviewed.
+- The alias table covers 222 reviewed brands. Other brands whose legal name differs are `unknown` until reviewed.
 - Wikidata facts need a reviewed item id (38 companies so far). SEC's main site blocks requests whose User-Agent has no contact address; data.sec.gov answered during the build. Funding, investors and news need the paid lookup, which needs the publik metered search route (not built yet) and a model-backed extractor (a rule-based one ships).
 - Places: US coverage is every GNIS populated place (174,354); world coverage is the 6,561 Natural Earth cities unless GeoNames files are supplied. US populations exist only for the 763 cities that Natural Earth lists.
 - No production release key exists yet; only the loopback test key is trusted.

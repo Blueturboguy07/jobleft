@@ -55,7 +55,7 @@ Entries 2.1 to 2.5 are from the static-data lane (2026-09-25). The board directo
 
 ### 2.3 Reviewed name tables (jobleft's own data)
 
-- `packages/static-data/data/company-aliases.json` (199 brand-to-filer entries), `company-identifiers.json` (38 Wikidata item ids), `place-aliases.json` (27 short names). Written by the static-data lane; each alias states its basis. Company and place names are facts.
+- `packages/static-data/data/company-aliases.json` (222 brand-to-filer entries), `company-identifiers.json` (38 Wikidata item ids), `place-aliases.json` (27 short names). Written by the static-data lane; each alias states its basis. Company and place names are facts.
 - How the alias candidates were found (reference only, nothing copied): the company names in jobsync's MIT-licensed board lists (`vendor/jobsync/src/lib/scraper/{greenhouse,lever,ashby}/companies.json`, read-only clone) were compared with DOL filer names to list candidates for review. No list, file or code from jobsync is in the package.
 
 ### 2.4 Classification and region names typed into code
