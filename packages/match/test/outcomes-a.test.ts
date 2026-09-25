@@ -206,3 +206,19 @@ test('O5: a crawler evidence text that is not in the posting is never shown as a
   assert.equal(r.jobFacts.workModel.value, 'remote');
   assert.notEqual(r.jobFacts.workModel.quote, 'workplaceType=REMOTE');
 });
+
+test('O1: across the example postings, jobs with different titles never share a part reason', async () => {
+  const { readJobs } = await import('../src/io.ts');
+  const jobs = readJobs([new URL('../examples/jobs', import.meta.url).pathname]);
+  const seen = new Map<string, string>();
+  for (const j of jobs) {
+    const r = score(swe, j);
+    for (const part of Object.values(r.subScores)) {
+      for (const reason of part.reasons) {
+        const other = seen.get(reason.text);
+        assert.ok(!other || other === j.title, `"${reason.text}" is on "${other}" and "${j.title}"`);
+        seen.set(reason.text, j.title);
+      }
+    }
+  }
+});

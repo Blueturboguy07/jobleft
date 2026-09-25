@@ -370,7 +370,7 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
   if (levelFit !== null && yearsFit !== null) levelYears = (levelFit + yearsFit) / 2;
   else levelYears = levelFit ?? yearsFit;
   if (levelYears === null && !jf.level && !y) {
-    levelReasons.push({ code: 'level_not_stated', text: `The posting states no level and no years of experience, so jobleft cannot confirm the level fits; this part is at most ${cfg.experience.noLevelStated}%.`, points: -(100 - cfg.experience.noLevelStated) });
+    levelReasons.push({ code: 'level_not_stated', text: `The posting ${q(jf.job.title)} states no level and no years of experience, so jobleft cannot confirm the level fits; this part is at most ${cfg.experience.noLevelStated}%.`, points: -(100 - cfg.experience.noLevelStated) });
   } else if (levelYears === null && jf.levelSource === 'years') {
     // Level came only from the years: nothing more to add.
   }
@@ -382,7 +382,7 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
     percent = base === null ? null : pct(rel * base);
   }
   if (percent === null && rel !== null) {
-    reasons.push({ code: 'level_unknown', text: 'Not enough information: the level cannot be checked without work dates in your profile.', points: 0 });
+    reasons.push({ code: 'level_unknown', text: `Not enough information: the level of ${q(jf.job.title)} cannot be checked without work dates in your profile.`, points: 0 });
   }
   return { sub: { percent, reasons: ensureReason(percent, reasons, 'Experience Level') }, detail, yearsUsed, levelFit, blockers, mustHaves, caps };
 }
@@ -417,7 +417,7 @@ function scoreSkills(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): SkillsOu
   const reasons: Reason[] = [];
   const empty: MatchResult['skills'] = { matched: [], missing: [], required: [], preferred: [] };
   if (jf.language === 'other') {
-    reasons.push({ code: 'skills_not_english', text: 'Not enough information: the posting is not in English, and jobleft reads skills in English postings only.', points: 0 });
+    reasons.push({ code: 'skills_not_english', text: `Not enough information: the posting ${q(jf.job.title)} is not in English, and jobleft reads skills in English postings only.`, points: 0 });
     return { sub: { percent: null, reasons }, checks: [], lists: empty, coverage: null, total: 0 };
   }
   const nameOf = (id: string) => (id.startsWith('alt:') ? id.slice(4).split('|').map(skillName).join(' or ') : skillName(id));
@@ -476,7 +476,7 @@ function scoreSkills(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): SkillsOu
   };
   const judgeable = items.length >= cfg.skills.minItems || hasRequired;
   if (!items.length) {
-    reasons.push({ code: 'skills_none_listed', text: jf.words < 25 ? 'Not enough information: the posting has too little text to name any skills.' : 'Not enough information: the posting names no skills or credentials that jobleft can check.', points: 0 });
+    reasons.push({ code: 'skills_none_listed', text: jf.words < 25 ? `Not enough information: the posting ${q(jf.job.title)} has too little text to name any skills.` : `Not enough information: the posting ${q(jf.job.title)} names no skills or credentials that jobleft can check.`, points: 0 });
     return { sub: { percent: null, reasons }, checks, lists, coverage: null, total: 0 };
   }
   if (!judgeable) {
@@ -521,7 +521,7 @@ function scoreIndustry(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): Indust
     ? { value: industryName(top.industry), text: `${industryName(top.industry)} (${top.source === 'company' ? 'company data' : top.source === 'title' ? 'from the job title' : 'from the posting'})`, quote: top.source === 'posting' ? top.evidence : top.source === 'title' ? jf.job.title : null }
     : { value: null, text: 'not stated', quote: null };
   if (!top) {
-    reasons.push({ code: 'industry_not_stated', text: jf.language === 'other' ? 'Not enough information: the posting is not in English.' : 'Not enough information: the posting does not say what industry the employer is in.', points: 0 });
+    reasons.push({ code: 'industry_not_stated', text: jf.language === 'other' ? `Not enough information: the posting ${q(jf.job.title)} is not in English.` : `Not enough information: the posting ${q(jf.job.title)} does not say what industry the employer is in.`, points: 0 });
     return { sub: { percent: null, reasons }, matched: null, fact };
   }
   const jobInd = industryName(top.industry);
@@ -978,7 +978,7 @@ export function computeMatch(input: ScoreInput): FullMatchResult {
   if (jf.language === 'other') notes.push('The posting is not in English. jobleft reads English postings, so parts it could not read show "not enough information" and must-haves were not checked.');
   if (!complete) {
     const names = unknownParts.map((p) => (p === 'experienceLevel' ? 'Experience Level' : p === 'skills' ? 'Skills' : 'Industry Experience'));
-    const text = `Incomplete: ${listNames(names)} ${names.length === 1 ? 'has' : 'have'} not enough information, so the percent counts only what could be judged and can only be lower than a full score.`;
+    const text = `Incomplete: for ${q(input.job.title)}, ${listNames(names)} ${names.length === 1 ? 'has' : 'have'} not enough information, so the percent counts only what could be judged and can only be lower than a full score.`;
     overall.push({ code: 'incomplete', text, points: 0 });
     notes.push(text);
   }

@@ -223,7 +223,7 @@ electrical, HVAC, plumbing and construction trades, manufacturing, social work, 
 ## 9. Tests and the fit probe
 
 ```sh
-pnpm --filter @jobleft/match test        # 50 tests: one or more per outcome angle, the dictionaries, the preview server
+pnpm --filter @jobleft/match test        # 51 tests: one or more per outcome angle, the dictionaries, the preview server
 pnpm --filter @jobleft/match typecheck
 node evals/match/ranking-pairs/run.ts    # the labelled fit set: 15 job families, 198 postings (add --verbose)
 ```
