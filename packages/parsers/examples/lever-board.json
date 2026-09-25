@@ -1,0 +1,55 @@
+[
+  {
+    "id": "a1",
+    "text": "Line Cook",
+    "hostedUrl": "https://example.com/lever/a1",
+    "applyUrl": "https://example.com/lever/a1/apply",
+    "categories": {
+      "location": "Austin, TX",
+      "allLocations": [
+        "Austin, TX",
+        "Round Rock, TX"
+      ],
+      "commitment": "Part-time",
+      "team": "Kitchen"
+    },
+    "workplaceType": "on-site",
+    "country": "US",
+    "descriptionPlain": "Cook for our busy diner. No experience required - we will train you.",
+    "salaryRange": {
+      "min": 17.5,
+      "max": 19.0,
+      "currency": "USD",
+      "interval": "per-hour-wage"
+    }
+  },
+  {
+    "id": "a2",
+    "text": "Senior Product Designer",
+    "hostedUrl": "https://example.com/lever/a2",
+    "categories": {
+      "location": "Remote - Canada",
+      "commitment": "Full-time"
+    },
+    "workplaceType": "remote",
+    "country": "CA",
+    "descriptionPlain": "This is a fully remote role open to candidates in Canada only. 5+ years of product design experience.",
+    "salaryRange": {
+      "min": 120000,
+      "max": 140000,
+      "currency": "CAD",
+      "interval": "per-year-salary"
+    }
+  },
+  {
+    "id": "a3",
+    "text": "Customer Success Manager",
+    "hostedUrl": "https://example.com/lever/a3",
+    "categories": {
+      "location": "New York, NY",
+      "commitment": "Full-time"
+    },
+    "workplaceType": "remote",
+    "descriptionPlain": "You will be in the office 3 days a week. 2-4 years of customer-facing experience. We offer a $2,000 learning stipend."
+  }
+]

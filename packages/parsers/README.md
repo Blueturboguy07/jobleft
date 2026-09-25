@@ -46,6 +46,13 @@ Run all commands from the repository root. You need Node 24 and pnpm.
 
    A `-` means unknown. Posting 101 shows `$48/hr`, not the `$4/hr` night differential or the `$5,000` sign-on bonus. Posting 104 shows the `$60K` base, not the `$120K` OTE.
 
+   The same works for the Lever and Ashby formats:
+
+   ```sh
+   node packages/parsers/src/cli.ts board packages/parsers/examples/lever-board.json --table
+   node packages/parsers/src/cli.ts board packages/parsers/examples/ashby-board.json --table
+   ```
+
 3. See every fact and its evidence as JSON.
 
    ```sh
@@ -103,7 +110,7 @@ Run all commands from the repository root. You need Node 24 and pnpm.
 | Fact | Rules |
 |---|---|
 | Pay | The board's pay field, or the posting text. When both give pay and they differ, the text wins and `ranges` is at least 2. A figure needs a currency and either a period (`/hr`, `per year`, `mensual`, `brut annuel`, ...) or a pay word nearby (`salary`, `pay`, `rate`, `compensation`, `sueldo`, `Gehalt`, ...). The period is never guessed from a `k`. "Up to $X" has no minimum. "From $X" and "$X+" have no maximum. One figure is `min = max`, never a range. Bonuses, sign-on, stipends, differentials, tips, OTE (when base pay is stated), 401(k), tuition, HSA, company revenue and funding, budgets, estimates by job sites, and "similar jobs" blocks are never read as pay. With tiers (by city, zone or level), the tier that names the job's place wins, else the first; `ranges` says how many there are. A bare `$` in a Canadian job is CAD, in a Mexican job MXN |
-| Seniority | The title gives a reading with a strength. Strong words (Intern, Director, VP, Chief ... Officer, Head of, people manager, supervisor) decide. Middle words (Senior, Junior, Staff and Principal in the tech sense, grades such as II, III, L4) agree with the stated years or move by one step; when the years are two or more steps away, the years decide. Weak words (Associate, Assistant, Cashier, Crew Member and other first-line jobs) give Entry Level when nothing else speaks. "Senior Care Aide", "Staff Nurse", "Internal Audit", "Shift Manager" and "Account Executive" never become Senior, Lead/Staff, Intern or Director by one word. Posting words such as "new grads welcome" and "no experience required" give Intern/New Grad or Entry Level |
+| Seniority | The title gives a reading with a strength. Strong words (Intern, Director, VP, Chief ... Officer, Head of, people manager, supervisor) decide. Middle words (Senior, Junior, Staff and Principal in the tech sense, grades such as II, III, L4) agree with the stated years or move by one step; when the years are two or more steps away, the years decide. Weak words give a level only when nothing else speaks: Associate, Assistant, Cashier, Crew Member and other first-line jobs give Entry Level; licensed and trade jobs give the level their license or trade needs (Registered Nurse, Teacher, Technician, Driver: Entry or Mid; LCSW, Therapist, Counselor: Mid; Psychiatrist, Psychologist, Nurse Practitioner, Pharmacist, Veterinarian: Mid or Senior). "Senior Care Aide", "Staff Nurse", "Internal Audit", "Shift Manager" and "Account Executive" never become Senior, Lead/Staff, Intern or Director by one word. Posting words such as "new grads welcome" and "no experience required" give Intern/New Grad or Entry Level |
 | Years | Only experience requirements: "18 years or older", "for over 50 years", "vests over 4 years", "four-year degree" and "within the last 3 years" are never read. Alternatives ("5 years, or 3 years with a master's") give the lowest. A preferred figure never replaces a required one. Several joint requirements give the highest |
 | Place | Every place in the location field(s) and structured addresses. The stated state or country wins ("Paris, TX", "London, KY", "Portland, ME", "Tbilisi, Georgia"). A bare city takes its only country, a clear dominant reading, or the posting's own words; otherwise its country stays unknown. "Remote", "Multiple locations", "Various" and "N/A" are not places. Places in the text are read only when the board gives none, and a head-office line never counts |
 | US or not | Board country codes first. A remote job limited to other areas (Canada only, EMEA, India) is not a US job. Plain "Remote" is unknown |

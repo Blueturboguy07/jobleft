@@ -40,9 +40,10 @@ export function formatPay(pay: Pay | null): string | null {
   const sym: Record<string, string> = { USD: '$', CAD: 'CA$', AUD: 'A$', NZD: 'NZ$', EUR: '€', GBP: '£', JPY: '¥', INR: '₹', MXN: 'MX$', BRL: 'R$', SGD: 'S$', HKD: 'HK$', CHF: 'CHF ' };
   const s = sym[pay.currency] ?? `${pay.currency} `;
   const unit: Record<Pay['period'], string> = { hour: '/hr', day: '/day', week: '/wk', month: '/mo', year: '/yr' };
+  const cents = [pay.min, pay.max].some((v) => v !== null && v % 1 !== 0);
   const fmt = (v: number) => {
     if (pay.period === 'year' && v >= 1000) { const k = v / 1000; return `${s}${Number.isInteger(k) ? k : k.toFixed(1)}K`; }
-    return `${s}${v % 1 === 0 ? v.toLocaleString('en-US') : v.toFixed(2)}`;
+    return `${s}${cents ? v.toFixed(2) : v.toLocaleString('en-US')}`;
   };
   const u = unit[pay.period];
   if (pay.min !== null && pay.max !== null) return pay.min === pay.max ? `${fmt(pay.min)}${u}` : `${fmt(pay.min)}${u} - ${fmt(pay.max)}${u}`;

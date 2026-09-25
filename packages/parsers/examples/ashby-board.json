@@ -1,0 +1,61 @@
+{
+  "jobs": [
+    {
+      "id": "b1",
+      "title": "Warehouse Supervisor",
+      "jobUrl": "https://example.com/ashby/b1",
+      "location": "Columbus, OH",
+      "secondaryLocations": [
+        {
+          "location": "Indianapolis, IN"
+        }
+      ],
+      "workplaceType": "OnSite",
+      "employmentType": "FullTime",
+      "descriptionHtml": "<p>Lead a team of 12 on second shift.</p><p>Must be 18 years or older. 3+ years of warehouse experience.</p>",
+      "compensation": {
+        "compensationTiers": [
+          {
+            "title": "Columbus",
+            "components": [
+              {
+                "compensationType": "Salary",
+                "interval": "1 HOUR",
+                "currencyCode": "USD",
+                "minValue": 24,
+                "maxValue": 28
+              }
+            ]
+          },
+          {
+            "title": "Indianapolis",
+            "components": [
+              {
+                "compensationType": "Salary",
+                "interval": "1 HOUR",
+                "currencyCode": "USD",
+                "minValue": 23,
+                "maxValue": 27
+              },
+              {
+                "compensationType": "Bonus",
+                "interval": "1 YEAR",
+                "minValue": 1000,
+                "maxValue": 2000
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "b2",
+      "title": "Staff Software Engineer",
+      "jobUrl": "https://example.com/ashby/b2",
+      "location": "Remote - US",
+      "isRemote": true,
+      "workplaceType": "Remote",
+      "descriptionHtml": "<p>Remote, but you must live within 50 miles of Denver, CO.</p><p>8+ years of experience building distributed systems.</p>"
+    }
+  ]
+}
