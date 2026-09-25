@@ -8,20 +8,8 @@
 
 import { fold, isEmailLike, learnSlashOrder, looksGarbled, parseConnectedOn, stripBom } from './text.ts';
 
-export interface ParsedConnection {
-  /** The file line (1-based) where the row starts. */
-  line: number;
-  firstName: string;
-  lastName: string;
-  profileUrl: string | null;
-  email: string | null;
-  company: string | null;
-  position: string | null;
-  /** YYYY-MM-DD, or null when blank or not readable. */
-  connectedOn: string | null;
-  /** The name may be garbled by the export. It is kept exactly as in the file. */
-  maybeGarbled: boolean;
-}
+import type { ParsedConnection } from './index.ts';
+export type { ParsedConnection };
 
 export interface ParseResult {
   rows: ParsedConnection[];
