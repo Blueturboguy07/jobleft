@@ -14,7 +14,8 @@
   },
   "scripts": {
     "test": "node --test \"test/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "ai": "node src/cli.ts"
   },
   "dependencies": {
     "@jobleft/contracts": "workspace:*"

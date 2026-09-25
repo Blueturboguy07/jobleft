@@ -52,6 +52,9 @@ export const ProviderCheckSchema = named(obj({
   /** Models the server says it has (never a made-up list). */
   models: arr(str()),
   checkedAt: IsoDateTimeSchema,
+}, {
+  /** At most one link that fixes the problem (balance_too_low: the publik top-up link). Added by the ai-engine lane. */
+  link: obj({ label: str(), url: HttpUrlSchema }),
 }), 'ProviderCheck');
 
 export const ChatMessageSchema = named(obj({

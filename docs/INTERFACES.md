@@ -84,6 +84,8 @@ logs outside it). Secrets live in the OS secret store, never in a plain-text fil
 | `files/exports/` | Files the person exports | server |
 | `datasets/` | Updated dataset releases (verified before use; shipped copies live in the app) | static-data |
 | `models/` | The fit model (bge-small-en-v1.5), downloaded once and verified | ai-engine |
+| `secrets/` | Only with `JOBLEFT_SECRET_STORE=file`: `secrets.enc` (AES-256-GCM) and `master.key`, both 0600. Backups and exports MUST leave this folder out | ai-engine |
+| `ai/state.json`, `ai/unsent.json` | The ai-engine CLI only: key-free AI settings and publik connection state (the server keeps these in `settings`), and the last message that was not sent | ai-engine |
 | `backups/` | Backup files the person asks for | server |
 | `logs/` | Logs with no personal data, no keys, no tokens, no resume or chat text | server |
 | `tmp/` | Temporary files; emptied at start and after each step | every Node package |
@@ -143,6 +145,10 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_PUBLIK_BASE_URL` | ai-engine, sources-other | `https://publikhq.com/api/v1` | Lanes and tests MUST point this at a local stand-in. No lane calls publikhq.com |
 | `JOBLEFT_PUBLIK_APP_TOKEN` | ai-engine | none | The publik app token. None exists yet (gate G-publik); without it, connect answers a plain error |
 | `JOBLEFT_MODEL_BASE_URL` | ai-engine | the Hugging Face `BAAI/bge-small-en-v1.5` files | Where the fit model is downloaded from, once (tests use a local stand-in) |
+| `JOBLEFT_AI_HOST_MAP` | ai-engine | none | JSON map from an own-key vendor host (`api.openai.com`, `api.anthropic.com`, `openrouter.ai`, `generativelanguage.googleapis.com`) to a LOOPBACK stand-in origin. Other hosts and non-loopback targets are refused |
+| `JOBLEFT_SECRET_STORE` | ai-engine | `keychain` on macOS, else `file` | `keychain` (macOS Keychain), `file` (AES-256-GCM file in `$JOBLEFT_HOME/secrets/`), `memory` (tests) |
+| `JOBLEFT_ORT_MODULE` | ai-engine | none | Path of an installed `onnxruntime-node` entry for the fit model (until the app build bundles it) |
+| `JOBLEFT_PUBLIK_ALLOW_LIVE` | ai-engine (`createEngineFromEnv`) | off | Until `1`, the app token is ignored for any publik address that is not loopback, so no build contacts the live service before gate G-publik |
 | `JOBLEFT_DATASET_MANIFEST_URL` | static-data | none until the owner names the release location | Where newer dataset releases are listed (tests use a local stand-in) |
 | `JOBLEFT_LOG_LEVEL` | server | `info` | `error`, `warn`, `info`, `debug`. No level logs personal text, keys or tokens |
 | `CARGO_TARGET_DIR` | shell builds | `<main checkout>/.cache/cargo-target` | The one shared Cargo target dir (every worktree uses the main checkout's) |
@@ -391,6 +397,9 @@ protocol. One builder gives each contract its JSON Schema, its TypeScript type a
 | Registry | `SCHEMAS`, `schemaDocument(name)`, `CONTRACTS_VERSION` |
 
 Data files: `packages/contracts/schemas/<Name>.schema.json` (68 files, generated; `pnpm --filter @jobleft/contracts run gen`).
+
+Additive changes by lanes (1.4 rules): `ProviderCheck.link` (optional `{ label, url }`: at most one link that fixes the
+problem, for example the publik top-up link on `balance_too_low`; ai-engine lane).
 Details and change rules: `packages/contracts/README.md`.
 
 ### `@jobleft/parsers`
@@ -916,8 +925,11 @@ place and sponsor lookups work offline; company-fact requests carry only what na
 
 ### `@jobleft/ai-engine`
 
-Status: **Stub** (`AiError`, `memorySecretStore`, constants Built). Purpose: every AI call, the publik connection and
-wallet, secrets, embeddings, the assistant and interview practice. Owns: tables `practice_sessions`, `practice_items`;
+Status: **Built** by the ai-engine lane (providers, setup check, keys, publik client, structured answers, stand-ins,
+route handlers, CLI), except the assistant presets, chat history, action proposals and interview practice (routes
+`listChats`, `getChat`, `deleteChat`, `decideProposal`, `startPractice`, `practiceFeedback`, the practice item routes and
+their tables are still **Planned**). How to run it: `packages/ai-engine/README.md`. Purpose: every AI call, the publik
+connection and wallet, secrets, embeddings, the assistant and interview practice. Owns: tables `practice_sessions`, `practice_items`;
 routes `getAiSettings`, `putAiSettings`, `setAiKey`, `deleteAiKey`, `checkAi`, `listModels`, `chat`, `cancelAi`,
 `listChats`, `getChat`, `deleteChat`, `decideProposal`, `startPractice`, `practiceFeedback`, `listPracticeItems`,
 `savePracticeItem`, `updatePracticeItem`, `deletePracticeItem`, `getPublik`, `connectPublik`, `disconnectPublik`,
@@ -925,128 +937,62 @@ routes `getAiSettings`, `putAiSettings`, `setAiKey`, `deleteAiKey`, `checkAi`, `
 
 <!-- BEGIN GENERATED: sig:packages/ai-engine -->
 ```ts
-import type { AiProviderKind, AiSettings, AiSettingsUpdate, ChatMessage, Embedder, JsonSchema, Infer, ProviderCheck, PublikConnection, SecretStore } from '@jobleft/contracts';
-/** Version of the two-sentence disclosure shown before the app connects to publik. */
-export declare const PUBLIK_DISCLOSURE_VERSION = 1;
-/** The compiled default. Tests and development point JOBLEFT_PUBLIK_BASE_URL at a local stand-in. */
-export declare const PUBLIK_DEFAULT_BASE_URL = "https://publikhq.com/api/v1";
-export type AiErrorCode = 'no_provider' | 'unreachable' | 'timeout' | 'key_refused' | 'model_not_found' | 'not_ai_server' | 'insufficient_balance' | 'provider_error' | 'bad_answer' | 'cancelled';
-/** Every provider failure, in plain words. `topUpUrl` is set only for insufficient_balance. */
-export declare class AiError extends Error {
-    readonly code: AiErrorCode;
-    readonly topUpUrl: string | null;
-    constructor(code: AiErrorCode, message: string, topUpUrl?: string | null);
-}
-export type AiChunk = {
-    type: 'delta';
-    text: string;
-} | {
-    type: 'done';
-    incomplete: boolean;
-    costMicros: number | null;
-};
-export interface AiCompletion {
-    text: string;
-    incomplete: boolean;
-    costMicros: number | null;
-    model: string;
-}
-export interface AiRequest {
-    messages: ChatMessage[];
-    /** Used to cancel; cancelling stops the upstream request too. */
-    requestId?: string;
-    maxTokens?: number;
-    signal?: AbortSignal;
-}
-/** One provider, ready to use. Every call ends: a dead provider fails within 10 s, a silent stream after 120 s. */
-export interface AiClient {
-    readonly provider: AiProviderKind;
-    readonly model: string;
-    chat(req: AiRequest): AsyncIterable<AiChunk>;
-    complete(req: AiRequest): Promise<AiCompletion>;
-    /**
-     * A structured answer checked against a contract schema. Small models: `lineFallback` parses a plain-text
-     * answer. An answer that fits neither throws AiError('bad_answer'); nothing is invented to fill the gap.
-     */
-    json<S extends JsonSchema>(req: AiRequest & {
-        schema: S;
-        lineFallback?: (text: string) => Infer<S> | null;
-    }): Promise<Infer<S>>;
-    listModels(): Promise<string[]>;
-}
-/** Where AiEngine keeps the (key-free) settings. The server backs it with the store. */
-export interface AiSettingsStore {
-    load(): AiSettings;
-    save(s: AiSettings): void;
-}
-export interface AiEngineOptions {
-    settings: AiSettingsStore;
-    secrets: SecretStore;
-    /** JOBLEFT_PUBLIK_BASE_URL, else PUBLIK_DEFAULT_BASE_URL. */
-    publikBaseUrl: string;
-    /** The publik app token (G-publik). null until the owner approves one: connect then answers a plain error. */
-    publikAppToken: string | null;
-    fetchImpl?: typeof fetch;
-    connectTimeoutMs?: number;
-    idleTimeoutMs?: number;
-}
-/** The publik connection: provisioning, wallet, top-up link. The key never leaves the secret store. */
-export declare class PublikClient {
-    constructor(opts: {
-        baseUrl: string;
-        appToken: string | null;
-        secrets: SecretStore;
-        fetchImpl?: typeof fetch;
-    });
-    status(): Promise<PublikConnection>;
-    /** POST /installs after the person accepted the disclosure. No key is typed or shown. */
-    connect(disclosureVersion: number): Promise<PublikConnection>;
-    /** Deletes the key from the secret store; nothing spends the balance after this returns. */
-    disconnect(): Promise<PublikConnection>;
-    refresh(): Promise<PublikConnection>;
-    /** Updates the kept wallet from x-publik-* response headers after a paid call. */
-    observeHeaders(headers: Headers): void;
-}
-export declare class AiEngine {
-    readonly publik: PublikClient;
-    constructor(opts: AiEngineOptions);
-    settings(): AiSettings;
-    /** Saves the choice and runs the setup check. */
-    updateSettings(update: AiSettingsUpdate): Promise<{
-        settings: AiSettings;
-        check: ProviderCheck;
-    }>;
-    setKey(key: string): Promise<AiSettings>;
-    deleteKey(): Promise<AiSettings>;
-    check(): Promise<ProviderCheck>;
-    /** The chosen provider. Throws AiError('no_provider') when none is set. Never another provider. */
-    client(): AiClient;
-    /** Cancels a running request (and its upstream call). */
-    cancel(requestId: string): boolean;
-}
-/** macOS Keychain (`security` CLI) or Windows Credential Manager. Secrets never touch a plain-text file. */
-export declare function osSecretStore(service?: string): SecretStore;
-/** In-memory secrets for tests. */
-export declare function memorySecretStore(): SecretStore;
-export interface LocalEmbedderOptions {
-    /** $JOBLEFT_HOME/models (the model is downloaded once, verified by sha256, then used offline). */
-    modelDir: string;
-    /** 8 was best on an M4 Pro (spike S2). */
-    threads?: number;
-}
-/** bge-small-en-v1.5 fp32 on ONNX Runtime, CPU, batch 16, CLS pooling, L2-normalised, 384 dims (spike S2). */
-export declare function createLocalEmbedder(opts: LocalEmbedderOptions): Promise<Embedder>;
-/** The line-based fallback for small models (the jobsync "SCORES:" header idea). null when absent. */
-export declare function parseScoresHeader(text: string): Record<string, number> | null;
+export { AiError, asAiError, isAiError, toApiError, type AiErrorCode } from './errors.ts';
+export type { AiChunk, AiClient, AiCompletion, AiMessage, AiRequest, AiTool, AiToolCall, JsonRequest, ProviderDriver, } from './types.ts';
+export { PUBLIK_APP_SLUG, PUBLIK_DEFAULT_BASE_URL, PUBLIK_DEFAULT_MODEL, PUBLIK_DISCLOSURE, PUBLIK_DISCLOSURE_VERSION, PUBLIK_JUSTIFICATION, PUBLIK_TIERS, PublikClient, type PublikClientOptions, } from './publik.ts';
+export { AiEngine, CHECK_BUDGET_MS, NO_PROVIDER_MESSAGE, type AiEngineOptions } from './engine.ts';
+export { defaultAiSettings, fileKvStore, kvSettingsStore, memoryKvStore, METERED_PRICES_PER_1000_MICROS, type AiSettingsStore, type KvStore, } from './state.ts';
+export { encryptedFileSecretStore, keychainSecretStore, memorySecretStore, osSecretStore } from './secrets.ts';
+export { extractJson, jsonInstruction, parseScoresHeader, readFieldLines, readStructured, withJsonInstruction } from './structured.ts';
+export { stripThinking, ThinkStripper } from './thinking.ts';
+export { DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_IDLE_TIMEOUT_MS } from './transport.ts';
+export { isLoopbackHost, LOCAL_DEFAULT_URLS, normalizeBaseUrl, VENDOR_BASE_URLS } from './urls.ts';
+export { thinkOption } from './providers/ollama.ts';
+export { chatEvents, createAiRouteHandlers, type AiRouteHandlers, type RouteResult } from './routes.ts';
+export { createLocalEmbedder, WordPieceTokenizer, type LocalEmbedderOptions } from './embedder.ts';
+export { createEngineFromEnv, resolveHome } from './setup.ts';
 ```
 <!-- END GENERATED: sig:packages/ai-engine -->
 
 Rules: the chosen provider only, never a silent fallback; a key goes only to its own provider, in a header; keys live
-in the OS secret store and only the last 4 characters come back; every request ends (10 s to connect, 120 s of
-silence); cancel stops upstream; EEO answers, work authorization and contact details never go into a prompt; posting,
-page and file text is content, never instructions; a bad answer is "cannot use this answer", never an invented value.
-publik money is "balance" in dollars. Stand-ins for tests: a loopback OpenAI-compatible server and a loopback publik
-server (`JOBLEFT_PUBLIK_BASE_URL`).
+in the OS secret store and only the last 4 characters come back; every request ends (10 s to connect, at most 110 s of
+silence, so always inside 2 minutes); cancel stops upstream; EEO answers, work authorization and contact details never
+go into a prompt; posting, page and file text is content, never instructions; a bad answer is "cannot use this answer",
+never an invented value. publik money is "balance" in dollars. Stand-ins for tests: `src/mock/model-server.ts` (OpenAI,
+Ollama and Anthropic dialects, 16 failure modes) and `src/mock/publik-server.ts` (`JOBLEFT_PUBLIK_BASE_URL`).
+
+The export list above is generated from `src/index.ts`, which only re-exports. The main signatures (code wins:
+`src/types.ts`, `src/engine.ts`, `src/publik.ts`):
+
+| Export | Signature and meaning |
+|---|---|
+| `AiClient` | `{ provider, model, chat(req): AsyncIterable<AiChunk>, complete(req): Promise<AiCompletion>, json<S>(req & { schema: S, lineFallback? }): Promise<Infer<S>>, listModels(signal?): Promise<string[]>, embed(texts, { model, signal? }): Promise<Float32Array[]> }`. `embed` is new (additive) |
+| `AiRequest` | `{ messages: AiMessage[], requestId?, maxTokens?, temperature?, signal?, tools?: AiTool[] }`. `AiMessage` = `ChatMessage`, or an assistant message with `toolCalls`, or a `tool` result. `temperature`, `tools` and the two message kinds are new (additive) |
+| `AiChunk` | `delta { text }`, `done { incomplete, costMicros, reason? }`, and `tool_call { call }` (only when the request passed `tools`). `reason { code, message }` says in plain words why an answer is incomplete (new, additive) |
+| `AiErrorCode` | The foundation codes plus `needs_claim` (publik-smart without a linked account), `offline` (`JOBLEFT_OFFLINE=1` and a non-loopback provider), `bad_request` (invalid settings) and `not_ready` (secret store or fit model not usable). Additive |
+| `toApiError(err)` | `{ status, body: ApiError }` for the local API: `no_provider` is 409 `needs_provider`; `insufficient_balance` and `needs_claim` are 402 with exactly one `link`; `timeout` is 504; the other provider problems are 502 `provider_error` with the plain message |
+| `AiEngineOptions` | Foundation fields plus `state?: KvStore` (key-free engine state; the server passes its `SettingsStore`, which has the same `getJson`/`setJson`), `env?` (reads `JOBLEFT_OFFLINE`, `JOBLEFT_AI_HOST_MAP`) and `appVersion?`. Without `state`, publik connections and key hints live in memory only |
+| `AiEngine` | Foundation methods, plus `setMeteredFetch(on)`, `clearProvider()`, `forgetAllKeys()` (for delete-all-data), `listModels()`, `describe()` (the active-provider label), `detectLocal()`, `idle()` (waits for the balance re-read after a paid call), `keySlot(settings)`. `updateSettings` refuses a `local` address that is not loopback |
+| `PublikClient` | Foundation methods, plus `walletFrom(body)`, `failure(status, headers, raw)` (the plain 402 message with one `top_up_url`), `static costFromHeaders(headers)`; `gatewayKey()` and `onDisconnect()` are internal to the engine. `connect(v)` refuses a disclosure version other than `PUBLIK_DISCLOSURE_VERSION` |
+| Constants | `PUBLIK_DISCLOSURE` (the two sentences), `PUBLIK_JUSTIFICATION` (why it costs money, contract section 12), `PUBLIK_TIERS`, `PUBLIK_DEFAULT_MODEL` (`publik-balanced`), `METERED_PRICES_PER_1000_MICROS` (search $5, page $2, JS page $4), `DEFAULT_CONNECT_TIMEOUT_MS` (10 s), `DEFAULT_IDLE_TIMEOUT_MS` (110 s) |
+| Secrets | `osSecretStore(service, { fileDir?, env? })`: macOS Keychain through `/usr/bin/security` (the secret goes on stdin, never in argv), else, or with `JOBLEFT_SECRET_STORE=file`, `encryptedFileSecretStore(dir)` (AES-256-GCM, files 0600, folder 0700). `keychainSecretStore`, `memorySecretStore` |
+| Structured answers | `readStructured(text, schema, { incomplete, lineFallback? })`, `extractJson`, `parseScoresHeader` (the "SCORES:" line), `readFieldLines` (a generic "field: value" reader for flat schemas) |
+| Routes | `createAiRouteHandlers(engine)`: the logic of `getAiSettings`, `putAiSettings`, `setAiKey`, `deleteAiKey`, `checkAi`, `listModels`, `chat` (one streamed answer; no history yet), `cancelAi`, `getPublik`, `connectPublik`, `disconnectPublik`, `refreshPublik`, each `(input) => Promise<{ status, json } or { status: 200, sse }>`. `chatEvents(engine, req)` gives the `ChatStreamEvent` stream |
+| Fit model | `createLocalEmbedder({ modelDir, threads?, baseUrl?, allowDownload?, ortModule? })`: bge-small-en-v1.5, pinned sha256, WordPiece tokenizer (`WordPieceTokenizer`). ONNX Runtime (`onnxruntime-node`) is loaded at run time and is NOT a dependency yet: without it the embedder answers `not_ready` |
+| Setup | `createEngineFromEnv({ env?, home? })` (what the CLI uses), `resolveHome(env?)` |
+
+For the UI lane (publik contract section 12): show `PUBLIK_DISCLOSURE` before `connectPublik`, and right after it
+succeeds show the balance card: the balance line (`formatDollars(wallet.balanceMicros)`), `PUBLIK_JUSTIFICATION`, and one
+button that opens `wallet.topUpUrl` ("Link this computer & pick a plan" while `claimState` is `anonymous`, "Add a plan or
+pack" once claimed). A 402 shows the error message and exactly one link (`error.link`). Money is "balance" in dollars.
+
+Key slots: a key belongs to one provider address. `own_key.<vendor>` for own keys; `custom@<hash of origin>` and
+`local@<hash of origin>` for addresses. Secret name: `SECRET_NAMES.providerKey(slot)`. Changing the address means the
+key must be saved again: the old key never goes to the new address.
+
+CLI (`packages/ai-engine/src/cli.ts`, run with `node`): `providers`, `status`, `detect`, `use publik|local|custom|own-key|none`,
+`key set|forget`, `check`, `models`, `chat`, `json`, `publik connect|status|disconnect`, `metered status|on|off`, `serve`,
+`mock-model`, `mock-publik`, `secrets forget-all`.
 
 ### `@jobleft/resume`
 

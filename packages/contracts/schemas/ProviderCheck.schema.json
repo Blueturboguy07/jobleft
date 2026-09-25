@@ -40,6 +40,25 @@
       "type": "string",
       "format": "date-time",
       "description": "RFC 3339 date-time, UTC (\"Z\")"
+    },
+    "link": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "maxLength": 4096,
+          "description": "Absolute http(s) URL"
+        }
+      },
+      "required": [
+        "label",
+        "url"
+      ]
     }
   },
   "required": [
