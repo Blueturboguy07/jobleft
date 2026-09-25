@@ -113,7 +113,7 @@ message and left untouched.
 | `schema_migrations`, `job_vectors`, `job_skills`, `tracker`, `tracker_notes`, `tracker_reminders`, `saved_filters`, `profile`, `chats`, `notifications`, `settings` | store | Planned. `job_vectors`: float16 BLOB per (job id, content hash, model). `settings` is key-value JSON (other packages' small settings go here through `SettingsStore`) |
 | `board_prefs`, `crawl_runs`, `crawl_board_reports` | boards | Planned. User boards and choices (follow, hide, disable); crawl run history for the report |
 | `company_facts` | static-data | Planned. Facts per company key with source and date |
-| `source_state`, `source_runs`, `source_requests`, `source_host_slots`, `feed_postings` | sources-other | Built (migration 1). `source_state`: on or off, last run, last problem, 429 wait, ETag, run lease. `source_runs` and `source_requests`: the rolling 24-hour counts (limits survive restarts and hold across processes). `source_host_slots`: the pacer shared by every process. `feed_postings`: each posting as each feed lists it (see "Reading feed jobs" under `@jobleft/sources-other`) |
+| `source_state`, `source_runs`, `source_requests`, `source_host_slots`, `feed_postings` | sources-other | Built (migrations 1 and 2). `source_state`: on or off, last run, last problem, 429 wait, ETag, run lease. `source_runs` and `source_requests`: the rolling 24-hour counts (limits survive restarts and hold across processes). `source_host_slots`: the pacer shared by every process. `feed_postings`: each posting as each feed lists it (see "Reading feed jobs" under `@jobleft/sources-other`) |
 | `resumes`, `tailor_proposals`, `cover_letters` | resume | Planned |
 | `network_contacts` | network | Planned |
 | `practice_sessions`, `practice_items` | ai-engine | Planned |
@@ -487,7 +487,7 @@ whole board (a paged adapter reads every page, and a page failure fails the boar
 
 ### `@jobleft/sources-other`
 
-Status: **Built** (47 tests, no live request). Purpose: non-ATS feeds (each OFF until the person turns it on),
+Status: **Built** (48 tests, no live request). Purpose: non-ATS feeds (each OFF until the person turns it on),
 add-a-job by URL or text, and the metered fetch and search client (paid, OFF until the person turns it on, price
 shown first in dollars). Owns: tables `source_state`, `source_runs`, `source_requests`, `source_host_slots`,
 `feed_postings`; routes `addExternalJob`, `listSources`, `updateSource`, `setSourceKey`, `deleteSourceKey`.

@@ -105,6 +105,11 @@ CREATE INDEX IF NOT EXISTS feed_postings_job ON feed_postings(job_key);
 CREATE INDEX IF NOT EXISTS feed_postings_open ON feed_postings(source_id, status);
 `,
   },
+  {
+    // Joins from the crawler's jobs rows (ats, board, job_id) to their postings.
+    version: 2,
+    sql: `CREATE INDEX IF NOT EXISTS feed_postings_row ON feed_postings(job_ats, job_board, job_ext_id, status);`,
+  },
 ];
 
 export const SCHEMA_VERSION = STEPS[STEPS.length - 1]!.version;
