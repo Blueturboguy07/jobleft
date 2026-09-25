@@ -180,3 +180,29 @@ test('O6: a nurse profile does not score skills on a software job because both s
   assert.ok((r.subScores.skills.percent ?? 0) <= 10, String(r.subScores.skills.percent));
   assert.equal(r.band, 'fair');
 });
+
+test('O5: across every fixture posting and profile, every quote shown is in the posting word for word', async () => {
+  const { readJobs, readProfile } = await import('../src/io.ts');
+  const { readdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const root = new URL('../../../evals/match/ranking-pairs/data/', import.meta.url).pathname;
+  const examples = new URL('../examples/', import.meta.url).pathname;
+  const jobs = [...readJobs([join(examples, 'jobs')]), ...readdirSync(root).flatMap((f) => readJobs([join(root, f, 'jobs')]))];
+  const profiles = [...readdirSync(join(examples, 'profiles')).map((f) => readProfile(join(examples, 'profiles', f))), ...readdirSync(root).map((f) => readProfile(join(root, f, 'profile.json')))];
+  let n = 0;
+  for (const p of profiles) {
+    for (const j of jobs) {
+      const r = score(p, j);
+      const sources = [j.description, j.title, ...j.places.map((x) => x.text), j.remoteScope?.text ?? ''];
+      for (const qt of quotesOf(r)) { n++; assert.ok(sources.some((s) => s.includes(qt)), `${j.id}: not in the posting: "${qt}"`); }
+    }
+  }
+  assert.ok(n > 1000, `quotes checked: ${n}`);
+});
+
+test('O5: a crawler evidence text that is not in the posting is never shown as a quote', () => {
+  const j = { ...backend, workModel: 'remote' as const, evidence: { workModel: { source: 'board_field' as const, text: 'workplaceType=REMOTE' } } };
+  const r = score(swe, j);
+  assert.equal(r.jobFacts.workModel.value, 'remote');
+  assert.notEqual(r.jobFacts.workModel.quote, 'workplaceType=REMOTE');
+});

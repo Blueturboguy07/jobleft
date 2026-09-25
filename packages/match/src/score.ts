@@ -6,7 +6,7 @@ import type { Blocker, Company, Job, MatchResult, Place, PlaceQuery, Profile, Re
 import { bandFor } from '@jobleft/contracts';
 import { configTag, resolveConfig, type MatchConfig, type MatchConfigInput } from './config.ts';
 import { comparePlace, placeLabel, parsePlaceText } from './geo.ts';
-import { levelOfTitle, readJob, REQUIREMENT_SENTENCE, type JobFacts, type JobSkillItem } from './job.ts';
+import { levelOfTitle, readJob, REQUIREMENT_SENTENCE, verbatim, type JobFacts, type JobSkillItem } from './job.ts';
 import {
   formatMonths, heldFrom, monthLabel, monthOf, profileFacts, scoringView, unionMonths, type ProfileFacts, type RoleFact,
 } from './profile.ts';
@@ -739,9 +739,7 @@ function formatPay(p: NonNullable<Job['pay']>): string {
 }
 
 function payQuote(job: Job): string | null {
-  const ev = job.evidence?.pay?.text;
-  if (ev && (job.description.includes(ev) || job.title.includes(ev))) return ev;
-  return null;
+  return verbatim(job, job.evidence?.pay?.text);
 }
 
 const TYPE_WORD: Record<string, string> = { full_time: 'full-time', part_time: 'part-time', contract: 'contract', internship: 'an internship', temporary: 'temporary', other: 'another job type' };

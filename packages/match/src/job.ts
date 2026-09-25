@@ -108,8 +108,15 @@ const HYBRID_RE = /\bhybrid\b/i;
 const ONSITE_RE = /\b(on[- ]?site|in[- ]office|in[- ]person|office[- ]based|must (work|report) (from|to|at|in) (our|the|an?) (office|location|site|facility|store|hospital|plant|warehouse)|not (a )?remote|no remote|not eligible for remote|this is not a remote|onsite in|on-site in|work on site)\b/i;
 const NOT_REMOTE_WORK = /\bremote (patient )?(monitoring|sites?|locations?|areas?|communities|villages|access)\b/i;
 
+/** The text if the posting (title, places, remote scope or description) holds it word for word, else null. */
+export function verbatim(job: Job, text: string | null | undefined): string | null {
+  if (!text) return null;
+  const sources = [job.title, job.description ?? '', ...job.places.map((p) => p.text), job.remoteScope?.text ?? ''];
+  return sources.some((s) => s.includes(text)) ? text : null;
+}
+
 function readWorkModel(job: Job, a: AnalyzedText): { model: WorkModel | null; evidence: string | null } {
-  if (job.workModel) return { model: job.workModel, evidence: (job.evidence?.workModel?.text ?? job.places.map((p) => p.text).join('; ')) || null };
+  if (job.workModel) return { model: job.workModel, evidence: verbatim(job, job.evidence?.workModel?.text) ?? verbatim(job, job.remoteScope?.text) ?? verbatim(job, job.places[0]?.text) };
   const placeText = job.places.map((p) => p.text).join('; ');
   if (placeText && REMOTE_LOCATION.test(placeText) && !HYBRID_RE.test(placeText)) return { model: 'remote', evidence: placeText };
   if (placeText && HYBRID_RE.test(placeText)) return { model: 'hybrid', evidence: placeText };
@@ -155,7 +162,7 @@ const TEXT_TYPE_RES: Array<[EmploymentType, RegExp]> = [
 ];
 
 function readEmploymentType(job: Job, a: AnalyzedText): { type: EmploymentType | null; evidence: string | null } {
-  if (job.employmentType) return { type: job.employmentType, evidence: job.evidence?.employmentType?.text ?? null };
+  if (job.employmentType) return { type: job.employmentType, evidence: verbatim(job, job.evidence?.employmentType?.text) };
   for (const [type, re] of TYPE_RES) if (re.test(job.title)) return { type, evidence: job.title };
   const found = new Map<EmploymentType, string>();
   for (const s of a.sentences) {
@@ -264,7 +271,7 @@ export function readJob(job: Job, company: Company | null): JobFacts {
 
   let level: Level | null = job.level ?? null;
   let levelSource: JobFacts['levelSource'] = level ? 'job' : null;
-  let levelEvidence: string | null = level ? job.evidence?.level?.text ?? job.title : null;
+  let levelEvidence: string | null = level ? verbatim(job, job.evidence?.level?.text) ?? job.title : null;
   // The title, read by the match lane, wins over a level that is only the parsers' reading of the same title
   // ("Account Manager" is not a people manager; "Executive Assistant to the CEO" is not an executive).
   const t = levelOfTitle(job.title);
