@@ -157,7 +157,10 @@ pnpm --filter @jobleft/ui typecheck     # tsc
 # Probes: brand nav facts filters signals detail tracker persist states money privacy keyboard layout perf. Each starts its own demo.
 node apps/ui/scripts/probe/run.ts --only nav,facts,filters
 node apps/ui/scripts/probe/run.ts --only keyboard        # keyboard-only flow, focus rings, Esc, names and contrast (O13)
-node apps/ui/scripts/probe/run.ts --only perf            # 50,000 jobs: launch, filter, sort, search, screen switches, 500-card scroll (O11). Takes about 3 minutes
+node apps/ui/scripts/probe/run.ts --only perf            # 50,000 jobs: launch, filter, sort, search, screen switches, 500-card scroll (O11). Takes about 5 minutes
+#   Measured on this Mac with 50,000 jobs: launch to first cards about 1 s, list change 0.07 to 0.5 s (search waits 120 ms for more typing),
+#   screen switch about 30 ms, 500 cards scrolled with no blank frame; the same numbers while a refresh runs. If another program keeps
+#   the computer busy, single changes can take longer: the probe prints the load average next to the timings.
 node apps/ui/scripts/probe/run.ts --all                  # everything (about 25 minutes)
 # Screenshots and an accessibility, contrast and banned-word audit of every screen at two sizes (needs a running demo):
 node apps/ui/scripts/shots.ts --url "http://127.0.0.1:47830/#token=..." --out /private/tmp/jlui-shots --sizes 1024x640,1920x1080

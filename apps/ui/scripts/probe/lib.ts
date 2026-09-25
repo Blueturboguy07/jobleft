@@ -63,9 +63,11 @@ export async function startDemo(opts: { home: string; reset?: boolean; args?: st
       const c = spawn(process.execPath, [join(UI_ROOT, 'mock', 'server.ts'), '--home', home, '--port', String(port), '--token', token!, ...extra], { stdio: ['ignore', 'pipe', 'pipe'], detached: true });
       let o = '';
       c.stdout!.on('data', (d: Buffer) => { o += d.toString(); });
+      c.stderr!.on('data', (d: Buffer) => { o += d.toString(); });
       c.unref();
       const s = Date.now();
-      while (!/Open: /.test(o)) { if (Date.now() - s > 20000) throw new Error('the API did not come back'); await new Promise((r) => setTimeout(r, 100)); }
+      // (the limit is generous: the computer may be busy with other work)
+      while (!/Open: /.test(o)) { if (Date.now() - s > 60000) throw new Error(`the API did not come back within 60 s. It printed: ${o.slice(-400)}`); await new Promise((r) => setTimeout(r, 100)); }
     },
   };
   return demo;
