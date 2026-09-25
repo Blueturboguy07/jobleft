@@ -16,12 +16,16 @@ Lookups
   h1b <company> [--title <job title>]      H-1B filing summary for a company name: found or unknown, never "no"
   place <text>                              Resolve a place text ("San Francisco, CA", "NYC", "Remote - US")
   within "<center> | <place> | ..." [--miles 25]   Which places are within the radius of the center
-  company <name> [--refresh] [--expire]     Company facts, kept in a local cache (network only on --refresh)
+  company <name> [--refresh] [--force] [--expire] [--allow-paid --search-url <url> --max-price-micros <n>]
+                                            Company facts, kept per company in $JOBLEFT_HOME/data/jobleft.db.
+                                            Sends requests only with --refresh and only when the kept facts expired.
   datasets                                  Every shipped dataset with its date, licence and attribution
 
 Updates
   update [--manifest <url>]                 Install newer dataset releases (signed); a bad release changes nothing
   mock-release [--port 4777] [--mode m]     Serve a local test release: valid | truncated | tampered | older | badsig
+  mock-facts [--port 4780] [--scenario s] [--fail] [--log <file>]
+                                            Serve mock Wikidata, SEC, GLEIF and paid search (empty | other-company | match)
 
 Checks
   count-lca --lca <file.xlsx> --contains <text>   Count certified H-1B rows in a public DOL file, per filer
@@ -77,6 +81,14 @@ async function main(argv: string[]): Promise<number> {
       src: { type: 'string' },
       miles: { type: 'string' },
       near: { type: 'string' },
+      force: { type: 'boolean' },
+      'search-url': { type: 'string' },
+      'search-price-micros': { type: 'string' },
+      'max-price-micros': { type: 'string' },
+      scenario: { type: 'string' },
+      fail: { type: 'boolean' },
+      'balance-micros': { type: 'string' },
+      log: { type: 'string' },
     },
   });
   const [cmd, ...rest] = positionals;

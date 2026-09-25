@@ -256,8 +256,8 @@ export function summarize(p: Prepared, kept: number[], excluded: number[], match
   const to = humanDate(p.meta.window.to);
   const plural = (n: number, w: string) => `${n.toLocaleString('en-US')} ${w}${n === 1 ? '' : 's'}`;
   const note = likely
-    ? `Based on ${plural(certified, 'certified H-1B filing')} (Labor Condition Applications) by ${who} from ${from} to ${to}, ${recent.toLocaleString('en-US')} of them in the newest 12 months. Past filings do not guarantee that this employer will sponsor a visa for this role.`
-    : `${plural(certified, 'certified H-1B filing')} by ${who} from ${from} to ${to} (${recent.toLocaleString('en-US')} in the newest 12 months). A short or old filing history does not show that this employer sponsors often, and past filings do not guarantee sponsorship for this role.`;
+    ? `Based on ${plural(certified, 'certified H-1B filing')} (Labor Condition Applications) by ${who} from ${from} to ${to}, ${recent.toLocaleString('en-US')} of them in the newest 12 months. Past filings are not a promise of visa sponsorship for this role.`
+    : `${plural(certified, 'certified H-1B filing')} by ${who} from ${from} to ${to} (${recent.toLocaleString('en-US')} in the newest 12 months). A short or old filing history does not show frequent sponsorship, and past filings are not a promise of visa sponsorship for this role.`;
   let similarRoleShare: number | null = null;
   let roleFamily: string | null = null;
   if (jobTitle && certified > 0) {

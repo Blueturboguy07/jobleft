@@ -64,3 +64,25 @@ export function formatPlace(r: PlaceLookup & { notes?: string[] }): string {
   for (const n of r.notes ?? []) lines.push(`  note: ${n}`);
   return lines.join('\n');
 }
+
+export function formatCompany(c: import('./facts/company-facts.ts').CompanyDetail, requests: number): string {
+  const lines: string[] = [`${c.name}  (company key "${c.key}")`];
+  const f = c.facts as Record<string, { value: unknown; source: { name: string; url: string | null; retrievedAt: string } } | undefined>;
+  const order = ['description', 'founded', 'headquarters', 'size', 'industries', 'website', 'stage', 'totalFundingUsd', 'investors', 'leaders', 'news'];
+  const show = (v: unknown): string => {
+    if (Array.isArray(v)) return v.map((x) => (typeof x === 'object' && x ? Object.values(x as Record<string, unknown>).filter(Boolean).join(', ') : String(x))).join('; ');
+    if (typeof v === 'number' && v > 100000) return `$${v.toLocaleString('en-US')}`;
+    return String(v);
+  };
+  for (const k of order) {
+    const fact = f[k];
+    lines.push(fact ? `  ${k.padEnd(16)} ${show(fact.value)}\n  ${''.padEnd(16)} source: ${fact.source.name}${fact.source.url ? ` <${fact.source.url}>` : ''}, read ${fact.source.retrievedAt}` : `  ${k.padEnd(16)} not found`);
+  }
+  lines.push(`  H-1B: ${c.h1b ? `${c.h1b.status === 'likely' ? 'H-1B sponsor likely' : 'Some H-1B history'}, ${c.h1b.certifiedFilings.toLocaleString('en-US')} certified filings through ${c.h1b.dataThrough}` : 'unknown (not found in the filing data; not ruled out)'}`);
+  lines.push(`  Staffing agency: ${c.isStaffingAgency === true ? 'yes (most H-1B filings place workers at client sites)' : 'unknown'}`);
+  lines.push(`  Kept until: ${c.factsFreshUntil ?? 'nothing kept yet'}; last read: ${c.factsStatus.fetchedAt ?? 'never'}${c.factsStatus.lastError ? `\n  Last error: ${c.factsStatus.lastError}` : ''}`);
+  for (const s of c.factsStatus.sources) lines.push(`  source ${s.name}: ${s.status} (${s.note})`);
+  if (c.paidLookup) lines.push(`  Paid lookup: ${c.paidLookup.lastCostText} on ${c.paidLookup.at}${c.paidLookup.note ? ` (${c.paidLookup.note})` : ''}`);
+  lines.push(`  Requests sent by this command: ${requests}`);
+  return lines.join('\n');
+}
