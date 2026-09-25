@@ -106,14 +106,18 @@ async function cmdCrawl(args: Args): Promise<void> {
     console.log('offline: JOBLEFT_OFFLINE=1 is set, so no request was sent and nothing changed');
     return;
   }
-  let now: (() => number) | undefined;
+  // One clock value for the whole run (the run's start, or --now). The crawler compares each job's last-seen time
+  // with "now minus the grace period" after the run; with a moving clock, jobs seen earlier in the SAME run would
+  // look older than the cutoff when the grace is 0. A fixed run clock makes "--grace-hours 0" mean "close what this
+  // run proved missing" and nothing else.
   const nowArg = flag(args, 'now');
+  let runStart = Date.now();
   if (nowArg) {
-    const t = Date.parse(nowArg);
-    if (!Number.isFinite(t)) { console.error(`--now is not a date: ${nowArg}`); process.exit(2); }
-    now = () => t;
-    process.env.JOBLEFT_NOW ??= new Date(t).toISOString();
+    runStart = Date.parse(nowArg);
+    if (!Number.isFinite(runStart)) { console.error(`--now is not a date: ${nowArg}`); process.exit(2); }
+    process.env.JOBLEFT_NOW ??= new Date(runStart).toISOString();
   }
+  const now = (): number => runStart;
   const logPath = flag(args, 'log');
   const store = new Store(dbPath);
   const http = new HttpClient({
@@ -131,6 +135,7 @@ async function cmdCrawl(args: Args): Promise<void> {
         `updated=${r.stats.updated} same=${r.stats.unchanged} unreadable=${r.stats.unreadable} requests=${r.requests}${reason}`);
     },
   });
+  if (!nowArg) run.finishedAt = new Date().toISOString();
   const health = buildHealthReport(run, store);
   const out = { userAgent: USER_AGENT, totalRequests: http.totalRequests, hosts: Object.fromEntries(http.stats), health, run };
   const outPath = flag(args, 'out');
