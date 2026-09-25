@@ -38,6 +38,15 @@ function modelName(model: string | null): string {
 }
 
 export function classifyHttpFailure(status: number, contentType: string | undefined, raw: string, ctx: ClassifyContext): AiError {
+  const err = classify(status, contentType, raw, ctx);
+  err.httpStatus = status;
+  return err;
+}
+
+function classify(status: number, contentType: string | undefined, raw: string, ctx: ClassifyContext): AiError {
+  if (looksLikeHtml(contentType, raw) && status === 404) {
+    return new AiError('not_ai_server', `${cap(ctx.label)} has no AI endpoint at this address (it answered with a "not found" web page). Check the address (many servers need "/v1" at the end).`);
+  }
   if (looksLikeHtml(contentType, raw)) {
     return new AiError('not_ai_server', `${cap(ctx.label)} answered with a web page, not an AI answer. This address is not an AI server; check the address (many servers need "/v1" at the end).`);
   }

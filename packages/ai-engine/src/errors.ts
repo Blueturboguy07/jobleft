@@ -14,6 +14,8 @@ export type AiErrorCode =
 export class AiError extends Error {
   readonly code: AiErrorCode;
   readonly topUpUrl: string | null;
+  /** The HTTP status of the provider answer behind this error, when there was one (additive). */
+  httpStatus: number | null = null;
   constructor(code: AiErrorCode, message: string, topUpUrl: string | null = null) {
     super(message);
     this.name = 'AiError';

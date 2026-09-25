@@ -287,3 +287,29 @@ test('embeddings from an OpenAI-style server and from Ollama', async () => {
     assert.equal((await engine.client().embed(['x'], { model: 'standin-embed' })).length, 1);
   });
 });
+
+test('a server with no model list (a 404 page) still passes the check when chat works', async () => {
+  const http = await import('node:http');
+  const srv = http.createServer((req, res) => {
+    if (req.url === '/v1/chat/completions' && req.method === 'POST') {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'ready' }, finish_reason: null }] })}\n\n`);
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\n`);
+      res.end('data: [DONE]\n\n');
+      return;
+    }
+    res.writeHead(404, { 'content-type': 'text/html' });
+    res.end(`<!DOCTYPE html><html><head><title>Error</title></head><body><pre>Cannot ${req.method} ${req.url}</pre></body></html>`);
+  });
+  await new Promise<void>((r) => srv.listen(0, '127.0.0.1', () => r()));
+  const port = (srv.address() as { port: number }).port;
+  try {
+    const { engine } = makeEngine();
+    const { check } = await use(engine, { provider: 'custom', baseUrl: `http://127.0.0.1:${port}/v1`, model: 'any-model' });
+    assert.equal(check.ok, true, check.message);
+    const fresh = makeEngine().engine;
+    const { check: c2 } = await use(fresh, { provider: 'custom', baseUrl: `http://127.0.0.1:${port}/v1` });
+    assert.equal(c2.ok, false);
+    assert.equal(c2.problem, 'not_ai_server');
+  } finally { srv.close(); }
+});

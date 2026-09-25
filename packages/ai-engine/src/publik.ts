@@ -217,6 +217,8 @@ export class PublikClient {
     const res = await send({
       method: 'POST',
       url: `${this.baseUrl}/installs`,
+      // The contract accepts the public app token in the header or in the body; both are sent (it is not a secret).
+      headers: { authorization: `Bearer ${this.appToken}` },
       body: JSON.stringify({
         app_token: this.appToken,
         app_slug: PUBLIK_APP_SLUG,

@@ -412,8 +412,8 @@ export class AiEngine {
         models = await listClient.listModels(budget.signal);
       } catch (e) {
         const err = asAiError(e);
-        // Some servers have no model list: go on to the chat test when a model is chosen.
-        if (!(err.code === 'not_ai_server' && s.model && !/web page/.test(err.message))) throw err;
+        // Some servers have no model list (404): go on to the chat test when a model is chosen.
+        if (!(err.code === 'not_ai_server' && s.model && err.httpStatus === 404)) throw err;
       }
       let model = s.model;
       const isOllama = s.provider === 'local' && s.localKind === 'ollama';
