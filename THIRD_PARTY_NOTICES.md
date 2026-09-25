@@ -110,6 +110,22 @@ The starting weights of the overall percent (0.24 / 0.29 / 0.08 / +36) come from
 | `apps/extension/src/content/fill.ts` | `extension/content_autofill_fill.js` | The escalation for a tick box: click its label, then the box, then set the property; verify the state stuck |
 | `apps/extension/src/options.ts`, `apps/extension/src/classify.ts` | `backend/autofill_schema.py`, `backend/seed.py` | Ideas for the EEO answer set (yes, no, decline) and self-identification wording. jobleft does NOT keep JobNavigator's defaults: it never answers "decline" by itself and never infers Hispanic/Latino from race |
 
+### 1.8 Other job sources (`packages/sources-other`)
+
+- No third-party code was copied or ported. The adapters for Remote OK, The Muse, the HN hiring thread, the GitHub job
+  lists, Remotive and USAJOBS are written new in TypeScript from each source's public documentation (links in
+  `docs/sources/*.md`).
+- First-party reference (no third-party licence applies): the owner's Internship Machine
+  (`~/Documents/internships/internships/sources/github_repo.py`, `extra_adapters.py`) was read for the list formats,
+  the HN header split on `|`, and the USAJOBS headers. No file was copied.
+- Fixtures (`packages/sources-other/fixtures/`) hold made-up employers, titles, text and links only. Their structure
+  follows one real answer of each source read on 2026-09-25; only that structure (paths and types, no data) is kept,
+  in `fixtures/*/shape.json`. The real answers were not committed.
+- Data the app reads at run time from these sources stays on the person's laptop and is shown with the credit each
+  source's terms ask for: Remote OK ("mention Remote OK as a source", link back), The Muse (link back, terms 3.4), the
+  GitHub lists (repository credit; vanshb03 lists are MIT, Copyright (c) their authors; SimplifyJobs and speedyapply
+  lists have no licence file and are used for facts only), and Hacker News (link to each comment).
+
 ## 2. Data shipped with the app
 
 Entries 2.1 to 2.5 are from the static-data lane, 2.6 from the ai-engine lane and 2.7 from the match lane (2026-09-25); 2.8 is from the boards lane.

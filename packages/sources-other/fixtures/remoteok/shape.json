@@ -1,0 +1,27 @@
+{
+  "note": "Structural signature of the real answer read on 2026-09-25 (paths and types only, no data).",
+  "paths": [
+    "$:array",
+    "$[].apply_url:string",
+    "$[].company:string",
+    "$[].company_logo:string",
+    "$[].date:string",
+    "$[].description:string",
+    "$[].epoch:number",
+    "$[].id:string",
+    "$[].last_updated:number",
+    "$[].legal:string",
+    "$[].location:string",
+    "$[].logo:string",
+    "$[].original:boolean",
+    "$[].position:string",
+    "$[].salary_max:number",
+    "$[].salary_min:number",
+    "$[].slug:string",
+    "$[].tags:array",
+    "$[].tags[]:string",
+    "$[].url:string",
+    "$[].verified:boolean",
+    "$[]:object"
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "00-warning": "Remotive API: jobs are delayed by 24 hours. Please link back to the job URL on Remotive and mention Remotive as the source.",
+  "job-count": 5,
+  "total-job-count": 5,
+  "jobs": [
+    {
+      "id": 3000001,
+      "url": "https://remotive.com/remote-jobs/software-dev/backend-engineer-3000001",
+      "title": "Backend Engineer",
+      "company_name": "Acme Robotics",
+      "company_logo": "",
+      "category": "Software Development",
+      "tags": [],
+      "job_type": "full_time",
+      "publication_date": "2026-09-23T10:00:00",
+      "candidate_required_location": "USA Only",
+      "salary": "$120,000 - $140,000",
+      "description": "<p>Build APIs.</p>"
+    },
+    {
+      "id": 3000002,
+      "url": "https://remotive.com/remote-jobs/customer-support/support-agent-3000002",
+      "title": "Support Agent",
+      "company_name": "Birchwood Health",
+      "company_logo": "",
+      "category": "Customer Service",
+      "tags": [],
+      "job_type": "part_time",
+      "publication_date": "2026-09-23T09:00:00",
+      "candidate_required_location": "Europe Only",
+      "salary": "€50k - €60k",
+      "description": "<p>Help patients.</p>"
+    },
+    {
+      "id": 3000003,
+      "url": "https://remotive.com/remote-jobs/writing/editor-3000003",
+      "title": "Editor",
+      "company_name": "Cobalt Ledger",
+      "company_logo": "",
+      "category": "Writing",
+      "tags": [],
+      "job_type": "contract",
+      "publication_date": "2026-09-22T08:00:00",
+      "candidate_required_location": "Worldwide",
+      "salary": "$30/hour",
+      "description": "<p>Edit docs.</p>"
+    },
+    {
+      "id": 3000004,
+      "url": "https://remotive.com/remote-jobs/data/analyst-3000004",
+      "title": "Data Analyst",
+      "company_name": "Dunmore Analytics",
+      "company_logo": "",
+      "category": "Data",
+      "tags": [],
+      "job_type": "full_time",
+      "publication_date": "2026-09-22T07:00:00",
+      "candidate_required_location": "",
+      "salary": "",
+      "description": "<p>SQL all day.</p>"
+    },
+    {
+      "id": 3000005,
+      "url": "https://remotive.com/remote-jobs/design/designer-3000005",
+      "title": "Product Designer",
+      "company_name": "Evergreen Logistics",
+      "company_logo": "",
+      "category": "Design",
+      "tags": [],
+      "job_type": "freelance",
+      "publication_date": "2026-09-21T07:00:00",
+      "candidate_required_location": "USA, Canada",
+      "salary": "competitive",
+      "description": "<p>Design screens.</p>"
+    }
+  ]
+}

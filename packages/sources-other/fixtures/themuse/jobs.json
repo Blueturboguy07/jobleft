@@ -1,0 +1,187 @@
+{
+  "results": [
+    {
+      "contents": "<p>Own the tutoring app roadmap.</p>",
+      "name": "Senior Product Manager",
+      "type": "external",
+      "publication_date": "2026-09-20T19:45:52Z",
+      "short_name": "senior-product-manager",
+      "model_type": "jobs",
+      "id": 22000001,
+      "locations": [
+        {
+          "name": "Flexible / Remote"
+        },
+        {
+          "name": "New York, NY"
+        }
+      ],
+      "categories": [
+        {
+          "name": "Software Engineering"
+        }
+      ],
+      "levels": [
+        {
+          "name": "Senior Level",
+          "short_name": "senior"
+        }
+      ],
+      "tags": [],
+      "refs": {
+        "landing_page": "https://www.themuse.com/jobs/lumentutoring/senior-product-manager"
+      },
+      "company": {
+        "id": 15000001,
+        "short_name": "lumentutoring",
+        "name": "Lumen Tutoring"
+      }
+    },
+    {
+      "contents": "<p>Sell to regional stores.</p>",
+      "name": "Account Executive",
+      "type": "external",
+      "publication_date": "2026-09-19T23:43:09Z",
+      "short_name": "account-executive",
+      "model_type": "jobs",
+      "id": 22000002,
+      "locations": [
+        {
+          "name": "Flexible / Remote"
+        }
+      ],
+      "categories": [
+        {
+          "name": "Software Engineering"
+        }
+      ],
+      "levels": [
+        {
+          "name": "Mid Level",
+          "short_name": "mid"
+        }
+      ],
+      "tags": [],
+      "refs": {
+        "landing_page": "https://www.themuse.com/jobs/marlowretail/account-executive"
+      },
+      "company": {
+        "id": 15000002,
+        "short_name": "marlowretail",
+        "name": "Marlow Retail"
+      }
+    },
+    {
+      "contents": "<p>A summer internship on the data platform.</p>",
+      "name": "Software Engineering Intern",
+      "type": "external",
+      "publication_date": "2026-09-18T18:44:45Z",
+      "short_name": "software-engineering-intern",
+      "model_type": "jobs",
+      "id": 22000003,
+      "locations": [
+        {
+          "name": "Flexible / Remote"
+        },
+        {
+          "name": "Austin, TX"
+        }
+      ],
+      "categories": [
+        {
+          "name": "Software Engineering"
+        }
+      ],
+      "levels": [
+        {
+          "name": "Internship",
+          "short_name": "internship"
+        }
+      ],
+      "tags": [],
+      "refs": {
+        "landing_page": "https://www.themuse.com/jobs/nimbusdata/software-engineering-intern"
+      },
+      "company": {
+        "id": 15000003,
+        "short_name": "nimbusdata",
+        "name": "Nimbus Data"
+      }
+    },
+    {
+      "contents": "<p>Lead nursing operations for 12 sites.</p>",
+      "name": "Director of Nursing Operations",
+      "type": "external",
+      "publication_date": "2026-09-17T18:53:19Z",
+      "short_name": "director-of-nursing-operations",
+      "model_type": "jobs",
+      "id": 22000004,
+      "locations": [
+        {
+          "name": "Flexible / Remote"
+        }
+      ],
+      "categories": [
+        {
+          "name": "Software Engineering"
+        }
+      ],
+      "levels": [
+        {
+          "name": "management",
+          "short_name": "management"
+        }
+      ],
+      "tags": [],
+      "refs": {
+        "landing_page": "https://www.themuse.com/jobs/orchardcare/director-of-nursing-operations"
+      },
+      "company": {
+        "id": 15000004,
+        "short_name": "orchardcare",
+        "name": "Orchard Care"
+      }
+    },
+    {
+      "contents": "<p>Help customers in the UK and Europe.</p>",
+      "name": "Support Engineer",
+      "type": "external",
+      "publication_date": "2026-09-16T20:03:43Z",
+      "short_name": "support-engineer",
+      "model_type": "jobs",
+      "id": 22000005,
+      "locations": [
+        {
+          "name": "Flexible / Remote"
+        },
+        {
+          "name": "London, United Kingdom"
+        }
+      ],
+      "categories": [
+        {
+          "name": "Software Engineering"
+        }
+      ],
+      "levels": [
+        {
+          "name": "Entry Level",
+          "short_name": "entry"
+        },
+        {
+          "name": "Mid Level",
+          "short_name": "mid"
+        }
+      ],
+      "tags": [],
+      "refs": {
+        "landing_page": "https://www.themuse.com/jobs/pinecrestsoftware/support-engineer"
+      },
+      "company": {
+        "id": 15000005,
+        "short_name": "pinecrestsoftware",
+        "name": "Pinecrest Software"
+      }
+    }
+  ]
+}

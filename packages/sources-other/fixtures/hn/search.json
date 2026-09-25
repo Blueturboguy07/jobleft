@@ -1,0 +1,131 @@
+{
+  "exhaustive": {
+    "nbHits": true,
+    "typo": true
+  },
+  "exhaustiveNbHits": true,
+  "exhaustiveTypo": true,
+  "hits": [
+    {
+      "_highlightResult": {
+        "author": {
+          "matchLevel": "none",
+          "matchedWords": [],
+          "value": "whoishiring"
+        },
+        "story_text": {
+          "matchLevel": "none",
+          "matchedWords": [],
+          "value": ""
+        },
+        "title": {
+          "matchLevel": "none",
+          "matchedWords": [],
+          "value": "Ask HN: Who is hiring? (September 2026)"
+        }
+      },
+      "_tags": [
+        "story",
+        "author_whoishiring",
+        "story_99000001",
+        "ask_hn"
+      ],
+      "author": "whoishiring",
+      "children": [],
+      "created_at": "2026-09-01T15:01:17Z",
+      "created_at_i": 1788274877,
+      "num_comments": 8,
+      "objectID": "99000001",
+      "points": 254,
+      "story_id": 99000001,
+      "story_text": "Please state the location and include REMOTE for remote work.",
+      "title": "Ask HN: Who is hiring? (September 2026)",
+      "updated_at": "2026-09-25T06:00:00Z"
+    },
+    {
+      "_highlightResult": {
+        "author": {
+          "matchLevel": "none",
+          "matchedWords": [],
+          "value": "whoishiring"
+        },
+        "story_text": {
+          "matchLevel": "none",
+          "matchedWords": [],
+          "value": ""
+        },
+        "title": {
+          "matchLevel": "none",
+          "matchedWords": [],
+          "value": "Ask HN: Who wants to be hired? (September 2026)"
+        }
+      },
+      "_tags": [
+        "story",
+        "author_whoishiring",
+        "story_99000002",
+        "ask_hn"
+      ],
+      "author": "whoishiring",
+      "children": [],
+      "created_at": "2026-09-01T15:01:17Z",
+      "created_at_i": 1788274877,
+      "num_comments": 5,
+      "objectID": "99000002",
+      "points": 100,
+      "story_id": 99000002,
+      "story_text": "Share your location and skills.",
+      "title": "Ask HN: Who wants to be hired? (September 2026)",
+      "updated_at": "2026-09-25T06:00:00Z"
+    },
+    {
+      "_highlightResult": {
+        "author": {
+          "matchLevel": "none",
+          "matchedWords": [],
+          "value": "whoishiring"
+        },
+        "story_text": {
+          "matchLevel": "none",
+          "matchedWords": [],
+          "value": ""
+        },
+        "title": {
+          "matchLevel": "none",
+          "matchedWords": [],
+          "value": "Ask HN: Who is hiring? (August 2026)"
+        }
+      },
+      "_tags": [
+        "story",
+        "author_whoishiring",
+        "story_99000000",
+        "ask_hn"
+      ],
+      "author": "whoishiring",
+      "children": [],
+      "created_at": "2026-08-03T15:00:54Z",
+      "created_at_i": 1785769254,
+      "num_comments": 3,
+      "objectID": "99000000",
+      "points": 200,
+      "story_id": 99000000,
+      "story_text": "Please state the location.",
+      "title": "Ask HN: Who is hiring? (August 2026)",
+      "updated_at": "2026-09-25T06:00:00Z"
+    }
+  ],
+  "hitsPerPage": 10,
+  "nbHits": 3,
+  "nbPages": 1,
+  "page": 0,
+  "params": "tags=story%2Cauthor_whoishiring&hitsPerPage=10",
+  "processingTimeMS": 1,
+  "processingTimingsMS": {
+    "_request": {
+      "roundTrip": 1
+    }
+  },
+  "query": "",
+  "serverTimeMS": 1
+}
