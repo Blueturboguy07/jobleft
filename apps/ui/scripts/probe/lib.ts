@@ -53,8 +53,9 @@ export async function startDemo(opts: { home: string; reset?: boolean; args?: st
       try { proc.kill('SIGKILL'); } catch { /* gone */ }
     },
     kill9() {
-      const d = JSON.parse(readFileSync(join(home, 'run', 'demo.json'), 'utf8')) as { pids: Record<string, number> };
-      process.kill(d.pids.api!, 'SIGKILL');
+      // server.json always holds the pid of the API that is running now (also after relaunchApi)
+      const s = JSON.parse(readFileSync(join(home, 'run', 'server.json'), 'utf8')) as { pid: number };
+      process.kill(s.pid, 'SIGKILL');
     },
     async relaunchApi(extra = []) {
       const c = spawn(process.execPath, [join(UI_ROOT, 'mock', 'server.ts'), '--home', home, '--port', String(port), '--token', token!, ...extra], { stdio: ['ignore', 'pipe', 'pipe'], detached: true });
