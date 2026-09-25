@@ -86,7 +86,7 @@ const LIMIT_RULES: RegExp[] = [
   /\b(?:must|need\s+to|required\s+to|should|will\s+need\s+to|are\s+required\s+to)\s+(?:be\s+)?(?:physically\s+)?(?:located|based|reside|residing|live|living|resident)\s+(?:in|within|inside)\s+(?:the\s+|one\s+of\s+the\s+)?([^.;\n]{2,200})/gi,
   /\b(?:open|available)\s+(?:only\s+)?to\s+(?:candidates|applicants|residents|people|individuals|those)\s+(?:who\s+(?:are|live)\s+)?(?:located|based|residing|living)?\s*(?:in|within|from)\s+(?:the\s+)?([^.;\n]{2,200})/gi,
   /\b(?:we\s+(?:can|are\s+able\s+to|currently)\s+(?:only\s+)?(?:hire|employ|consider\s+candidates)|we\s+are\s+(?:only\s+)?(?:able\s+to\s+)?hiring|hiring\s+(?:only\s+)?(?:in|from))\s+(?:in\s+|from\s+)?(?:the\s+following\s+(?:states|countries|locations)\s*:?\s*)?(?:the\s+)?([^.;\n]{2,200})/gi,
-  /\bremote\s*(?:\(|-|–|,)?\s*(?:in|within|from|across)?\s*(?:the\s+)?((?:US|U\.S\.A?\.?|USA|United\s+States|Canada|UK|United\s+Kingdom|Europe|EU|EMEA|India|LATAM|APAC|Mexico|Brazil|Germany|Australia)\b[^.;\n]{0,40})/gi,
+  /\bremote\s*(?:\(|-|–|,)?\s*(?:in|within|from|across)?\s*(?:the\s+)?((?:US|U\.S\.A?\.?|USA|United\s+States|Canada|UK|United\s+Kingdom|Europe|EU|EMEA|India|LATAM|APAC|Mexico|Brazil|Germany|Australia)\b(?:\s*(?:,|and|or|&|\/)\s*(?:the\s+)?(?:US|U\.S\.A?\.?|USA|United\s+States|Canada|UK|United\s+Kingdom|Europe|EU|EMEA|India|LATAM|APAC|Mexico|Brazil|Germany|Australia)\b)*(?:\s+only)?)/gi,
   /\b((?:US|U\.S\.|USA|Canada|UK|EU|EMEA|India|LATAM|APAC|Mexico|Brazil|Germany|Philippines|Australia)[- ]only)\b/gi,
   /\b(?:in|from)\s+(?:the\s+)?following\s+(?:states?|locations|countries)\s*:?\s*([^.\n]{2,300})/gi,
   /\b(?:within|inside)\s+(?:a\s+)?(\d{1,3}[- ]?(?:miles?|mi|km|kilometers?)\s+(?:radius\s+)?(?:of|from)\s+(?:our\s+|the\s+)?[A-Z][\w.' ]{2,40})/g,
@@ -238,21 +238,26 @@ export function parseWorkModel(text: string, fields: WorkModelFields = {}): Work
   let scopeEvidence: FactEvidence | undefined;
   const limitTexts: string[] = [];
   const regions = new Set<string>(locRegions);
-  for (const re of LIMIT_RULES) {
+  const tzRegions = new Set<string>();
+  LIMIT_RULES.forEach((re, ruleIndex) => {
+    const isTimeZone = ruleIndex === LIMIT_RULES.length - 1;
     re.lastIndex = 0;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(body)) !== null) {
+    let found = 0;
+    while ((m = re.exec(body)) !== null && found < 3) {
       const area = m[1] ?? '';
       // "authorized to work in the US" is work authorisation, not a place limit.
       const lead = body.slice(Math.max(0, m.index - 60), m.index);
       if (/\bauthori[sz]ed\s+to\s+work\b|\beligib\w*\s+to\s+work\b|\bsponsor/i.test(lead + m[0])) continue;
-      const r = regionsOfArea(area);
+      // A time zone ("US Eastern hours") says when to work, not where to live: it counts only when nothing else does.
+      const r = isTimeZone ? { regions: TZ_REGION.filter(([tz]) => tz.test(area)).slice(0, 1).map(([, reg]) => reg) } : regionsOfArea(area);
       if (!r.regions.length) continue;
-      for (const x of r.regions) regions.add(x);
+      for (const x of r.regions) (isTimeZone ? tzRegions : regions).add(x);
       limitTexts.push(snippet(body, m.index, m.index + m[0].length, 220));
-      if (limitTexts.length >= 3) break;
+      found++;
     }
-  }
+  });
+  if (!regions.size) for (const x of tzRegions) regions.add(x);
   if (workModel === 'remote' && (regions.size || locRemoteText || limitTexts.length)) {
     const words = [locRemoteText, ...limitTexts].filter(Boolean) as string[];
     remoteScope = { regions: [...regions], text: clip(words.join('; ') || 'Remote', 500) };

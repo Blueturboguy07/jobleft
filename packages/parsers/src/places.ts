@@ -41,7 +41,7 @@ type Tok =
   | { kind: 'fregion'; cc: string; name: string; alsoState?: string }
   | { kind: 'macro'; region: string }
   | { kind: 'usregion'; region: string; state: string | null }
-  | { kind: 'city'; name: string; key: string; us: string[]; world: string[]; state?: string; country?: string }
+  | { kind: 'city'; name: string; key: string; us: string[]; world: string[]; state?: string; country?: string; alsoRegion?: [string, string] }
   | { kind: 'unknown'; name: string }
   | { kind: 'noise' }
   | { kind: 'zip'; state: string | null };
@@ -119,6 +119,10 @@ function classify(raw: string): Tok {
   if (fr && usCity.length === 0 && wCity.length === 0) return { kind: 'fregion', cc: fr[0], name: fr[1] };
   // A province far better known than the US town of the same name ("Ontario" is Canada's province).
   if (fr && k === 'ontario') return { kind: 'fregion', cc: fr[0], name: fr[1] };
+  if (fr && (usCity.length || wCity.length)) {
+    const name = wCity.length && !usCity.length ? (WORLD_CITY_NAMES.get(k) ?? titleCase(t)) : titleCase(t);
+    return { kind: 'city', name, key: k, us: usCity, world: wCity, alsoRegion: fr };
+  }
   if (usCity.length || wCity.length) {
     const name = wCity.length && !usCity.length ? (WORLD_CITY_NAMES.get(k) ?? titleCase(t)) : titleCase(t);
     return { kind: 'city', name, key: k, us: usCity, world: wCity };
@@ -346,7 +350,7 @@ export function parseLocationText(input: string, opts: { context?: string } = {}
   const text = normalizeText(input).replace(/\s+/g, ' ').trim().slice(0, 2000);
   if (!text) return out;
   const context = opts.context ?? '';
-  if (/\b(?:outside|excluding|except)\s+(?:of\s+)?(?:the\s+)?(?:US|U\.S\.A?\.?|USA|United\s+States)\b|\bnon[- ](?:US|U\.S\.)\b/i.test(text)) {
+  if (/\b(?:outside|excluding|except)\s+(?:of\s+)?(?:the\s+)?(?:US|U\.S\.A?\.?|USA|United\s+States)\b|\bnon[- ](?:US|U\.S\.?|USA)(?![A-Za-z])/i.test(text)) {
     out.excludesUs = true;
     return out;
   }
@@ -528,6 +532,10 @@ function placesFromPiece(piece: string, context: string): Place[] {
       case 'noise': case 'zip': break;
       case 'city':
         if (cur.cityTok && keyOf(cur.cityTok.name) === tok.key) { addText(raw); break; } // "Paris, Paris, France"
+        // "Saint John, New Brunswick": after a Canadian city, "New Brunswick" is the province, not the NJ city.
+        if (tok.alsoRegion && (cur.cityTok || cur.city) && !cur.region && !cur.stateHint && (!cur.cityTok || cur.cityTok.world.includes(tok.alsoRegion[0]) || !cur.cityTok.us.length)) {
+          cur.region = tok.alsoRegion[1]; cur.country = cur.country ?? tok.alsoRegion[0]; addText(raw); break;
+        }
         // "Richland, Washington", "Albany, New York": a state name after a city is the state.
         if ((cur.cityTok || cur.city) && !cur.region && !cur.stateHint && !cur.country && !cur.cityTok?.state && (keyOf(raw) === 'washington' || keyOf(raw) === 'new york')) {
           cur.stateHint = tok.key === 'washington' ? 'WA' : 'NY'; addText(raw); break;
@@ -718,6 +726,9 @@ export function placeFromAddress(a: BoardAddress, context = ''): Place | null {
  */
 export function usFromFacts(places: Place[], remoteRegions: string[], boardCountries: string[] = []): boolean | null {
   const cc = boardCountries.map((c) => c.toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c));
+  // A job that lists a US city or state is a US job even when the board names another country first
+  // ("Toronto; San Francisco").
+  if (places.some((p) => p.country === 'US' && (p.city || p.region))) return true;
   if (cc.length) return cc.includes('US');
   const openUs = (r: string) => r === 'US' || r === 'NA' || r === 'AMER' || r === 'WORLDWIDE';
   if (remoteRegions.length && places.every((p) => !p.city && !p.region || p.country === null || remoteRegions.includes(p.country))) {
