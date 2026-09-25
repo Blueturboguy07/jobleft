@@ -72,6 +72,10 @@ Oct 1, 2024 to Jun 30, 2026. Sponsorship is unknown, not ruled out.` The answer 
 3. Otherwise filers whose trade name (`TRADE_NAME_DBA`, or a "d/b/a" part of the name) has the same key (`Carta` finds eShares, Inc.).
 4. Inside one key, filings under a different FEIN in a different state are a different company and are left out (listed under "Left out"). Example: `Databricks` keeps Databricks, Inc. (San Francisco, 810) and leaves out DATA BRICKS INC (Columbia, MD, 7). When no FEIN clearly dominates, the answer is `unknown`.
 
+The written name is tried in a few exact forms, in order: as written; without parenthetical parts
+(`Stripe, Inc. (US)`); the halves of a "d/b/a" name (`Maplebear Inc. dba Instacart`); a name inside parentheses
+(`Instacart (Maplebear Inc.)`, never a short code or a place word such as "(US)" or "(Remote)").
+
 There is no prefix match: `Ramp` never finds "Rampart ...", and `Baltimore Orioles`, `Silvus Technologies`,
 `Lamb Insurance Services` and `Kuros Biosciences` are all `unknown`.
 
