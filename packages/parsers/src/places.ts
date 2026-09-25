@@ -300,6 +300,11 @@ function readContext(tok: Extract<Tok, { kind: 'city' }>, context: string): stri
     }
   }
   if (hits.size === 1) return [...hits][0];
+  // "Portland" and a posting that names Maine (and not Oregon) elsewhere.
+  if (!hits.size && tok.us.length > 1) {
+    const named = tok.us.filter((st) => new RegExp(`\\b${US_STATES[st]}\\b`, 'i').test(context));
+    if (named.length === 1 && !tok.world.some((cc) => (COUNTRIES[cc] ?? []).some((n) => n.length > 3 && new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(context)))) return `US-${named[0]}`;
+  }
   return null;
 }
 
