@@ -99,17 +99,19 @@ export function extractFacts(raw: PostingInput): PostingFacts {
   let excludesUs = false;
   let placeEv: FactEvidence | undefined;
   safe(warnings, 'places', () => {
-    for (const lt of locTexts) {
+    // Gate 1 (single builder): when the primary location names only a remote area ("Remote - Canada", "Remote
+    // (Global)"), the board's other location texts (Greenhouse offices) and its structured address are the company's
+    // offices, not places the job is in. The remote area alone says where the job is open.
+    let remoteAreaOnly = false;
+    for (const [i, lt] of locTexts.entries()) {
       if (GENERIC_LOCATION.test(lt) && !/remote/i.test(lt)) continue;
       const r = parseLocationText(lt, { context: description });
       for (const p of r.places) if (!places.some((q) => q.city === p.city && q.region === p.region && q.country === p.country)) places.push(p);
       for (const x of r.remoteRegions) if (!locRegions.includes(x)) locRegions.push(x);
       if (r.excludesUs) excludesUs = true;
+      if (i === 0 && /remote/i.test(lt) && !places.some((p) => p.city || p.region) && (locRegions.length > 0 || places.length > 0)) { remoteAreaOnly = true; break; }
     }
-    if (places.length) placeEv = { source: 'location_text', text: clip(locTexts.join('; '), 500) };
-    // A remote job whose location text names only the remote area ("Remote (Global)"): a board address is the
-    // company's office, not a place the job is in.
-    const remoteAreaOnly = !places.length && locRegions.length > 0 && locTexts.some((t) => /remote/i.test(t));
+    if (places.length) placeEv = { source: 'location_text', text: clip((remoteAreaOnly ? locTexts.slice(0, 1) : locTexts).join('; '), 500) };
     const addrPlaces = remoteAreaOnly ? [] : (input.addresses ?? []).map((a) => placeFromAddress(a, description)).filter((p): p is Place => !!p);
     // The countries the board states in structured fields. A bare city in the location text is read in one of them
     // ("Sudbury" with a US address or a board country of US is Sudbury, MA).

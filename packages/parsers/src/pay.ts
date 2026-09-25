@@ -164,13 +164,18 @@ const STRONG_EXCL = new RegExp('\\b(?:' + [
   'vales?', 'restaurant', 'cesta', 'despensa', 'primes?', 'prämie', 'provision', 'bono', 'bonificaci[oó]n', 'comisi[oó]n(?:es)?',
   'propinas', 'gorjetas', 'rimborso', 'reembolso', 'remboursement', 'erstattung', 'zuschuss', 'indemnit\\w*', 'salary\\s+estimates?', 'pay\\s+estimates?', 'estimated\\s+(?:salary|pay|wage)', 'est\\.',
   'glassdoor', 'indeed', 'ziprecruiter', 'levels\\.fyi', 'salary\\.com', 'market\\s+(?:data|rate\\s+data|size)', 'contract\\s+value',
+  // Gate 1 (single builder): a figure attributed to an outside source after it ("... according to PayScale").
+  'payscale', 'comparably', 'according\\s+to',
   'patients?', 'customers?', 'clients?', 'employees?', 'members?', 'users?', 'households?', 'companies', 'businesses',
   'hra', 'fertility', 'adoption', 'child\s?care', 'dependent\s+care', 'caregiving', 'family\s+planning', 'surrogacy', 'ivf',
   'medical', 'dental', 'vision', 'health', 'healthcare', 'eap', 'disability', 'life', 'well-?being', 'perks?', 'subsid\w*',
 ].join('|') + ')\\b', 'gi');
 
 /** Third-party or market figures: "the national average salary is", "median pay for nurses". */
-const MARKET_PHRASE = /\b(?:median|average|avg|typical|mean)\s+(?:\w+\s+){0,2}(?:salary|salaries|pay|wages?|rates?|income|earnings)\b|\b(?:national|industry|market|regional|state)\s+(?:average|median|mean|norm)\b|\b(?:salary|pay|wage)\s+(?:data|surveys?|benchmarks?)\b/i;
+// Gate 1 (single builder): public wage records, prevailing wages, other employers' pay and outside sources poison the
+// whole clause, whatever pay cue follows them ("H-1B wage records ... show base salaries of $X").
+const SOURCE_PHRASE = /\b(?:prevailing\s+wages?|wage\s+records?|h-?1b|lca|department\s+of\s+labou?r|dol|oflc|payscale|comparably|glassdoor|levels\.fyi|salary\.com|disclosure\s+data|similar\s+(?:roles?|positions?|jobs?)|comparable\s+(?:roles?|positions?|jobs?)|other\s+(?:companies|employers)|typically\s+(?:pay|earn|make)|usually\s+(?:pay|earn|make)|in\s+the\s+market|according\s+to)\b/i;
+const MARKET_PHRASE = /\b(?:earn|earns|earning|make|makes|making)\s+an?\s+(?:average|median|typical)\b|\b(?:people|employees|workers)\s+in\s+this\s+(?:job|role|position)\b|\b(?:median|average|avg|typical|mean)\s+(?:\w+\s+){0,2}(?:salary|salaries|pay|wages?|rates?|income|earnings)\b|\b(?:national|industry|market|regional|state)\s+(?:average|median|mean|norm)\b|\b(?:salary|pay|wage)\s+(?:data|surveys?|benchmarks?)\b/i;
 /** Words right after a figure that show company money, not pay ("$2M in annual sales"). */
 const AFTER_EXCL = /\b(?:sales|orders|revenue|arr|gmv|funding|loans?|deals?|contracts?|spend|budget|volume|assets|in\s+(?:annual\s+|yearly\s+)?(?:sales|revenue|funding|savings|value))\b/i;
 
@@ -418,7 +423,7 @@ function contextKind(text: string, start: number, end: number, prevEnd: number, 
     else if (lastMatch(TOTAL_CUE, afterWords)) kind = 'total';
     else if (isExcl(lastMatch(STRONG_EXCL, afterWords)) || AFTER_EXCL.test(afterWords) || /\bper\s+diem\b/i.test(afterWords)) excluded = true;
   }
-  if (MARKET_PHRASE.test(before)) excluded = true;
+  if (MARKET_PHRASE.test(before) || SOURCE_PHRASE.test(before)) excluded = true;
   const ex = lastMatch(STRONG_EXCL, before);
   const pc = lastMatch(PAY_CUE, before);
   const bc = lastMatch(BASE_CUE, before);

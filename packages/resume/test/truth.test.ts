@@ -151,3 +151,25 @@ test('vaguer claims are caught too: "in half", "certified in", honours, "senior-
   assert.ok(k('Worked at a Fortune 500 company.').includes('number:500'));
   assert.ok(k('Led the Northwind Labs migration of 12 services.').some((x) => x.startsWith('employer:') || x.startsWith('other:')));
 });
+
+// Gate 1 (single builder): the evaluator's repro. A title the person holds at ONE job must not attach to ANOTHER
+// of their jobs, in a bullet or in a letter sentence ("As a Junior Developer at Northwind" when the Northwind title
+// is Software Engineer). Same rule as an employer under the wrong job.
+test('a title from another of your jobs is refused under this job (bullets and letters)', () => {
+  const p = jordanProfile();
+  const base = documentFromProfile(p);
+  // Item 1 is the Junior Developer job at Contoso; "Software Engineer" is the Northwind title.
+  const swapped = withBullet(base, 'As a Software Engineer, wrote SQL reports used by a team of 4 analysts.', 1);
+  assert.ok(kinds(truthGate(swapped, p, null)).some((k) => k.startsWith('title:')), 'a bullet naming another job\'s title is refused');
+  const swapped0 = withBullet(base, 'As a Junior Developer, built the reporting API.', 0);
+  assert.ok(kinds(truthGate(swapped0, p, null)).some((k) => k.startsWith('title:')));
+  // The job's own title in its own bullet is fine.
+  assert.deepEqual(kinds(truthGate(withBullet(base, 'As a Software Engineer, built the reporting API.', 0), p, null)), []);
+  const head = 'Jordan Testwell\njordan.testwell@example.com | 555-0100 | Austin, TX | https://example.com/jordan | https://github.com/jordan-testwell-example';
+  const ok = `${head}\n\nDear Hiring Manager,\n\nAs a Software Engineer at Northwind Sample Labs, I built the reporting API.\n\nSincerely,\nJordan Testwell`;
+  assert.deepEqual(truthGate(ok, p, J_GAP()), []);
+  const bad = ok.replace('As a Software Engineer at Northwind Sample Labs', 'As a Junior Developer at Northwind Sample Labs');
+  assert.ok(truthGate(bad, p, J_GAP()).some((v) => v.kind === 'title'), 'a swapped title and employer pair is refused');
+  const bad2 = ok.replace('As a Software Engineer at Northwind Sample Labs', 'As a Software Engineer at Contoso Example Corp');
+  assert.ok(truthGate(bad2, p, J_GAP()).some((v) => v.kind === 'title' || v.kind === 'employer'));
+});

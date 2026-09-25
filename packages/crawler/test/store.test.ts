@@ -154,3 +154,22 @@ test('store keeps non-IT jobs untouched: nurse, cashier, teller, teacher, barist
     'Barista': null, 'Warehouse Associate': 'entry', 'Medical Assistant': 'entry',
   });
 });
+
+// Gate 1 (single builder): the evaluator's repro. Same company, same title and the SAME shared page link on two boards,
+// but a different city and description: two openings, both stored and both shown. A link merge needs equal places
+// or an equal description; a generic careers link alone never merges two jobs.
+test('dedupe (O5): the same link, company and title on another board with a different city and text is a second job', () => {
+  const s = new Store(':memory:');
+  const link = 'https://acme.example/careers/registered-nurse';
+  const tx: BoardRef = { ats: 'greenhouse', board: 'acmetx', company: 'Acme' };
+  const ca: BoardRef = { ats: 'lever', board: 'acmeca', company: 'Acme' };
+  assert.equal(s.upsertJob(job('1', { url: link, location: 'Austin, TX', descriptionHtml: '<p>Night shifts in our Austin clinic.</p>' }, tx), T0).status, 'inserted');
+  const r = s.upsertJob(job('7', { url: link, location: 'Sacramento, CA', descriptionHtml: '<p>Day shifts in our Sacramento clinic.</p>' }, ca), T0);
+  assert.equal(r.status, 'inserted', 'a different city and text is a different opening');
+  assert.equal(s.count(), 2);
+  assert.equal(s.count('duplicate_of IS NOT NULL'), 0, 'neither hides the other');
+  // The true second route (same text, same place) still merges into one credited posting.
+  const same = s.upsertJob(job('8', { url: link, location: 'Austin, TX', descriptionHtml: '<p>Night shifts in our Austin clinic.</p>' }, ca), T0);
+  assert.equal(same.status, 'dupUrl');
+  assert.equal(s.count(), 2);
+});

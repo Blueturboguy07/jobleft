@@ -494,7 +494,37 @@ function checkExperienceItem(item: ResumeItem, where: string, p: Profile, ctx: C
         const other = p.work.find((x) => x !== w && (orgKey(x.company) === o.key || ` ${foldKey(x.company)} `.includes(` ${ok} `)));
         if (other) out.push(v('employer', o.text, `${where}, bullet ${i + 1}`, `"${other.company}" is another job in your profile, not this one.`));
       }
+      // Gate 1 (single builder): a title you hold at ANOTHER job does not belong under this one ("As a Software
+      // Engineer" under the Junior Developer job), unless this job's own text names it.
+      const mine = foldKey(w.title);
+      for (const m of scanFacts(b).titles) {
+        if (!m.key || m.key === mine || mine.includes(m.key) || own.includes(` ${m.key} `)) continue;
+        const other = p.work.find((x) => x !== w && foldKey(x.title) === m.key);
+        if (other) out.push(v('title', m.text, `${where}, bullet ${i + 1}`, `"${other.title}" is your title at ${other.company}, not at ${w.company}.`));
+      }
     });
+  }
+  return out;
+}
+
+/**
+ * Gate 1 (single builder): a sentence that pairs one of your titles with one of your employers must pair them as
+ * your profile does ("As a Junior Developer at Northwind" when Northwind is the Software Engineer job).
+ */
+function checkTitleEmployerPairs(text: string, where: string, p: Profile): TruthViolation[] {
+  const out: TruthViolation[] = [];
+  const jobs = p.work.map((w) => ({ w, title: foldKey(w.title), org: orgKey(w.company) }));
+  if (jobs.length < 2) return out;
+  for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
+    const scan = scanFacts(sentence);
+    const byTitle = jobs.filter((j) => scan.titles.some((m) => m.key === j.title));
+    const orgs = findOrgs(sentence);
+    const byOrg = jobs.filter((j) => orgs.some((o) => o.key === j.org || ` ${foldKey(j.w.company)} `.includes(` ${foldKey(o.text)} `)));
+    if (!byTitle.length || !byOrg.length) continue;
+    if (byTitle.some((j) => byOrg.includes(j))) continue;
+    const t = byTitle[0]!;
+    const o = byOrg[0]!;
+    out.push(v('title', t.w.title, where, `"${t.w.title}" is your title at ${t.w.company}, not at ${o.w.company}.`));
   }
   return out;
 }
@@ -640,6 +670,7 @@ export function checkLetter(text: string, p: Profile, job: Job | null, pf: Profi
       return;
     }
     out.push(...checkText(body, `Letter, paragraph ${i + 1}`, pf, jc, 'letter'));
+    out.push(...checkTitleEmployerPairs(body, `Letter, paragraph ${i + 1}`, p));
   });
   return dedupe(out);
 }

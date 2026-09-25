@@ -3,7 +3,7 @@
 // Identity: UNIQUE (ats, board, job_id). A re-crawl is idempotent, an edited posting is updated in place, and two
 // postings with different ids on one board are ALWAYS two jobs (even with the same title, place or page URL).
 // Two routes to one posting:
-//   * the same canonical URL AND the same company and title on ANOTHER board is the same posting: it is credited
+//   * the same canonical URL AND the same company, title and text (or places) on ANOTHER board is the same posting: it is credited
 //     (job_sources), not stored twice. A shared link alone never merges (two employers may share a generic careers link);
 //   * the same company, title, places, description and pay on ANOTHER board is a repeat of the role: stored, flagged
 //     `duplicate_of`. A different description or pay is a different opening, never hidden.
@@ -416,10 +416,14 @@ export class Store {
       return { status: 'updated', dupRole: dup !== null, row: existing.id };
     }
 
-    // New identity. The same canonical URL with the same company and title on ANOTHER board is the same posting reached
-    // by a second route: credit it. A generic link shared by different postings is not enough.
-    const urlOwner = this.st('SELECT id FROM jobs WHERE canonical_url = ? AND dedup_hash = ? AND NOT (ats = ? AND board = ?) ORDER BY id LIMIT 1')
-      .get(j.canonicalUrl, j.dedupHash, j.ats, j.board) as { id: number } | undefined;
+    // New identity. The same canonical URL with the same company, title and text (or places) on ANOTHER board is the
+    // same posting reached by a second route: credit it. A generic link shared by different postings is not enough.
+    // Gate 1 (single builder): the link, company and title alone are not enough. Two openings of the same role in two
+    // cities can share one careers link, so the merge also needs the same text or the same (non-empty) places.
+    const placesJson = JSON.stringify(j.places ?? []);
+    const urlOwner = this.st(`SELECT id FROM jobs WHERE canonical_url = ? AND dedup_hash = ? AND NOT (ats = ? AND board = ?)
+      AND (content_hash = ? OR (places_json = ? AND places_json <> '[]')) ORDER BY id LIMIT 1`)
+      .get(j.canonicalUrl, j.dedupHash, j.ats, j.board, j.contentHash, placesJson) as { id: number } | undefined;
     if (urlOwner) {
       this.credit(urlOwner.id, j, now);
       return { status: 'dupUrl', dupRole: false, row: urlOwner.id };

@@ -1178,6 +1178,9 @@
                 "type": "null"
               }
             ]
+          },
+          "h1bNote": {
+            "type": "string"
           }
         },
         "required": [

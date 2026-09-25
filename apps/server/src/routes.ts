@@ -71,6 +71,8 @@ async function aiJson<K extends RouteName & keyof AiRouteHandlers>(c: Ctx<K>, na
   if ('sse' in r) throw new ApiFailure('internal', 'That answer cannot be streamed.');
   if (r.status >= 400) throw apiFailureOf({ status: r.status, ...(r.json as object) });
   return { json: r.json };
+}
+
 /** The target companies of the Network tool: the companies of jobs the person liked, applied to or added. */
 function networkTargets(d: AppData): Array<{ companyKey: string; companyName: string }> {
   const targets = new Map<string, string>();

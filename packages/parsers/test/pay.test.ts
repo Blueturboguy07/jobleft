@@ -139,3 +139,19 @@ test('pay: filter and sort rule uses yearly figures, the top of the range, and o
   assert.equal(formatPay(parsePay('Salary: Up to $150,000 per year')!.pay), 'Up to $150K/yr');
   assert.equal(formatPay(null), null);
 });
+
+// Gate 1 (single builder): the evaluator's repro. Public wage records, prevailing wages and third-party averages
+// are never this job's pay.
+test('pay (O3): wage records, prevailing wages and third-party averages are not the job\'s pay', () => {
+  const texts = [
+    'Public H-1B wage records for this employer show base salaries of $120,000 - $150,000 for this title.',
+    'Department of Labor prevailing wage for this occupation: $98,500 per year.',
+    'Employees in this role earn an average of $77,000 per year according to PayScale.',
+    'Similar positions at other companies pay $62,700 - $79,400 per year.',
+    'Comparable roles in the market typically pay between $95,000 and $120,000.',
+    'LCA disclosure data lists $60,000 - $80,000 for this job title.',
+    'People in this job usually make $95K-$120K according to Comparably.',
+  ];
+  for (const t of texts) assert.equal(parsePay(t)?.pay ?? null, null, t);
+  assert.equal(parsePay('The base salary range for this role is $120,000 - $150,000 per year.')?.pay?.min, 120000, 'the job\'s own stated range still reads');
+});

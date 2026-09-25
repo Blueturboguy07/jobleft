@@ -78,6 +78,23 @@ export class AiFacade {
     return r;
   }
 
+  /**
+   * Where a one-shot AI text (a network draft) would go: the provider kind, a plain label, and whether the text
+   * leaves this computer. null = no provider is chosen. A model server on this computer never counts as remote.
+   */
+  destination(): { provider: string; label: string; remote: boolean } | null {
+    const s = this.engine.settings();
+    if (!s.provider) return null;
+    let remote = true;
+    if (s.provider === 'local' || s.provider === 'custom') {
+      try { remote = !isLoopbackHost(new URL(s.baseUrl ?? '').hostname); } catch { remote = true; }
+    }
+    return { provider: s.provider, label: this.engine.describe(s), remote };
+  }
+
+  /** The chosen provider for a one-shot answer (the Network tool's drafts). Throws AiError no_provider when none is set. */
+  async draftClient(): Promise<AiClient> { return this.engine.client(); }
+
   cancelAll(): void { /* running requests end with their callers; nothing outlives the data */ }
 
   /** Delete-all: every provider key and the publik connection go. */

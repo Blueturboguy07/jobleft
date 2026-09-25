@@ -195,3 +195,23 @@ test('facts: malformed input never throws and reads as unknown (O11)', () => {
     assert.deepEqual(f.places, []);
   }
 });
+
+// Gate 1 (single builder): the evaluator's repro. A location that names only a foreign remote area is not a US job,
+// and a board address (the company office) is not a place the job is in.
+test('places (O8): a foreign remote area with a US office address is not a US job and gets no office place', () => {
+  const ashby = extractFacts(fromAshby({
+    id: 'c', title: 'Support Engineer', location: 'Remote - Canada', isRemote: true, workplaceType: 'Remote', descriptionPlain: 'Help customers.',
+    address: { postalAddress: { addressLocality: 'New York', addressRegion: 'NY', addressCountry: 'US' } },
+  }));
+  assert.notEqual(ashby.isUs, true, 'Remote - Canada is not a US job');
+  assert.ok(!ashby.places.some((p) => p.city === 'New York'), 'the New York office is not a place of this job');
+  const gh = extractFacts(fromGreenhouse({
+    id: 9, title: 'Support Engineer', location: { name: 'Remote - Canada' }, offices: [{ name: 'New York' }], content: '<p>Help customers.</p>',
+  }));
+  assert.notEqual(gh.isUs, true);
+  assert.ok(!gh.places.some((p) => p.city === 'New York'));
+  const global = extractFacts(fromGreenhouse({
+    id: 10, title: 'Support Engineer', location: { name: 'Remote (Global)' }, offices: [{ name: 'San Francisco' }], content: '<p>Help customers.</p>',
+  }));
+  assert.ok(!global.places.some((p) => p.city === 'San Francisco'), 'a global remote job is not in the San Francisco office');
+});

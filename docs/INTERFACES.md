@@ -361,7 +361,7 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `listDatasets` | GET | `/api/v1/data-sources` | launch | static-data | — | — | `DatasetInfo[]` | Shipped datasets with date, licence and attribution |
 | `updateDatasets` | POST | `/api/v1/data-sources/update` | launch | static-data | — | — | `DatasetInfo[]` | Fetch newer dataset releases; a bad release keeps the old data |
 | `importNetwork` | POST | `/api/v1/network/import` | launch | network | — | raw: text/csv, text/plain | `NetworkImportSummary` | Import Connections.csv (raw text body) |
-| `listContacts` | GET | `/api/v1/network/contacts` | launch | network | `{ companyKey?, stage?, q?, due?, inPlan?, noCompany?, limit?, offset? }` | — | `NetworkContact[]` | Contacts, filtered |
+| `listContacts` | GET | `/api/v1/network/contacts` | launch | network | `{ companyKey?, stage?, q?, due?, withFollowUp?, inPlan?, noCompany?, limit?, offset? }` | — | `NetworkContact[]` | Contacts, filtered |
 | `networkCoverage` | GET | `/api/v1/network/coverage` | launch | network | — | — | `CompanyCoverage[]` | Target companies with and without connections |
 | `rankContacts` | GET | `/api/v1/network/rank` | launch | network | `{ companyKey, jobId? }` | — | `ContactRank[]` | Who to message first at a company, with reasons |
 | `updateContact` | PATCH | `/api/v1/network/contacts/:contactId` | launch | network | — | `{ stage?, note?, followUpOn?, inPlan? }` | `NetworkContact` | Stage, note, follow-up date, plan |
@@ -383,9 +383,9 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `listChats` | GET | `/api/v1/ai/chats` | launch | ai-engine | — | — | `{ id, title, jobId, updatedAt }[]` | Saved conversations (on the laptop) |
 | `getChat` | GET | `/api/v1/ai/chats/:chatId` | launch | ai-engine | — | — | `ChatThread` | One conversation |
 | `deleteChat` | DELETE | `/api/v1/ai/chats/:chatId` | launch | ai-engine | — | — | `Ok` | Delete a conversation for real |
-| `decideProposal` | POST | `/api/v1/ai/proposals/:proposalId` | launch | ai-engine | — | `{ approveActionIds }` | `{ applied, declined }` | Approve some actions of an assistant proposal; the rest are declined |
-| `startPractice` | POST | `/api/v1/practice/sessions` | launch | ai-engine | — | `{ jobId }` | `PracticeSession` | Interview practice made for one job |
-| `practiceFeedback` | POST | `/api/v1/practice/feedback` | launch | ai-engine | — | `{ sessionId, questionId, answer }` | `{ feedback, sampleAnswer, placeholders }` | Feedback on an answer (no invented achievements; placeholders marked) |
+| `decideProposal` | POST | `/api/v1/ai/proposals/:proposalId` | launch | ai-engine | — | `{ approveActionIds }` | `{ applied, declined, failed?, notes? }` | Approve some actions of an assistant proposal; the rest are declined |
+| `startPractice` | POST | `/api/v1/practice/sessions` | launch | ai-engine | — | `{ jobId, restart? }` | `PracticeSession` | Interview practice made for one job (continues the open session of that job unless restart is true) |
+| `practiceFeedback` | POST | `/api/v1/practice/feedback` | launch | ai-engine | — | `{ sessionId, questionId, answer }` | `{ feedback, sampleAnswer, placeholders, mode?, costMicros? }` | Feedback on an answer (no invented achievements; placeholders marked) |
 | `listPracticeItems` | GET | `/api/v1/practice/items` | launch | ai-engine | `{ jobId? }` | — | `PracticeItem[]` | The personal question bank |
 | `savePracticeItem` | POST | `/api/v1/practice/items` | launch | ai-engine | — | `{ jobId, kind, question?, answer?, feedback?, notes? }` | `PracticeItem` | Save a question, answer or debrief for a job |
 | `updatePracticeItem` | PATCH | `/api/v1/practice/items/:itemId` | launch | ai-engine | — | `{ question?, answer?, feedback?, notes? }` | `PracticeItem` | Edit a saved practice item |
@@ -403,8 +403,10 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `extensionStatus` | GET | `/api/v1/extension/status` | pairing | server | — | — | `ExtensionStatus` | Paired state and profile completeness |
 | `fill` | POST | `/api/v1/extension/fill` | pairing | server | — | `FillRequest` | `FillResponse` | Values for the form fields of an application page |
 | `review` | POST | `/api/v1/extension/review` | pairing | server | — | `ReviewResult` | `ReviewResponse` | What the user reviewed and whether the user submitted |
+| `extensionCheck` | POST | `/api/v1/extension/check` | pairing | server | — | `{}` | `ExtensionStatus` | The same answer as extensionStatus, sent as a POST: a browser sends no Origin header with a GET from an extension, and the app requires the extension Origin on every pairing route |
 | `extensionPage` | POST | `/api/v1/extension/page` | pairing | server | — | `PageInfoRequest` | `PageInfo` | Which job a page address is, whether the person applied, and the resumes to attach (the address only; no page text) |
 | `extensionDrafts` | POST | `/api/v1/extension/drafts` | pairing | server | — | `DraftRequest` | `DraftResponse` | Draft answers for open questions after the person saw the price (never written into a form by the app) |
+| `extensionAddJob` | POST | `/api/v1/extension/add-job` | pairing | server | — | `PageInfoRequest` | `PageInfo` | Add the job on the person's current tab to jobleft (the same read as add-by-link; the person pressed the button) |
 <!-- END GENERATED: routes -->
 
 ## 7. Extension protocol
