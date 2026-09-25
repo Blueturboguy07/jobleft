@@ -131,9 +131,11 @@ export async function getPage(url: string): Promise<{ status: number; text: stri
  * resume, imported connections, liked and applied jobs with a note and a reminder. Used by the probes that look at
  * full screens. Never sends anything anywhere: the demo is on loopback.
  */
-export async function seedRich(demo: Demo): Promise<{ liked: string[]; applied: string[]; resumeId: string }> {
-  await demo.api.call('connectPublik', { body: { disclosureAccepted: true, disclosureVersion: 1 } });
-  await demo.api.call('putAiSettings', { body: { provider: 'publik' } });
+export async function seedRich(demo: Demo, opts: { ai?: boolean } = {}): Promise<{ liked: string[]; applied: string[]; resumeId: string }> {
+  if (opts.ai !== false) {
+    await demo.api.call('connectPublik', { body: { disclosureAccepted: true, disclosureVersion: 1 } });
+    await demo.api.call('putAiSettings', { body: { provider: 'publik' } });
+  }
   const resumes = await demo.api.call('listResumes');
   const resume = resumes[0] ?? await demo.api.call('createResume', { body: { name: 'Jordan Testwell, software engineer' } });
   const csv = join(demo.home, 'fixtures', 'Connections.csv');

@@ -223,13 +223,13 @@ function BalanceTab() {
           ]} />
           <p style={{ margin: 0 }}>{JUSTIFICATION}</p>
           <Space wrap>
-            <Button type="primary" shape="round" icon={<LinkOutlined />} onClick={() => openExternal(w.topUpUrl)}>{w.claimState === 'anonymous' ? 'Link this computer & pick a plan' : 'Add a plan or pack'}</Button>
+            <Button type="primary" shape="round" icon={<LinkOutlined />} onClick={() => openExternal(w.topUpUrl)}>Add money to your balance</Button>
             <Button shape="round" icon={<ReloadOutlined />} loading={busy === 'refresh'} onClick={() => { void refresh(); }}>Read the balance again</Button>
             <Popconfirm title="Disconnect from publik?" description="The key is deleted from this Mac. Nothing can spend the balance from here until you connect again." onConfirm={() => { void disconnect(); }} okText="Disconnect">
               <Button shape="round">Disconnect</Button>
             </Popconfirm>
           </Space>
-          <p className="jl-small jl-muted" style={{ margin: 0 }}>The button opens publik in your browser. jobleft never takes payment details.</p>
+          <p className="jl-small jl-muted" style={{ margin: 0 }}>The button opens publik in your browser, where you add money. jobleft never takes payment details.</p>
         </Panel>
       )}
       <InlineError error={err} />
