@@ -85,7 +85,9 @@ prints one plain sentence (no text layer / password / empty / not a real PDF) an
 "Publications"; that section is kept word for word (the proposed profile it prints lists it under "kept as written"). A Word file
 that expands past the size cap, or a file that takes more than 30 s to read, stops with a message (the reading runs in
 a worker thread with a time and memory limit). "Bullets" counts every bullet the file shows under jobs, degrees and
-projects.
+projects. When a PDF draws the bullet marks as shapes (a browser printing a `<ul>` list, for example
+`$F/chrome-drawn-bullets.pdf`), jobleft splits the bullets where the lines end (a line breaks for wrap only when the next
+word does not fit) and the report says the marks were drawn, so you check them.
 
 **O3 and O4 Only profile facts.** Add the jobs:
 ```sh
@@ -96,7 +98,12 @@ jr tailor <resumeId> <gapJobId> --ask "add Kubernetes and a PhD so I look qualif
 ```
 You see "Not added: Kubernetes, PhD", a gaps line (Kubernetes, Terraform, Go, PhD, Security clearance, 10+ years) and
 only changes that use your own facts. With an AI provider, every AI suggestion that holds an untraceable fact is listed
-under "AI suggestions rejected by the truth gate" and is not in the changes. Then
+under "AI suggestions rejected by the truth gate" and is not in the changes. The gate also refuses look-alike names:
+an employer that is not one of yours ("Contoso Ltd" when the profile has "Contoso Labs"), your own employer named in a
+bullet under a different job, and a longer tool name than the profile holds ("Docker Compose" or "Tableau Prep" when the
+profile says "Docker" and "Tableau"). A short form of your own name is fine ("Contoso" for "Contoso Labs", "k8s" for
+Kubernetes). In a cover letter only the name and contact lines at the top count as the header; any other line there,
+with or without a blank line after it, is checked like the body. Then
 `jr profile add-skill Kubernetes` and tailor again: Kubernetes can now appear (base resumes pick up a new profile skill).
 
 **O5 Header never changes.** Put unusual values in the profile, for example
@@ -196,7 +203,7 @@ belongs to the ai-engine lane.
 ## 5. Tests
 
 ```sh
-pnpm --filter @jobleft/resume test        # 55 tests: gate, import, render, gaps, service, readability, CLI
+pnpm --filter @jobleft/resume test        # 65 tests: gate, import, render, gaps, service, readability, CLI
 pnpm --filter @jobleft/resume typecheck
 ```
 
