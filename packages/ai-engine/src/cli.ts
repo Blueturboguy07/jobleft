@@ -77,6 +77,8 @@ function flag(flags: Record<string, string | true>, name: string): string | unde
 }
 
 const out = (s = '') => process.stdout.write(`${s}\n`);
+// A closed pipe (for example "| head") ends the command quietly.
+process.stdout.on('error', (e: NodeJS.ErrnoException) => { if (e.code === 'EPIPE') process.exit(0); });
 
 function fail(message: string, code = 1): never {
   process.stderr.write(`${message}\n`);
@@ -118,7 +120,7 @@ async function confirm(question: string, flags: Record<string, string | true>): 
 }
 
 function printCheck(check: { ok: boolean; problem: string | null; message: string; link?: { label: string; url: string } }): void {
-  out(check.ok ? `Setup check: works. ${check.message}` : `Setup check: problem${check.problem ? ` (${check.problem.replace(/_/g, ' ')})` : ''}. ${check.message}`);
+  out(check.ok ? `Setup check: ${check.message}` : `Setup check: problem${check.problem ? ` (${check.problem.replace(/_/g, ' ')})` : ''}. ${check.message}`);
   if (check.link) out(`${check.link.label}: ${check.link.url}`);
 }
 
@@ -239,8 +241,8 @@ async function jsonTask(engine: AiEngine, text: string): Promise<number> {
     return 0;
   } catch (e) {
     const err = asAiError(e);
-    out(`Cannot use this answer: ${err.message}`);
-    if (err.topUpUrl) out(`Add money: ${err.topUpUrl}`);
+    out(err.code === 'bad_answer' ? `Cannot use this answer: ${err.message}` : `Not done: ${err.message}`);
+    if (err.topUpUrl) out(`${err.code === 'needs_claim' ? 'Link this computer' : 'Add money'}: ${err.topUpUrl}`);
     out('Try again: run the same command again.');
     await engine.idle();
     return 1;

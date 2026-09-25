@@ -54,20 +54,24 @@ export function parseBaseUrl(input: string): URL {
   if (u.search || u.hash) {
     throw new AiError('bad_request', 'The address must not have a "?" or "#" part. Save a key in the key field, never in the address.');
   }
-  u.pathname = u.pathname.replace(/\/+$/, '');
   return u;
+}
+
+/** The path of an address without trailing slashes ("" for the root). */
+export function basePath(u: URL): string {
+  return u.pathname.replace(/\/+$/, '');
 }
 
 /** The address as it is saved: no trailing slash. */
 export function normalizeBaseUrl(input: string): string {
   const u = parseBaseUrl(input);
-  return `${u.origin}${u.pathname}`;
+  return `${u.origin}${basePath(u)}`;
 }
 
 /** Candidate API roots of an OpenAI-compatible server: ".../v1" first when the address has no "/v1". */
 export function openAiRootCandidates(base: string): string[] {
   const u = parseBaseUrl(base);
-  const path = u.pathname;
+  const path = basePath(u);
   if (/\/v\d+(beta)?(\/openai)?$/.test(path) || /\/openai$/.test(path) || /\/api\/v1$/.test(path)) return [`${u.origin}${path}`];
   return [`${u.origin}${path}/v1`, `${u.origin}${path}`];
 }

@@ -204,13 +204,13 @@ export class PublikClient {
         }
       } catch { wallet = null; }
       this.save({ state: 'connected', installId, baseUrl, disclosureVersion, wallet, connectedAt: nowIso() });
-      if (!wallet) {
-        try { await this.refresh(); } catch { /* the balance shows as unknown until the next refresh */ }
-      }
-      return await this.status();
     } finally {
       this.connecting = false;
     }
+    if (!this.load().wallet) {
+      try { await this.refresh(); } catch { /* the balance shows as unknown until the next refresh */ }
+    }
+    return this.status();
   }
 
   private async mint(installId: string, disclosureVersion: number): Promise<{ status: number; body: Record<string, any> | undefined; raw: string; contentType: string | undefined }> {

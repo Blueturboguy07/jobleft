@@ -21,7 +21,7 @@ import { defaultAiSettings, memoryKvStore, type AiSettingsStore, type KvStore } 
 import { DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_IDLE_TIMEOUT_MS } from './transport.ts';
 import type { AiClient, AiRequest, ProviderDriver } from './types.ts';
 import {
-  aiHostMapFromEnv, isLoopbackHost, LOCAL_DEFAULT_URLS, mapVendorUrl, normalizeBaseUrl, openAiRootCandidates, originOf,
+  aiHostMapFromEnv, basePath, isLoopbackHost, LOCAL_DEFAULT_URLS, mapVendorUrl, normalizeBaseUrl, openAiRootCandidates, originOf,
   parseBaseUrl, shortHash, VENDOR_BASE_URLS,
 } from './urls.ts';
 
@@ -528,7 +528,7 @@ export class AiEngine {
 /** Ollama's daemon address without a trailing /v1 or /api. */
 function ollamaBase(base: string): string {
   const u = parseBaseUrl(base);
-  return `${u.origin}${u.pathname.replace(/\/(v1|api)$/, '')}`;
+  return `${u.origin}${basePath(u).replace(/\/(v1|api)$/, '')}`;
 }
 
 /** Reads a test chat until its first answer text (then stops it), so the check is quick and costs little. */
