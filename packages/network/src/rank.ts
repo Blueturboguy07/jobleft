@@ -11,6 +11,9 @@ import { daysBetween, displayDate, isEmailLike, localDate, wholeYearsBetween } f
 export const RANK_POINTS = {
   recruiter: 30,
   sameField: 20,
+  // Gate 4 (single builder): the same kind of work as the job ("Platform Engineer" for a Platform Engineer opening) is the
+  // best coffee-chat informant, above a manager in the field and far above a recent intern.
+  sameRole: 15,
   managerInField: 10,
   seniority: { intern: 1, junior: 3, senior: 7, lead: 8, manager: 8, director: 6, vp: 4, exec: 3, founder: 3 } as Record<Seniority, number>,
   recentYear: 10,
@@ -37,6 +40,12 @@ export interface RankContext {
 /** Contacts that are not in the latest imported file carry this extra flag (see NetworkService). */
 type RankInput = NetworkContact & { inLatestFile?: boolean };
 
+const ROLE_STOP = new Set(['senior', 'sr', 'junior', 'jr', 'staff', 'lead', 'principal', 'intern', 'internship', 'student', 'manager', 'director', 'head', 'vp', 'vice', 'president', 'chief', 'associate', 'assistant', 'i', 'ii', 'iii', 'iv', 'of', 'the', 'and', 'a', 'an', 'in', 'for', 'at', 'to', 'us', 'remote', 'hybrid', 'contract', 'time', 'full', 'part']);
+/** The words that name the kind of work in a title, without seniority or filler ("Senior Platform Engineer II" -> platform, engineer). */
+function roleWords(title: string): string[] {
+  return title.toLowerCase().split(/[^a-z0-9+#.]+/).map((w) => w.replace(/s$/, '')).filter((w) => w.length > 1 && !ROLE_STOP.has(w));
+}
+
 /** The reasons and points of one contact. Exported for the CLI and tests. */
 export function scoreContact(c: RankInput, ctx: RankContext): ContactRank {
   const reasons: Array<{ code: string; text: string }> = [];
@@ -55,6 +64,11 @@ export function scoreContact(c: RankInput, ctx: RankContext): ContactRank {
   if (ctx.job && !t.recruiter) {
     const jt = readTitle([ctx.job.title, ctx.job.department ?? ''].join(' '));
     const shared = sharedFields(t, jt);
+    const jobWords = roleWords(ctx.job.title);
+    if (jobWords.length && jobWords.every((w) => roleWords(title).includes(w))) {
+      score += RANK_POINTS.sameRole;
+      reasons.push({ code: 'same_role', text: `Does the same kind of work as the job: the title is "${title}", the job is "${ctx.job.title}".` });
+    }
     if (shared.length) {
       const f = shared[0]!;
       score += RANK_POINTS.sameField;
