@@ -103,6 +103,7 @@ test('"cannot" answers: plain words, a reason, nothing added, no request to forb
       ['https://careers.mock.example/to-workday.html', 'forbidden_host'],
       ['https://careers.mock.example/loop', 'broken_link'],
       ['https://boards.greenhouse.io/nosuchboard', 'no_board_found'],
+      ['https://job-boards.eu.greenhouse.io/acme', 'unsupported_provider'],
     ];
     for (const [link, reason] of cases) {
       const a = await r.service.resolve(link);

@@ -1,34 +1,23 @@
-// Region support on top of the crawler's adapters. The crawler's Greenhouse adapter always reads the US host; a
-// board on Greenhouse's EU hosts (job-boards.eu.greenhouse.io) lives behind boards-api.eu.greenhouse.io, so sending
-// it to the default host would answer "not found". boardSources() keeps every adapter as it is and adds the EU host
-// for Greenhouse. Lever's EU host is already handled by the crawler (region "eu").
+// Region support on top of the crawler's adapters.
+//
+// Lever: the crawler reads api.eu.lever.co for region "eu" (documented by Lever).
+// Greenhouse: boards on its EU hosts (job-boards.eu.greenhouse.io) have no public job feed that jobleft can read.
+// Greenhouse documents only boards-api.greenhouse.io (https://docs.greenhouse.io/job-board.html, read 2026-09-25);
+// boards-api.eu.greenhouse.io does not exist in DNS and api.eu.greenhouse.io answers 401 (needs a key). So a
+// Greenhouse EU board is recognised but refused plainly (never sent to the US host, where it would be "not found").
 
-import { mapGreenhouse, obj, arr, PAY_QUERY } from '@jobleft/crawler';
-import type { BoardRef, HttpGetter, RawJob, Source, SourceRegistry } from '@jobleft/crawler';
+import type { CrawlAtsId } from '@jobleft/contracts';
+import type { SourceRegistry } from '@jobleft/crawler';
 
-const GH_EU_BASE = 'https://boards-api.eu.greenhouse.io/v1/boards';
-
-function greenhouseWithRegions(base: Source): Source {
-  return {
-    ats: 'greenhouse',
-    fullBoardListing: base.fullBoardListing,
-    host: (b: BoardRef) => (b.region === 'eu' ? 'boards-api.eu.greenhouse.io' : base.host?.(b) ?? 'boards-api.greenhouse.io'),
-    async fetchBoard(board: BoardRef, http: HttpGetter): Promise<RawJob[]> {
-      if (board.region !== 'eu') return base.fetchBoard(board, http);
-      const resp = obj(await http.getJson(`${GH_EU_BASE}/${encodeURIComponent(board.board)}/jobs?content=true${PAY_QUERY.value}`));
-      const out: RawJob[] = [];
-      for (const j of arr(resp.jobs)) {
-        const m = mapGreenhouse(obj(j), board);
-        if (m) out.push(m);
-      }
-      return out;
-    },
-  };
+/** Why a board on this provider and region cannot be read, or null when it can. */
+export function unreadableRegion(ats: CrawlAtsId, region: string | null): string | null {
+  if (ats === 'greenhouse' && region === 'eu') {
+    return "This board is on Greenhouse's EU host, which has no public job feed jobleft can read (Greenhouse documents a public feed only for its US host).";
+  }
+  return null;
 }
 
-/** The adapters the boards lane crawls and verifies with: the given registry plus region support. */
+/** The adapters the boards lane crawls and verifies with. */
 export function boardSources(base: SourceRegistry): SourceRegistry {
-  const out: SourceRegistry = { ...base };
-  if (base.greenhouse) out.greenhouse = greenhouseWithRegions(base.greenhouse);
-  return out;
+  return { ...base };
 }

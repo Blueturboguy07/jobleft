@@ -17,6 +17,7 @@ import type { DirectoryRow } from '@jobleft/static-data';
 import { boardId, isCrawlAts } from './ids.ts';
 import { forbiddenProvider } from './hosts.ts';
 import { boardApiHost } from './detect.ts';
+import { unreadableRegion } from './sources.ts';
 
 export const DIRECTORY_FORMAT = 'jobleft-board-directory/1';
 
@@ -108,6 +109,7 @@ export function parseDirectoryFile(json: unknown): { file: DirectoryFile; entrie
     if (!name) { refused.push({ row: i, reason: 'blank employer name' }); return; }
     const region = row.region ? String(row.region).toLowerCase() : null;
     if (region !== null && region !== 'eu') { refused.push({ row: i, reason: `unknown region "${row.region}"` }); return; }
+    if (unreadableRegion(ats, region)) { refused.push({ row: i, reason: `${ats} boards in region "${region}" have no public feed` }); return; }
     const host = boardApiHost(ats, slug, region);
     if (forbiddenProvider(host.split(':')[0]!)) { refused.push({ row: i, reason: `forbidden host ${host}` }); return; }
     const source = String(row.source ?? '');

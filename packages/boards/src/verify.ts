@@ -77,7 +77,7 @@ async function withDeadline<T>(p: Promise<T>, ms: number): Promise<T | null> {
 async function nameFromPage(ats: CrawlAtsId, board: string, region: string | null, http: HttpClient): Promise<string | null> {
   if (ats !== 'lever' && ats !== 'ashby' && ats !== 'greenhouse') return null;
   if (ats === 'greenhouse') {
-    const url = `https://boards-api${region === 'eu' ? '.eu' : ''}.greenhouse.io/v1/boards/${encodeURIComponent(board)}`;
+    const url = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(board)}`;
     try { return cleanName(str(obj(await http.getJson(url)).name)); } catch { return null; }
   }
   try {

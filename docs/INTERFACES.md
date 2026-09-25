@@ -604,7 +604,7 @@ and the scheduler, a directory refresh with dead-token pruning, and Common Crawl
 | Directory | `BoardDirectory` (`size`, `get`, `has`, `all`, `ids`, `search(q, limit)`), `loadActiveDirectory({ home?, env? })` (`JOBLEFT_BOARD_DIRECTORY`, then `$JOBLEFT_HOME/datasets/board-directory.json`, then the shipped file), `readDirectoryFile`, `parseDirectoryFile`, `nameKey`, `nameWords`, `BUNDLED_DIRECTORY_PATH`, `DIRECTORY_FORMAT` (`jobleft-board-directory/1`). A directory row is a static-data `DirectoryRow` plus `id`, `lastVerified`, `status` (`live`, `suspect`, `unverified`) |
 | Links and pages | `detectBoardFromUrl(url)` (pure), `detectBoard(url, { http })` (reads pages), `scanPage(html, pageUrl)` (pure), `parseLink`, `boardPageUrl`, `boardApiUrl`, `boardApiHost`, `PROVIDER_NAMES`, `forbiddenProvider`, `unsupportedProvider`, `jobSite` |
 | Polite network | `createBoardHttp({ pacer, hostMap?, fetchImpl?, timeoutMs?, maxRequests?, offline?, onRequest? })` (a crawler `HttpClient` that also honours Retry-After, refuses iCIMS, Oracle, UKG and Taleo too, records redirect targets instead of following them), `SqlitePacer(dbPath, intervalMs)` (the per-host schedule in the database, shared by every process), `BusyPacer`, `httpStateFor`, `offlineFromEnv` |
-| Checks | `verifyBoard(ats, board, region, http, sources)`, `classifyError`, `boardSources(registry)` (adds the Greenhouse EU host), `UNREACHABLE_AFTER` (2), `backoffMs(failures)` (1 day, doubling, at most 30 days) |
+| Checks | `verifyBoard(ats, board, region, http, sources)`, `classifyError`, `boardSources(registry)`, `unreadableRegion(ats, region)` (Greenhouse EU boards have no public feed: refused plainly, never sent to the US host), `UNREACHABLE_AFTER` (2), `backoffMs(failures)` (1 day, doubling, at most 30 days) |
 | Ids | `boardId(ats, board, region?)`, `parseBoardId(id)`, `isCrawlAts` |
 
 <!-- BEGIN GENERATED: sig:packages/boards -->
@@ -1280,7 +1280,7 @@ The app contacts only these hosts, and only for these reasons. Anything else is 
 |---|---|---|
 | Approved public ATS APIs: `boards-api.greenhouse.io`, `api.lever.co`, `api.eu.lever.co`, `api.ashbyhq.com`, and the Workable, Recruitee and Personio feed hosts once their adapters land | Job boards | Crawls; 1 request per second per host; robots.txt obeyed |
 | Hosts of links the person pastes (careers pages, job pages) | Resolve a board or read an added job | On the person's action only; same polite client |
-| Board pages of the providers (`jobs.lever.co`, `jobs.eu.lever.co`, `jobs.ashbyhq.com`) and the Greenhouse board endpoint (`boards-api.greenhouse.io/v1/boards/<token>`, EU: `boards-api.eu.greenhouse.io`) | The employer name a board reports, when its job list has none | On a paste of a board that is not in the directory; same polite client |
+| Board pages of the providers (`jobs.lever.co`, `jobs.eu.lever.co`, `jobs.ashbyhq.com`) and the Greenhouse board endpoint (`boards-api.greenhouse.io/v1/boards/<token>`) | The employer name a board reports, when its job list has none | On a paste of a board that is not in the directory; same polite client |
 | Approved non-ATS feed hosts (sources-other) | Job feeds | Only when that source is on |
 | The fit model host (`JOBLEFT_MODEL_BASE_URL`) | Download bge-small-en-v1.5 once | First fit indexing; never on every launch |
 | The dataset release host (`JOBLEFT_DATASET_MANIFEST_URL`) | Newer H-1B, place or directory data | When the person updates, or a stated schedule |

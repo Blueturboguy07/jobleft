@@ -261,7 +261,8 @@ export function boardPageUrl(ats: CrawlAtsId, board: string, region: string | nu
 export function boardApiUrl(ats: CrawlAtsId, board: string, region: string | null): string {
   const b = encodeURIComponent(board);
   switch (ats) {
-    case 'greenhouse': return `https://boards-api${region === 'eu' ? '.eu' : ''}.greenhouse.io/v1/boards/${b}/jobs?content=true`;
+    // Greenhouse EU boards have no public feed (src/sources.ts); the US address is shown for them only as a label.
+    case 'greenhouse': return `https://boards-api.greenhouse.io/v1/boards/${b}/jobs?content=true`;
     case 'lever': return `https://api${region === 'eu' ? '.eu' : ''}.lever.co/v0/postings/${b}?mode=json`;
     case 'ashby': return `https://api.ashbyhq.com/posting-api/job-board/${b}?includeCompensation=true`;
     case 'workable': return `https://apply.workable.com/api/v1/widget/accounts/${b}?details=true`;

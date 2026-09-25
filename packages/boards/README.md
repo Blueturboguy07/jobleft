@@ -99,9 +99,9 @@ and the open-job count (`Greenhouse board "acme": Acme Robotics, 6 open jobs. Co
 anything. `--json` prints the `BoardResolveResponse` contract.
 
 - Link shapes that work: board pages, single job pages, apply pages, embed links (`embed/job_board?for=`,
-  `embed/job_app?for=&token=`, Ashby `/embed`), API links, EU hosts (`job-boards.eu.greenhouse.io`,
-  `jobs.eu.lever.co`), upper-case letters, tracking parameters, trailing slashes. A Lever board that is not on the
-  US host is looked up on the EU host.
+  `embed/job_app?for=&token=`, Ashby `/embed`), API links, Lever's EU host (`jobs.eu.lever.co`, read from
+  `api.eu.lever.co`), upper-case letters, tracking parameters, trailing slashes. A Lever board that is not on the US
+  host is looked up on the EU host. Greenhouse EU links are refused plainly (see Known limits).
 - Employer-hosted pages: jobleft reads the page (with the same polite client) and finds a board behind a plain link,
   an iframe, a script embed, an inline embed config, an "Apply" button, a form, a meta refresh, a script redirect or
   an HTTP redirect (the target is checked before anything is sent to it). A partner's board in a footer, nav bar or
@@ -271,8 +271,9 @@ pnpm --filter @jobleft/boards typecheck
   Recruitee and Personio links are recognised; they become usable when `@jobleft/sources-ats` adds their adapters.
 - A page that builds its board only in the browser (no board address anywhere in its HTML) needs the paid page
   fetch. A Workable embed that names only a numeric account id cannot be resolved.
-- The Greenhouse EU API host (`boards-api.eu.greenhouse.io`) is used for `*.eu.greenhouse.io` links; it was not
-  checked live in this build.
+- Greenhouse boards on its EU hosts (`job-boards.eu.greenhouse.io/<token>`) are recognised but refused with a plain
+  message: Greenhouse documents a public job feed only for its US host (`boards-api.eu.greenhouse.io` does not exist
+  and `api.eu.greenhouse.io` needs a key, checked 2026-09-25). jobleft never sends them to the US host.
 - Lever and Ashby rows keep the JobSync name (their APIs report no name); boards added from a link take the name
   from the board's own page title.
 

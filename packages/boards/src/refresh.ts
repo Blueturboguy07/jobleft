@@ -37,7 +37,8 @@ export async function probeBoard(ats: CrawlAtsId, board: string, region: string 
   const b = encodeURIComponent(board);
   try {
     if (ats === 'greenhouse') {
-      const j = obj(await http.getJson(`https://boards-api${region === 'eu' ? '.eu' : ''}.greenhouse.io/v1/boards/${b}`));
+      if (region === 'eu') return { state: 'unknown', why: 'Greenhouse EU boards have no public job feed.' };
+      const j = obj(await http.getJson(`https://boards-api.greenhouse.io/v1/boards/${b}`));
       return { state: 'live', name: cleanName(str(j.name)) };
     }
     if (ats === 'lever') {

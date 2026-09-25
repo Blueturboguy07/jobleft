@@ -19,6 +19,7 @@ import { httpStateFor } from './http.ts';
 import { boardId, isCrawlAts, parseBoardId } from './ids.ts';
 import { scanPage, type PageBoard } from './page.ts';
 import { walkForBoards } from './discover.ts';
+import { unreadableRegion } from './sources.ts';
 import { verifyBoard, type CheckFailure, type VerifyResult } from './verify.ts';
 
 /** A paid page fetch (the metered route). Structurally the same as MeteredFetchClient in @jobleft/sources-other. */
@@ -285,6 +286,8 @@ export class BoardService {
     if (!/^[a-z0-9][a-z0-9._ -]{0,99}$/.test(board)) throw new BoardError('bad_request', 'That is not a valid board name.');
     const region = input.region ? String(input.region).toLowerCase() : null;
     if (region !== null && region !== 'eu') throw new BoardError('bad_request', 'The only region jobleft knows is "eu".');
+    const blocked = unreadableRegion(input.ats, region);
+    if (blocked) throw new BoardError('unsupported_source', blocked);
     const id = boardId(input.ats, board, region);
     const now = this.now();
     return inTransaction(this.db, () => {
@@ -382,7 +385,7 @@ export class BoardService {
    */
   due(now: number, opts: { intervalHours: number; catchUp: boolean }): BoardRef[] {
     const interval = Math.max(0, opts.intervalHours) * HOUR;
-    const rows = this.entries().filter((e) => !e.hidden && !e.disabled && this.sources[e.ats]);
+    const rows = this.entries().filter((e) => !e.hidden && !e.disabled && this.sources[e.ats] && !unreadableRegion(e.ats, e.region));
     const picked: Array<{ e: BoardEntry; k: Array<string | number> }> = [];
     for (const e of rows) {
       if (e.nextCheckAt && Date.parse(e.nextCheckAt) > now) continue;
@@ -492,7 +495,12 @@ export class BoardService {
       const id = boardId(f.ats, f.board, f.region);
       if (!uniq.has(id)) uniq.set(id, f);
     }
-    const list = [...uniq.values()].slice(0, MAX_CANDIDATES);
+    const all = [...uniq.values()].slice(0, MAX_CANDIDATES);
+    const regionBlocked = all.filter((f) => unreadableRegion(f.ats, f.region));
+    const list = all.filter((f) => !unreadableRegion(f.ats, f.region));
+    if (list.length === 0 && regionBlocked.length) {
+      return this.reply([], 'unsupported_provider', `${unreadableRegion(regionBlocked[0]!.ats, regionBlocked[0]!.region)} Nothing was sent to it and nothing was added.`);
+    }
     const unsupported = list.filter((f) => !this.sources[f.ats]);
     const readable = list.filter((f) => this.sources[f.ats]);
     if (readable.length === 0) {

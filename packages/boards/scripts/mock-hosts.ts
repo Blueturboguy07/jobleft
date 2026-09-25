@@ -35,7 +35,7 @@ export interface MockConfig {
 export interface MockRequest { at: number; host: string; method: string; path: string; headers: Record<string, string | string[] | undefined>; body: string }
 
 export const MOCK_HOSTS = [
-  'boards-api.greenhouse.io', 'boards-api.eu.greenhouse.io', 'api.lever.co', 'api.eu.lever.co', 'api.ashbyhq.com',
+  'boards-api.greenhouse.io', 'api.lever.co', 'api.eu.lever.co', 'api.ashbyhq.com',
   'jobs.lever.co', 'jobs.eu.lever.co', 'jobs.ashbyhq.com', 'careers.mock.example',
 ] as const;
 
