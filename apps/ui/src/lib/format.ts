@@ -30,21 +30,28 @@ export function money(v: number, currency: string, compact = true): string {
 
 /** Pay as the posting states it: "$38.50/hr - $52/hr", "Up to $150K/yr", "From $20/hr". null when not stated. */
 export function payText(pay: Pay | null | undefined): string | null {
-  if (!pay || (pay.min === null && pay.max === null)) return null;
+  if (!pay) return null;
+  // a zero or broken number is "not stated", never "$0"
+  const min = typeof pay.min === 'number' && Number.isFinite(pay.min) && pay.min > 0 ? pay.min : null;
+  const max = typeof pay.max === 'number' && Number.isFinite(pay.max) && pay.max > 0 ? pay.max : null;
+  if (min === null && max === null) return null;
   const u = PERIOD_SHORT[pay.period] ?? '';
   const f = (v: number) => `${money(v, pay.currency, pay.period === 'year')}${u}`;
-  if (pay.min !== null && pay.max !== null) return pay.min === pay.max ? f(pay.min) : `${f(pay.min)} - ${f(pay.max)}`;
-  if (pay.min !== null) return `From ${f(pay.min)}`;
-  return `Up to ${f(pay.max!)}`;
+  if (min !== null && max !== null) return min === max ? f(min) : `${f(min)} - ${f(max)}`;
+  if (min !== null) return `From ${f(min)}`;
+  return `Up to ${f(max!)}`;
 }
 
 /** The yearly figure for hourly or monthly pay, marked as converted. null for yearly pay or no pay. */
 export function payConvertedText(pay: Pay | null | undefined): string | null {
-  if (!pay || pay.period === 'year' || (pay.annualMin === null && pay.annualMax === null)) return null;
+  if (!pay || pay.period === 'year') return null;
+  const lo = typeof pay.annualMin === 'number' && Number.isFinite(pay.annualMin) && pay.annualMin > 0 ? pay.annualMin : null;
+  const hi = typeof pay.annualMax === 'number' && Number.isFinite(pay.annualMax) && pay.annualMax > 0 ? pay.annualMax : null;
+  if (lo === null && hi === null) return null;
   const f = (v: number) => money(v, pay.currency);
-  const range = pay.annualMin !== null && pay.annualMax !== null
-    ? (pay.annualMin === pay.annualMax ? f(pay.annualMin) : `${f(pay.annualMin)} - ${f(pay.annualMax)}`)
-    : pay.annualMin !== null ? `from ${f(pay.annualMin)}` : `up to ${f(pay.annualMax!)}`;
+  const range = lo !== null && hi !== null
+    ? (lo === hi ? f(lo) : `${f(lo)} - ${f(hi)}`)
+    : lo !== null ? `from ${f(lo)}` : `up to ${f(hi!)}`;
   return `About ${range} a year if full-time (converted from pay ${PERIOD_WORD[pay.period]})`;
 }
 
@@ -117,6 +124,8 @@ export function ago(iso: string | null | undefined, now = Date.now()): string | 
 /** "Sep 20, 2026" in the person's time zone. */
 export function dateText(iso: string | null | undefined): string | null {
   if (!iso) return null;
+  // a date without a time ("2026-09-24") is a calendar day, not a moment: no time-zone shift
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return calendarDate(iso);
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return null;
   return new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });

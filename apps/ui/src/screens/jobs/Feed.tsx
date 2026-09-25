@@ -21,7 +21,7 @@ import { BoardsCard, Checklist, SavedFilters, SaveFilterModal, UserCard, useSave
 
 export const ROW = 232;
 export const GAP = 8;
-const PAGE = 40;
+const PAGE = 100;
 
 export function toCard(i: JobListItem): CardItem {
   return { job: i.job, match: i.match, liked: i.liked, hidden: i.hidden, trackerStatus: i.trackerStatus, networkCount: i.networkCount, h1bTag: i.h1bTag };

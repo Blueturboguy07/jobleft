@@ -3,13 +3,33 @@
 
 import { useId } from 'react';
 import { Tooltip } from 'antd';
-import { MATCH_BAND_LABELS, SUB_SCORE_LABELS, type MatchBand, type MatchResult, type MatchSummary, type WhyFitChip } from '@jobleft/contracts';
+import { MATCH_BAND_LABELS, SUB_SCORE_LABELS, bandFor, type MatchBand, type MatchResult, type MatchSummary, type WhyFitChip } from '@jobleft/contracts';
 
 /** Optional fields other lanes add (the match lane): shown when present, ignored when absent. */
 export type MatchSummaryX = MatchSummary & { complete?: boolean; warning?: string | null; blockerCount?: number };
 export type MatchResultX = MatchResult & { complete?: boolean; unknownParts?: string[]; notes?: string[]; cap?: { percent: number; reason: string } | null };
 
 export const BAND_WORD: Record<MatchBand, string> = MATCH_BAND_LABELS;
+
+/** One whole number everywhere: card, tile, detail and spoken labels all read the score through this. */
+export function pct(n: number): number {
+  return Math.round(n);
+}
+
+/** The band always follows the percent (STRONG 85 and above, GOOD 70 to 84, FAIR below 70). */
+export function bandOf(percent: number): MatchBand {
+  return bandFor(pct(percent));
+}
+
+/**
+ * The words of a "why you fit" chip. A sponsorship chip is always the hedged statement, whatever label came with
+ * it: past filings say "likely", and only the posting itself can say it offers sponsorship.
+ */
+export function chipText(c: WhyFitChip): string {
+  if (c.kind === 'h1b_sponsor_likely') return 'H-1B sponsor likely';
+  if (c.kind === 'post_says_sponsors') return 'Posting offers visa sponsorship';
+  return c.label;
+}
 
 export function Ring({ percent, size = 72, stroke = 7, dark = true, label }: { percent: number | null; size?: number; stroke?: number; dark?: boolean; label?: string }) {
   const id = useId().replace(/:/g, '');
@@ -43,7 +63,7 @@ function chipLine(c: WhyFitChip, i: number) {
   return (
     <span className="ln" key={i}>
       <span aria-hidden="true">{c.positive ? '✓' : '•'}</span>
-      <span>{c.label}</span>
+      <span>{chipText(c)}</span>
     </span>
   );
 }
@@ -79,16 +99,18 @@ export function MatchTile({ match, profileSet, expanded, onToggle, onAddProfile,
     );
   }
   const lines = [...match.whyFit.slice(0, 2)];
+  const percent = pct(match.percent);
+  const band = bandOf(match.percent);
   return (
     <Tooltip title="How well this job fits your profile: experience level, skills and industry experience. Select it to see the three parts." placement="left" mouseEnterDelay={0.6}>
-      <button type="button" className={`jl-tile ${match.band}`} onClick={onToggle} aria-expanded={expanded}
-        aria-label={`Match ${match.percent} percent, ${BAND_WORD[match.band].toLowerCase()}. ${expanded ? 'Hide' : 'Show'} the parts of this score.`}>
-        <Ring percent={match.percent} />
-        <span className="band">{BAND_WORD[match.band]}</span>
+      <button type="button" className={`jl-tile ${band}`} onClick={onToggle} aria-expanded={expanded}
+        aria-label={`Match ${percent} percent, ${BAND_WORD[band].toLowerCase()}. ${expanded ? 'Hide' : 'Show'} the parts of this score.`}>
+        <Ring percent={percent} />
+        <span className="band">{BAND_WORD[band]}</span>
         <span className="rule" />
         <span className="lines">
           {lines.map(chipLine)}
-          {sponsorLine && lines.every((l) => !/sponsor/i.test(l.label)) && <span className="ln"><span aria-hidden="true">•</span><span>{sponsorLine}</span></span>}
+          {sponsorLine && lines.every((l) => !/sponsor/i.test(chipText(l))) && <span className="ln"><span aria-hidden="true">•</span><span>{sponsorLine}</span></span>}
           {match.complete === false && <span className="ln"><span aria-hidden="true">•</span><span>Limited information</span></span>}
         </span>
       </button>
@@ -99,9 +121,9 @@ export function MatchTile({ match, profileSet, expanded, onToggle, onAddProfile,
 /** The three part-scores as small rings (card back face). */
 export function PartRings({ m }: { m: MatchResult | null }) {
   const parts = [
-    ['experienceLevel', m?.subScores.experienceLevel.percent ?? null],
-    ['skills', m?.subScores.skills.percent ?? null],
-    ['industryExperience', m?.subScores.industryExperience.percent ?? null],
+    ['experienceLevel', m?.subScores.experienceLevel.percent == null ? null : pct(m.subScores.experienceLevel.percent)],
+    ['skills', m?.subScores.skills.percent == null ? null : pct(m.subScores.skills.percent)],
+    ['industryExperience', m?.subScores.industryExperience.percent == null ? null : pct(m.subScores.industryExperience.percent)],
   ] as const;
   return (
     <div className="jl-row" style={{ gap: 24, flexWrap: 'wrap' }}>

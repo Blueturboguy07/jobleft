@@ -16,7 +16,7 @@ export interface VirtualListProps<T> {
   label: string;
 }
 
-export function VirtualList<T>({ items, rowHeight, gap, keyOf, render, scrollRef, onNearEnd, overscan = 4, label }: VirtualListProps<T>) {
+export function VirtualList<T>({ items, rowHeight, gap, keyOf, render, scrollRef, onNearEnd, overscan = 8, label }: VirtualListProps<T>) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const [range, setRange] = useState<[number, number]>([0, 12]);
   const pitch = rowHeight + gap;
@@ -33,7 +33,7 @@ export function VirtualList<T>({ items, rowHeight, gap, keyOf, render, scrollRef
       const first = Math.max(0, Math.floor(scrolled / pitch) - overscan);
       const last = Math.min(items.length, Math.ceil((scrolled + pane.clientHeight) / pitch) + overscan);
       setRange((r) => (r[0] === first && r[1] === last ? r : [first, last]));
-      if (onNearEnd && last >= items.length - overscan - 2) onNearEnd();
+      if (onNearEnd && last >= items.length - 24) onNearEnd();
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(measure); };
     measure();

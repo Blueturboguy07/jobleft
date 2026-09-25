@@ -18,7 +18,7 @@ import { afterTrackerChange, profileIsSet, useProfile } from '../../app/session.
 import { openChat } from '../../components/chatStore.ts';
 import { IconAssistant, IconInterview, IconResume } from '../../components/Icons.tsx';
 import { CompanyMark, sponsorChip } from '../../components/JobCard.tsx';
-import { BAND_WORD, type MatchResultX } from '../../components/Match.tsx';
+import { BAND_WORD, bandOf, chipText, pct, type MatchResultX } from '../../components/Match.tsx';
 import { EmptyState, ErrorState, Loading } from '../../components/States.tsx';
 import {
   ago, dateText, dateTimeText, levelsText, payConvertedText, payNotes, payText, statusLabel, textBlocks, typeText, workModelText, yearsText,
@@ -71,10 +71,10 @@ function MatchPanel({ m, profileSet }: { m: MatchResultX | null; profileSet: boo
     ['experienceLevel', 'Experience Level'], ['skills', 'Skills'], ['industryExperience', 'Industry Exp.'],
   ] as const;
   return (
-    <div className="jl-match-panel" role="group" aria-label={`Match ${m.percent} percent, ${BAND_WORD[m.band].toLowerCase()}`}>
+    <div className="jl-match-panel" role="group" aria-label={`Match ${pct(m.percent)} percent, ${BAND_WORD[bandOf(m.percent)].toLowerCase()}`}>
       <div className="jl-row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span className="big">{m.percent}<span style={{ fontSize: 16 }}>%</span></span>
-        <span style={{ fontWeight: 700, fontSize: 13 }}>{BAND_WORD[m.band]}</span>
+        <span className="big">{pct(m.percent)}<span style={{ fontSize: 16 }}>%</span></span>
+        <span style={{ fontWeight: 700, fontSize: 13 }}>{BAND_WORD[bandOf(m.percent)]}</span>
       </div>
       <div className="inner">
         {rows.map(([k, label]) => {
@@ -82,7 +82,7 @@ function MatchPanel({ m, profileSet }: { m: MatchResultX | null; profileSet: boo
           return (
             <div className="row" key={k}>
               <span title={SUB_SCORE_LABELS[k]}>{label}</span>
-              {v === null ? <span className="jl-small jl-muted">Not enough info</span> : <b>{v}<span style={{ fontSize: 11 }}>%</span></b>}
+              {v === null ? <span className="jl-small jl-muted">Not enough info</span> : <b>{pct(v)}<span style={{ fontSize: 11 }}>%</span></b>}
             </div>
           );
         })}
@@ -101,7 +101,7 @@ function Why({ m }: { m: MatchResultX }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
         {parts.map(([k, s]) => (
           <div key={k} className="jl-factbox">
-            <strong>{SUB_SCORE_LABELS[k]}: {s.percent === null ? 'not enough information' : `${s.percent}%`}</strong>
+            <strong>{SUB_SCORE_LABELS[k]}: {s.percent === null ? 'not enough information' : `${pct(s.percent)}%`}</strong>
             <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{s.reasons.map((r, i) => <li key={i}>{r.text}</li>)}</ul>
           </div>
         ))}
@@ -272,8 +272,8 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
                 {!payText(job.pay) && <p className="jl-small jl-muted" style={{ marginTop: 8 }}>Pay: not listed in the posting.</p>}
                 <div className="jl-row jl-wrap" style={{ marginTop: 12 }}>
                   {sponsor && <Tooltip title={sponsor.tip}><span className="jl-fitchip" tabIndex={0}><span className="tick" aria-hidden="true">✓</span>{sponsor.text}</span></Tooltip>}
-                  {match?.whyFit.map((c, i) => (
-                    <span key={i} className={`jl-fitchip${c.positive ? '' : ' neg'}`}><span className="tick" aria-hidden="true">{c.positive ? '✓' : '•'}</span>{c.label}</span>
+                  {match?.whyFit.filter((c) => !(sponsor && /sponsor/i.test(chipText(c)))).map((c, i) => (
+                    <span key={i} className={`jl-fitchip${c.positive ? '' : ' neg'}`}><span className="tick" aria-hidden="true">{c.positive ? '✓' : '•'}</span>{chipText(c)}</span>
                   ))}
                 </div>
               </div>

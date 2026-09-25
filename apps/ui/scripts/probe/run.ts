@@ -9,7 +9,7 @@ const get = (k: string) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? a
 const only = (get('only') ?? 'nav').split(',');
 const out = get('out') ?? '/private/tmp/jlui-probe';
 
-const demo = get('url') ? attachDemo(get('url')!) : await startDemo({ home: '/private/tmp/jlui-probe-home', args: ['--persona', '--balance', '4.37', '--no-crawl'] });
+const demo = get('url') ? attachDemo(get('url')!) : await startDemo({ home: '/private/tmp/jlui-probe-home', args: ['--persona', '--balance', '4.37', '--jobs', '1500'] });
 try {
   for (const name of only) {
     console.log(`\n== ${name}`);
