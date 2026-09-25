@@ -51,9 +51,22 @@ function payOf(p: string | Pay | undefined, description: string): Pay | null {
 }
 
 /** A contract Job from a loose fixture. A value that already is a contract Job is returned unchanged. */
+const MODEL_WORDS: Record<string, WorkModel> = { remote: 'remote', hybrid: 'hybrid', onsite: 'onsite', 'on-site': 'onsite', 'on site': 'onsite', 'in-office': 'onsite', 'in office': 'onsite', office: 'onsite' };
+const TYPE_WORDS: Record<string, EmploymentType> = { 'full-time': 'full_time', 'full time': 'full_time', full_time: 'full_time', 'part-time': 'part_time', 'part time': 'part_time', part_time: 'part_time', contract: 'contract', internship: 'internship', intern: 'internship', temporary: 'temporary', temp: 'temporary', other: 'other' };
+
 export function looseJob(input: LooseJob | Job): Job {
   if (validate(JobSchema, input).ok) return input as Job;
-  const x = input as LooseJob;
+  const r = input as LooseJob & Record<string, unknown>;
+  // Other names people use for the same fields.
+  const text = (v: unknown) => (typeof v === 'string' ? v : undefined);
+  const x: LooseJob = {
+    ...r,
+    description: r.description ?? text(r.text) ?? text(r.body) ?? text(r.content),
+    location: r.location ?? (r.locations as string[] | undefined) ?? text(r.city),
+    pay: r.pay ?? (text(r.salary) as string | undefined) ?? text(r.compensation),
+    workModel: (MODEL_WORDS[String(r.workModel ?? r.workplaceType ?? '').toLowerCase()] ?? (r.remote === true ? 'remote' : undefined)),
+    employmentType: TYPE_WORDS[String(r.employmentType ?? r.jobType ?? r.type ?? '').toLowerCase()],
+  };
   if (!x || typeof x.title !== 'string' || !x.title.trim()) throw new Error('a job needs at least a "title"');
   const description = x.description ?? (x.html ? htmlToText(x.html) : '');
   const company = (x.company ?? '').trim() || 'Company not stated';
