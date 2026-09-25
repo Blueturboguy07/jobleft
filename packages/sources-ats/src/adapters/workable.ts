@@ -81,6 +81,26 @@ export const workable: Source = {
       throw new FeedFormatError(url, 'the Workable answer has no "jobs" list; the feed format may have changed, so nothing was read');
     }
     const account = resp as Record<string, unknown>;
-    return arr(account.jobs).map((j) => mapWorkable(obj(j), board, account));
+    return mergeByShortcode(arr(account.jobs).map((j) => mapWorkable(obj(j), board, account)));
   },
 };
+
+/**
+ * Workable lists a job once per location, with the same shortcode each time (seen live on 2026-09-25: one
+ * "Management Trainee" row each for College Station, Dallas, San Antonio and Austin). That is ONE posting with
+ * several places, so the rows are merged: the first row's fields, every row's places and countries.
+ */
+export function mergeByShortcode(jobs: RawJob[]): RawJob[] {
+  const out: RawJob[] = [];
+  const byId = new Map<string, RawJob>();
+  for (const j of jobs) {
+    if (j.unreadable || !j.externalId) { out.push(j); continue; }
+    const first = byId.get(j.externalId);
+    if (!first) { const copy = { ...j, countries: [...j.countries] }; byId.set(j.externalId, copy); out.push(copy); continue; }
+    first.location = joinDistinct([...first.location.split('; '), ...j.location.split('; ')].filter(Boolean), '; ');
+    for (const c of j.countries) if (!first.countries.includes(c)) first.countries.push(c);
+    if (first.workMode !== j.workMode) first.workMode = first.workMode || j.workMode;
+    first.remote = first.remote || j.remote;
+  }
+  return out;
+}

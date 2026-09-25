@@ -49,6 +49,18 @@ test('Workable: huggingface widget payload maps every field', async () => {
   clean(jobs, board);
 });
 
+test('Workable: one job listed once per location becomes one job with every place (live payload)', async () => {
+  const board: BoardRef = { ats: 'workable', board: 'careers-ewingirrigation', company: 'Ewing Outdoor Supply' };
+  const http = fakeHttp({ [workableUrl('careers-ewingirrigation')]: fixture('live/workable-careers-ewingirrigation.json') });
+  const jobs = await workable.fetchBoard(board, http);
+  assert.equal(jobs.length, 2); // 5 rows: 4 rows of one shortcode + 1 other job
+  const mit = jobs.find((j) => j.externalId === '6177CE2ED4')!;
+  assert.equal(mit.location, 'College Station, Texas, United States; Dallas, Texas, United States; San Antonio, Texas, United States; Austin, Texas, United States');
+  assert.deepEqual(mit.countries, ['US']);
+  assert.equal(mit.url, 'https://apply.workable.com/j/6177CE2ED4');
+  clean(jobs, board);
+});
+
 test('Recruitee: bunq offers payload maps every field', async () => {
   const board: BoardRef = { ats: 'recruitee', board: 'bunq', company: 'bunq' };
   const http = fakeHttp({ [recruiteeUrl('bunq')]: fixture('live/recruitee-bunq.json') });
