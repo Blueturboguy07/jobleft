@@ -125,6 +125,17 @@ const PROFILE_INPUT_FIELDS = {
   eeo: EeoAnswersSchema,
 };
 
+/**
+ * A resume section the profile has no field for (Publications, Awards, Languages, Volunteering...), kept as the
+ * person wrote it so nothing from an import is lost (resume O2). Its lines count as the person's own facts.
+ * Added in contracts 1.1.0 (optional; readers treat "missing" as none).
+ */
+export const ExtraSectionSchema = named(obj({
+  id: IdSchema,
+  title: str({ minLength: 1 }),
+  lines: arr(str()),
+}), 'ExtraSection');
+
 /** Optional editable fields, added after 1.0.0 (additive). Readers treat a missing field as empty. */
 const PROFILE_INPUT_OPTIONAL = {
   /**
@@ -132,6 +143,8 @@ const PROFILE_INPUT_OPTIONAL = {
    * a work bullet names them. "I have this" adds a SkillEntry with source "user" instead.
    */
   declinedSkills: arr(str({ minLength: 1 })),
+  /** Resume sections the profile has no field for, kept as written (resume lane). */
+  extraSections: arr(ExtraSectionSchema),
 };
 
 /** The editable profile (PUT /api/v1/profile, and the proposal a resume import returns). */
@@ -155,5 +168,6 @@ export type SkillEntry = Infer<typeof SkillEntrySchema>;
 export type JobPreferences = Infer<typeof JobPreferencesSchema>;
 export type WorkAuthorization = Infer<typeof WorkAuthorizationSchema>;
 export type EeoAnswers = Infer<typeof EeoAnswersSchema>;
+export type ExtraSection = Infer<typeof ExtraSectionSchema>;
 export type ProfileInput = Infer<typeof ProfileInputSchema>;
 export type Profile = Infer<typeof ProfileSchema>;

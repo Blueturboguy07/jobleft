@@ -1,0 +1,13 @@
+Backend Engineer
+Globex Sample Co is hiring a Backend Engineer in Austin, TX.
+
+What you will do
+- Build and run REST APIs in TypeScript and Node.js.
+- Own PostgreSQL schemas and data pipelines.
+- Ship services with Docker on AWS.
+
+Requirements
+- 3+ years of backend experience.
+- Strong TypeScript, Node.js and PostgreSQL.
+- Experience with Docker and AWS.
+- Git and Linux.

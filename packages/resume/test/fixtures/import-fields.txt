@@ -1,0 +1,13 @@
+Jordan Testwell
+jordan.testwell@example.com | 555-0100 | Austin, TX
+
+EXPERIENCE
+Adventure Works Cloud, Systems Engineer          Jun 2023 – Present
+• Cut batch-job time by 40% by rewriting the scheduler in TypeScript.
+Contoso Labs, Analytics Intern          Jan 2021 – May 2023
+• Wrote Spark jobs over 2TB of claims data.
+
+EDUCATION
+Blinn College, B.B.A. Business Analytics          Aug 2016 – May 2020
+Sample State University, B.S. Industrial Engineering          Aug 2020 – May 2022
+Sample Tech Institute, B.S. International Relations          2014 – 2016

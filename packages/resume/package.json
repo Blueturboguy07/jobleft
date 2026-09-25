@@ -14,11 +14,17 @@
   },
   "scripts": {
     "test": "node --test \"test/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "cli": "node src/cli/main.ts",
+    "fixtures": "node test/fixtures/src/make-fixtures.ts"
   },
   "dependencies": {
-    "@jobleft/contracts": "workspace:*",
     "@jobleft/ai-engine": "workspace:*",
-    "@jobleft/static-data": "workspace:*"
+    "@jobleft/contracts": "workspace:*",
+    "@jobleft/static-data": "workspace:*",
+    "unpdf": "1.8.1"
+  },
+  "bin": {
+    "jobleft-resume": "./src/cli/main.ts"
   }
 }

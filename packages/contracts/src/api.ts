@@ -227,6 +227,7 @@ export const LOCAL_API = {
   listCoverLetters: route({ method: 'GET', path: '/api/v1/cover-letters', auth: 'launch', owner: 'resume', summary: 'Cover letters for a job', query: obj({ jobId: IdSchema }), response: arr(CoverLetterSchema) }),
   createCoverLetter: route({ method: 'POST', path: '/api/v1/cover-letters', auth: 'launch', owner: 'resume', summary: 'Draft a cover letter (truth-gated)', body: obj({ jobId: IdSchema, resumeId: IdSchema }), response: CoverLetterSchema }),
   updateCoverLetter: route({ method: 'PATCH', path: '/api/v1/cover-letters/:letterId', auth: 'launch', owner: 'resume', summary: 'Edit by hand (text) or by request (instruction); truth rules hold', body: obj({}, { text: str(), instruction: str({ maxLength: 2000 }) }), response: CoverLetterSchema }),
+  exportCoverLetter: route({ method: 'GET', path: '/api/v1/cover-letters/:letterId/export', auth: 'launch', owner: 'resume', summary: 'Download a cover letter as a one-page PDF or a Word file (added in contracts 1.1.0)', query: obj({ format: enm(['pdf', 'docx']) }), response: 'file' }),
 
   // ---- match and fit index
   getMatch: route({ method: 'GET', path: '/api/v1/match/:jobId', auth: 'launch', owner: 'match', summary: 'Match score of a job (409 needs_profile without a profile)', response: MatchResultSchema }),

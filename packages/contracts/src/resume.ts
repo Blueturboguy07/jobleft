@@ -128,6 +128,13 @@ export const TailorProposalSchema = named(obj({
   violations: arr(TruthViolationSchema),
   provider: str(),
   createdAt: IsoDateTimeSchema,
+}, {
+  /** What this step cost from the publik balance, in micros (null = free or unknown). Added in contracts 1.1.0. */
+  costMicros: nullable(int({ minimum: 0 })),
+  /** One plain sentence for the person (for example why a request was refused). Added in contracts 1.1.0. */
+  notice: nullable(str()),
+  /** Facts the person asked for that are not in the profile; refused and shown as gaps. Added in contracts 1.1.0. */
+  refused: arr(str()),
 }), 'TailorProposal');
 
 export const CoverLetterSchema = named(obj({
@@ -140,6 +147,15 @@ export const CoverLetterSchema = named(obj({
   ready: bool(),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
+}, {
+  /** Facts the job or the person asked for that the profile does not have. Never written. Added in contracts 1.1.0. */
+  gaps: arr(str()),
+  /** One plain sentence about the last step (for example a refused request). Added in contracts 1.1.0. */
+  notice: nullable(str()),
+  /** Who wrote the text: "none" (no AI), or "<provider>:<model>". Added in contracts 1.1.0. */
+  provider: str(),
+  /** What the last step cost from the publik balance, in micros (null = free or unknown). Added in contracts 1.1.0. */
+  costMicros: nullable(int({ minimum: 0 })),
 }), 'CoverLetter');
 
 export type ResumeItem = Infer<typeof ResumeItemSchema>;

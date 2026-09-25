@@ -126,7 +126,7 @@ message and left untouched.
 | `board_prefs`, `board_checks`, `crawl_runs`, `crawl_board_reports`, `board_pending_links`, `host_pacing`, `robots_cache` | boards | Built (migrations `boards` v1, v2). `board_prefs`: user boards and choices (follow, hide, disable; a board the person added keeps its name). `board_checks`: what each board check saw (state, failures in a row, last good check, open jobs, next check date). `crawl_runs`, `crawl_board_reports`: refresh history for the report. `board_pending_links`: links pasted while offline. `host_pacing`: the per-host request schedule every process shares. `robots_cache`: robots.txt answers reused for 10 minutes across processes |
 | `company_facts`, `company_fact_labels` | static-data | Built. Facts per company key with source and date, freshness, last error and paid cost; cached Wikidata labels of people and places |
 | `source_state`, `source_runs`, `source_requests`, `source_host_slots`, `feed_postings` | sources-other | Built (migrations 1 and 2). `source_state`: on or off, last run, last problem, 429 wait, ETag, run lease. `source_runs` and `source_requests`: the rolling 24-hour counts (limits survive restarts and hold across processes). `source_host_slots`: the pacer shared by every process. `feed_postings`: each posting as each feed lists it (see "Reading feed jobs" under `@jobleft/sources-other`) |
-| `resumes`, `tailor_proposals`, `cover_letters` | resume | Planned |
+| `resumes`, `tailor_proposals`, `cover_letters` | resume | Built (resume lane). `resumes` holds base resumes and tailored versions (`kind`, `base_resume_id`, `job_id`, `version`) |
 | `network_contacts`, `network_meta` | network | Built. `network_contacts`: one row per connection plus the person's tracking (stage, note, follow-up, plan, reminded date, "in latest file"). `network_meta`: key-value facts of the tool (company-key fingerprint, last import counts, approved AI destinations); never a name, email or note. The network service sets `PRAGMA secure_delete = ON` on the connection it is given and ends each delete with `wal_checkpoint(TRUNCATE)`, so deleted text leaves no copy in the database or `-wal` file |
 | `practice_sessions`, `practice_items` | ai-engine | Planned |
 | `pairings` | server | Built. Extension id, sha256 of the pairing token (hex), browser, extension version, paired and last-seen times |
@@ -174,6 +174,8 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_LOG_LEVEL` | server | `info` | `error`, `warn`, `info`, `debug`. No level logs personal text, keys or tokens |
 | `JOBLEFT_SECRET_STORE` | server | `keychain` on macOS, else `memory` | `memory` keeps keys in memory only (tests); keys are then forgotten at stop |
 | `JOBLEFT_QUIET` | server | off | `1` = main.ts prints nothing at start (the address and token go only to `run/server.json`; `pnpm app:up` uses it) |
+| `JOBLEFT_IMPORT_TIMEOUT_MS` | resume | `30000` | Time limit for reading an uploaded resume (and for the ATS check of a PDF) in its worker thread |
+| `JOBLEFT_PDF_FONT`, `JOBLEFT_PDF_FONT_BOLD` | resume | a system Arial, Liberation Sans or DejaVu Sans | TrueType fonts to embed when a PDF needs letters outside the standard fonts |
 | `CARGO_TARGET_DIR` | shell builds | `<main checkout>/.cache/cargo-target` | The one shared Cargo target dir (every worktree uses the main checkout's) |
 
 The User-Agent of every crawl request is fixed in code: `USER_AGENT` = `DEFAULT_USER_AGENT` =
@@ -336,6 +338,7 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `listCoverLetters` | GET | `/api/v1/cover-letters` | launch | resume | `{ jobId }` | — | `CoverLetter[]` | Cover letters for a job |
 | `createCoverLetter` | POST | `/api/v1/cover-letters` | launch | resume | — | `{ jobId, resumeId }` | `CoverLetter` | Draft a cover letter (truth-gated) |
 | `updateCoverLetter` | PATCH | `/api/v1/cover-letters/:letterId` | launch | resume | — | `{ text?, instruction? }` | `CoverLetter` | Edit by hand (text) or by request (instruction); truth rules hold |
+| `exportCoverLetter` | GET | `/api/v1/cover-letters/:letterId/export` | launch | resume | `{ format }` | — | file | Download a cover letter as a one-page PDF or a Word file (added in contracts 1.1.0) |
 | `getMatch` | GET | `/api/v1/match/:jobId` | launch | match | — | — | `MatchResult` | Match score of a job (409 needs_profile without a profile) |
 | `fitIndexStatus` | GET | `/api/v1/index/status` | launch | store | — | — | `FitIndexStatus` | Fit indexing: indexed, waiting, last run, model |
 | `crawlStatus` | GET | `/api/v1/crawl/status` | launch | boards | — | — | `CrawlProgress` | Crawl progress (boards done of total) |
@@ -1057,20 +1060,24 @@ CLI (`packages/ai-engine/src/cli.ts`, run with `node`): `providers`, `status`, `
 
 ### `@jobleft/resume`
 
-Status: **Stub**. Purpose: import, base resumes and tailored versions, keyword gaps, tailoring with the truth gate,
-cover letters, one-page PDF and Word export, and the ATS check. Owns: tables `resumes`, `tailor_proposals`,
-`cover_letters`; files in `files/resumes/`; routes `listResumes`, `importResume`, `createResume`, `getResume`,
-`updateResume`, `deleteResume`, `tailorResume`, `acceptTailoring`, `fitCheck`, `exportResume`, `atsCheck`,
-`keywordGaps`, `listCoverLetters`, `createCoverLetter`, `updateCoverLetter`.
+Status: **Built** (resume lane; 55 tests; commands in `packages/resume/README.md`). Purpose: import, base resumes and
+tailored versions, keyword gaps, tailoring with the truth gate, cover letters, one-page PDF and Word export, and the
+ATS check. Owns: tables `resumes` (base resumes and tailored versions, `kind` = base or tailored), `tailor_proposals`,
+`cover_letters` (migrations owner `resume`, version 1); files in `files/resumes/`; routes `listResumes`,
+`importResume`, `createResume`, `getResume`, `updateResume`, `deleteResume`, `tailorResume`, `acceptTailoring`,
+`fitCheck`, `exportResume`, `atsCheck`, `keywordGaps`, `listCoverLetters`, `createCoverLetter`, `updateCoverLetter`,
+`exportCoverLetter` (new in contracts 1.1.0).
 
 <!-- BEGIN GENERATED: sig:packages/resume -->
 ```ts
-import type { DatabaseSync } from 'node:sqlite';
-import type { AtsReport, CoverLetter, ImportReport, Job, KeywordGapReport, Profile, ProfileInput, Resume, ResumeDocument, TailorProposal, TruthViolation } from '@jobleft/contracts';
-import type { AiClient } from '@jobleft/ai-engine';
+import type { AtsReport, ImportReport, Job, KeywordGapReport, Profile, ProfileInput, ResumeDocument, TruthViolation } from '@jobleft/contracts';
 import type { SkillDictionary } from '@jobleft/static-data';
 /** Largest resume upload (resume O2). */
 export declare const MAX_RESUME_BYTES: number;
+/**
+ * Reads a PDF, Word (.docx) or plain-text resume in a worker thread (30 s limit). Never throws for a bad file:
+ * `report.outcome` is "failed" with `report.failure` and a plain message in `report.warnings[0]`.
+ */
 export declare function importResume(bytes: Uint8Array, fileName: string, mimeType: string): Promise<{
     document: ResumeDocument;
     report: ImportReport;
@@ -1081,68 +1088,59 @@ export declare function documentFromProfile(profile: Profile): ResumeDocument;
 /** Facts in a draft (resume document or letter text) that do not trace to the profile. Empty = passes. */
 export declare function truthGate(draft: ResumeDocument | string, profile: Profile, job: Job | null): TruthViolation[];
 export declare function keywordGaps(job: Job, resume: ResumeDocument, profile: Profile, skills: SkillDictionary): KeywordGapReport;
+/** Exactly one page. Throws ResumeError when the characters cannot be printed or nothing fits (never cuts text). */
 export declare function renderPdf(doc: ResumeDocument): Promise<{
     bytes: Uint8Array;
     pages: number;
     leftOut: string[];
 }>;
+/** The Word file with the same content as renderPdf (the same items left out, in the same order). */
 export declare function renderDocx(doc: ResumeDocument): Promise<Uint8Array>;
-/** Grades the exact PDF bytes (same file, same report). */
+/** Grades the exact PDF bytes (same file, same report). Runs in a worker with a time limit. */
 export declare function atsCheck(pdf: Uint8Array): Promise<AtsReport>;
-export interface ResumeServiceOptions {
-    db: DatabaseSync;
-    /** $JOBLEFT_HOME/files/resumes (uploaded files and exports, inside the data folder only). */
-    filesDir: string;
-    profile: () => Profile;
-    job: (id: string) => Job | null;
-    /** The chosen AI provider; throws AiError('no_provider') when none is set. */
-    ai: () => AiClient;
-    skills: SkillDictionary;
-    now?: () => number;
-}
-/** Owns the tables `resumes`, `resume_versions`, `tailor_proposals` and `cover_letters`. */
-export declare class ResumeService {
-    constructor(opts: ResumeServiceOptions);
-    list(): Resume[];
-    import(bytes: Uint8Array, fileName: string, mimeType: string): Promise<{
-        resume: Resume;
-        proposedProfile: ProfileInput;
-    }>;
-    create(input: {
-        name: string;
-        targetTitle?: string;
-    }): Resume;
-    get(id: string): Resume | null;
-    update(id: string, patch: {
-        name?: string;
-        targetTitle?: string | null;
-        isPrimary?: boolean;
-        document?: ResumeDocument;
-    }): Resume;
-    /** Refuses (conflict) to delete a base with versions unless withVersions is true. */
-    delete(id: string, withVersions: boolean): string[];
-    tailor(resumeId: string, jobId: string): Promise<TailorProposal>;
-    accept(resumeId: string, proposalId: string, acceptChangeIds: string[]): Resume;
-    fitCheck(resumeId: string): Promise<{
-        fitsOnePage: boolean;
-        leftOut: string[];
-    }>;
-    export(resumeId: string, format: 'pdf' | 'docx'): Promise<{
-        fileName: string;
-        mimeType: string;
-        bytes: Uint8Array;
-    }>;
-    atsCheck(resumeId: string): Promise<AtsReport>;
-    keywordGaps(jobId: string, resumeId: string): KeywordGapReport;
-    coverLetters(jobId: string): CoverLetter[];
-    createCoverLetter(jobId: string, resumeId: string): Promise<CoverLetter>;
-    updateCoverLetter(id: string, patch: {
-        text?: string;
-        instruction?: string;
-    }): Promise<CoverLetter>;
-}
+export { ResumeService, profileIsEmpty, type ResumeServiceOptions, type ExportedFile } from './service.ts';
+export { ResumeError, type ResumeErrorCode } from './errors.ts';
+export { refusedFacts, workYears, headerFromProfile, checkDocument, checkLetter, buildProfileFacts } from './truth.ts';
+export { builtinSkillDictionary, safeDictionary, jobTerms } from './gaps.ts';
+export { draftTailoring, applyChanges, type TailorOp, type TailorDraft } from './tailor.ts';
+export { draftLetter, editLetter, cleanJobField } from './letter.ts';
+export { renderLetterPdf, renderLetterDocx } from './render/index.ts';
+export { atsCheckPdf } from './ats.ts';
+export { migrateResume, RESUME_SCHEMA_VERSION } from './db.ts';
+export { documentText, dateRange } from './document.ts';
+export { emptyProfileInput, asProfile } from './import/index.ts';
 ```
 <!-- END GENERATED: sig:packages/resume -->
+
+`ResumeService` (in `src/service.ts`; the server wires each route to one method). Every method throws `ResumeError`
+(`code` = a local API error code of section 6.2, `message` = one plain sentence, `details` for the screen, `link` only
+for `insufficient_balance`):
+
+| Method | Route | Notes |
+|---|---|---|
+| `new ResumeService({ db, filesDir, profile, job, ai, skills, now? })` | — | Runs the `resume` migrations and sets `PRAGMA secure_delete = ON` on `db`. `ai()` may throw `AiError('no_provider')`: every step then uses jobleft's rules (no AI) |
+| `list(): Resume[]` | `listResumes` | Bases (primary first), each followed by its versions. Base documents are brought in step with the profile on read (three-way: a field still equal to the old profile value takes the new one; a field edited on the resume stays) |
+| `import(bytes, fileName, mimeType): Promise<{ resume, proposedProfile, outcome }>` | `importResume` | PDF, .docx or text, read in a worker (30 s, `JOBLEFT_IMPORT_TIMEOUT_MS`). A failed file throws (`payload_too_large`, `unsupported_media_type` or `bad_request`) with `details.report`; nothing is saved. Never writes the profile: the caller saves `proposedProfile` only when the person confirms |
+| `create({ name, targetTitle? })` | `createResume` | `needs_profile` when the profile is empty |
+| `get(id)`, `update(id, patch)` | `getResume`, `updateResume` | A `document` patch that holds a fact not in the profile is refused (`bad_request`, `details.violations`) |
+| `delete(id, withVersions)` | `deleteResume` | `conflict` when the resume has tailored versions or cover letters and `withVersions` is false; returns every deleted id (resumes and letters) |
+| `tailor(resumeId, jobId, { instruction?, useAi? }?)` | `tailorResume` | Nothing saved but the draft. `instruction` is the person's request (the assistant's "tailor" preset passes it); facts in it that are not in the profile come back in `refused` and `gaps` |
+| `accept(resumeId, proposalId, acceptChangeIds)` | `acceptTailoring` | An empty list saves nothing (`conflict`, and the draft is marked rejected). A draft is accepted once. The saved version is checked by the truth gate again |
+| `reject(proposalId)`, `proposal(id)` | — | For a UI "reject all" and for re-showing a draft |
+| `fitCheck(id)`, `export(id, format)` | `fitCheck`, `exportResume` | `export` returns `{ fileName, mimeType, bytes, leftOut }`; the PDF is always one page; the Word file holds the same items |
+| `atsCheck(id)` | `atsCheck` | Grades the exported PDF bytes |
+| `keywordGaps(jobId, resumeId)` | `keywordGaps` | |
+| `coverLetters(jobId)`, `getCoverLetter(id)`, `createCoverLetter(jobId, resumeId, { useAi? }?)`, `updateCoverLetter(id, { text?, instruction? }, { useAi? }?)`, `exportCoverLetter(id, format)` | cover-letter routes | A request with a fact not in the profile is refused (letter unchanged, `notice`, `gaps`). A hand edit is saved and marked `ready: false` while it holds violations; a letter that is not ready is not exported (`conflict`) |
+
+Rules: the profile is the only source of facts; the job posting is data, never instructions or facts; no model call
+during import, export or the ATS check; one model call per AI step and no retry; AI failures save nothing. The CLI
+`jobleft-resume` (`node packages/resume/src/cli/main.ts`) runs every step on a data folder; until the server wires the
+store, it keeps the profile in `files/resumes/profile.json`, added jobs in `files/resumes/jobs.json` and the AI choice in
+`files/resumes/ai.json` (no key; keys come from an environment variable). Environment: `JOBLEFT_IMPORT_TIMEOUT_MS`
+(import and ATS-check time limit, default 30000), `JOBLEFT_PDF_FONT` and `JOBLEFT_PDF_FONT_BOLD` (TrueType fonts to
+embed when a PDF needs letters outside Helvetica; default: Arial, Liberation Sans or DejaVu Sans from the computer).
+Contracts 1.1.0 additions used here: `Profile.extraSections`, `TailorProposal.costMicros|notice|refused`,
+`CoverLetter.gaps|notice|provider|costMicros`, route `exportCoverLetter`.
 
 ### `@jobleft/match`
 

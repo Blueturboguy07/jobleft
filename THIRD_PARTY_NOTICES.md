@@ -126,6 +126,23 @@ The starting weights of the overall percent (0.24 / 0.29 / 0.08 / +36) come from
   GitHub lists (repository credit; vanshb03 lists are MIT, Copyright (c) their authors; SimplifyJobs and speedyapply
   lists have no licence file and are used for facts only), and Hacker News (link to each comment).
 
+### 1.9 pdf.js font metrics (Apache-2.0), resume lane
+
+- Source: Mozilla pdf.js 6.1.200 (`src/core/metrics.js` and `src/core/encodings.js`), as bundled in the npm package `unpdf` 1.8.1 (`dist/pdfjs.mjs`). pdf.js is Apache-2.0; the widths are Adobe's Core 14 AFM metrics for Helvetica and Helvetica-Bold, which Adobe allows to be copied and distributed.
+- What was taken: data only. The glyph widths of Helvetica and Helvetica-Bold and the WinAnsiEncoding glyph list, extracted by `packages/resume/scripts/extract-helvetica-metrics.ts` into a width table per WinAnsi byte.
+- jobleft file: `packages/resume/src/render/helvetica-metrics.ts` (generated; its header names the source).
+- Licence text: Apache License 2.0, https://www.apache.org/licenses/LICENSE-2.0 (pdf.js, Copyright Mozilla Foundation).
+
+### 1.10 Designs studied for the resume lane (no code copied)
+
+| Source | Licence | What was studied | jobleft files written new from the idea |
+|---|---|---|---|
+| srbhr/Resume-Matcher `apps/backend/app/services/resume_preservation.py` (commit a09ef5da) | Apache-2.0 | New-number check on rewritten bullets, grounding similarity warning | `packages/resume/src/truth.ts`, `src/tailor.ts` (`numbersKept`, `warnFor`) |
+| career-ops-hq/career-ops `verify-cv-facts.mjs` (commit de7f7fe8) | MIT | Metric, employer and title claims checked against the source CV before any PDF | `packages/resume/src/facts.ts`, `src/truth.ts` |
+| reactive-resume `packages/import/src/plain-text.ts`, `packages/resume/src/ats-pdf/` (commit 73ed3f9b) | MIT | Section alias table, entry grouping by dates, weighted readability categories with caps | `packages/resume/src/import/parse.ts`, `src/lexicon.ts`, `src/ats.ts` |
+
+Resume-Matcher's job-description skill adder (`improver.py`) was deliberately not used.
+
 ## 2. Data shipped with the app
 
 Entries 2.1 to 2.5 are from the static-data lane, 2.6 from the ai-engine lane and 2.7 from the match lane (2026-09-25); 2.8 is from the boards lane.
@@ -202,6 +219,14 @@ Note (parsers lane, 2026-09-25): `packages/parsers/src/geo-us.ts`, `geo-world.ts
 | @types/node | 24.13.6 | MIT | Node 24 type definitions |
 | esbuild | 0.28.2 | MIT | Bundles the extension's TypeScript into `apps/extension/dist` (not minified). The platform binary comes as an optional dependency (`@esbuild/darwin-arm64`); its `postinstall` script (`node install.js`, an optional binary check) does not run and is not needed |
 | @types/chrome | 0.1.24 | MIT | Chrome extension API type definitions (with @types/filesystem 0.0.36 and @types/har-format 1.2.16, MIT) |
+
+## 3a. Runtime dependencies (shipped with the app)
+
+| Package | Version | Licence | Used by | Use |
+|---|---|---|---|---|
+| unpdf | 1.8.1 | MIT (bundles Mozilla pdf.js 6.1.200, Apache-2.0) | `@jobleft/resume` | Reads PDF files (text, positions, fonts, operators) for resume import and the readability check. No install script; its optional peer `@napi-rs/canvas` is not installed. Called with bytes only and no font, CMap or wasm URL, so it makes no network request |
+
+Fonts: when a PDF needs letters outside the standard PDF fonts, `@jobleft/resume` embeds a TrueType font found on the person's own computer (Arial, Liberation Sans or DejaVu Sans, or the files named in `JOBLEFT_PDF_FONT`) into that person's own PDF. No font file ships with jobleft.
 
 ## 4. Install scripts that run
 

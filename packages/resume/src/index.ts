@@ -1,80 +1,83 @@
 // @jobleft/resume: resumes from import to export, with a truth gate.
-//   * import a PDF or Word file into a ResumeDocument and a proposed profile, reporting what it could not read
+//   * import a PDF, Word or text file into a ResumeDocument and a proposed profile, reporting what it could not read
 //   * base resumes built from the profile; tailored versions per job, linked to their base; the base never changes
 //   * keyword gaps; a tailoring proposal the person reviews change by change; cover letters
 //   * the truth gate: every fact must trace to the profile (T1). Violations are shown, never saved as ready
 //   * export: a one-page PDF (left-out items listed, never cut) and a Word file; the ATS check grades the real PDF
-// Status: interface stubs (foundation). Bodies throw until the resume lane implements them.
-// Interface: docs/INTERFACES.md, section "@jobleft/resume".
+// Every model call goes through the ai-engine AiClient; with no provider, everything works without AI.
+// Interface: docs/INTERFACES.md, section "@jobleft/resume". Commands: packages/resume/README.md.
 
-import type { DatabaseSync } from 'node:sqlite';
 import type {
-  AtsReport, CoverLetter, ImportReport, Job, KeywordGapReport, Profile, ProfileInput, Resume, ResumeDocument,
-  TailorProposal, TruthViolation,
+  AtsReport, ImportReport, Job, KeywordGapReport, Profile, ProfileInput, ResumeDocument, TruthViolation,
 } from '@jobleft/contracts';
-import type { AiClient } from '@jobleft/ai-engine';
 import type { SkillDictionary } from '@jobleft/static-data';
+import { createHash } from 'node:crypto';
+import { nowIso } from '@jobleft/contracts';
+import { documentFromProfile as buildDocument } from './document.ts';
+import { keywordGaps as gapsOf } from './gaps.ts';
+import { atsCheckInWorker, importResume as importFile, MAX_RESUME_BYTES as MAX_BYTES } from './import/index.ts';
+import { renderResumeDocx, renderResumePdf } from './render/index.ts';
+import { truthGate as gate } from './truth.ts';
 
 export const PACKAGE_NAME = '@jobleft/resume';
 /** Largest resume upload (resume O2). */
-export const MAX_RESUME_BYTES = 10 * 1024 * 1024;
+export const MAX_RESUME_BYTES: number = MAX_BYTES;
 
-function notImplemented(what: string): never {
-  throw new Error(`not implemented yet: ${what} (lane: @jobleft/resume)`);
-}
-
+/**
+ * Reads a PDF, Word (.docx) or plain-text resume in a worker thread (30 s limit). Never throws for a bad file:
+ * `report.outcome` is "failed" with `report.failure` and a plain message in `report.warnings[0]`.
+ */
 export async function importResume(bytes: Uint8Array, fileName: string, mimeType: string): Promise<{
   document: ResumeDocument; report: ImportReport; proposedProfile: ProfileInput;
-}> { return notImplemented('importResume'); }
+}> {
+  const r = await importFile(bytes, fileName, mimeType);
+  return { document: r.document, report: r.report, proposedProfile: r.proposedProfile };
+}
 
 /** A base resume document from the profile (header copied character for character). */
-export function documentFromProfile(profile: Profile): ResumeDocument { return notImplemented('documentFromProfile'); }
+export function documentFromProfile(profile: Profile): ResumeDocument {
+  return buildDocument(profile);
+}
 
 /** Facts in a draft (resume document or letter text) that do not trace to the profile. Empty = passes. */
 export function truthGate(draft: ResumeDocument | string, profile: Profile, job: Job | null): TruthViolation[] {
-  return notImplemented('truthGate');
+  return gate(draft, profile, job);
 }
 
 export function keywordGaps(job: Job, resume: ResumeDocument, profile: Profile, skills: SkillDictionary): KeywordGapReport {
-  return notImplemented('keywordGaps');
+  return gapsOf(job, resume, profile, skills, 'unsaved');
 }
 
+/** Exactly one page. Throws ResumeError when the characters cannot be printed or nothing fits (never cuts text). */
 export async function renderPdf(doc: ResumeDocument): Promise<{ bytes: Uint8Array; pages: number; leftOut: string[] }> {
-  return notImplemented('renderPdf');
-}
-export async function renderDocx(doc: ResumeDocument): Promise<Uint8Array> { return notImplemented('renderDocx'); }
-/** Grades the exact PDF bytes (same file, same report). */
-export async function atsCheck(pdf: Uint8Array): Promise<AtsReport> { return notImplemented('atsCheck'); }
-
-export interface ResumeServiceOptions {
-  db: DatabaseSync;
-  /** $JOBLEFT_HOME/files/resumes (uploaded files and exports, inside the data folder only). */
-  filesDir: string;
-  profile: () => Profile;
-  job: (id: string) => Job | null;
-  /** The chosen AI provider; throws AiError('no_provider') when none is set. */
-  ai: () => AiClient;
-  skills: SkillDictionary;
-  now?: () => number;
+  const r = renderResumePdf(doc);
+  return { bytes: r.bytes, pages: r.pages, leftOut: r.leftOut };
 }
 
-/** Owns the tables `resumes`, `resume_versions`, `tailor_proposals` and `cover_letters`. */
-export class ResumeService {
-  constructor(opts: ResumeServiceOptions) { void opts; }
-  list(): Resume[] { return notImplemented('ResumeService.list'); }
-  async import(bytes: Uint8Array, fileName: string, mimeType: string): Promise<{ resume: Resume; proposedProfile: ProfileInput }> { return notImplemented('ResumeService.import'); }
-  create(input: { name: string; targetTitle?: string }): Resume { return notImplemented('ResumeService.create'); }
-  get(id: string): Resume | null { return notImplemented('ResumeService.get'); }
-  update(id: string, patch: { name?: string; targetTitle?: string | null; isPrimary?: boolean; document?: ResumeDocument }): Resume { return notImplemented('ResumeService.update'); }
-  /** Refuses (conflict) to delete a base with versions unless withVersions is true. */
-  delete(id: string, withVersions: boolean): string[] { return notImplemented('ResumeService.delete'); }
-  async tailor(resumeId: string, jobId: string): Promise<TailorProposal> { return notImplemented('ResumeService.tailor'); }
-  accept(resumeId: string, proposalId: string, acceptChangeIds: string[]): Resume { return notImplemented('ResumeService.accept'); }
-  async fitCheck(resumeId: string): Promise<{ fitsOnePage: boolean; leftOut: string[] }> { return notImplemented('ResumeService.fitCheck'); }
-  async export(resumeId: string, format: 'pdf' | 'docx'): Promise<{ fileName: string; mimeType: string; bytes: Uint8Array }> { return notImplemented('ResumeService.export'); }
-  async atsCheck(resumeId: string): Promise<AtsReport> { return notImplemented('ResumeService.atsCheck'); }
-  keywordGaps(jobId: string, resumeId: string): KeywordGapReport { return notImplemented('ResumeService.keywordGaps'); }
-  coverLetters(jobId: string): CoverLetter[] { return notImplemented('ResumeService.coverLetters'); }
-  async createCoverLetter(jobId: string, resumeId: string): Promise<CoverLetter> { return notImplemented('ResumeService.createCoverLetter'); }
-  async updateCoverLetter(id: string, patch: { text?: string; instruction?: string }): Promise<CoverLetter> { return notImplemented('ResumeService.updateCoverLetter'); }
+/** The Word file with the same content as renderPdf (the same items left out, in the same order). */
+export async function renderDocx(doc: ResumeDocument): Promise<Uint8Array> {
+  return renderResumeDocx(doc).bytes;
 }
+
+/** Grades the exact PDF bytes (same file, same report). Runs in a worker with a time limit. */
+export async function atsCheck(pdf: Uint8Array): Promise<AtsReport> {
+  const r = await atsCheckInWorker(pdf);
+  if (r) return r;
+  // The worker could not finish (a damaged or hostile file): say so, with the file's hash.
+  return {
+    grade: 'F', score: 0, fileSha256: createHash('sha256').update(pdf).digest('hex'), checkedAt: nowIso(),
+    findings: [{ id: 'file-unreadable', rule: 'not_a_pdf', severity: 'urgent', message: 'The file could not be read as a PDF.', evidence: 'Reading failed or went past the time limit.' }],
+  };
+}
+
+export { ResumeService, profileIsEmpty, type ResumeServiceOptions, type ExportedFile } from './service.ts';
+export { ResumeError, type ResumeErrorCode } from './errors.ts';
+export { refusedFacts, workYears, headerFromProfile, checkDocument, checkLetter, buildProfileFacts } from './truth.ts';
+export { builtinSkillDictionary, safeDictionary, jobTerms } from './gaps.ts';
+export { draftTailoring, applyChanges, type TailorOp, type TailorDraft } from './tailor.ts';
+export { draftLetter, editLetter, cleanJobField } from './letter.ts';
+export { renderLetterPdf, renderLetterDocx } from './render/index.ts';
+export { atsCheckPdf } from './ats.ts';
+export { migrateResume, RESUME_SCHEMA_VERSION } from './db.ts';
+export { documentText, dateRange } from './document.ts';
+export { emptyProfileInput, asProfile } from './import/index.ts';

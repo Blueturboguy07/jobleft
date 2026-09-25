@@ -1,0 +1,10 @@
+Senior Platform Engineer
+Acme Health is building a platform team in Seattle, WA.
+
+Requirements
+- 10+ years of experience running production infrastructure.
+- Expert in Kubernetes, Terraform and Go.
+- PhD in Computer Science preferred.
+- Active security clearance required.
+- Track record: reduced infrastructure cost by 30% at a previous employer.
+- Python and SQL are a plus.
