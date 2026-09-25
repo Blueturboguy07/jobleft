@@ -175,7 +175,7 @@ const MARKET_PHRASE = /\b(?:median|average|avg|typical|mean)\s+(?:\w+\s+){0,2}(?
 const AFTER_EXCL = /\b(?:sales|orders|revenue|arr|gmv|funding|loans?|deals?|contracts?|spend|budget|volume|assets|in\s+(?:annual\s+|yearly\s+)?(?:sales|revenue|funding|savings|value))\b/i;
 
 /** Words that show a figure is pay. */
-const PAY_CUE = /\b(?:pay|paid|pays|hourly|salaried|salary|salaries|salario|salário|sueldo|compensation|comp|wages?|rates?|earn\w*|income|remuneration|rémunération|remuneração|remuneraci[oó]n|gehalt|vergütung|verguetung|lohn|stundenlohn|salaire|retribuzione|stipendio|ral|range|pago|paga|paye|stipend)\b|時給|月給|年収|年俸|日給|給与|시급|연봉|월급/gi;
+const PAY_CUE = /\b(?:starting\s+at|starts\s+at|ctc|cost\s+to\s+company|pay|paid|pays|hourly|salaried|salary|salaries|salario|salário|sueldo|compensation|comp|wages?|rates?|earn\w*|income|remuneration|rémunération|remuneração|remuneraci[oó]n|gehalt|vergütung|verguetung|lohn|stundenlohn|salaire|retribuzione|stipendio|ral|range|pago|paga|paye|stipend)\b|時給|月給|年収|年俸|日給|給与|시급|연봉|월급/gi;
 const BASE_CUE = /\b(?:base|basic|fixed|fixe|fijo|grundgehalt|garantizado|guaranteed)\b/gi;
 const TOTAL_CUE = /\b(?:ote|on[- ]target(?:\s+earnings)?|total\s+(?:target\s+)?(?:compensation|comp|cash|pay|package|earnings|rewards?|remuneration)|at\s+plan|target\s+(?:earnings|compensation|comp|cash|total)|earning\s+potential|income\s+potential|potential\s+(?:earnings|income)|(?:with|including|incl\.?|inclusive\s+of)\s+(?:commissions?|bonus(?:es)?|tips|incentives?|variable)|uncapped|package|pacchetto|paquete|pacote|incluso\s+bonus|variable\s+incluid[oa])\b/gi;
 /** "plus a $4/hr differential", "additional $2/hr": a figure added on top of another. */
@@ -256,6 +256,7 @@ function scanAmounts(text: string): Amount[] {
     const value0 = parseNumber(raw);
     if (value0 === null) continue;
     let pos = numEnd;
+    let lpa = false;
     let mult: Amount['mult'] = null;
     let big = false;
     const after = text.slice(pos, pos + 24);
@@ -266,7 +267,7 @@ function scanAmounts(text: string): Amount[] {
       if (k) { mult = 'k'; pos += k[0].length; }
       else {
         const l = LAKH_AFTER.exec(after);
-        if (l) { mult = 'lakh'; pos += l[0].length; }
+        if (l) { mult = 'lakh'; pos += l[0].length; if (/lpa/i.test(l[0])) lpa = true; }
         else {
           const man = MAN_AFTER.exec(after);
           if (man) { mult = 'man'; pos += man[0].length; }
@@ -291,6 +292,7 @@ function scanAmounts(text: string): Amount[] {
     let periodEnd = pos;
     const pa = periodAfter(tail);
     if (pa) { period = pa.period; periodEnd = pos + pa.len; }
+    else if (lpa) period = 'year';
     else if (UNIT_AFTER.test(tail)) unit = true;
     if (!pa && TAIL_REJECT.test(tail)) {
       // "3 - 5 years", "$10 to 15 percent": never money.
@@ -460,10 +462,11 @@ function buildCandidates(text: string, opts: PayParseOptions): Cand[] {
     if (tailCur && (!currency || marker === '$')) currency = currencyOfMarker(tailCur[1], opts.country);
     let noMarker = false;
     if (!currency) {
-      // No marker at all: only with a "k" or a stated period, a pay cue, and a known country.
+      // No marker at all: only with a "k" or a stated period, a pay cue, and a known country ("LPA" is India's).
       const country = opts.country ?? null;
-      if (!country || !COUNTRY_CURRENCY[country]) continue;
-      currency = COUNTRY_CURRENCY[country];
+      if (a.mult === 'lakh' || b?.mult === 'lakh') currency = 'INR';
+      else if (!country || !COUNTRY_CURRENCY[country]) continue;
+      else currency = COUNTRY_CURRENCY[country];
       noMarker = true;
     }
     let va = a.value, vb = b ? b.value : null;
@@ -473,7 +476,10 @@ function buildCandidates(text: string, opts: PayParseOptions): Cand[] {
     if (b) {
       if (a.mult === 'k' && !b.mult && vb !== null && vb < 1000 && va >= 1000) vb *= 1000;
       if (b.mult === 'k' && !a.mult && va < 1000 && vb !== null && vb >= 1000) va *= 1000;
+      // "12-18 LPA", "12 - 18 lakhs": the lakh belongs to both.
+      if (b.mult === 'lakh' && !a.mult && va < 1000) va *= 100000;
     }
+    if ((a.mult === 'lakh' || b?.mult === 'lakh') && noMarker) currency = 'INR';
     let period: PayPeriod | null = b?.period ?? a.period ?? null;
     if (b && a.period && b.period && a.period !== b.period) continue;
     const explicit = period !== null;
