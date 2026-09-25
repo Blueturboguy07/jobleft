@@ -1,0 +1,77 @@
+// Entry point: `node apps/server/src/main.ts`. Reads the environment (docs/INTERFACES.md section 4), starts the
+// server, and prints the address and the launch token for headless use. SIGTERM, SIGINT and SIGHUP stop it cleanly
+// within 5 seconds (server O11).
+//
+// Exit codes: 0 stopped cleanly; 1 could not start; 2 the data folder was refused (newer, read-only, full, not
+// jobleft) and left untouched; 3 another jobleft server already uses this data folder.
+
+import { newLaunchToken, resolveHome } from './home.ts';
+import { DataFolderError } from './db/open.ts';
+import { AlreadyRunningError, startServer } from './server.ts';
+import { APP_VERSION } from './version.ts';
+
+// Every file the server makes is readable by this user only (server O1 step 6).
+process.umask(0o077);
+
+const env = process.env;
+const home = resolveHome(env);
+const token = env.JOBLEFT_LAUNCH_TOKEN || newLaunchToken();
+// The token must not stay in the environment: child processes (the Keychain helper) would inherit it.
+delete process.env.JOBLEFT_LAUNCH_TOKEN;
+const quiet = env.JOBLEFT_QUIET === '1';
+const portText = env.JOBLEFT_PORT;
+const port = portText && /^\d{1,5}$/.test(portText) ? Number(portText) : undefined;
+const parent = env.JOBLEFT_PARENT_PID && /^\d+$/.test(env.JOBLEFT_PARENT_PID) ? Number(env.JOBLEFT_PARENT_PID) : null;
+
+process.on('unhandledRejection', (e) => {
+  process.stderr.write(`jobleft: an internal task failed (${e instanceof Error ? e.name : 'error'}); the server keeps running.\n`);
+});
+
+try {
+  const s = await startServer({
+    home,
+    port,
+    launchToken: token,
+    uiDir: env.JOBLEFT_UI_DIR || null,
+    dev: env.JOBLEFT_DEV === '1',
+    offline: env.JOBLEFT_OFFLINE === '1',
+    parentPid: parent,
+    env,
+    onStop: () => process.exit(0),
+  });
+  if (!quiet) {
+    process.stdout.write([
+      `jobleft server ${APP_VERSION}`,
+      `Data folder: ${home}`,
+      `Listening on ${s.origin} (127.0.0.1 only)`,
+      `Open in a browser: ${s.uiUrl}`,
+      `Launch token (send it as the x-jobleft-token header): ${token}`,
+      'Stop with Ctrl+C (or SIGTERM).',
+      '',
+    ].join('\n'));
+  }
+  let stopping = false;
+  const stop = (signal: string) => {
+    if (stopping) return;
+    stopping = true;
+    const force = setTimeout(() => process.exit(0), 4500);
+    force.unref();
+    s.close().then(() => process.exit(0), () => process.exit(0));
+    void signal;
+  };
+  process.on('SIGTERM', () => stop('SIGTERM'));
+  process.on('SIGINT', () => stop('SIGINT'));
+  process.on('SIGHUP', () => stop('SIGHUP'));
+} catch (e) {
+  if (e instanceof AlreadyRunningError) {
+    const where = e.run ? ` at http://127.0.0.1:${e.run.port}/` : '';
+    process.stderr.write(`jobleft is already running for this data folder${where} (process ${e.holder?.pid ?? 'unknown'}). This second copy did not start.\n`);
+    process.exit(3);
+  }
+  if (e instanceof DataFolderError) {
+    process.stderr.write(`jobleft did not start: ${e.message}\n`);
+    process.exit(2);
+  }
+  process.stderr.write(`jobleft did not start: ${e instanceof Error ? e.message : String(e)}\n`);
+  process.exit(1);
+}

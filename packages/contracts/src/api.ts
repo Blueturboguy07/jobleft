@@ -70,6 +70,8 @@ export const ERROR_CODES = [
   'unsupported_media_type', 'too_early', 'rate_limited', 'needs_profile', 'needs_provider', 'not_ready',
   'insufficient_balance', 'provider_error', 'provider_timeout', 'unsupported_source', 'forbidden_source', 'offline',
   'internal',
+  // Added by the server lane (additive): a save that the disk refused (full, read-only). Nothing was stored.
+  'write_failed',
 ] as const;
 export const ErrorCodeSchema = enm(ERROR_CODES);
 
@@ -78,7 +80,7 @@ export const ERROR_STATUS: Readonly<Record<(typeof ERROR_CODES)[number], number>
   bad_request: 400, unauthorized: 401, forbidden_origin: 403, forbidden_host: 403, not_found: 404, conflict: 409,
   payload_too_large: 413, unsupported_media_type: 415, too_early: 425, rate_limited: 429, needs_profile: 409,
   needs_provider: 409, not_ready: 503, insufficient_balance: 402, provider_error: 502, provider_timeout: 504,
-  unsupported_source: 422, forbidden_source: 422, offline: 503, internal: 500,
+  unsupported_source: 422, forbidden_source: 422, offline: 503, internal: 500, write_failed: 507,
 };
 
 /**
