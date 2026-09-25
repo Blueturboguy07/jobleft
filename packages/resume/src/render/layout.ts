@@ -175,16 +175,14 @@ function bullets(c: Canvas, list: string[]): void {
   }
 }
 
-/** Entry heading: bold left part, regular rest, dates right-aligned on the first line. */
-function entryHead(c: Canvas, left: Seg[], right: string): void {
+/**
+ * Entry heading: the bold title and the rest on the first line, then the dates (and place) on their own line.
+ * Dates are never right-aligned in a separate column, so every text extractor keeps them next to their entry.
+ */
+function entryHead(c: Canvas, left: Seg[], second: string): void {
   const size = c.p.body;
-  const rw = right ? textWidth(right, 'regular', size) + 12 : 0;
-  const lines = wrapRich(left, size, c.width - rw);
-  if (!lines.length) lines.push([]);
-  lines.forEach((l, i) => {
-    c.line(l, size, c.x0);
-    if (i === 0 && right) c.right(right, size);
-  });
+  for (const l of wrapRich(left, size, c.width)) c.line(l, size, c.x0);
+  if (second) for (const l of wrapRich([{ text: second, font: 'regular' }], size, c.width)) c.line(l, size, c.x0);
 }
 
 function headSegs(bold: string | null, rest: Array<string | null>): Seg[] {
@@ -195,19 +193,22 @@ function headSegs(bold: string | null, rest: Array<string | null>): Seg[] {
   return segs;
 }
 
+export function joinBar(...parts: Array<string | null | undefined>): string {
+  return parts.filter((x): x is string => !!x && !!x.trim()).join(' | ');
+}
+
 function item(c: Canvas, kind: string, it: ResumeItem): void {
   switch (kind) {
     case 'experience':
-      entryHead(c, headSegs(it.subheading, [it.heading, it.location]), dateRange(it));
+      entryHead(c, headSegs(it.subheading, [it.heading]), joinBar(dateRange(it), it.location));
       bullets(c, it.bullets);
       break;
     case 'education':
-      entryHead(c, headSegs(it.subheading ?? it.heading, it.subheading ? [it.heading, it.location] : [it.location]), dateRange(it));
+      entryHead(c, headSegs(it.subheading ?? it.heading, it.subheading ? [it.heading] : []), joinBar(dateRange(it), it.location));
       bullets(c, it.bullets);
       break;
     case 'projects':
-      entryHead(c, headSegs(it.heading, [it.subheading]), dateRange(it));
-      for (const t of it.tags) paragraph(c, [{ text: t, font: 'regular' }]);
+      entryHead(c, headSegs(it.heading, [it.subheading]), joinBar(dateRange(it), ...it.tags));
       bullets(c, it.bullets);
       break;
     case 'certifications':
@@ -221,7 +222,7 @@ function item(c: Canvas, kind: string, it: ResumeItem): void {
       break;
     }
     default:
-      if (it.heading || it.subheading || it.startDate) entryHead(c, headSegs(it.heading ?? it.subheading, it.heading ? [it.subheading, it.location] : [it.location]), dateRange(it));
+      if (it.heading || it.subheading || it.startDate) entryHead(c, headSegs(it.heading ?? it.subheading, it.heading ? [it.subheading] : []), joinBar(dateRange(it), it.location));
       bullets(c, it.bullets);
   }
 }
@@ -298,6 +299,17 @@ function dropPlan(doc: ResumeDocument): Drop[] {
   for (const [s, si] of secIdx('summary')) {
     drops.push({ describe: `${s.title}: the whole summary`, apply: (d) => { d.sections[si]!.text = null; } });
   }
+  // Last resorts for very long lists: skills past the first ten, then older degrees.
+  for (const [s, si] of secIdx('skills')) {
+    s.items.forEach((it, ii) => {
+      for (let k = it.tags.length - 1; k >= 10; k--) {
+        const tag = it.tags[k]!;
+        drops.push({ describe: `${s.title}: "${tag}"`, apply: (d) => { const x = d.sections[si]!.items[ii]!; const j = x.tags.indexOf(tag); if (j >= 0) x.tags.splice(j, 1); } });
+      }
+    });
+  }
+  itemDrops('education', 1);
+  bulletDrops('custom', 0, true);
   return drops;
 }
 

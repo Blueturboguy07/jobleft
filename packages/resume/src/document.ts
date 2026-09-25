@@ -106,10 +106,13 @@ export function documentText(doc: ResumeDocument): string {
         for (const b of it.bullets) lines.push(`• ${b}`);
         continue;
       }
-      const head = [it.subheading && s.kind !== 'projects' && s.kind !== 'certifications' ? it.subheading : null, it.heading, s.kind === 'projects' || s.kind === 'certifications' ? it.subheading : null, it.location].filter(Boolean).join(' — ');
-      const when = dateRange(it);
-      if (head || when) lines.push([head, when].filter(Boolean).join('  '));
-      if (s.kind === 'projects') for (const t of it.tags) lines.push(t);
+      const bold = s.kind === 'projects' || s.kind === 'certifications' ? it.heading : (it.subheading ?? it.heading);
+      const rest = s.kind === 'projects' || s.kind === 'certifications' ? [it.subheading] : it.subheading ? [it.heading] : [];
+      const head = [bold, ...rest].filter(Boolean).join(' — ');
+      if (head) lines.push(head);
+      const second = s.kind === 'certifications' ? formatYm(it.startDate ?? it.endDate)
+        : [dateRange(it), ...(s.kind === 'projects' ? it.tags : [it.location])].filter((x) => x && String(x).trim()).join(' | ');
+      if (second) lines.push(second);
       for (const b of it.bullets) lines.push(`• ${b}`);
     }
   }

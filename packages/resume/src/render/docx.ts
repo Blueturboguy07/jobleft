@@ -5,7 +5,7 @@
 import type { ResumeDocument, ResumeItem } from '@jobleft/contracts';
 import { dateRange, formatYm } from '../document.ts';
 import { writeZip } from '../zip.ts';
-import { PASSES, type LayoutParams } from './layout.ts';
+import { joinBar, PASSES, type LayoutParams } from './layout.ts';
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -41,10 +41,9 @@ class Doc {
   styled(style: string, runs: Run[], extra = ''): void {
     this.para(runs, `<w:pStyle w:val="${style}"/>${extra}`);
   }
-  entry(left: Run[], right: string): void {
-    const runs = [...left];
-    if (right) runs.push({ text: right, tab: true });
-    this.para(runs, `<w:tabs><w:tab w:val="right" w:pos="${this.textWidthTwips}"/></w:tabs><w:spacing w:before="${Math.round(this.p.itemGap * 20)}"/>`);
+  entry(left: Run[], second: string): void {
+    this.para(left, `<w:spacing w:before="${Math.round(this.p.itemGap * 20)}"/>`);
+    if (second) this.para([{ text: second }]);
   }
   bullet(text: string): void {
     this.para([{ text: '•' }, { text, tab: true }], '<w:tabs><w:tab w:val="left" w:pos="260"/></w:tabs><w:ind w:left="260" w:hanging="200"/>');
@@ -62,14 +61,13 @@ function headRuns(bold: string | null, rest: Array<string | null>): Run[] {
 function item(d: Doc, kind: string, it: ResumeItem): void {
   switch (kind) {
     case 'experience':
-      d.entry(headRuns(it.subheading, [it.heading, it.location]), dateRange(it));
+      d.entry(headRuns(it.subheading, [it.heading]), joinBar(dateRange(it), it.location));
       break;
     case 'education':
-      d.entry(headRuns(it.subheading ?? it.heading, it.subheading ? [it.heading, it.location] : [it.location]), dateRange(it));
+      d.entry(headRuns(it.subheading ?? it.heading, it.subheading ? [it.heading] : []), joinBar(dateRange(it), it.location));
       break;
     case 'projects':
-      d.entry(headRuns(it.heading, [it.subheading]), dateRange(it));
-      for (const t of it.tags) d.para([{ text: t }]);
+      d.entry(headRuns(it.heading, [it.subheading]), joinBar(dateRange(it), ...it.tags));
       break;
     case 'certifications':
       d.entry(headRuns(it.heading, [it.subheading]), formatYm(it.startDate ?? it.endDate));
@@ -80,7 +78,7 @@ function item(d: Doc, kind: string, it: ResumeItem): void {
       break;
     }
     default:
-      if (it.heading || it.subheading || it.startDate) d.entry(headRuns(it.heading ?? it.subheading, it.heading ? [it.subheading, it.location] : [it.location]), dateRange(it));
+      if (it.heading || it.subheading || it.startDate) d.entry(headRuns(it.heading ?? it.subheading, it.heading ? [it.subheading] : []), joinBar(dateRange(it), it.location));
   }
   for (const b of it.bullets) d.bullet(b);
 }
