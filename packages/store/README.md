@@ -246,9 +246,11 @@ jobs imported by another process are searchable at the next request.
 
 ## 9. Speed
 
-Method: filter columns in typed arrays in memory (a few milliseconds over 500,000 jobs), words from SQLite FTS5 as row
-lists, fit order as a dot product over the candidates' vectors (float16 on disk, float32 in memory), the first page
-picked without sorting the rest, and later pages sliced from the kept order.
+Method (spike S2): filter columns in typed arrays in memory (a few milliseconds over 500,000 jobs), words from SQLite
+FTS5 as row lists, fit order as a dot product over the candidates' vectors (float16 on disk, float32 in memory,
+brute force, no approximate index), the first page picked without sorting the rest, and later pages sliced from the
+kept order. Unlike the spike, fit order ranks every candidate, not only the best 1,000, so the total and paging stay
+true to the end.
 
 To measure end to end: start `serve` on a store of the size you want (`seed --synthetic 100000`, then `index`), and
 send your queries to `POST /api/v1/jobs/search` (`tookMs` in each answer is the store's own time). The `bench`
@@ -261,11 +263,13 @@ Measured on this Mac (M4 Pro, 24 GB) while ten other build jobs shared the CPU:
 |---|---|---|---|
 | 100,000 jobs, `bench --synthetic 100000` (in memory) | 2.8 ms | 9.2 ms | 45 ms (the first fit query scores every job) |
 | 500,000 jobs, `bench --synthetic 500000` (in memory) | 11.3 ms | 52.2 ms | 152.5 ms (the first fit query over every job) |
+| 500,000 jobs on disk through HTTP (`serve`), 3,000 mixed searches (a third Top Matched) | 20 ms | 32 ms | 82 ms |
 | 50,000 jobs through HTTP while fit indexing worked through a 30,000-job backlog | 6.7 ms | 19.9 ms | 65.7 ms |
 
-First search after a launch: `serve` loads the filter arrays before it listens (36 ms for 30,000 jobs, 0.7 s for
-500,000) and the vectors right after; a word or filter search is ready at once, a Top Matched search waits for the
-vectors (about 1 to 2 s at 500,000 jobs). A new job is searchable at the next request after its import commits (0.4 s
+First search after a launch (500,000 jobs on disk, all fit-indexed): `serve` answers after 0.46 s (the filter
+arrays load first); the first word search then takes 53 ms and the first Top Matched search 0.98 s (it waits for the
+vectors, which load in about 0.6 s, and scores every job once). The profile vector is kept on disk, so Top Matched
+needs no model after a restart. A new job is searchable at the next request after its import commits (0.4 s
 in the test above), long before it is fit-indexed.
 
 Writing: about 4,000 jobs a second with realistic descriptions (100,000 jobs in about 25 s; FTS5 word indexing of
@@ -297,8 +301,9 @@ descriptions (median about 4,500 characters): about 4.1 KB per job without fit v
 record, compressed with zstd; 0.6 KB the word index) plus 0.8 KB per fit vector. That is about 490 MB per 100,000
 fit-indexed jobs and about 2.4 GB per 500,000: above the 200 MB and 1 GB the store outcome O15 asks for. Closed jobs
 that nobody tracks are removed, so a board whose jobs come and go does not grow the store; `vacuum` gives the freed
-pages back to the disk. Memory: the filter arrays take about 60 bytes per job and the vectors 1,536 bytes per job
-(768 MB at 500,000); kept result orders are capped at 96 MB.
+pages back to the disk. Memory at 500,000 fit-indexed jobs (`serve`, measured): 1.1 GB after launch, 1.6 GB after
+1,000 mixed searches, then flat (+0.8% over the next 1,000). The vectors are 768 MB of it; kept result orders are
+capped at 64 MB; the fit model (about 300 MB) is loaded only while it works and freed after a minute idle.
 
 ## 13. Known limits
 

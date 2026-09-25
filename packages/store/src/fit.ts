@@ -91,6 +91,8 @@ export interface FitIndexOptions {
   modelInfo?: () => ModelInfo;
   priorityFilter?: () => JobFilter | null;
   now?: () => number;
+  /** Called after each embedded batch (the service keeps the model loaded while it is used). */
+  onEmbed?: () => void;
 }
 
 interface Pending { rid: number; hash: string; text: string }
@@ -123,6 +125,8 @@ export class FitIndex {
   }
 
   hasEmbedder(): boolean { return this.embedder !== null; }
+
+  isRunning(): boolean { return this.running; }
 
   private now(): number { return (this.opts.now ?? nowMs)(); }
 
@@ -258,6 +262,7 @@ export class FitIndex {
           continue;
         }
         done += n;
+        this.opts.onEmbed?.();
         q(this.db, 'UPDATE fit_runs SET indexed = ? WHERE id = ?').run(done, runId);
         onBatch?.(done, Math.max(0, queue.length - n));
       }

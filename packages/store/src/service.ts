@@ -7,6 +7,7 @@ import { nowMs } from '@jobleft/contracts';
 import { migrate, openDatabase } from './db.ts';
 import { checkModel, defaultModelSource, ensureModel, modelDirIn, MODEL_FILES, type ModelSource } from './embed/model.ts';
 import type { LocalEmbedder } from './embed/onnx.ts';
+import { packHalf, unpackHalf } from './f16.ts';
 import { createWorkerEmbedder } from './embed/worker.ts';
 import { FitIndex, priorityFilterOf, profileTextOf, type ModelInfo } from './fit.ts';
 import { ensureHome, storeHome, type StoreHome } from './home.ts';
@@ -68,6 +69,7 @@ export class StoreService {
     this.fit = new FitIndex(this.db, null, {
       modelInfo: () => ({ state: this.modelState, source: this.source.base, problem: this.modelProblem }),
       priorityFilter: () => this.priorityFilter(),
+      onEmbed: () => { this.lastEmbedUse = Date.now(); },
     });
   }
 
@@ -120,6 +122,7 @@ export class StoreService {
         }
         const e = await createWorkerEmbedder({ modelDir: this.modelDir, threads: this.threads });
         this.embedder = e;
+        this.lastEmbedUse = Date.now();
         this.fit.setEmbedder(e);
         this.modelState = 'ready';
         this.modelProblem = null;
@@ -138,15 +141,45 @@ export class StoreService {
 
   hasModel(): boolean { return this.embedder !== null; }
 
+  /** When the model was last used (indexing or a profile vector). */
+  lastEmbedUse = 0;
+
+  /**
+   * Frees the model (about 300 MB) when it has not been used for `idleMs`. The files stay; the next fit step loads
+   * it again in about a second. Keeps memory flat and the CPU idle when there is nothing to index.
+   */
+  async unloadIfIdle(idleMs: number): Promise<boolean> {
+    if (!this.embedder || this.loading || this.fit.isRunning()) return false;
+    if (Date.now() - this.lastEmbedUse < idleMs) return false;
+    const e = this.embedder;
+    this.embedder = null;
+    this.fit.setEmbedder(null);
+    await e.close();
+    return true;
+  }
+
   /** The profile vector (cached per profile version), or why there is none. */
   async profileVector(): Promise<{ vector: Float32Array | null; reason?: 'needs_profile' | 'not_ready' }> {
     const p = this.profiles.get();
     const text = profileTextOf(p.version ? p : null);
     if (!text.trim()) return { vector: null, reason: 'needs_profile' };
     if (this.profileVec && this.profileVec.version === p.version && this.profileVec.vec) return { vector: this.profileVec.vec };
-    if (!this.embedder) return { vector: null, reason: 'not_ready' };
+    // The vector of this profile version, kept from an earlier run (no model needed to use it again).
+    const kept = this.settings.getJson<{ version: string; model: string; vec: string }>('store.profileVector');
+    if (kept && kept.version === p.version && kept.model === this.fit.model) {
+      const vec = unpackHalf(Buffer.from(kept.vec, 'base64'));
+      if (vec.length === 384) { this.profileVec = { version: p.version, vec }; return { vector: vec }; }
+    }
+    if (!this.embedder) {
+      // The model files are on disk (or loading): wait for the model rather than answer "not ready".
+      if (this.modelState === 'missing' || this.modelState === 'failed') await this.refreshModelState();
+      if (this.modelState === 'ready' || this.loading) await this.loadModel({ download: false });
+      if (!this.embedder) return { vector: null, reason: 'not_ready' };
+    }
+    this.lastEmbedUse = Date.now();
     const vec = await this.fit.profileVector(text);
     this.profileVec = { version: p.version, vec };
+    this.settings.setJson('store.profileVector', { version: p.version, model: this.fit.model, vec: Buffer.from(packHalf(vec)).toString('base64') });
     return { vector: vec };
   }
 

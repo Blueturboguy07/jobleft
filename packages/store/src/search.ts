@@ -423,8 +423,8 @@ function topK(cands: Int32Array, keys: Float64Array, k: number): { rids: number[
 }
 
 const SNAPSHOT_MAX = 24;
-/** Memory the kept result orders may use together (about 8 broad searches over 500,000 jobs). */
-const SNAPSHOT_BUDGET_BYTES = 96 * 1024 * 1024;
+/** Memory the kept result orders may use together (about 5 broad searches over 500,000 jobs). */
+const SNAPSHOT_BUDGET_BYTES = 64 * 1024 * 1024;
 const SNAPSHOT_TTL_MS = 30 * 60_000;
 const snapshots = new WeakMap<MemIndex, Map<string, Snapshot>>();
 

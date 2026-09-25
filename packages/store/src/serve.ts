@@ -82,11 +82,12 @@ export async function serve(svc: StoreService, opts: ServeOptions = {}): Promise
     // Vectors load after the filter arrays, so word and filter searches are ready first.
     await new Promise((r) => setImmediate(r));
     svc.fit.refresh();
-    await svc.refreshModelState();
-    const wantModel = opts.download !== false && svc.jobs.mem.openCount > 0;
-    await svc.loadModel({ download: wantModel });
-    if (svc.hasModel()) { log('fit model ready'); await svc.warmFit().catch(() => undefined); }
-    else log(`fit model not ready (${svc.modelState}${svc.modelProblem ? `: ${svc.modelProblem}` : ''})`);
+    const state = await svc.refreshModelState();
+    // The first download happens here when the store has jobs (never offline). A present model loads only when
+    // there is work (fit indexing, or a new profile vector) and is freed again after a minute idle.
+    if (state !== 'ready' && opts.download !== false && svc.jobs.mem.openCount > 0) await svc.loadModel({ download: true });
+    await svc.warmFit().catch(() => undefined);
+    log(svc.modelState === 'ready' ? 'fit model ready' : `fit model not ready (${svc.modelState}${svc.modelProblem ? `: ${svc.modelProblem}` : ''})`);
   };
   // A run starts at launch (it records 0 when nothing waits), after every data change (not after the run's own
   // vector writes), and when jobs wait that the last run did not see (for example Top Matched asked for them).
@@ -98,9 +99,9 @@ export async function serve(svc: StoreService, opts: ServeOptions = {}): Promise
     const gen = svc.jobs.mem.generation;
     const waiting = svc.fit.counts().waiting;
     const due = gen !== lastGen || (waiting > 0 && waiting !== lastWaiting);
-    if (!due) return;
-    if (!svc.hasModel()) {
-      if (svc.modelState !== 'downloading' && opts.download !== false && svc.jobs.mem.openCount > 0 && svc.modelState !== 'failed') await svc.loadModel({ download: true });
+    if (!due) { await svc.unloadIfIdle(60_000); return; }
+    if (!svc.hasModel() && waiting > 0) {
+      if (svc.modelState !== 'downloading' && svc.jobs.mem.openCount > 0 && svc.modelState !== 'failed') await svc.loadModel({ download: opts.download !== false });
       if (!svc.hasModel()) return;
     }
     lastGen = gen;
@@ -109,8 +110,8 @@ export async function serve(svc: StoreService, opts: ServeOptions = {}): Promise
       .catch((e: unknown) => log(`fit indexing stopped: ${e instanceof Error ? e.message : 'error'}`))
       .finally(() => { indexing = null; lastWaiting = svc.fit.counts().waiting; });
   };
-  const bg = background().then(() => tick()).catch(() => undefined);
-  const timer = setInterval(() => { void tick(); }, 2000);
+  let bg: Promise<unknown> = Promise.resolve();
+  let timer: ReturnType<typeof setInterval> | null = null;
 
   // ---- routes
   type Handler = (req: IncomingMessage, params: string[], url: URL) => Promise<unknown>;
@@ -236,11 +237,14 @@ export async function serve(svc: StoreService, opts: ServeOptions = {}): Promise
   const runFile = join(svc.h.run, 'store-serve.json');
   try { writeFileSync(runFile, JSON.stringify({ pid: process.pid, port, token, startedAt: new Date().toISOString() }), { mode: 0o600 }); } catch { /* memory store */ }
   log(`listening on http://127.0.0.1:${port} (token in ${runFile})`);
+  // Vectors, the model and fit indexing start once the server answers (word and filter searches are ready first).
+  bg = background().then(() => tick()).catch(() => undefined);
+  timer = setInterval(() => { void tick(); }, 2000);
   if (!opts.quiet) process.stdout.write(`${JSON.stringify({ port, token, runFile })}\n`);
 
   const close = async () => {
     stopping = true;
-    clearInterval(timer);
+    if (timer) clearInterval(timer);
     abort.abort();
     await Promise.race([indexing ?? Promise.resolve(), new Promise((r) => setTimeout(r, 3000))]);
     await new Promise<void>((r) => server.close(() => r()));
