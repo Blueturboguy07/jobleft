@@ -31,7 +31,7 @@
 | Limit | Value |
 |---|---|
 | Published by Remote OK | No request cap published. robots.txt asks for a 1-second crawl delay |
-| jobleft | At most 4 runs in any 24 hours, at least 1 hour apart, 1 request per run (2 with one retry), 1 request per second per host |
+| jobleft | At most 4 runs in any 24 hours, at least 1 hour apart; each run is robots.txt (once per refresh) and 1 request (2 with one retry after a server error); at most 16 requests in any 24 hours; 1 request per second per host |
 
 ## Keys
 

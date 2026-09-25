@@ -74,9 +74,9 @@ the thread asks for ("Company | Position | Location | ...").
 | "REMOTE (US)", "Remote (Europe)", "REMOTE Worldwide" | `remoteScope` | The posting's words; regions parsed only when named |
 | segments that look like places | `places` | Text as written |
 | full-time / part-time / contract / intern | `employmentType` | |
-| pay in the first line, else in the text | `pay` | `parsePayFromText`, which needs a currency and a range |
+| the first pay segment of the first line, else a range in the text | `pay` | A segment such as "$150 - 210K USD + equity" (a currency must be written; more than two amounts, as in several roles' pay, gives none); else `parsePayFromText`, which needs a currency and a range |
 | `created_at` | `postedAt` | The comment time |
-| first link to a jobs or ATS page | `applyUrl` | Otherwise none; the company home page is never called an apply page |
+| an ATS posting link first, then a careers or jobs page | `applyUrl` | Otherwise none; the company home page is never called an apply page |
 
 ## Fixtures
 
