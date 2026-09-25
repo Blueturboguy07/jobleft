@@ -162,7 +162,7 @@ const STRONG_EXCL = new RegExp('\\b(?:' + [
   'valued?', 'worth', 'fines?', 'penalt\\w*', 'damages', 'settlement',
   'scholarships?', 'minimum\\s+wage', 'return\\s+offer', 'full[- ]time\\s+offer', 'paid\\s+time\\s+off', 'pto', 'valeur',
   'vales?', 'restaurant', 'cesta', 'despensa', 'primes?', 'prämie', 'provision', 'bono', 'bonificaci[oó]n', 'comisi[oó]n(?:es)?',
-  'propinas', 'gorjetas', 'salary\\s+estimates?', 'pay\\s+estimates?', 'estimated\\s+(?:salary|pay|wage)', 'est\\.',
+  'propinas', 'gorjetas', 'rimborso', 'reembolso', 'remboursement', 'erstattung', 'zuschuss', 'indemnit\\w*', 'salary\\s+estimates?', 'pay\\s+estimates?', 'estimated\\s+(?:salary|pay|wage)', 'est\\.',
   'glassdoor', 'indeed', 'ziprecruiter', 'levels\\.fyi', 'salary\\.com', 'market\\s+(?:data|rate\\s+data|size)', 'contract\\s+value',
   'patients?', 'customers?', 'clients?', 'employees?', 'members?', 'users?', 'households?', 'companies', 'businesses',
   'hra', 'fertility', 'adoption', 'child\s?care', 'dependent\s+care', 'caregiving', 'family\s+planning', 'surrogacy', 'ivf',
@@ -332,7 +332,7 @@ interface Cand {
   label: string;
 }
 
-const CONNECTOR = /^\s*(?:(?:minimum|min\.?|starting|base|to\s+start|\/(?:hr|hour|h|yr|year)|per\s+(?:hour|year)|annually|hourly)\s*)?(?:-|–|—|~|to|through|thru|and|à|a|au|bis|hasta|até|ate|e|y)\s*(?:(?:(?:go(?:es)?\s+|can\s+go\s+|could\s+go\s+)?up\s+to|a\s+maximum\s+of|max(?:imum)?\.?|of)\s*)?$/i;
+const CONNECTOR = /^\s*(?:(?:minimum|min\.?|starting|base|to\s+start|\/(?:hr|hour|h|yr|year)|per\s+(?:hour|year)|annually|hourly)\s*)?(?:-|–|—|~|to|through|thru|and|à|a|au|bis|hasta|até|ate|e|y|et|und|tot)\s*(?:(?:(?:go(?:es)?\s+|can\s+go\s+|could\s+go\s+)?up\s+to|a\s+maximum\s+of|max(?:imum)?\.?|of)\s*)?$/i;
 
 function scaleOk(v: number, period: PayPeriod, currency: string): boolean {
   const usd = v / (CURRENCY_SCALE[currency] ?? 1);

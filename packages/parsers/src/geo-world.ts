@@ -127,6 +127,8 @@ export const MACRO_REGIONS: Record<string, string> = {
   'apac': 'APAC', 'asia pacific': 'APAC', 'asia-pacific': 'APAC', 'asia': 'APAC', 'latam': 'LATAM', 'latin america': 'LATAM',
   'south america': 'LATAM', 'central america': 'LATAM', 'americas': 'AMER', 'the americas': 'AMER', 'amer': 'AMER',
   'north america': 'NA', 'nam': 'NA', 'noram': 'NA', 'middle east': 'EMEA', 'mena': 'EMEA', 'africa': 'EMEA',
+  'southeast asia': 'APAC', 'south east asia': 'APAC', 'sea region': 'APAC', 'east asia': 'APAC', 'western europe': 'EU',
+  'eastern europe': 'EU', 'central europe': 'EU', 'northern europe': 'EU', 'southern europe': 'EU', 'dach region': 'EU',
   'nordics': 'EU', 'dach': 'EU', 'benelux': 'EU', 'cee': 'EU', 'anz': 'APAC', 'oceania': 'APAC', 'uk and ireland': 'EU',
   'worldwide': 'WORLDWIDE', 'global': 'WORLDWIDE', 'anywhere': 'WORLDWIDE', 'anywhere in the world': 'WORLDWIDE',
   'international': 'WORLDWIDE', 'globally': 'WORLDWIDE',
@@ -377,4 +379,22 @@ export const GLOBAL_DOMINANT: Record<string, string> = {
   'london on': 'CA', 'orange': 'US-CA', 'troy': '', 'albany': 'US-NY', 'springfield': 'US', 'arlington': 'US', 'kl': 'MY',
   'cancun': 'MX', 'monterrey': 'MX', 'guadalajara': 'MX', 'tijuana': 'MX', 'acapulco': 'MX', 'bangalore': 'IN', 'goa': 'IN',
   'amsterdam': 'NL', 'hudson': 'US', 'palmas': 'BR', 'belem': 'BR', 'belen': '', 'liberia': '', 'david': 'PA',
+  'ottawa': 'CA', 'liverpool': 'GB', 'southampton': 'GB', 'coventry': 'GB', 'derby': 'GB', 'bradford': 'GB', 'hull': 'GB',
+  'hamburg': 'DE', 'munster': 'DE', 'potsdam': 'DE', 'versailles': 'FR', 'salamanca': 'ES', 'verona': 'IT', 'geneva': 'CH',
+  'vienna': 'AT', 'warsaw': 'PL', 'belgrade': 'RS', 'madras': 'IN', 'santa rosa': 'US-CA', 'brisbane': 'AU', 'wellington': 'NZ',
+  'la plata': 'AR', 'lima': 'PE', 'newmarket': 'CA', 'sault ste marie': '', 'peterborough': '', 'belleville': '', 'cornwall': '',
+  'niagara falls': '', 'brandon': '', 'scarborough': '', 'brighton': '', 'york': '', 'bath': '', 'norwich': '', 'gloucester': '',
+  'st albans': '', 'northampton': '', 'colchester': '', 'chelmsford': '', 'wakefield': '', 'warrington': '', 'carlisle': '',
+  'livingston': '', 'derry': '', 'londonderry': '', 'uxbridge': '', 'hatfield': '', 'shrewsbury': '', 'stafford': '',
+  'waterford': '', 'dundalk': '', 'wexford': '', 'ennis': '', 'hanover': '', 'bayonne': '', 'oviedo': '', 'parma': '',
+  'ravenna': '', 'odessa': '', 'saint petersburg': '', 'st petersburg': '', 'medina': '', 'dunedin': '', 'santa maria': '',
+  'martinez': '', 'valparaiso': '', 'durango': '',
+};
+
+/** Misspellings seen in real location fields. */
+export const COUNTRY_TYPOS: Record<string, string> = {
+  'united kindom': 'GB', 'united kingdon': 'GB', 'untied kingdom': 'GB', 'cananda': 'CA', 'canda': 'CA', 'candada': 'CA',
+  'untied states': 'US', 'united sates': 'US', 'unites states': 'US', 'united state': 'US', 'united stated': 'US',
+  'phillipines': 'PH', 'philipines': 'PH', 'phillippines': 'PH', 'brasil': 'BR', 'germnay': 'DE', 'isreal': 'IL',
+  'singapur': 'SG', 'argentia': 'AR',
 };

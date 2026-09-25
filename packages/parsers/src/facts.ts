@@ -72,6 +72,7 @@ export function extractFacts(input: PostingInput): PostingFacts {
   const locTexts = [input.location ?? '', ...(input.locations ?? [])].map((s) => (typeof s === 'string' ? s : '')).filter((s) => s.trim());
   const places: Place[] = [];
   const locRegions: string[] = [];
+  let excludesUs = false;
   let placeEv: FactEvidence | undefined;
   safe(warnings, 'places', () => {
     for (const lt of locTexts) {
@@ -79,6 +80,7 @@ export function extractFacts(input: PostingInput): PostingFacts {
       const r = parseLocationText(lt, { context: description });
       for (const p of r.places) if (!places.some((q) => q.city === p.city && q.region === p.region && q.country === p.country)) places.push(p);
       for (const x of r.remoteRegions) if (!locRegions.includes(x)) locRegions.push(x);
+      if (r.excludesUs) excludesUs = true;
     }
     if (places.length) placeEv = { source: 'location_text', text: clip(locTexts.join('; '), 500) };
     for (const a of input.addresses ?? []) {
@@ -108,6 +110,7 @@ export function extractFacts(input: PostingInput): PostingFacts {
   // US or not. Board country codes first; a remote job limited to other areas is not a US job.
   const boardCountries = (input.countries ?? []).filter((c) => typeof c === 'string');
   let isUs = safe(warnings, 'country', () => usFromFacts(places, wm.remoteScope?.regions ?? locRegions, boardCountries), null);
+  if (excludesUs && !places.some((p) => p.country === 'US')) isUs = false;
   if (wm.workModel === 'remote' && wm.remoteScope && wm.remoteScope.regions.length) {
     const open = wm.remoteScope.regions.some((r) => r === 'US' || r === 'NA' || r === 'AMER' || r === 'WORLDWIDE');
     if (!open && !places.some((p) => p.country === 'US' && (p.city || p.region))) isUs = false;

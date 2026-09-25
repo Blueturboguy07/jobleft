@@ -1,7 +1,7 @@
 // Places: every place a posting names, with its city, state or region and country. Never a default country
 // (parsers O7, O8). "Remote", "Multiple locations" and "Various" are not places.
 import type { FactEvidence, Place, WorkModel } from '@jobleft/contracts';
-import { AU_STATE_CODES, CA_PROVINCE_CODES, COUNTRIES, FOREIGN_REGIONS, GLOBAL_DOMINANT, MACRO_REGIONS, WORLD_CITY_COUNTRIES, WORLD_CITY_NAMES } from './geo-world.ts';
+import { AU_STATE_CODES, CA_PROVINCE_CODES, COUNTRIES, COUNTRY_TYPOS, FOREIGN_REGIONS, GLOBAL_DOMINANT, MACRO_REGIONS, WORLD_CITY_COUNTRIES, WORLD_CITY_NAMES } from './geo-world.ts';
 import { US_CITY_DOMINANT, US_CITY_STATES, US_PLACE_ALIASES, US_REGION_NAMES, US_STATES, US_STATE_ALIASES } from './geo-us.ts';
 import { clip, keyOf, normalizeText } from './text.ts';
 
@@ -10,6 +10,7 @@ import { clip, keyOf, normalizeText } from './text.ts';
 
 const COUNTRY_BY_KEY = new Map<string, string>();
 for (const [cc, names] of Object.entries(COUNTRIES)) for (const n of names) COUNTRY_BY_KEY.set(keyOf(n), cc);
+for (const [typo, cc] of Object.entries(COUNTRY_TYPOS)) COUNTRY_BY_KEY.set(typo, cc);
 // Plain "Georgia" is the US state; the country is written "Georgia (country)" or named by its cities.
 COUNTRY_BY_KEY.delete('georgia');
 const ISO3: Record<string, string> = {
@@ -45,7 +46,7 @@ type Tok =
   | { kind: 'noise' }
   | { kind: 'zip'; state: string | null };
 
-const PLACEHOLDER = /^(?:n\/?a|na|none|tbd|tba|tbc|unknown|various|varies|multiple|multiple locations?|multiple cities|various cities|several cities|multiple sites|multiple offices|all offices|any office|select locations|various locations in the us|several locations|many locations|all locations|any location|locations?|flexible|flexible location|see (?:job )?description|see below|other|others|nowhere|xx|x|-|—|\.|\?|global locations|various locations|\d+ locations?|to be determined|home|field|field based|field-based|mobile|travel|traveling|travelling|on the road)$/i;
+const PLACEHOLDER = /^(?:n\/?a|na|none|tbd|tba|tbc|unknown|various|varies|multiple|multiple locations?|multiple cities|various cities|several cities|multiple sites|multiple offices|all offices|any office|select locations|various locations in the us|several locations|many locations|all locations|any location|locations?|flexible|flexible location|see (?:job )?description|see below|other|others|nowhere|xx|x|-|—|\.|\?|global locations|various locations|\d+ locations?|to be determined|home|field|field based|field-based|travel|traveling|travelling|on the road|any|anywhere in|any office|any \w+ location|any \w+ office|all \w+ locations|remote_\w+)$/i;
 const ORG_WORDS = /\b(?:schools?|academy|college|university|univ|campus|hospital|clinic|medical center|health center|center for|centre for|store|warehouse|plant|facility|headquarters|hq|office|offices|building|bldg|tower|plaza|mall|pvt|ltd|llc|inc|corp|gmbh|s\.a\.|b\.v\.|limited|company|group|partners|branch|site|depot|distribution center|fulfillment center|dc|lab|labs|studio|studios|factory|terminal|yard|shop|restaurant|cafe|café|hotel|resort|casino|club|church|library|station|base|hub|kitchen|bakery|venue|arena|stadium|park & ride)\b/i;
 const STREET = /\b(?:st|street|ave|avenue|road|rd|blvd|boulevard|drive|dr|lane|ln|way|suite|ste|floor|fl|flr|building|bldg|room|rm|unit|parkway|pkwy|highway|hwy|court|ct|place|pl|square|sq|terrace|circle|cir|trail|pike|route|rte|av|avenida|rua|calle|carrera|strasse|straße|stationsplein|boulevard|via|viale|rue|andar|piso|po box|p\.o\. box)\b/i;
 const UK_POSTCODE = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
@@ -124,11 +125,69 @@ function classify(raw: string): Tok {
   }
   if (k === 'washington') return { kind: 'city', name: 'Washington', key: k, us: ['DC'], world: [] };
   if (macro) return { kind: 'macro', region: macro };
-  // Unknown words: a place name only if it looks like one.
+  // "Edmonds Branch", "Bellevue Office", "Taipei City", "Harlem NYC", "NYC-Privy": the place inside the words.
+  const stripped = innerBySuffix(t);
+  if (stripped) return stripped;
   if (ORG_WORDS.test(t) || WORK_WORDS.test(t)) return { kind: 'noise' };
+  const inner = innerPlace(t);
+  if (inner) return inner;
+  // Unknown words: a place name only if it looks like one.
   if (t.length > 40 || t.split(/\s+/).length > 5 || !/^[\p{L}][\p{L}\p{M}' .\-()]*$/u.test(t)) return { kind: 'noise' };
   if (/^[a-z]/.test(t) && !/^(?:de|la|le|el|san|santa|são|sao)\b/.test(t)) return { kind: 'noise' };
   return { kind: 'unknown', name: titleCase(t) };
+}
+
+const SUFFIX_WORDS = /\s+(?:branch|office|offices|campus|store|clinic|location|site|hq|headquarters|center|centre|hub|facility|plant|warehouse|studio|lab|hospital)$/i;
+
+const GENERIC_WORDS = new Set(['center', 'centre', 'union', 'normal', 'mobile', 'independence', 'commerce', 'liberty', 'enterprise',
+  'paradise', 'hope', 'unity', 'friendship', 'industry', 'college', 'university', 'beach', 'lake', 'park', 'springs', 'hills',
+  'valley', 'heights', 'village', 'city', 'town', 'county', 'station', 'junction', 'harbor', 'harbour', 'port', 'bay', 'point',
+  'grove', 'ridge', 'falls', 'rapids', 'mills', 'lakes', 'woods', 'plains', 'river', 'forest', 'garden', 'gardens', 'north',
+  'south', 'east', 'west', 'central', 'midland', 'highland', 'clinton', 'franklin', 'washington', 'jackson', 'lincoln', 'madison',
+  'jefferson', 'monroe', 'marion', 'salem', 'fairfield', 'greenville', 'springfield', 'georgetown', 'richmond', 'arlington',
+  'manchester', 'burlington', 'dover', 'milton', 'newport', 'auburn', 'bristol', 'chester', 'oxford', 'cambridge', 'victoria',
+  'hudson', 'orange', 'troy', 'athens', 'florence', 'lebanon', 'mexico', 'peru', 'jordan', 'delta', 'surprise', 'humble', 'katy',
+  'spring', 'allen', 'frisco', 'plano', 'tyler', 'bryan', 'temple', 'mission', 'sherman', 'marshall', 'decatur', 'aurora',
+  'columbia', 'concord', 'lafayette', 'bloomington', 'rochester', 'kingston', 'hamilton', 'warren', 'kent', 'essex', 'reading',
+  'bedford', 'wilmington', 'charleston', 'portland', 'albany', 'jamestown', 'greenwood', 'woodland', 'lakewood', 'riverside',
+  'fremont', 'glendale', 'pasadena', 'ontario', 'santa', 'san', 'saint', 'st', 'mount', 'fort', 'new', 'old', 'great', 'little',
+  'grand', 'long', 'rock', 'green', 'white', 'black', 'red', 'blue', 'royal', 'golden', 'silver', 'crystal', 'diamond', 'sun',
+  'moon', 'star', 'eagle', 'bear', 'wolf', 'fox', 'deer', 'elk', 'buffalo', 'mobile', 'energy', 'data', 'digital', 'global']);
+
+function innerBySuffix(t: string): Tok | null {
+  const stripped = t.replace(SUFFIX_WORDS, '').trim();
+  if (stripped && stripped !== t) {
+    const c = classify(stripped);
+    if (c.kind === 'city' || c.kind === 'state' || c.kind === 'country' || c.kind === 'fregion') return c;
+  }
+  if (/\s+city$/i.test(t)) {
+    const c = classify(t.replace(/\s+city$/i, ''));
+    if (c.kind === 'city' && !c.us.length) return c;
+  }
+  return null;
+}
+
+function innerPlace(t: string): Tok | null {
+  const words = t.split(/[\s\-_/]+/).filter(Boolean);
+  if (words.length < 2 || words.length > 6) return null;
+  // The last or first one to three words, when they are a known city with one reading or a US alias.
+  for (const n of [3, 2, 1]) {
+    for (const part of [words.slice(-n).join(' '), words.slice(0, n).join(' ')]) {
+      if (part === t || part.length < 2) continue;
+      const k = keyOf(part);
+      const alias = US_PLACE_ALIASES[k];
+      if (alias && /^[A-Z]{2,3}$/.test(part)) return { kind: 'city', name: alias.city, key: keyOf(alias.city), us: [alias.state], world: [], state: alias.state, country: 'US' };
+      if (part.length < 4) continue;
+      if (n === 1 && (GENERIC_WORDS.has(k) || part.length < 5)) continue;
+      const us = US_CITY_STATES.get(k) ?? [];
+      const w = WORLD_CITY_COUNTRIES.get(k) ?? [];
+      if ((us.length === 1 && !w.length) || (!us.length && w.length === 1)) {
+        const name = w.length ? (WORLD_CITY_NAMES.get(k) ?? part) : titleCase(part);
+        return { kind: 'city', name, key: k, us, world: w };
+      }
+    }
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -231,6 +290,8 @@ function readContext(tok: Extract<Tok, { kind: 'city' }>, context: string): stri
 
 export interface LocationParse {
   places: Place[];
+  /** The text says the job is outside the US ("Remote (outside of the United States)"). */
+  excludesUs?: boolean;
   /** Work-model words in the location text ("Remote", "Hybrid", "On-site"), in order. */
   workModels: WorkModel[];
   /** Where a remote job is open, from the location text ("Remote - US" -> ["US"]). */
@@ -244,9 +305,9 @@ const SPLIT_KEEP = /\b(?:trinidad and tobago|bosnia and herzegovina|antigua and 
 function splitSegments(text: string): string[] {
   // Protect multi-word names that contain "and", and separators inside parentheses ("(3x in office/week)").
   const protectedText = text.replace(SPLIT_KEEP, (m) => m.replace(/ and /gi, ' §AND§ '))
-    .replace(/\([^()]*\)/g, (m) => m.replace(/\//g, '§SL§').replace(/;/g, ',').replace(/\|/g, ','));
+    .replace(/\([^()]*\)/g, (m) => m.replace(/\//g, '§SL§').replace(/;/g, ',').replace(/\|/g, ',').replace(/\s+(?:and|or|&)\s+/gi, ' §AND§ '));
   return protectedText
-    .split(/\s*(?:;|\||•|·|\n|\s\/\s|(?<=[a-z)])\/(?=[A-Za-z(])|\s+or\s+|\s+OR\s+(?=[A-Z][a-z])|\s+and\s+|\s+&\s+|\s+y\s+|\s+et\s+|\s+und\s+|\s+e\s+(?=[A-Z]))\s*/)
+    .split(/\s*(?:;|\||•|·|\n|\s\/\s|(?<=[a-z)])\/(?=[A-Za-z(])|\s+(?:or|Or)\s+|\s+OR\s+(?=[A-Z][a-z])|\s+and\s+|\s+&\s+|\s+y\s+|\s+et\s+|\s+und\s+|\s+e\s+(?=[A-Z]))\s*/)
     .map((s) => s.replace(/ §AND§ /g, ' and ').replace(/§SL§/g, '/').trim())
     .filter(Boolean);
 }
@@ -262,6 +323,10 @@ export function parseLocationText(input: string, opts: { context?: string } = {}
   const text = normalizeText(input).replace(/\s+/g, ' ').trim().slice(0, 2000);
   if (!text) return out;
   const context = opts.context ?? '';
+  if (/\b(?:outside|excluding|except)\s+(?:of\s+)?(?:the\s+)?(?:US|U\.S\.A?\.?|USA|United\s+States)\b|\bnon[- ](?:US|U\.S\.)\b/i.test(text)) {
+    out.excludesUs = true;
+    return out;
+  }
   const addModel = (m: WorkModel) => { if (!out.workModels.includes(m)) out.workModels.push(m); };
   const addRegion = (r: string) => { if (!out.remoteRegions.includes(r)) out.remoteRegions.push(r); };
 
@@ -640,6 +705,7 @@ export function usFromFacts(places: Place[], remoteRegions: string[], boardCount
 export function isUsLocation(location: string, countries: string[] = []): boolean | null {
   if (countries.length > 0) return countries.some((c) => c.toUpperCase() === 'US');
   const r = parseLocationText(location ?? '');
+  if (r.excludesUs) return false;
   return usFromFacts(r.places, r.remoteRegions);
 }
 
