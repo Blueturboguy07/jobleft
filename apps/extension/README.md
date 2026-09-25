@@ -161,7 +161,7 @@ profile data.
 |---|---|
 | `pnpm --filter @jobleft/extension test` | Unit tests of the answer engine, the strict option matcher, page keys and blocked hosts |
 | `pnpm --filter @jobleft/extension typecheck` | Type check |
-| `pnpm --filter @jobleft/extension e2e` | Builds, then runs the real extension in headless Chrome (scratch profile, no internet) against the stand-in app and every practice page and saved copy: pairing, fills, traps, undo, drafts, prices, the tracker, CAPTCHA, account step, frames, Workday, blocked boards, app closed, unpaired. It prints PASS or FAIL for each check. It takes about 5 minutes and needs ports 47821 to 47830, 47900 and 47943 |
+| `pnpm --filter @jobleft/extension e2e` | Builds, then runs the real extension in headless Chrome (scratch profile, no internet) against the stand-in app and every practice page and saved copy: pairing, fills, traps, undo, drafts, prices, the tracker, CAPTCHA, account step, frames, Workday, blocked boards, app closed, unpaired. It prints PASS or FAIL for each check. It takes about 2 minutes and needs ports 47821 to 47830, 47900 and 47943 (another jobleft server on one of the app ports is fine) |
 | `pnpm --filter @jobleft/extension e2e -- --only joba,blocked --shots /private/tmp/jl-shots` | A part of the checks, with screenshots |
 
 The e2e run presses the toolbar button through Chrome's DevTools (`Extensions.triggerAction`), which gives the same
