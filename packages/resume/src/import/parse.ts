@@ -157,21 +157,27 @@ function bulletFlags(lines: SrcLine[]): boolean[] {
   return lines.map((l) => l.bullet || (l.x - base >= indentStep && !hasDateRange(l.text) && lines.some((o) => o.x - base < indentStep)));
 }
 
-function continuation(prev: SrcLine | null, prevText: string, line: SrcLine, flaggedBullet: boolean): boolean {
+function continuation(prev: SrcLine | null, prevText: string, line: SrcLine, flaggedBullet: boolean, right = 0): boolean {
   if (!prev) return false;
   if (line.bullet) return false; // a real mark always starts a new bullet
   const t = line.text.trim();
   if (/^[a-z(,;&]/.test(t)) return true;
   if (/[-–,;/(&]$/.test(prevText.trim()) || /\b(?:and|or|of|the|to|for|with|in|on|a|an)$/i.test(prevText.trim())) return true;
-  // Unmarked bullets: a line that follows a line which ran to the right edge and did not end a sentence.
+  // Unmarked bullets (the dot is drawn as a shape): word wrap breaks a line only when the next word does not fit.
+  // If this line's first word would have fit after the previous line, the break is a new bullet, not a wrap.
   if (flaggedBullet && prev.xEnd > 0 && line.xEnd > 0 && Math.abs(line.x - prev.x) < 2 && !/[.!?:]$/.test(prevText.trim())) {
-    return prev.xEnd >= Math.max(line.xEnd, prev.xEnd) * 0.8 && prevText.length > 40;
+    const edge = Math.max(right, prev.xEnd, line.xEnd);
+    const first = t.split(/\s+/)[0] ?? '';
+    const charW = (line.xEnd - line.x) / Math.max(1, t.length);
+    return edge - prev.xEnd < (first.length + 1) * charW * 1.2;
   }
   return false;
 }
 
-function groupEntries(lines: SrcLine[], opts: { dated: boolean }): { entries: Entry[]; orphans: number } {
+function groupEntries(lines: SrcLine[], opts: { dated: boolean; right?: Map<number, number> }): { entries: Entry[]; orphans: number; drawnMarks: boolean } {
   const flags = bulletFlags(lines);
+  const rightOf = (l: SrcLine) => opts.right?.get(l.column) ?? 0;
+  const drawnMarks = lines.some((l, i) => flags[i] && !l.bullet && l.size > 0);
   const entries: Entry[] = [];
   let cur: Entry | null = null;
   let orphans = 0;
@@ -189,7 +195,7 @@ function groupEntries(lines: SrcLine[], opts: { dated: boolean }): { entries: En
     if (isB) {
       if (!cur) { cur = { head: [], bullets: [], hasDate: false, lastBulletLine: null }; entries.push(cur); orphans++; }
       const prevText = cur.bullets[cur.bullets.length - 1];
-      if (prevText !== undefined && continuation(cur.lastBulletLine, prevText, line, !line.bullet)) {
+      if (prevText !== undefined && continuation(cur.lastBulletLine, prevText, line, !line.bullet, rightOf(line))) {
         cur.bullets[cur.bullets.length - 1] = joinWrapped(prevText, t);
       } else cur.bullets.push(t);
       cur.lastBulletLine = line;
@@ -212,7 +218,7 @@ function groupEntries(lines: SrcLine[], opts: { dated: boolean }): { entries: En
     cur = { head: [line], bullets: [], hasDate: dated, lastBulletLine: null };
     entries.push(cur);
   });
-  return { entries, orphans };
+  return { entries, orphans, drawnMarks };
 }
 
 function joinWrapped(a: string, b: string): string {
@@ -231,9 +237,18 @@ const ROLE_SET = new Set(ROLE_NOUNS);
 const SENIOR_SET = new Set(SENIORITY_WORDS.map((w) => w.replace(/\.$/, '')));
 const ORG_SET = new Set(ORG_WORDS.map((w) => w.replace(/\.$/, '')));
 
+/** The last word that names something ("Engineer" in "Systems Engineer II"), for telling titles from employers. */
+function lastWord(t: string): string {
+  const ws = foldKey(t).split(' ').filter((w) => w && !/^(?:i{1,3}|iv|v|[1-5])$/.test(w));
+  return ws[ws.length - 1] ?? '';
+}
+
 function titleScore(t: string): number {
   const ws = foldKey(t).split(' ');
   let s = 0;
+  // A phrase that ends in a role word is a title even when an organisation word comes first ("Systems Engineer").
+  const last = lastWord(t);
+  if (ROLE_SET.has(last) || ROLE_SET.has(last.replace(/s$/, ''))) s += 3;
   for (const w of ws) {
     if (ROLE_SET.has(w) || ROLE_SET.has(w.replace(/s$/, ''))) s += 2;
     if (SENIOR_SET.has(w)) s += 1;
@@ -247,6 +262,7 @@ function orgScore(t: string): number {
   const ws = foldKey(t).split(' ');
   let s = 0;
   for (const w of ws) if (ORG_SET.has(w)) s += 2;
+  if (ORG_SET.has(lastWord(t))) s += 1;
   if (/\b(?:Inc|LLC|Ltd|Corp|GmbH|PLC|LLP)\b\.?/.test(t)) s += 3;
   if (/[&]/.test(t)) s += 0.5;
   return s;
@@ -350,9 +366,15 @@ function parseEducationEntry(e: Entry, index: number, warnings: string[]): Educa
     if (!school && /\b(?:University|College|Institute|School|Academy|Polytechnic|Universidad|Université)\b/.test(p)) { school = p; continue; }
     const d = findDegrees(p)[0];
     if (!degree && d) {
-      const deg = p.slice(d.start, d.end);
+      // Copy the whole written form: a match inside a longer abbreviation ("B.A." in "B.B.A.") takes all of it.
+      let ds = d.start;
+      let de = d.end;
+      while (ds > 0 && /[A-Za-z.]/.test(p[ds - 1]!)) ds--;
+      while (de < p.length && /[A-Za-z.]/.test(p[de]!)) de++;
+      const deg = p.slice(ds, de);
       degree = deg.replace(/\s+in$/, '');
-      const after = p.slice(d.end).replace(/^\s*(?:,|in|of)\s*/i, '').trim();
+      // "in" and "of" join a degree to its field only as whole words ("B.S. Information Technology" keeps "Information").
+      const after = p.slice(de).replace(/^\s*(?:,|(?:in|of)\b)\s*/i, '').trim();
       const ofm = /^(Bachelor|Master|Associate|Doctor) of ([A-Z][a-z]+(?: [A-Z][a-z]+)?)(?: in (.+))?$/i.exec(p);
       if (ofm) { degree = `${ofm[1]} of ${ofm[2]}`; major = ofm[3] ?? null; } else if (after) major = after;
       continue;
@@ -451,6 +473,10 @@ export function parseLines(lines: SrcLine[], _opts: { source: 'pdf' | 'docx' | '
   const warnings: string[] = [];
   const unreadSections: string[] = [];
   const marked = markHeadings(lines);
+  // The right edge of the text in each column: a wrapped line runs close to it.
+  const right = new Map<number, number>();
+  for (const l of lines) if (l.xEnd > 0 && l.size > 0) right.set(l.column, Math.max(right.get(l.column) ?? 0, l.xEnd));
+  const drawnSections: string[] = [];
   const sections: Section[] = [];
   const headerLines: SrcLine[] = [];
   let cur: Section | null = null;
@@ -508,14 +534,15 @@ export function parseLines(lines: SrcLine[], _opts: { source: 'pdf' | 'docx' | '
         break;
       }
       case 'experience': {
-        const { entries, orphans } = groupEntries(nonEmpty, { dated: true });
+        const { entries, orphans, drawnMarks } = groupEntries(nonEmpty, { dated: true, right });
         sourceBullets += entries.reduce((n, e) => n + e.bullets.length, 0);
+        if (drawnMarks) drawnSections.push(s.title);
         if (orphans) warnings.push(`${s.title}: ${orphans === 1 ? 'some bullets were' : 'some bullets were'} found before any job heading; they are kept in the first entry. Check them.`);
         entries.forEach((e) => work.push(parseWorkEntry(e, work.length, warnings)));
         break;
       }
       case 'education': {
-        const { entries } = groupEntries(nonEmpty, { dated: true });
+        const { entries } = groupEntries(nonEmpty, { dated: true, right });
         // A school on one line and the degree on the next, with no bullets, is one entry, not two.
         const merged: Entry[] = [];
         for (const e of entries) {
@@ -536,7 +563,8 @@ export function parseLines(lines: SrcLine[], _opts: { source: 'pdf' | 'docx' | '
         for (const n of parseSkills(nonEmpty)) if (!skills.some((x) => x.name.toLowerCase() === n.toLowerCase())) skills.push({ name: n, years: null, source: 'resume' });
         break;
       case 'projects': {
-        const { entries } = groupEntries(nonEmpty, { dated: false });
+        const { entries, drawnMarks } = groupEntries(nonEmpty, { dated: false, right });
+        if (drawnMarks) drawnSections.push(s.title);
         // Projects rarely have dates: each non-bullet line after bullets starts a new project.
         sourceBullets += entries.reduce((n, e) => n + e.bullets.length, 0);
         entries.forEach((e) => projects.push(parseProjectEntry(e, projects.length)));
@@ -553,6 +581,7 @@ export function parseLines(lines: SrcLine[], _opts: { source: 'pdf' | 'docx' | '
     }
   }
   if (unreadSections.length) warnings.push(`jobleft has no profile field for: ${unreadSections.join(', ')}. ${unreadSections.length === 1 ? 'It is' : 'They are'} kept word for word as ${unreadSections.length === 1 ? 'a section' : 'sections'} of your resume. Check ${unreadSections.length === 1 ? 'it' : 'them'} in your profile.`);
+  if (drawnSections.length && _opts.source === 'pdf') warnings.push(`${drawnSections.join(', ')}: the bullet marks in this file are drawn as shapes, not written as text, so jobleft split the bullets where the lines end. Check that each bullet is whole.`);
   if (!work.length) warnings.push('No work history was found. If the file has jobs, their section heading was not recognised: add them in your profile.');
   if (!education.length) warnings.push('No education was found.');
   if (!skills.length) warnings.push('No skills section was found.');
