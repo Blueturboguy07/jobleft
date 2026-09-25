@@ -34,6 +34,22 @@ Local additions that are not in freehire (written new): the per-host pacer, the 
 - Source: the owner's own Python project (`~/Documents/internships`, `pipeline/normalize.py` and `pipeline/dedup.py`). First-party code, no third-party licence applies.
 - jobleft file: `packages/crawler/src/normalize.ts` (URL canonicalisation, company and title normalisers, the two-layer dedupe spine). Two deliberate changes are documented in that file (`gh_jid` is kept; intern words are kept).
 
+### 1.3 Other job sources (`packages/sources-other`)
+
+- No third-party code was copied or ported. The adapters for Remote OK, The Muse, the HN hiring thread, the GitHub job
+  lists, Remotive and USAJOBS are written new in TypeScript from each source's public documentation (links in
+  `docs/sources/*.md`).
+- First-party reference (no third-party licence applies): the owner's Internship Machine
+  (`~/Documents/internships/internships/sources/github_repo.py`, `extra_adapters.py`) was read for the list formats,
+  the HN header split on `|`, and the USAJOBS headers. No file was copied.
+- Fixtures (`packages/sources-other/fixtures/`) hold made-up employers, titles, text and links only. Their structure
+  follows one real answer of each source read on 2026-09-25; only that structure (paths and types, no data) is kept,
+  in `fixtures/*/shape.json`. The real answers were not committed.
+- Data the app reads at run time from these sources stays on the person's laptop and is shown with the credit each
+  source's terms ask for: Remote OK ("mention Remote OK as a source", link back), The Muse (link back, terms 3.4), the
+  GitHub lists (repository credit; vanshb03 lists are MIT, Copyright (c) their authors; SimplifyJobs and speedyapply
+  lists have no licence file and are used for facts only), and Hacker News (link to each comment).
+
 ## 2. Data shipped with the app
 
 None yet. The static-data lane adds entries here (board directory, H-1B sponsor table from US Department of Labor LCA disclosure files, city dictionary with its attribution, skill dictionary).

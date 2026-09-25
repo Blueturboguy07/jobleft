@@ -14,11 +14,16 @@
   },
   "scripts": {
     "test": "node --test \"test/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "cli": "node src/cli.ts",
+    "fixtures": "node scripts/make-fixtures.ts"
   },
   "dependencies": {
     "@jobleft/contracts": "workspace:*",
     "@jobleft/parsers": "workspace:*",
     "@jobleft/crawler": "workspace:*"
+  },
+  "bin": {
+    "jobleft-sources": "./src/cli.ts"
   }
 }

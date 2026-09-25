@@ -113,7 +113,7 @@ message and left untouched.
 | `schema_migrations`, `job_vectors`, `job_skills`, `tracker`, `tracker_notes`, `tracker_reminders`, `saved_filters`, `profile`, `chats`, `notifications`, `settings` | store | Planned. `job_vectors`: float16 BLOB per (job id, content hash, model). `settings` is key-value JSON (other packages' small settings go here through `SettingsStore`) |
 | `board_prefs`, `crawl_runs`, `crawl_board_reports` | boards | Planned. User boards and choices (follow, hide, disable); crawl run history for the report |
 | `company_facts` | static-data | Planned. Facts per company key with source and date |
-| `source_state` | sources-other | Planned. On or off, last run, daily request counts per source (limits survive restarts) |
+| `source_state`, `source_runs`, `source_requests`, `source_host_slots`, `feed_postings` | sources-other | Built (migration 1). `source_state`: on or off, last run, last problem, 429 wait, ETag, run lease. `source_runs` and `source_requests`: the rolling 24-hour counts (limits survive restarts and hold across processes). `source_host_slots`: the pacer shared by every process. `feed_postings`: each posting as each feed lists it (see "Reading feed jobs" under `@jobleft/sources-other`) |
 | `resumes`, `tailor_proposals`, `cover_letters` | resume | Planned |
 | `network_contacts` | network | Planned |
 | `practice_sessions`, `practice_items` | ai-engine | Planned |
@@ -141,6 +141,8 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_CLOCK_OFFSET` | same | `0` | Run the clock ahead or behind: `72h`, `-30m`, `3d`, `90s`, `1500ms` |
 | `JOBLEFT_HOST_MAP` | crawler `hostMapFromEnv()` (Built) | none | JSON map from a real ATS host to a LOOPBACK mock origin, for example `{"boards-api.greenhouse.io":"http://127.0.0.1:4010"}` |
 | `JOBLEFT_PUBLIK_BASE_URL` | ai-engine, sources-other | `https://publikhq.com/api/v1` | Lanes and tests MUST point this at a local stand-in. No lane calls publikhq.com |
+| `JOBLEFT_SOURCE_KEY_<ID>` | sources-other CLI only | none | A source key for the `jobleft-sources` CLI (for example `JOBLEFT_SOURCE_KEY_THEMUSE`). Read, never saved or printed. The app uses the OS secret store (`SECRET_NAMES.sourceKey(id)`) |
+| `JOBLEFT_SOURCE_TIMEOUT_MS` | sources-other CLI | `15000` | Per-request timeout of other-source requests |
 | `JOBLEFT_PUBLIK_APP_TOKEN` | ai-engine | none | The publik app token. None exists yet (gate G-publik); without it, connect answers a plain error |
 | `JOBLEFT_MODEL_BASE_URL` | ai-engine | the Hugging Face `BAAI/bge-small-en-v1.5` files | Where the fit model is downloaded from, once (tests use a local stand-in) |
 | `JOBLEFT_DATASET_MANIFEST_URL` | static-data | none until the owner names the release location | Where newer dataset releases are listed (tests use a local stand-in) |
@@ -485,101 +487,105 @@ whole board (a paged adapter reads every page, and a page failure fails the boar
 
 ### `@jobleft/sources-other`
 
-Status: **Stub**. Purpose: non-ATS feeds (each OFF until reviewed and approved), add-a-job by URL or text, and the
-metered fetch and search client (paid, OFF until the person turns it on, price shown first in dollars). Owns: table
-`source_state`; routes `addExternalJob`, `listSources`, `updateSource`, `setSourceKey`, `deleteSourceKey`.
+Status: **Built** (45 tests, no live request). Purpose: non-ATS feeds (each OFF until the person turns it on),
+add-a-job by URL or text, and the metered fetch and search client (paid, OFF until the person turns it on, price
+shown first in dollars). Owns: tables `source_state`, `source_runs`, `source_requests`, `source_host_slots`,
+`feed_postings`; routes `addExternalJob`, `listSources`, `updateSource`, `setSourceKey`, `deleteSourceKey`.
+Package README (commands, stand-in feeds, checks per outcome): `packages/sources-other/README.md`. Source notes:
+`docs/sources/{remoteok,themuse,hn-whoishiring,github-lists,remotive,usajobs,adzuna}.md`.
 
 <!-- BEGIN GENERATED: sig:packages/sources-other -->
 ```ts
-import type { Credit, SourceInfo } from '@jobleft/contracts';
-import type { RawJob } from '@jobleft/crawler';
-/** The network a feed may use: the crawler's polite HttpClient (pacer, robots.txt, never-crawl list, User-Agent). */
-export interface FeedHttp {
-    getJson(url: string): Promise<unknown>;
-    getText(url: string, accept?: string): Promise<string>;
-}
-export interface FeedContext {
-    http: FeedHttp;
-    /** The source's key from the secret store; null when the source needs none or none is saved. */
-    key: string | null;
-    now: number;
-    signal?: AbortSignal;
-}
-export interface FeedResult {
-    /** Postings in the crawler's RawJob shape, so they share normalisation and dedupe. */
-    jobs: RawJob[];
-    /** true when this answer is the whole feed (only then may jobs missing from it be closed). */
-    complete: boolean;
-}
-/** One non-ATS source. */
-export interface JobFeed {
-    readonly id: string;
-    readonly info: Omit<SourceInfo, 'enabled' | 'keySet' | 'status'>;
-    readonly credit: Credit | null;
-    /** The source's own limits, enforced across restarts (for example 4 fetches a day). */
-    readonly limits: {
-        minIntervalMs: number;
-        maxPerDay: number | null;
-    };
-    /** false for per-query partners whose terms forbid storing results (they are never saved). */
-    readonly storable: boolean;
-    fetch(ctx: FeedContext): Promise<FeedResult>;
-}
-/** Every approved feed. Empty until the lane adds them; each one ships OFF until reviewed. */
-export declare const OTHER_FEEDS: readonly JobFeed[];
-/** A job the person adds by URL or by text, before the store saves it. */
-export interface ExternalJobDraft {
-    raw: RawJob;
-    sourceId: 'external:url' | 'external:text';
-    warnings: string[];
-}
-/** Reads a job page with a plain GET (JSON-LD JobPosting first, then the page text). Never a never-crawl host. */
-export declare function jobFromUrl(url: string, http: FeedHttp): Promise<ExternalJobDraft>;
-/** Builds a job from pasted text. Facts the text does not state stay unknown. */
-export declare function jobFromText(text: string, applyUrl: string | null): ExternalJobDraft;
-/** Paid page fetch and web search. Each call states its price first; nothing runs while `enabled` is false. */
-export interface MeteredFetchClient {
-    readonly enabled: boolean;
-    /** Prices per request in micros (publik list: search, plain page, JS page). */
-    prices(): {
-        search: number;
-        page: number;
-        jsPage: number;
-    };
-    fetchPage(url: string, opts: {
-        js: boolean;
-        maxPriceMicros: number;
-        signal?: AbortSignal;
-    }): Promise<{
-        url: string;
-        html: string;
-        costMicros: number;
-    }>;
-    search(query: string, opts: {
-        maxPriceMicros: number;
-        signal?: AbortSignal;
-    }): Promise<{
-        results: Array<{
-            title: string;
-            url: string;
-            snippet: string;
-        }>;
-        costMicros: number;
-    }>;
-}
-/** The metered client. It refuses every call until the person turns metered fetch on (ai-engine O15). */
-export declare function createMeteredFetchClient(opts: {
-    enabled: () => boolean;
-    baseUrl: string;
-    key: () => Promise<string | null>;
-    fetchImpl?: typeof fetch;
-}): MeteredFetchClient;
+export type { FeedContext, FeedFacts, FeedHttp, FeedPosting, FeedRequestOptions, FeedResponse, FeedResult, JobFeed, KeyReader, } from './types.ts';
+export { ALL_FEEDS, LISTED_ONLY, OTHER_FEEDS, ROBOTS_EXCEPTIONS, feedById, keyEnvName } from './catalog.ts';
+export { parseRemoteOk, remoteOk, REMOTEOK_CREDIT, REMOTEOK_URL } from './feeds/remoteok.ts';
+export { parseRemotive, remotive, REMOTIVE_CREDIT, REMOTIVE_URL } from './feeds/remotive.ts';
+export { MUSE_BASE, MUSE_CREDIT, MUSE_SLICE, museUrl, parseMusePage, theMuse } from './feeds/themuse.ts';
+export { parseUsajobsPage, parseUsajobsSecret, usajobs, usajobsUrl } from './feeds/usajobs.ts';
+export { HN_CREDIT, HN_SEARCH_URL, hnItemUrl, hnPostUrl, hnWhoIsHiring, parseHnComment, parseHnThread, pickHiringThread } from './feeds/hn.ts';
+export type { HnThreadRef } from './feeds/hn.ts';
+export { GITHUB_FEEDS, GITHUB_LISTS, parseListings, parseSpeedyMarkdown, rawUrl, speedyId } from './feeds/github.ts';
+export type { GithubList } from './feeds/github.ts';
+export { DbPacer, FeedClient, FeedError, MemoryPacer, NEVER_CRAWL, parseJsonBody, shapeError } from './http.ts';
+export type { FeedClientOptions, FeedErrorCode, HostPacer } from './http.ts';
+export { NewerSchemaError, OWNER, SCHEMA_VERSION, migrateSourcesOther } from './db.ts';
+export { DAY_MS, backoffMs, finishRun, getState, nextAllowed, recordRequest, reserveRun, setEnabled } from './limits.ts';
+export type { RunReason, Wait, WaitReason } from './limits.ts';
+export { MASS_CLOSE_CONFIRM_MS, MASS_CLOSE_MIN_OPEN, MASS_CLOSE_SHARE, applyFeedResult, jobKeyOf, plainProblem, refreshSources } from './runner.ts';
+export type { RefreshOptions, SkipReason, SourceRunResult } from './runner.ts';
+export { SHOWN_SQL, creditLine, enabledSources, ephemeralJobs, exportFeedJobs, feedJobs, openJobsFor } from './view.ts';
+export type { FeedJobQuery } from './view.ts';
+export { SourceService, SourceServiceError, envSecretStore } from './service.ts';
+export type { RefreshReport, SourceServiceOptions } from './service.ts';
+export { atsBoardFromUrl, discoverBoards } from './discover.ts';
+export type { AtsLink, BoardCandidate, DiscoveryReport } from './discover.ts';
+export { countryCode, employmentTypeOf, fixMojibake, makePay, parseRemoteScope, payFromSalaryField, payFromText, placeFromText, safeHttpUrl, scopeOpenToUs, } from './text.ts';
+export { jobFromText, jobFromUrl } from './external.ts';
+export type { ExternalJobDraft } from './external.ts';
+export { METERED_PRICES_MICROS, MeteredFetchError, createMeteredFetchClient } from './metered.ts';
+export type { MeteredFetchClient } from './metered.ts';
 ```
 <!-- END GENERATED: sig:packages/sources-other -->
 
-Rules: a key a source needs goes only to that source's host and only in a header when the source allows; per-query
-partners whose terms forbid storage are never saved (`storable: false`); credit text appears wherever their jobs
-appear. CLI (planned): `jobleft-sources run <sourceId> --feed-url <loopback stand-in>`.
+The foundation interface is unchanged; the changes are additive: optional fields on `FeedHttp` (`request`),
+`FeedContext` (`etag`), `FeedResult` (`postings`, `unreadableIds`, `unreadableWithoutId`, `skipped`, `notModified`,
+`etag`, `notes`, `problem`) and `JobFeed` (`hosts`, `requestLimits`, `keyHelp`, `checkKey`). `OTHER_FEEDS` is filled.
+
+Sources (`ALL_FEEDS`; ids are the `sourceId` of `SourceAttribution`):
+
+| Id | Crawled | Key | Host | Limit |
+|---|---|---|---|---|
+| `remoteok` | yes | no | `remoteok.com` | 4 runs in any 24 h, 1 h apart |
+| `themuse` | yes | yes (`api_key` URL parameter, the only form The Muse takes) | `www.themuse.com` | 2 runs in any 24 h, 6 h apart, 900 requests |
+| `hn-whoishiring` | yes | no | `hn.algolia.com` | 2 runs in any 24 h, 6 h apart |
+| `gh-simplify-internships`, `gh-vanshb03-internships`, `gh-vanshb03-newgrad`, `gh-speedyapply-swe`, `gh-speedyapply-ai` | yes | no | `raw.githubusercontent.com` | 4 runs in any 24 h, 1 h apart |
+| `remotive` | no: robots.txt disallows `/api/*` | no | (`remotive.com`) | cannot be turned on |
+| `usajobs` | no: robots.txt disallows `/`; owner decision | yes (`<email> <key>`: key in `Authorization-Key`, email in `User-Agent`, its host only) | (`data.usajobs.gov`) | cannot be turned on |
+| `adzuna` (`LISTED_ONLY`) | no: terms forbid storage | yes | none | no adapter |
+
+Wiring for the server (`SourceService`):
+
+| Call | Route or use | Notes |
+|---|---|---|
+| `new SourceService({ store, secrets, hostMap?, offline?, timeoutMs?, pacer?, now? })` | once at start | `store` is the crawler `Store` on the app database; runs this lane's migration |
+| `list(): Promise<SourceInfo[]>` | `GET /api/v1/sources` | Merge with `ATS_SOURCE_LIST` from sources-ats. `status.lastProblem` starts with its UTC time |
+| `update(id, { enabled })` | `PATCH /api/v1/sources/:sourceId` | Throws `SourceServiceError` `not_found` (404) or `conflict` (409, not crawled) |
+| `setKey(id, key)`, `deleteKey(id)` | `PUT`, `DELETE /api/v1/sources/:sourceId/key` | `bad_request` (400) for a key in the wrong form; the answer never holds the key |
+| `refresh({ ids?, reason: 'manual' })` | with `crawlRun`, or its own button | Every result says what happened; a source that is too soon returns `skipReason: 'too_early'` and `nextAllowedAt` (answer 425 `too_early` when nothing ran) |
+| `refreshInBackground(...)` | UI refresh button | Returns at once |
+| `runDue('launch')`, `runDue('schedule')` | launch catch-up; tray timer (every 15 minutes is fine) | Runs only sources that are on and due; safe to call often and from two places at once |
+| `jobFromUrl(url, http)`, `jobFromText(text, applyUrl)` | `POST /api/v1/jobs/external` | Pass the crawler's shared `HttpClient`. `FeedError.code` `never_crawl` = 422 `forbidden_source`; `not_found`, `shape` ("not a job posting") = plain messages |
+| `createMeteredFetchClient({ enabled, baseUrl, key })` | metered fetch and search | Refuses every call while `enabled()` is false; planned publik routes `POST <base>/fetch`, `POST <base>/search` (gate G-publik) |
+
+Reading feed jobs (for the store lane). Feed postings are rows of the crawler's `jobs` table with
+`ats = "feed:<sourceId>"`, `board = "<sourceId>"`, `job_id = <the source's id>`; the job id is
+`feed:<sourceId>:<sourceId>:<id>`. Each source that lists a posting has one `feed_postings` row:
+
+| Column | Meaning |
+|---|---|
+| `source_id`, `external_id` | The source and its id for the posting (primary key) |
+| `job_ats`, `job_board`, `job_ext_id`, `job_key` | The `jobs` row that holds the posting. When two sources list the same posting (same canonical URL), both rows point at one `jobs` row, which may be an ATS row |
+| `source_name`, `url`, `credit_text`, `credit_url` | `SourceAttribution.name`, `.url` (the posting on that source, exactly as the source wrote it) and `.credit` |
+| `apply_url`, `canonical_url` | The employer's apply page when the source gives one; the crawler's canonical URL |
+| `posted_at`, `places_json`, `work_model`, `remote_scope_json`, `employment_type`, `level`, `pay_json`, `is_us`, `statements_json`, `evidence_json` | Facts as the source states them (contract shapes, JSON). `null` = not stated. When set, they win over the crawler's text-derived columns |
+| `first_seen_at`, `last_seen_at` | `SourceAttribution.firstSeenAt`, `.lastSeenAt` |
+| `status`, `closed_at`, `closed_reason` | `open` or `closed` on that source (`source_removed`). The `jobs` row closes only when no source lists it |
+
+Rules for showing them (the reference is `feedJobs()` in `src/view.ts`): `Job.sources` has one entry per
+`feed_postings` row of the job (plus the ATS entry for an ATS row), each with its credit; `creditLine(job.sources)` is
+the credit text for notifications, alerts and exports. The crawler's `duplicate_of` (same company and title, another
+URL) must not hide a feed row: two postings with the same title at one company are two jobs (sources-other O10). Jobs
+whose only sources are turned off (`source_state.enabled = 0`) are hidden from the job list, never deleted; tracked
+jobs stay in the tracker. `status.openJobs` counts the same way.
+
+Rules: a key goes only to its source's host (in a header, or for The Muse in the URL, which jobleft always redacts);
+the fixed `USER_AGENT` goes everywhere except USAJOBS's own host (its terms ask for the registered email); every
+request obeys robots.txt (`ROBOTS_EXCEPTIONS` is empty; only the owner adds to it); redirects are never followed; with
+`JOBLEFT_HOST_MAP` set, an unmapped host is refused (stand-in mode); per-query partners whose terms forbid storage are
+never saved (`storable: false`); an error, an empty answer, a cut-off or partial answer never closes or deletes jobs.
+CLI (Built): `node packages/sources-other/src/cli.ts <list|enable|disable|refresh|due|simulate|jobs|export|runs|discover|standin|standin-set|standin-reset>`
+(bin `jobleft-sources`). Stand-in feeds for tests: `standin --dir <d>` (one loopback port per real host, editable
+fixtures, switchable failures, a request log with keys redacted).
 
 ### `@jobleft/boards`
 
@@ -1312,7 +1318,7 @@ The app contacts only these hosts, and only for these reasons. Anything else is 
 |---|---|---|
 | Approved public ATS APIs: `boards-api.greenhouse.io`, `api.lever.co`, `api.eu.lever.co`, `api.ashbyhq.com`, and the Workable, Recruitee and Personio feed hosts once their adapters land | Job boards | Crawls; 1 request per second per host; robots.txt obeyed |
 | Hosts of links the person pastes (careers pages, job pages) | Resolve a board or read an added job | On the person's action only; same polite client |
-| Approved non-ATS feed hosts (sources-other) | Job feeds | Only when that source is on |
+| Approved non-ATS feed hosts (sources-other): `remoteok.com`, `www.themuse.com` (with the person's key), `hn.algolia.com`, `raw.githubusercontent.com` | Job feeds | Only when that source is on; never `remotive.com` or `data.usajobs.gov` (robots.txt) |
 | The fit model host (`JOBLEFT_MODEL_BASE_URL`) | Download bge-small-en-v1.5 once | First fit indexing; never on every launch |
 | The dataset release host (`JOBLEFT_DATASET_MANIFEST_URL`) | Newer H-1B, place or directory data | When the person updates, or a stated schedule |
 | Free company-fact sources (Wikidata, SEC, GLEIF) | Company facts | When a company block is opened and its kept facts expired |
@@ -1327,7 +1333,9 @@ Refused before any request, in code (`DENY_HOST` in `packages/crawler/src/http.t
 pasted links: LinkedIn (`linkedin.com`, `licdn.com`), Indeed, Glassdoor, SmartRecruiters, Workday
 (`myworkdayjobs.com`, `myworkdaysite.com`, `workday.com`). Held back until the owner approves: iCIMS, Oracle, UKG,
 Taleo (the lanes add their hosts to the refused list; recognising them from a URL for autofill sends no request).
-Redirects are never followed automatically.
+Redirects are never followed automatically. sources-other refuses all of these, iCIMS (`icims.com`), Oracle
+(`oraclecloud.com`), Taleo (`taleo.net`) and UKG (`ultipro.com`, `ukg.com`, `ukg.net`) included, in `NEVER_CRAWL`
+(`packages/sources-other/src/http.ts`), and also refuses every host that is not on the source's own list.
 
 ## 11. Testing conventions
 

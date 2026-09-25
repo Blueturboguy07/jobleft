@@ -231,7 +231,7 @@ docs/INTERFACES.md section 3). `feedJobs()` and `exportFeedJobs()` show how they
 ## 9. Tests
 
 ```sh
-pnpm --filter @jobleft/sources-other test        # 46 tests, about 16 s, no live request
+pnpm --filter @jobleft/sources-other test        # 45 tests, about 16 s, no live request
 pnpm --filter @jobleft/sources-other typecheck
 ```
 
