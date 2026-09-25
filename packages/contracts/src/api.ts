@@ -309,6 +309,7 @@ export const LOCAL_API = {
   review: route({ method: 'POST', path: '/api/v1/extension/review', auth: 'pairing', owner: 'server', summary: 'What the user reviewed and whether the user submitted', body: ReviewResultSchema, response: ReviewResponseSchema }),
   extensionPage: route({ method: 'POST', path: '/api/v1/extension/page', auth: 'pairing', owner: 'server', summary: 'Which job a page address is, whether the person applied, and the resumes to attach (the address only; no page text)', body: PageInfoRequestSchema, response: PageInfoSchema }),
   extensionDrafts: route({ method: 'POST', path: '/api/v1/extension/drafts', auth: 'pairing', owner: 'server', summary: 'Draft answers for open questions after the person saw the price (never written into a form by the app)', body: DraftRequestSchema, response: DraftResponseSchema }),
+  extensionAddJob: route({ method: 'POST', path: '/api/v1/extension/add-job', auth: 'pairing', owner: 'server', summary: 'Add the job on the person\'s current tab to jobleft (the same read as add-by-link; the person pressed the button)', body: PageInfoRequestSchema, response: PageInfoSchema }),
 } as const;
 
 export type LocalApi = typeof LOCAL_API;

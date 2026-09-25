@@ -200,6 +200,9 @@ importers:
       '@jobleft/crawler':
         specifier: workspace:*
         version: link:../../packages/crawler
+      '@jobleft/extension':
+        specifier: workspace:*
+        version: link:../extension
       '@jobleft/match':
         specifier: workspace:*
         version: link:../../packages/match
