@@ -194,7 +194,8 @@ function ftsQuery(q: string): { match: string | null; exact: string[] } {
   const words = q.split(/\s+/).map((w) => w.trim()).filter(Boolean).slice(0, 20);
   const tokens: string[] = [];
   const exact: string[] = [];
-  for (const w of words) {
+  for (const raw of words) {
+    const w = raw.replace(/^["'“”‘’]+|["'“”‘’,;:!?]+$/g, '');
     const inner = w.replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
     if (inner) tokens.push(`"${inner.replace(/"/g, '""')}"`);
     if (/[+#.()]/.test(w)) exact.push(w.toLowerCase());
@@ -330,7 +331,11 @@ export class JobsService {
     if (req.q && req.q.trim()) {
       const { match, exact } = ftsQuery(req.q);
       if (match) { where.push('x.id IN (SELECT rowid FROM jobs_fts WHERE jobs_fts MATCH ?)'); args.push(match); }
-      for (const e of exact) { where.push('x.id IN (SELECT id FROM jobs WHERE instr(lower(title), ?) > 0 OR instr(lower(description), ?) > 0)'); args.push(e, e); }
+      // Words with symbols (C++, C#, .NET, 401(k)) must appear as written: checked only on the rows the words matched.
+      for (const e of exact) {
+        if (match) { where.push('x.id IN (SELECT rowid FROM jobs_fts WHERE jobs_fts MATCH ? AND (instr(lower(title), ?) > 0 OR instr(lower(description), ?) > 0))'); args.push(match, e, e); }
+        else { where.push('x.id IN (SELECT id FROM jobs WHERE instr(lower(title), ?) > 0 OR instr(lower(description), ?) > 0)'); args.push(e, e); }
+      }
     }
     if (filter.workModels?.length) {
       const parts = [`x.work_mode IN (${filter.workModels.map(() => '?').join(',')})`];
