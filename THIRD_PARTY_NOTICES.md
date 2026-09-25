@@ -54,7 +54,7 @@ The starting weights of the overall percent (0.24 / 0.29 / 0.08 / +36) come from
 ### 2.1 Match dictionaries (first party)
 
 - Files: `packages/match/data/skills.tsv` (about 550 skills with aliases, contexts and related skills),
-  `credentials.tsv` (90 licences and certifications), `occupations.tsv` (42 kinds of work, about 1,500 job-title
+  `credentials.tsv` (90 licences and certifications), `occupations.tsv` (46 kinds of work, about 1,500 job-title
   phrases, how close two kinds are), `industries.tsv` (30 industries with posting and employer-name phrases).
 - Source: written new for jobleft by the match lane on 2026-09-25 from general knowledge of job titles, tools, trade
   skills and licences. No third-party list, taxonomy or dataset (O*NET, ESCO, Lightcast, freehire, or any other) was

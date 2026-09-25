@@ -96,7 +96,7 @@ that is not in the file has no H-1B data, and the product then says nothing abou
 | `node packages/match/src/cli.ts explain --job J` | What the engine read: the section of every line, sentences ignored as text aimed at screeners, must-haves with quotes, skills with their importance. |
 | `node packages/match/src/cli.ts check --profile P --jobs DIR` | Self-checks on every job: contract validity, two runs identical, band agrees with the cut-offs, card = detail = endpoint, the card carries the first warning, every quote is in the posting, every part has a reason, no Strong band with a warning. Exit code 1 on any failure. |
 | `node packages/match/src/cli.ts serve --profile P --jobs DIR [--companies C] [--port N]` | The local preview (section 5). |
-| `node packages/match/src/cli.ts stats` | Size of the dictionaries (about 550 skills, 90 licences and certifications, 42 kinds of work with about 1,500 title phrases, 30 industries). |
+| `node packages/match/src/cli.ts stats` | Size of the dictionaries (about 550 skills, 90 licences and certifications, 46 kinds of work with about 1,500 title phrases, 30 industries). |
 | `node packages/match/src/cli.ts help` | This list. |
 
 Common options: `--companies FILE`, `--now ISO-DATE`, `--config FILE` (other weights, section 6).
