@@ -145,3 +145,33 @@ test('an error never shows a stack trace or the account path', async () => {
   assert.equal(r.status, 404);
   assert.ok(!/\/Users\/|at .*\.ts:\d+/.test(r.text));
 });
+
+test('at the default log level, refused requests leave every file in the data folder byte for byte as it was', async () => {
+  const { createHash } = await import('node:crypto');
+  const { readdirSync, readFileSync, statSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const t = await startTest('secquiet', { env: { JOBLEFT_LOG_LEVEL: 'info' } });
+  const hashAll = (dir: string): string => {
+    const h = createHash('sha256');
+    const walk = (d: string) => {
+      for (const n of readdirSync(d).sort()) {
+        const p = join(d, n);
+        if (p.startsWith(join(t.home, 'run'))) continue;
+        if (statSync(p).isDirectory()) walk(p); else h.update(p).update(readFileSync(p));
+      }
+    };
+    walk(dir);
+    return h.digest('hex');
+  };
+  try {
+    await t.call('PUT', '/api/v1/profile', { ...(await import('./helpers.ts')).PERSONA });
+    const before = hashAll(t.home);
+    for (const [, r] of ROUTES) {
+      const path = samplePath(r);
+      await raw(t.port, { method: r.method, path, headers: { 'content-type': 'text/plain' }, body: r.method === 'GET' || r.method === 'DELETE' ? undefined : 'x' });
+      await raw(t.port, { method: r.method, path, headers: { origin: 'http://127.0.0.1:8099', 'x-jobleft-token': t.token } });
+      await raw(t.port, { method: r.method, path, host: 'attacker.example', headers: { 'x-jobleft-token': t.token } });
+    }
+    assert.equal(hashAll(t.home), before);
+  } finally { await t.stop(); cleanup(t.home); }
+});
