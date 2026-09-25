@@ -99,7 +99,9 @@ export function greenhouseJob(id: number, o: { title: string; location?: string;
     absolute_url: `https://boards.greenhouse.io/${o.board}/jobs/${id}`,
     location: { name: o.location ?? '' },
     content: html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
-    ...(o.posted === null ? {} : { first_published: o.posted ?? '2026-09-20T15:00:00-04:00', updated_at: o.posted ?? '2026-09-20T15:00:00-04:00' }),
+    // Like the real API: `updated_at` (the last edit) is always there; `first_published` only when the board says it.
+    ...(o.posted === null ? {} : { first_published: o.posted ?? '2026-09-20T15:00:00-04:00' }),
+    updated_at: '2026-09-24T10:00:00-04:00',
     metadata: [],
     departments: [],
     ...(o.pay ? { pay_input_ranges: [{ min_cents: o.pay.min * 100, max_cents: o.pay.max * 100, currency_type: 'USD' }] } : {}),

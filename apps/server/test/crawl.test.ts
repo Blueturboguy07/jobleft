@@ -40,7 +40,7 @@ test('crawl, track, change the board, crawl again: the person\'s status, like an
     assert.equal(j.postedAt, '2026-09-21T03:30:00.000Z', 'the posted instant is kept (late evening in New York is the next day in UTC)');
     assert.deepEqual([j.pay.min, j.pay.max, j.pay.period, j.pay.currency], [80000, 100000, 'year', 'USD']);
     const nurse = (await s.call('GET', `/api/v1/jobs/${encodeURIComponent('greenhouse:mockco:2')}`)).json.job;
-    assert.equal(nurse.postedAt, null, 'no posted date stays unknown, never the crawl time');
+    assert.equal(nurse.postedAt, null, 'no posted date stays unknown: never the crawl time, never the last edit (updated_at)');
     assert.deepEqual(nurse.places, []);
 
     await s.call('PATCH', `/api/v1/tracker/${encodeURIComponent(id)}`, { liked: true, status: 'applied', notes: [{ text: 'my note' }] });
@@ -86,7 +86,7 @@ test('crawl, track, change the board, crawl again: the person\'s status, like an
     } finally { await boards2.close(); }
   } finally {
     await s.call('POST', '/api/v1/dev/clock', {});
-    await s.stop(); cleanup(s.home); cleanup(dir);
+    await s.stop(); await boards.close(); cleanup(s.home); cleanup(dir);
   }
 });
 

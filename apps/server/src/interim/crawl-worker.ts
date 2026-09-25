@@ -5,7 +5,7 @@
 
 import { parentPort, workerData } from 'node:worker_threads';
 import { nowMs } from '@jobleft/contracts';
-import { HttpClient, Pacer, SOURCES, Store, crawl, type BoardRef, type BoardResult } from '@jobleft/crawler';
+import { HttpClient, Pacer, SOURCES, Store, crawl, type BoardRef, type BoardResult, type HttpGetter, type Source, type SourceRegistry } from '@jobleft/crawler';
 
 interface Init { dbPath: string; hostMap: Record<string, string> }
 export type ToWorker = { type: 'run'; runId: number; refs: BoardRef[] } | { type: 'stop' };
@@ -13,6 +13,25 @@ export type FromWorker =
   | { type: 'board'; runId: number; result: Omit<BoardResult, 'stats'> & { stats: BoardResult['stats'] } }
   | { type: 'done'; runId: number; boards: BoardResult[]; totals: { inserted: number; updated: number; closed: number } }
   | { type: 'failed'; runId: number; message: string };
+
+// Server O13: a posted date is the date the board says the job was PUBLISHED, never its last edit. The foundation's
+// Greenhouse adapter falls back to `updated_at` when `first_published` is missing (the crawler lane removes that
+// fallback). Until that lands, the server hides `updated_at` from the adapter, so a missing date stays null.
+function withoutUpdatedAt(resp: unknown): unknown {
+  if (!resp || typeof resp !== 'object' || !Array.isArray((resp as { jobs?: unknown }).jobs)) return resp;
+  const jobs = (resp as { jobs: unknown[] }).jobs.map((j) => {
+    if (!j || typeof j !== 'object') return j;
+    const { updated_at: _edit, ...rest } = j as Record<string, unknown>;
+    return rest;
+  });
+  return { ...(resp as object), jobs };
+}
+const greenhouseStrict: Source = {
+  ...SOURCES.greenhouse!,
+  fetchBoard: (board: BoardRef, http: HttpGetter) =>
+    SOURCES.greenhouse!.fetchBoard(board, { getJson: async (url: string) => withoutUpdatedAt(await http.getJson(url)) }),
+};
+const sources: SourceRegistry = { ...SOURCES, greenhouse: greenhouseStrict };
 
 const init = workerData as Init;
 const store = new Store(init.dbPath);
@@ -36,7 +55,7 @@ parentPort!.on('message', (m: ToWorker) => {
     const http = new HttpClient({ pacer, hostMap: init.hostMap, fetchImpl, maxRequests: 5000 });
     try {
       const rep = await crawl(m.refs, {
-        store, http, sources: SOURCES, now: () => nowMs(),
+        store, http, sources, now: () => nowMs(),
         onBoard: (r) => parentPort!.postMessage({ type: 'board', runId: m.runId, result: r } satisfies FromWorker),
       });
       parentPort!.postMessage({ type: 'done', runId: m.runId, boards: rep.boards, totals: { inserted: rep.totals.inserted, updated: rep.totals.updated, closed: rep.totals.closed } } satisfies FromWorker);
