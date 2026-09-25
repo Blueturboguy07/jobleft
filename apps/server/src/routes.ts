@@ -118,16 +118,21 @@ export const HANDLERS: HandlerTable = {
 
   // ---------------------------------------------------------------- jobs
   listJobs: ({ d, query }) => ({
-    json: d.jobs.search(
+    json: d.feed.search(
       { sort: query.sort ?? 'recommended', q: query.q, cursor: query.cursor, limit: query.limit ? Math.min(100, Math.max(1, Number(query.limit))) : undefined, filter: query.status ? { status: query.status } : {} },
       { hasProfile: () => d.profile.exists(), networkCount: (k) => d.network.countFor(k) },
     ),
   }),
-  searchJobs: ({ d, body }) => ({ json: d.jobs.search(body, { hasProfile: () => d.profile.exists(), networkCount: (k) => d.network.countFor(k) }) }),
+  searchJobs: ({ d, body }) => ({ json: d.feed.search(body, { hasProfile: () => d.profile.exists(), networkCount: (k) => d.network.countFor(k) }) }),
   getJob: ({ d, params }) => {
-    const job = jobOr404(d, params.jobId!);
+    jobOr404(d, params.jobId!);
+    const job = d.feed.job(params.jobId!)!;
     const tracker = d.tracker.get(job.id);
-    return { json: detailOf(job, { company: null, match: null, tracker, networkCount: d.network.countFor(job.companyKey), h1bTag: null }) };
+    const h = d.feed.h1b(job);
+    const match = d.profile.exists() ? d.feed.match(d.profile.get(), job) : null;
+    let company = null;
+    try { company = d.staticData().getCompany({ companyKey: job.companyKey }, { name: job.company }); } catch { company = null; }
+    return { json: { ...detailOf(job, { company, match, tracker, networkCount: d.network.countFor(job.companyKey), h1bTag: h.tag }), ...(h.note ? { h1bNote: h.note } : {}) } };
   },
   addExternalJob: async ({ app, d, body }) => {
     const id = await addExternal(body, { crawlStore: d.crawlStore, hostMap: app.cfg.hostMap, offline: () => app.cfg.offline });
@@ -146,7 +151,11 @@ export const HANDLERS: HandlerTable = {
 
   // ---------------------------------------------------------------- profile and resumes
   getProfile: ({ d }) => ({ json: d.profile.get() }),
-  putProfile: ({ d, body }) => ({ json: d.profile.put(body) }),
+  putProfile: ({ d, body }) => {
+    const saved = d.profile.put(body);
+    try { d.afterProfileSaved(); } catch { /* the first-run choice never fails a save */ }
+    return { json: saved };
+  },
   listResumes: ({ d }) => ({ json: d.resumes.list() }),
   importResume: ({ d, body, contentType, fileName }) => ({ json: d.resumes.import(body, fileName, contentType === PDF ? PDF : DOCX) }),
   createResume: ({ d, body }) => ({ json: d.resumes.create(body) }),
@@ -175,7 +184,9 @@ export const HANDLERS: HandlerTable = {
   getMatch: ({ d, params }) => {
     jobOr404(d, params.jobId!);
     if (!d.profile.exists()) throw new ApiFailure('needs_profile', 'The match score needs your profile. Fill in your profile first.');
-    return notReady('The match score (the match engine)');
+    const m = d.feed.match(d.profile.get(), d.feed.job(params.jobId!)!);
+    if (!m) return notReady('The match score for this job');
+    return { json: m };
   },
   fitIndexStatus: ({ d }) => ({ json: { state: 'model_missing', model: null, modelBytes: null, modelSource: null, indexed: 0, waiting: d.jobs.counts().openJobs, lastRun: null } }),
 
@@ -197,12 +208,12 @@ export const HANDLERS: HandlerTable = {
   deleteSourceKey: () => notFound('That source'),
 
   // ---------------------------------------------------------------- static data
-  h1bLookup: () => notReady('The H-1B lookup (the shipped sponsor data)'),
-  placeLookup: () => notReady('The place lookup (the shipped place data)'),
-  getCompany: () => notReady('Company facts'),
-  refreshCompany: () => notReady('Company facts'),
-  listDatasets: () => ({ json: [] }),
-  updateDatasets: () => notReady('Dataset updates'),
+  h1bLookup: ({ d, query }) => ({ json: d.staticData().h1bLookup({ company: query.company }) }),
+  placeLookup: ({ d, query }) => ({ json: d.staticData().placeLookup({ text: query.text }) }),
+  getCompany: ({ d, params }) => ({ json: d.staticData().getCompany({ companyKey: params.companyKey! }) }),
+  refreshCompany: async ({ d, params, body }) => ({ json: await d.staticData().refreshCompany({ companyKey: params.companyKey! }, body) }),
+  listDatasets: ({ d }) => ({ json: d.staticData().listDatasets() }),
+  updateDatasets: async ({ d }) => ({ json: await d.staticData().updateDatasets() }),
 
   // ---------------------------------------------------------------- network
   importNetwork: ({ d, body }) => {

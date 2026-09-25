@@ -204,4 +204,5 @@ CREATE TABLE srv_extension_reviews (
 export const SERVER_SCHEMA_VERSION = SERVER_MIGRATIONS[SERVER_MIGRATIONS.length - 1]!.version;
 
 /** Owners whose steps this build runs. A file with steps of any other owner came from a build this one cannot read. */
-export const KNOWN_OWNERS: Readonly<Record<string, number>> = { server: SERVER_SCHEMA_VERSION };
+// 'static-data': the company_facts tables (i-core wires static-data into the app database).
+export const KNOWN_OWNERS: Readonly<Record<string, number>> = { server: SERVER_SCHEMA_VERSION, 'static-data': 1 };

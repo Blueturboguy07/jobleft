@@ -11,7 +11,8 @@ import type {
   AppSettings, BoardEntry, CrawlAtsId, CrawlBoardReport, CrawlProgress, CrawlRunSummary,
 } from '@jobleft/contracts';
 import { CRAWL_ATS_IDS, nowIso, nowMs } from '@jobleft/contracts';
-import { SOURCES, hostFor, type BoardRef, type BoardResult, type Store } from '@jobleft/crawler';
+import { hostFor, type BoardRef, type BoardResult, type Store } from '@jobleft/crawler';
+import { allSources } from '@jobleft/sources-ats';
 import type { FromWorker, ToWorker } from './crawl-worker.ts';
 import { b, parseJson, tx } from '../db/util.ts';
 import { ApiFailure } from '../errors.ts';
@@ -19,7 +20,9 @@ import type { Logger } from '../log.ts';
 import { redact } from '../log.ts';
 
 interface Row { id: string; ats: string; board: string; region: string | null; company: string; followed: number; hidden: number; disabled: number; added_at: string }
-interface HealthRow { consecutive_failures: number; cooldown_until: string | null; last_attempt_at: string | null; last_success_at: string | null; last_error: string | null }
+interface HealthRow { consecutive_failures: number; cooldown_until: string | null; last_attempt_at: string | null; last_success_at: string | null; last_error: string | null; last_status: string | null; last_reason: string | null; last_listed: number | null }
+
+const SOURCES = allSources();
 
 export function boardIdOf(ats: string, board: string, region?: string | null): string {
   return region ? `${ats}:${region}:${board}`.toLowerCase() : `${ats}:${board}`.toLowerCase();
@@ -36,6 +39,12 @@ export interface CrawlOptions {
   log: Logger;
   /** Called after a run that saved new jobs (saved-filter alerts). */
   afterRun?: (summary: CrawlRunSummary) => void;
+  /** Called after each board of a run is stored (the feed shows new jobs as they arrive). */
+  afterBoard?: () => void;
+  /** The request log file ($JOBLEFT_HOME/logs/requests.ndjson), or null for none. */
+  requestLog?: string | null;
+  /** Board ids the first-run choice added (shown with origin "directory"). */
+  seeded?: () => Set<string>;
 }
 
 export class BoardsService {
@@ -54,26 +63,31 @@ export class BoardsService {
   // ---------------------------------------------------------------- boards
 
   private health(ats: string, board: string): HealthRow | undefined {
-    return this.o.db.prepare('SELECT consecutive_failures, cooldown_until, last_attempt_at, last_success_at, last_error FROM boards WHERE ats = ? AND board = ?').get(ats, board) as HealthRow | undefined;
+    return this.o.db.prepare('SELECT consecutive_failures, cooldown_until, last_attempt_at, last_success_at, last_error, last_status, last_reason, last_listed FROM boards WHERE ats = ? AND board = ?').get(ats, board) as HealthRow | undefined;
   }
 
   private toEntry(r: Row): BoardEntry {
     const h = this.health(r.ats, r.board);
     const now = nowMs();
     let state: BoardEntry['state'] = 'not_checked';
-    if (h?.cooldown_until && Date.parse(h.cooldown_until) > now) state = 'cooldown';
-    else if (h && h.consecutive_failures > 0) state = 'failing';
-    else if (h?.last_success_at) state = 'live';
     const open = h?.last_success_at
       ? Number((this.o.db.prepare('SELECT count(*) AS n FROM jobs WHERE ats = ? AND board = ? AND closed_at IS NULL').get(r.ats, r.board) as { n: number }).n)
       : null;
+    // i-core O6: a board whose last answer was an error, or an empty list while jobs from it are still open, is
+    // shown as unavailable ("failing") with the plain reason; its jobs stay open.
+    let lastError = h?.last_error ? redact(h.last_error) : null;
+    const lastOk = h?.last_status === 'ok' || h?.last_status === null || h?.last_status === undefined;
+    if (h?.cooldown_until && Date.parse(h.cooldown_until) > now) state = 'cooldown';
+    else if (h && (h.consecutive_failures > 0 || !lastOk)) { state = 'failing'; lastError = lastError ?? (h.last_reason ? redact(h.last_reason) : 'The board did not answer properly.'); }
+    else if (h && h.last_listed === 0 && (open ?? 0) > 0) { state = 'failing'; lastError = 'The board answered with an empty list. Its jobs stay open until the board lists them again or several checks agree they are gone.'; }
+    else if (h?.last_success_at) state = 'live';
     const interval = this.o.settings().crawl.intervalHours * 3_600_000;
     return {
-      id: r.id, ats: r.ats as CrawlAtsId, board: r.board, region: r.region, company: r.company, origin: 'user',
+      id: r.id, ats: r.ats as CrawlAtsId, board: r.board, region: r.region, company: r.company, origin: this.o.seeded?.().has(r.id) ? 'directory' : 'user',
       followed: r.followed === 1, hidden: r.hidden === 1, disabled: r.disabled === 1, state,
       lastCheckAt: h?.last_attempt_at ?? null, lastSuccessAt: h?.last_success_at ?? null,
       nextCheckAt: r.disabled === 1 ? null : h?.last_attempt_at ? new Date(Date.parse(h.last_attempt_at) + interval).toISOString() : null,
-      openJobs: open, lastError: h?.last_error ? redact(h.last_error) : null,
+      openJobs: open, lastError,
     };
   }
 
@@ -95,10 +109,11 @@ export class BoardsService {
 
   add(input: { ats: CrawlAtsId; board: string; region?: string }): BoardEntry {
     if (!(CRAWL_ATS_IDS as readonly string[]).includes(input.ats)) throw new ApiFailure('bad_request', 'That job board family is not supported.');
-    if (!SOURCES[input.ats]) throw new ApiFailure('unsupported_source', `Boards on ${input.ats} are not crawled by this build yet (Greenhouse, Lever and Ashby are).`);
+    if (!SOURCES[input.ats]) throw new ApiFailure('unsupported_source', `Boards on ${input.ats} are not crawled by this build.`);
     const board = input.board.trim().toLowerCase();
     if (!/^[a-z0-9][a-z0-9._-]{0,99}$/.test(board)) throw new ApiFailure('bad_request', 'The board name may use letters, digits, dots, dashes and underscores only.');
-    const region = input.ats === 'lever' && input.region === 'eu' ? 'eu' : null;
+    const want = (input.region ?? '').toLowerCase();
+    const region = (want === 'eu' && (input.ats === 'lever' || input.ats === 'greenhouse')) || (want === 'com' && input.ats === 'personio') || (want === 'na' && input.ats === 'teamtailor') ? want : null;
     const id = boardIdOf(input.ats, board, region);
     tx(this.o.db, () => {
       if (this.o.db.prepare('SELECT 1 FROM srv_boards WHERE id = ?').get(id)) throw new ApiFailure('conflict', 'That board is already in your list.');
@@ -131,6 +146,26 @@ export class BoardsService {
     return (this.o.db.prepare('SELECT * FROM srv_boards ORDER BY id').all() as unknown as Row[]).map((r) => JSON.stringify(this.toEntry(r)));
   }
 
+  /**
+   * i-core first-run choice: adds the starting boards (skipping any already in the list) and returns the ids added.
+   * Adds nothing when the person already has boards.
+   */
+  seed(boards: Array<{ ats: CrawlAtsId; board: string; company: string; region?: string }>): string[] {
+    const added: string[] = [];
+    tx(this.o.db, () => {
+      if (this.count() > 0) return;
+      const ins = this.o.db.prepare('INSERT OR IGNORE INTO srv_boards (id, ats, board, region, company, followed, hidden, disabled, added_at) VALUES (?, ?, ?, ?, ?, 1, 0, 0, ?)');
+      for (const b of boards) {
+        if (!SOURCES[b.ats]) continue;
+        const board = b.board.trim().toLowerCase();
+        if (!/^[a-z0-9][a-z0-9._-]{0,99}$/.test(board)) continue;
+        const id = boardIdOf(b.ats, board, b.region ?? null);
+        if (Number(ins.run(id, b.ats, board, b.region ?? null, b.company || board, nowIso()).changes) > 0) added.push(id);
+      }
+    });
+    return added;
+  }
+
   count(): number { return Number((this.o.db.prepare('SELECT count(*) AS n FROM srv_boards').get() as { n: number }).n); }
 
   // ---------------------------------------------------------------- crawl
@@ -144,19 +179,25 @@ export class BoardsService {
     return rows.map((r) => ({ ats: r.ats as CrawlAtsId, board: r.board, company: r.company, ...(r.region ? { region: r.region } : {}) }));
   }
 
-  private lastRun(): { summary: CrawlRunSummary | null; boards: CrawlBoardReport[]; finishedAt: string | null } {
-    const r = this.o.db.prepare('SELECT summary, boards, finished_at FROM srv_crawl_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1').get() as { summary: string; boards: string; finished_at: string } | undefined;
+  private lastRun(okOnly = false): { summary: CrawlRunSummary | null; boards: CrawlBoardReport[]; finishedAt: string | null } {
+    // okOnly: the last run in which at least one board answered (the feed's "last refreshed"; a run in which every
+    // fetch failed never moves it forward).
+    const sql = okOnly
+      ? "SELECT summary, boards, finished_at FROM srv_crawl_runs WHERE finished_at IS NOT NULL AND json_extract(summary, '$.ok') > 0 ORDER BY id DESC LIMIT 1"
+      : 'SELECT summary, boards, finished_at FROM srv_crawl_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1';
+    const r = this.o.db.prepare(sql).get() as { summary: string; boards: string; finished_at: string } | undefined;
     return r ? { summary: parseJson<CrawlRunSummary | null>(r.summary, null), boards: parseJson<CrawlBoardReport[]>(r.boards, []), finishedAt: r.finished_at } : { summary: null, boards: [], finishedAt: null };
   }
 
   status(): CrawlProgress {
     const last = this.lastRun();
+    const lastOk = this.lastRun(true);
     const interval = this.o.settings().crawl.intervalHours * 3_600_000;
     const next = this.count() === 0 ? null : last.finishedAt ? new Date(Date.parse(last.finishedAt) + interval).toISOString() : null;
     const p = this.progress;
     return {
       running: p !== null, reason: p?.reason ?? null, boardsDone: p?.done ?? 0, boardsTotal: p?.total ?? 0, jobsSeen: p?.seen ?? 0,
-      startedAt: p?.startedAt ?? null, nextScheduledAt: next, lastRun: last.summary,
+      startedAt: p?.startedAt ?? null, nextScheduledAt: next, lastRun: lastOk.summary,
     };
   }
 
@@ -189,7 +230,7 @@ export class BoardsService {
   /** The crawl worker (started on first use; it lives until stop()). */
   private ensureWorker(): Worker {
     if (this.worker) return this.worker;
-    const w = new Worker(new URL('./crawl-worker.ts', import.meta.url), { workerData: { dbPath: this.o.dbPath, hostMap: this.o.hostMap }, env: SHARE_ENV });
+    const w = new Worker(new URL('./crawl-worker.ts', import.meta.url), { workerData: { dbPath: this.o.dbPath, hostMap: this.o.hostMap, requestLog: this.o.requestLog ?? null }, env: SHARE_ENV });
     w.on('message', (m: FromWorker) => {
       const waiter = this.waiters.get(m.runId);
       if (!waiter) return;
@@ -218,6 +259,7 @@ export class BoardsService {
         onBoard: (r) => {
           if (this.progress) { this.progress.done++; this.progress.seen += r.listed; }
           reports.push(boardReport(r, nowIso()));
+          try { this.o.afterBoard?.(); } catch { /* best effort */ }
         },
         resolve,
       });
@@ -266,7 +308,7 @@ export class BoardsService {
         const last = this.lastRun().finishedAt;
         const due = !last || nowMs() - Date.parse(last) >= s.crawl.intervalHours * 3_600_000;
         if (!due) return;
-        const reason = !last ? 'first_run' : 'schedule';
+        const reason = !last ? 'first_run' : catchUp ? 'launch_catch_up' : 'schedule';
         this.runNow(undefined, reason).catch(() => { /* offline: try again next tick */ });
       } catch (e) {
         if (!this.stopped) this.o.log.warn('crawl.schedule_failed', { error: e instanceof Error ? e.name : 'error' });
@@ -297,7 +339,7 @@ export class BoardsService {
 }
 
 function boardReport(r: BoardResult, finishedAt: string): CrawlBoardReport {
-  let status: CrawlBoardReport['status'] = r.status === 'host-skipped' ? 'host_skipped' : r.status;
+  let status: CrawlBoardReport['status'] = r.status === 'host-skipped' || r.status === 'deferred' ? 'host_skipped' : r.status;
   const err = r.error ?? '';
   if (status === 'failed' && /robots/i.test(err)) status = 'robots';
   else if (status === 'failed' && /no adapter/i.test(err)) status = 'no_adapter';
