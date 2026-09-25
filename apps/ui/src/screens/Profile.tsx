@@ -32,7 +32,7 @@ export function toInput(p: Profile): ProfileInput {
 let seq = 0;
 const nid = (p: string) => `${p}${Date.now().toString(36)}${++seq}`;
 
-function YesNo({ value, onChange, decline = false, label }: { value: string | null; onChange: (v: never) => void; decline?: boolean; label: string }) {
+export function YesNo({ value, onChange, decline = false, label }: { value: string | null; onChange: (v: never) => void; decline?: boolean; label: string }) {
   const opts = [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }, ...(decline ? [{ value: 'decline', label: 'Decline to state' }] : []), { value: 'unset', label: 'Not answered' }];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

@@ -16,7 +16,11 @@ import type { FileBody } from './http/respond.ts';
 import { bodyToFile } from './http/body.ts';
 import { addExternal } from './interim/external.ts';
 import { detailOf } from './interim/jobs.ts';
-import { DOCX, PDF } from './interim/resumes.ts';
+import { createAiRouteHandlers, type AiRouteHandlers } from '@jobleft/ai-engine';
+import { apiFailureOf } from './integ/engine.ts';
+import { matchFor } from './integ/match.ts';
+import { step } from './integ/resume.ts';
+import { safeFileName } from './interim/resumes.ts';
 import { RESTORE_LIMIT, createBackup, deleteAllData, exportAll, freeBytes, restoreBackup } from './services/backup.ts';
 import { ExtensionService } from './services/extension.ts';
 import { APP_VERSION } from './version.ts';
@@ -56,6 +60,14 @@ function jobOr404(d: AppData, id: string) {
   const j = d.jobs.get(id);
   if (!j) notFound('That job');
   return j;
+}
+
+/** One route of the ai-engine (settings, key, check, models, cancel, publik): its answer, or its error as the server's error. */
+async function aiJson<K extends RouteName & keyof AiRouteHandlers>(c: Ctx<K>, name: K): Promise<Out> {
+  const r = await createAiRouteHandlers(c.d.ai.engine)[name]({ params: c.params, query: c.query as Record<string, string>, body: c.body, signal: c.gone });
+  if ('sse' in r) throw new ApiFailure('internal', 'That answer cannot be streamed.');
+  if (r.status >= 400) throw apiFailureOf({ status: r.status, ...(r.json as object) });
+  return { json: r.json };
 }
 
 export const HANDLERS: HandlerTable = {
@@ -139,7 +151,7 @@ export const HANDLERS: HandlerTable = {
     const tracker = d.tracker.patch(id, {}, { external: true });
     return { json: { job: jobOr404(d, id), tracker } };
   },
-  keywordGaps: () => notReady('Keyword gaps (the resume engine)'),
+  keywordGaps: async ({ d, params, query }) => ({ json: await step(() => d.resumes.svc.keywordGaps(params.jobId!, query.resumeId)) }),
 
   // ---------------------------------------------------------------- tracker and filters
   listTracker: ({ d, query }) => ({ json: d.tracker.list(query.view, query.status) }),
@@ -157,32 +169,33 @@ export const HANDLERS: HandlerTable = {
     return { json: saved };
   },
   listResumes: ({ d }) => ({ json: d.resumes.list() }),
-  importResume: ({ d, body, contentType, fileName }) => ({ json: d.resumes.import(body, fileName, contentType === PDF ? PDF : DOCX) }),
-  createResume: ({ d, body }) => ({ json: d.resumes.create(body) }),
-  getResume: ({ d, params }) => { const r = d.resumes.get(params.resumeId!); if (!r) notFound('That resume'); return { json: r }; },
-  updateResume: ({ d, params, body }) => ({ json: d.resumes.update(params.resumeId!, body) }),
-  deleteResume: ({ d, params, query }) => ({ json: { deleted: d.resumes.delete(params.resumeId!, query.withVersions === 'true') } }),
-  tailorResume: () => notReady('Resume tailoring (the resume engine)'),
-  acceptTailoring: () => notReady('Resume tailoring (the resume engine)'),
-  fitCheck: () => notReady('The one-page check (the resume engine)'),
-  exportResume: ({ d, params, query }) => {
-    // Until the resume engine renders documents, an uploaded resume comes back as the very file the person uploaded
-    // (byte for byte) when its type is the format asked for. Anything else needs the resume engine.
-    const r = d.resumes.get(params.resumeId!);
-    if (!r) notFound('That resume');
-    const f = d.resumes.file(r.id);
-    const want = query.format === 'pdf' ? PDF : DOCX;
-    if (!f || f.mimeType !== want) return notReady(`Making a ${query.format === 'pdf' ? 'PDF' : 'Word file'} from this resume (the resume engine)`);
-    return { file: { fileName: f.fileName, mimeType: f.mimeType, bytes: f.bytes } };
+  importResume: async ({ d, body, contentType, fileName }) => {
+    const r = await step(() => d.resumes.svc.import(body, safeFileName(fileName, 'resume'), contentType ?? 'application/octet-stream'));
+    return { json: { resume: r.resume, proposedProfile: r.proposedProfile } };
   },
-  atsCheck: () => notReady('The ATS check (the resume engine)'),
-  listCoverLetters: ({ d, query }) => { jobOr404(d, query.jobId); return { json: [] }; },
-  createCoverLetter: () => notReady('Cover letters (the resume engine)'),
-  updateCoverLetter: () => notReady('Cover letters (the resume engine)'),
+  createResume: ({ d, body }) => step(() => ({ json: d.resumes.svc.create(body) })),
+  getResume: ({ d, params }) => { const r = d.resumes.get(params.resumeId!); if (!r) notFound('That resume'); return { json: r }; },
+  updateResume: ({ d, params, body }) => step(() => ({ json: d.resumes.svc.update(params.resumeId!, body) })),
+  deleteResume: ({ d, params, query }) => step(() => ({ json: { deleted: d.resumes.svc.delete(params.resumeId!, query.withVersions === 'true') } })),
+  tailorResume: async ({ d, params, body }) => ({ json: await d.ai.metered(() => step(() => d.resumes.svc.tailor(params.resumeId!, body.jobId))) }),
+  acceptTailoring: async ({ d, params, body }) => ({ json: await step(() => d.resumes.svc.accept(params.resumeId!, body.proposalId, body.acceptChangeIds)) }),
+  fitCheck: async ({ d, params }) => ({ json: await step(() => d.resumes.svc.fitCheck(params.resumeId!)) }),
+  exportResume: async ({ d, params, query }) => {
+    const f = await step(() => d.resumes.svc.export(params.resumeId!, query.format));
+    return { file: { fileName: f.fileName, mimeType: f.mimeType, bytes: Buffer.from(f.bytes) } };
+  },
+  atsCheck: async ({ d, params }) => ({ json: await step(() => d.resumes.svc.atsCheck(params.resumeId!)) }),
+  listCoverLetters: ({ d, query }) => { jobOr404(d, query.jobId); return { json: d.resumes.svc.coverLetters(query.jobId) }; },
+  createCoverLetter: async ({ d, body }) => { jobOr404(d, body.jobId); return { json: await d.ai.metered(() => step(() => d.resumes.svc.createCoverLetter(body.jobId, body.resumeId))) }; },
+  updateCoverLetter: async ({ d, params, body }) => ({ json: await d.ai.metered(() => step(() => d.resumes.svc.updateCoverLetter(params.letterId!, body))) }),
+  exportCoverLetter: async ({ d, params, query }) => {
+    const f = await step(() => d.resumes.svc.exportCoverLetter(params.letterId!, query.format));
+    return { file: { fileName: f.fileName, mimeType: f.mimeType, bytes: Buffer.from(f.bytes) } };
+  },
 
   // ---------------------------------------------------------------- match and fit
   getMatch: ({ d, params }) => {
-    jobOr404(d, params.jobId!);
+    const job = jobOr404(d, params.jobId!);
     if (!d.profile.exists()) throw new ApiFailure('needs_profile', 'The match score needs your profile. Fill in your profile first.');
     const m = d.feed.match(d.profile.get(), d.feed.job(params.jobId!)!);
     if (!m) return notReady('The match score for this job');
@@ -234,16 +247,15 @@ export const HANDLERS: HandlerTable = {
   draftOutreach: () => notReady('Message drafts (the network tool)'),
 
   // ---------------------------------------------------------------- AI and publik
-  getAiSettings: async ({ d }) => ({ json: await d.ai.settings() }),
-  putAiSettings: async ({ d, body }) => ({ json: await d.ai.update(body) }),
-  setAiKey: async ({ d, body }) => ({ json: await d.ai.setKey(body.key) }),
-  deleteAiKey: async ({ d }) => ({ json: await d.ai.deleteKey() }),
-  checkAi: async ({ d }) => ({ json: await d.ai.check() }),
-  listModels: async ({ d }) => ({ json: { models: await d.ai.models() } }),
+  getAiSettings: (c) => aiJson(c, 'getAiSettings'),
+  putAiSettings: (c) => aiJson(c, 'putAiSettings'),
+  setAiKey: (c) => aiJson(c, 'setAiKey'),
+  deleteAiKey: (c) => aiJson(c, 'deleteAiKey'),
+  checkAi: (c) => aiJson(c, 'checkAi'),
+  listModels: (c) => aiJson(c, 'listModels'),
   chat: async ({ d, body }) => {
     const job = body.jobId ? jobOr404(d, body.jobId) : null;
-    const run = await d.ai.prepare(body, job);
-    return { sse: run };
+    return { sse: await d.ai.prepareChat(body, job) };
   },
   listChats: ({ d }) => ({ json: d.chats.list() }),
   getChat: ({ d, params }) => { const c = d.chats.get(params.chatId!); if (!c) notFound('That conversation'); return { json: c }; },
@@ -255,11 +267,11 @@ export const HANDLERS: HandlerTable = {
   savePracticeItem: () => notReady('The personal question bank (the AI engine)'),
   updatePracticeItem: () => notFound('That practice item'),
   deletePracticeItem: () => notFound('That practice item'),
-  cancelAi: ({ d, params }) => ({ json: { cancelled: d.ai.cancel(params.requestId!) } }),
-  getPublik: async ({ d }) => ({ json: await d.publik.status() }),
-  connectPublik: async ({ d, body }) => ({ json: await d.publik.connect(body.disclosureVersion) }),
-  disconnectPublik: async ({ d }) => ({ json: await d.publik.disconnect() }),
-  refreshPublik: async ({ d }) => ({ json: await d.publik.refresh() }),
+  cancelAi: (c) => aiJson(c, 'cancelAi'),
+  getPublik: (c) => aiJson(c, 'getPublik'),
+  connectPublik: (c) => aiJson(c, 'connectPublik'),
+  disconnectPublik: (c) => aiJson(c, 'disconnectPublik'),
+  refreshPublik: (c) => aiJson(c, 'refreshPublik'),
 
   // ---------------------------------------------------------------- extension
   pairingCode: ({ d }) => ({ json: d.pairing.newCode() }),

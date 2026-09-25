@@ -10,15 +10,14 @@ import { FeedService } from './core/feed.ts';
 import { seedBoards } from './core/seed.ts';
 import { openAndMigrate } from './db/open.ts';
 import type { HomeLayout } from './home.ts';
-import { AiService } from './interim/ai.ts';
+import { AiFacade } from './integ/engine.ts';
+import { ResumeBridge } from './integ/resume.ts';
 import { BoardsService } from './interim/boards.ts';
 import { ChatService } from './interim/chats.ts';
 import { FilterService } from './interim/filters.ts';
 import { JobsService, rowToJob, toSummary } from './interim/jobs.ts';
 import { NetworkService } from './interim/network.ts';
 import { ProfileService } from './interim/profile.ts';
-import { PublikService } from './interim/publik.ts';
-import { ResumeService } from './interim/resumes.ts';
 import { TrackerService } from './interim/tracker.ts';
 import type { Logger } from './log.ts';
 import { Kv, SettingsService } from './services/kv.ts';
@@ -38,6 +37,8 @@ export interface AppConfig {
   publikBaseUrl: string;
   publikAppToken: string | null;
   hostMap: Record<string, string>;
+  /** The environment the server was started with (the AI engine reads JOBLEFT_AI_HOST_MAP and friends). */
+  env?: Record<string, string | undefined>;
   log: Logger;
   secrets: ServerSecretStore;
 }
@@ -53,11 +54,10 @@ export class AppData {
   readonly jobs: JobsService;
   readonly tracker: TrackerService;
   readonly filters: FilterService;
-  readonly resumes: ResumeService;
+  readonly resumes: ResumeBridge;
   readonly network: NetworkService;
   readonly chats: ChatService;
-  readonly publik: PublikService;
-  readonly ai: AiService;
+  readonly ai: AiFacade;
   readonly boards: BoardsService;
   readonly feed: FeedService;
   readonly migrated: { from: number; to: number; fresh: boolean };
@@ -85,11 +85,16 @@ export class AppData {
       summary: (id) => { const r = this.jobs.getRow(id); return r ? toSummary(rowToJob(r)) : null; },
     });
     this.filters = new FilterService(this.db);
-    this.resumes = new ResumeService(this.db, cfg.home, cfg.layout.resumes, () => this.profile.get());
     this.chats = new ChatService(this.db);
     const offline = () => cfg.offline;
-    this.publik = new PublikService({ kv: this.kv, secrets: cfg.secrets, baseUrl: cfg.publikBaseUrl, appToken: cfg.publikAppToken, offline, appVersion: APP_VERSION });
-    this.ai = new AiService({ kv: this.kv, secrets: cfg.secrets, publik: this.publik, chats: this.chats, offline });
+    // i-resume: the real AI engine (settings, keys, publik balance, chat) and the real resume engine.
+    this.ai = new AiFacade({
+      kv: this.kv, secrets: cfg.secrets, chats: this.chats, publikBaseUrl: cfg.publikBaseUrl, publikAppToken: cfg.publikAppToken,
+      offline: cfg.offline, env: cfg.env ?? process.env, appVersion: APP_VERSION,
+    });
+    this.resumes = new ResumeBridge({
+      db: this.db, filesDir: cfg.layout.resumes, profile: () => this.profile.get(), job: (id) => this.jobs.get(id), ai: () => this.ai.client(),
+    });
     this.boards = new BoardsService({
       db: this.db, dbPath: cfg.layout.db, crawlStore: this.crawlStore, hostMap: cfg.hostMap, offline, settings: () => this.settings.get(), log: cfg.log,
       afterRun: () => this.savedFilterAlerts(),

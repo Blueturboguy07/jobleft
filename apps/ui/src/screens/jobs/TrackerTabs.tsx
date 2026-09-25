@@ -148,19 +148,28 @@ export function ExternalTab() {
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
   const [applyUrl, setApplyUrl] = useState('');
+  const [pTitle, setPTitle] = useState('');
+  const [pCompany, setPCompany] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
   const add = async () => {
     setBusy(true);
     setResult(null);
     try {
-      const body = mode === 'url' ? { url: url.trim() } : { text, ...(applyUrl.trim() ? { applyUrl: applyUrl.trim() } : {}) };
+      // Pasted text: a title or company the person types is written as a labelled line, so the job carries them.
+      const lines = text.replace(/\r/g, '').split('\n');
+      const first = lines.findIndex((l) => l.trim());
+      const rest = first < 0 ? [] : lines.slice(first + 1);
+      const composed = pTitle.trim() || pCompany.trim()
+        ? [pTitle.trim() ? `Title: ${pTitle.trim()}` : lines[first] ?? '', ...(pTitle.trim() && first >= 0 ? [lines[first]!] : []), ...(pCompany.trim() ? [`Company: ${pCompany.trim()}`] : []), ...rest].join('\n')
+        : text;
+      const body = mode === 'url' ? { url: url.trim() } : { text: composed, ...(applyUrl.trim() ? { applyUrl: applyUrl.trim() } : {}) };
       if (mode === 'url' && !/^https?:\/\//i.test(url.trim())) throw { code: 'bad_request', status: 400, message: 'Paste the full link, starting with https:// or http://.', link: null } satisfies UiError;
       const r = await call('addExternalJob', { body });
       // the same job twice is one row: say so (a server may also say it with alreadyAdded)
       const already = (r as unknown as { alreadyAdded?: boolean }).alreadyAdded ?? !!list.data?.items.some((x) => x.job.id === r.job.id);
       setResult({ type: already ? 'info' : 'success', msg: already ? `Already in your list: ${r.job.title} at ${r.job.company}. Nothing was added twice.` : `Added: ${r.job.title} at ${r.job.company}.` });
-      setUrl(''); setText(''); setApplyUrl('');
+      setUrl(''); setText(''); setApplyUrl(''); setPTitle(''); setPCompany('');
       afterTrackerChange();
       invalidate('tracker');
     } catch (e) {
@@ -181,6 +190,10 @@ export function ExternalTab() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Input.TextArea rows={5} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste the whole posting: title on the first line, then the description" aria-label="Posting text" maxLength={200000} />
+            <div className="jl-row jl-wrap">
+              <Input style={{ flex: '1 1 180px' }} value={pTitle} onChange={(e) => setPTitle(e.target.value)} placeholder="Job title (optional, else the first line)" aria-label="Job title (optional)" />
+              <Input style={{ flex: '1 1 180px' }} value={pCompany} onChange={(e) => setPCompany(e.target.value)} placeholder="Company (optional)" aria-label="Company (optional)" />
+            </div>
             <div className="jl-row">
               <Input value={applyUrl} onChange={(e) => setApplyUrl(e.target.value)} placeholder="Apply link (optional)" aria-label="Apply link (optional)" />
               <Button className="jl-accent-btn" shape="round" icon={<PlusOutlined />} loading={busy} disabled={text.trim().length < 1} onClick={() => { void add(); }}>Add job</Button>

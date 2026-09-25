@@ -52,8 +52,8 @@ export function countsOf(db: DatabaseSync): Record<string, number> {
     notes: q('srv_tracker_notes'),
     reminders: q('srv_tracker_reminders'),
     savedFilters: q('srv_saved_filters'),
-    resumes: q('srv_resumes'),
-    resumeFiles: q('srv_resumes', 'WHERE file_path IS NOT NULL'),
+    resumes: q('resumes') + q('srv_resumes'),
+    resumeFiles: q('resumes', "WHERE file_json IS NOT NULL") + q('srv_resumes', 'WHERE file_path IS NOT NULL'),
     contacts: q('srv_contacts'),
     chats: q('srv_chats'),
     chatMessages: q('srv_chat_messages'),
@@ -357,7 +357,8 @@ export async function exportAll(d: AppData, l: HomeLayout): Promise<{ path: stri
 
 export async function deleteAllData(app: App): Promise<void> {
   const l = app.cfg.layout;
-  const names = app.data ? app.data.ai.allKeyNames() : [];
+  const names: string[] = [];
+  if (app.data) await app.data.ai.forgetKeys();
   await app.swap('delete', async () => {
     for (const part of [l.data, l.files, l.backups]) rmSync(part, { recursive: true, force: true });
     for (const name of readdirSync(l.tmp)) rmSync(join(l.tmp, name), { recursive: true, force: true });
@@ -367,7 +368,6 @@ export async function deleteAllData(app: App): Promise<void> {
       try { await app.cfg.secrets.delete(n); } catch { /* not there */ }
     }
   });
-  app.data?.ai.forgetCachedKeys();
 }
 
 export function sha256File(bytes: Uint8Array): string {

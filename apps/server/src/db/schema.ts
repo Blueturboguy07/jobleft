@@ -10,6 +10,8 @@
 //     stand-in (see apps/server/README.md, "Interim stand-ins").
 
 import { CRAWLER_SCHEMA_VERSION } from '@jobleft/crawler';
+import { RESUME_SCHEMA_VERSION } from '@jobleft/resume';
+
 export interface Migration {
   version: number;
   name: string;
@@ -205,6 +207,7 @@ CREATE TABLE srv_extension_reviews (
 export const SERVER_SCHEMA_VERSION = SERVER_MIGRATIONS[SERVER_MIGRATIONS.length - 1]!.version;
 
 /** Owners whose steps this build runs. A file with steps of any other owner came from a build this one cannot read. */
-// i-core: the other owners whose tables live in the app database (docs/INTERFACES.md section 3). Without them a
-// second start refused the folder the first start wrote.
-export const KNOWN_OWNERS: Readonly<Record<string, number>> = { server: SERVER_SCHEMA_VERSION, crawler: CRAWLER_SCHEMA_VERSION, 'static-data': 1 };
+// i-core and i-resume: every owner whose tables live in the app database (docs/INTERFACES.md section 3).
+// 'resume': the resumes, tailor_proposals and cover_letters tables (i-resume wires the resume lane into the app database).
+// 'crawler': the crawler's own Store records its steps in the same schema_migrations table, so a second start must know it.
+export const KNOWN_OWNERS: Readonly<Record<string, number>> = { server: SERVER_SCHEMA_VERSION, crawler: CRAWLER_SCHEMA_VERSION, 'static-data': 1, resume: RESUME_SCHEMA_VERSION };

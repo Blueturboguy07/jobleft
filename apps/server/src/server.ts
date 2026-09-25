@@ -131,7 +131,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const cfg: AppConfig = {
     home: opts.home, layout, launchToken: opts.launchToken, dev: opts.dev ?? false, offline: opts.offline ?? false,
     parentPid: opts.parentPid ?? null, uiDir, publikBaseUrl: env.JOBLEFT_PUBLIK_BASE_URL || PUBLIK_DEFAULT_BASE_URL,
-    publikAppToken: env.JOBLEFT_PUBLIK_APP_TOKEN || null, hostMap, log, secrets,
+    publikAppToken: env.JOBLEFT_PUBLIK_APP_TOKEN || null, hostMap, env, log, secrets,
   };
   const app = new App(cfg);
   let data;
