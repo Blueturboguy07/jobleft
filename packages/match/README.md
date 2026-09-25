@@ -48,7 +48,9 @@ What you see:
 
 **Profile** (`--profile`): a contract `Profile` JSON (packages/contracts/schemas/Profile.schema.json) or a shorter
 hand-written one. Missing lists become empty; missing answers stay unknown and are shown as "not in your profile",
-never guessed. Dates may be `2020-01`, `2020`, `Jan 2020` or `present`. Skills and certifications may be plain strings.
+never guessed. Dates may be `2020-01`, `2020`, `Jan 2020`, `January 2020`, `01/2020` or `present`. Skills and
+certifications may be plain strings. `experience` is read as `work` and `licenses` as `certifications`; answers may be
+`true`/`false`; work models and job types may be written as people write them ("Remote", "On-site", "Full-time").
 
 ```json
 {

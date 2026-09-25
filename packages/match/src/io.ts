@@ -43,10 +43,25 @@ const yn = (v: unknown): 'yes' | 'no' | null => {
   return null;
 };
 
+const WORK_MODEL: Record<string, string> = { remote: 'remote', hybrid: 'hybrid', onsite: 'onsite', 'on-site': 'onsite', 'on site': 'onsite', 'in-office': 'onsite', 'in office': 'onsite', office: 'onsite', 'in person': 'onsite' };
+const EMPLOYMENT: Record<string, string> = { 'full-time': 'full_time', 'full time': 'full_time', fulltime: 'full_time', full_time: 'full_time', 'part-time': 'part_time', 'part time': 'part_time', parttime: 'part_time', part_time: 'part_time', contract: 'contract', contractor: 'contract', internship: 'internship', intern: 'internship', temporary: 'temporary', temp: 'temporary', seasonal: 'temporary', other: 'other' };
+const LEVELS: Record<string, string> = { 'intern/new grad': 'intern_new_grad', intern: 'intern_new_grad', 'new grad': 'intern_new_grad', intern_new_grad: 'intern_new_grad', entry: 'entry', 'entry level': 'entry', mid: 'mid', 'mid level': 'mid', senior: 'senior', 'senior level': 'senior', lead: 'lead_staff', staff: 'lead_staff', 'lead/staff': 'lead_staff', lead_staff: 'lead_staff', director: 'director_exec', executive: 'director_exec', 'director/executive': 'director_exec', director_exec: 'director_exec' };
+function enumList(v: unknown, map: Record<string, string>): string[] {
+  const out: string[] = [];
+  for (const x of arrOf<unknown>(v)) {
+    const k = String(x).trim().toLowerCase();
+    const m = map[k] ?? map[k.replace(/_/g, '-')] ?? map[k.replace(/-/g, ' ')];
+    if (m && !out.includes(m)) out.push(m);
+  }
+  return out;
+}
+
 /** A contract Profile from a full or a hand-written profile object. Throws with the issue paths when invalid. */
 export function normalizeProfile(raw: unknown): Profile {
-  const r = ((raw as Obj)?.profile ?? raw) as Obj;
-  if (!r || typeof r !== 'object') throw new Error('the profile file must hold a JSON object');
+  const r0 = ((raw as Obj)?.profile ?? raw) as Obj;
+  if (!r0 || typeof r0 !== 'object') throw new Error('the profile file must hold a JSON object');
+  // Common other names for the same lists.
+  const r: Obj = { ...r0, work: r0.work ?? r0.experience ?? r0.workHistory ?? r0.jobs, certifications: r0.certifications ?? r0.licenses ?? r0.licences ?? r0.certificates };
   const personal = (r.personal ?? {}) as Obj;
   const prefs = (r.preferences ?? {}) as Obj;
   const auth = (r.workAuthorization ?? {}) as Obj;
@@ -67,7 +82,7 @@ export function normalizeProfile(raw: unknown): Profile {
     })),
     work: arrOf<Obj>(r.work).map((w, i) => ({
       id: strOr(w.id) ?? `w${i + 1}`, company: String(w.company ?? ''), title: String(w.title ?? ''),
-      employmentType: (strOr(w.employmentType) as Profile['work'][number]['employmentType']) ?? null, location: strOr(w.location),
+      employmentType: (enumList([w.employmentType], EMPLOYMENT)[0] as Profile['work'][number]['employmentType']) ?? null, location: strOr(w.location),
       startDate: yearMonth(w.startDate), endDate: yearMonth(w.endDate), current: w.current === true || isPresent(w.endDate),
       summary: strOr(w.summary), bullets: arrOf<string>(w.bullets).map(String),
     })),
@@ -83,8 +98,9 @@ export function normalizeProfile(raw: unknown): Profile {
       source: (s as Obj).source === 'resume' ? 'resume' as const : 'user' as const,
     })),
     preferences: {
-      jobFunctions: arrOf(prefs.jobFunctions), targetTitles: arrOf(prefs.targetTitles), employmentTypes: arrOf(prefs.employmentTypes),
-      workModels: arrOf(prefs.workModels), levels: arrOf(prefs.levels), countries: arrOf(prefs.countries),
+      jobFunctions: arrOf(prefs.jobFunctions), targetTitles: arrOf(prefs.targetTitles), employmentTypes: enumList(prefs.employmentTypes, EMPLOYMENT) as Profile['preferences']['employmentTypes'],
+      workModels: enumList(prefs.workModels, WORK_MODEL) as Profile['preferences']['workModels'], levels: enumList(prefs.levels, LEVELS) as Profile['preferences']['levels'],
+      countries: arrOf<string>(prefs.countries).map((c) => (/^(usa|us|united states|united states of america)$/i.test(String(c).trim()) ? 'US' : String(c).trim().toUpperCase())),
       places: arrOf<unknown>(prefs.places).map((x) => (typeof x === 'string' ? { text: x, placeId: null, radiusMiles: null } : {
         text: String((x as Obj).text ?? ''), placeId: strOr((x as Obj).placeId), radiusMiles: typeof (x as Obj).radiusMiles === 'number' ? (x as Obj).radiusMiles as number : null,
       })),
