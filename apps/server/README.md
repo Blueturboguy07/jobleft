@@ -160,6 +160,9 @@ Useful writes for the "one change of each kind" checks:
 | Chat history | Section 9.3 |
 
 Times are stored exactly as you send them (for example `2026-10-01T09:00:00+02:00` comes back as that text).
+Text is stored character for character (any script, emoji, zero-width characters, CR LF, trailing spaces). A body
+that is not UTF-8, or that holds a lone UTF-16 surrogate such as `"\ud800"`, answers `400` and nothing is stored; it
+is never saved with a replacement character.
 
 A job added as pasted text takes facts only from LABELLED lines: the first line is the title; `Company:`,
 `Location:`, `Workplace:` (Remote, Hybrid, On-site; a line that is only one of these words also counts),
@@ -293,6 +296,7 @@ curl -s -H "x-jobleft-token: $T" "http://127.0.0.1:$P/api/v1/jobs?limit=20"
 |---|---|
 | Politeness | 1 request a second per host, robots.txt obeyed, User-Agent `jobleft-build/0.1 (research build; no personal data)`, no redirects followed |
 | The person's changes | A crawl never changes a like, status, note or reminder. Tracker rows are separate from postings |
+| Facts from a board | As the board states them. Pay keeps its exact amounts (a Greenhouse `pay_input_ranges` of 1850 to 2225 cents is `18.5` to `22.25` a `hour`, never rounded). A Greenhouse posted date is `first_published` only: a job without it has `postedAt: null`, even though `updated_at` (the last edit) is there. A missing work model, employment type, department or place is `null` |
 | Closing | A job closes only when a board was read in full and the job was not seen for 48 hours, and never when over half of a board would close at once. A failing, unreachable or offline board closes nothing |
 | Closed jobs | They leave the job list and search, keep their details, and stay in the Liked and Applied views with `status: "closed"` and every note |
 | Seeing a close now | With `JOBLEFT_DEV=1`: remove the job from `boards.json`, move the clock with `curl -X POST -H "x-jobleft-token: $T" -H 'content-type: application/json' -d '{"offset":"72h"}' http://127.0.0.1:$P/api/v1/dev/clock`, and crawl again. `-d '{}'` resets the clock |
@@ -310,7 +314,8 @@ curl -s -H "x-jobleft-token: $T" http://127.0.0.1:$P/api/v1/ai/chats
 ```
 
 The chat streams `start`, `delta` events and `done` (with `chatId`). The person's message is saved before the call;
-the answer is saved when it ends (a cut answer is saved with `incomplete: true`). Only the chosen provider is ever
+the answer is saved when it ends (a cut answer is saved with `incomplete: true`). If the server stops during an answer,
+the person's message is kept and the unfinished answer is not. Only the chosen provider is ever
 called: when it fails, the stream ends with an `error` event in plain words, and nothing goes anywhere else. A key is
 saved with `PUT /api/v1/ai/key`; only its last 4 characters come back.
 
@@ -415,7 +420,7 @@ Data saved in an interim table is not moved into a lane's table automatically ye
 ## 14. Tests
 
 ```sh
-pnpm --filter @jobleft/server test        # 41 tests: security, records, kill -9, backup, pairing, lifecycle, AI, crawl, add by link
+pnpm --filter @jobleft/server test        # 44 tests: security, records, kill -9, backup, pairing, lifecycle, AI, crawl, add by link, exact board facts
 pnpm --filter @jobleft/server typecheck
 ```
 

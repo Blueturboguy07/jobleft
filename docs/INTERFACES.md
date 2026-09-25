@@ -1324,7 +1324,11 @@ INTERIM stand-ins in `apps/server/src/interim/` (tables `srv_*`); the routes who
 for byte, when `format` matches the upload's type (`pdf` for a PDF, `docx` for a Word file); a rendered export is the
 resume lane's and answers `503 not_ready` until it lands. Interim `addExternalJob` with pasted text reads only labelled
 lines (`Company:`, `Location:`, `Workplace:`, `Employment type:`, `Department:`, `Posted:`); a date without a time
-(pasted, or JSON-LD `datePosted`) is stored at 12:00 UTC of that day. At integration each lane's package replaces its stand-in
+(pasted, or JSON-LD `datePosted`) is stored at 12:00 UTC of that day. The crawl uses the built-in `SOURCES` through
+`apps/server/src/interim/exact-sources.ts`, which undoes the adapters' rounding of pay (a board's 18.50 stays 18.5) and
+hides Greenhouse `updated_at` so a job without `first_published` keeps `postedAt: null`; it goes away when the crawler
+lane's adapters land. A JSON body that is not UTF-8 or holds a lone UTF-16 surrogate answers `400 bad_request`.
+At integration each lane's package replaces its stand-in
 (`apps/server/README.md`, section 13).
 
 Backup format (route `backup`): one zip. `manifest.json` (`format: "jobleft-backup"`, `formatVersion: 1`, app version,
