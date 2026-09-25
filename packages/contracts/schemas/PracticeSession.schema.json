@@ -59,6 +59,67 @@
       "type": "string",
       "format": "date-time",
       "description": "RFC 3339 date-time, UTC (\"Z\")"
+    },
+    "label": {
+      "type": "string"
+    },
+    "answers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "answer": {
+            "type": "string"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sampleAnswer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answeredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 date-time, UTC (\"Z\")"
+          }
+        },
+        "required": [
+          "questionId",
+          "answer",
+          "feedback",
+          "sampleAnswer",
+          "answeredAt"
+        ]
+      }
+    },
+    "resumed": {
+      "type": "boolean"
+    },
+    "madeBy": {
+      "type": "string",
+      "enum": [
+        "rules",
+        "ai"
+      ]
     }
   },
   "required": [
