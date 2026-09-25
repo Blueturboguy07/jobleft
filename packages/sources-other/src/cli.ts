@@ -13,13 +13,15 @@
 //                                         run the scheduler as a running app would, stepping the app clock (not real
 //                                         time) through the hours given; optional manual presses at each step; then
 //                                         print runs and requests per source in every 24-hour window
-//   jobs [--source id] [--status open|closed|all] [--remote] [--open-to-us] [--include-unknown-region] [--limit n] [--json]
+//   jobs [--source id] [--status open|closed|all] [--remote] [--open-to-us] [--include-unknown-region] [--include-off]
+//        [--limit n] [--json]                jobs of sources that are off are hidden unless --include-off
 //   export [--out file] [--source id] [--status open|closed|all]
 //                                         NDJSON, one contract Job per line with its sources, links and credits
 //   runs [--source id] [--limit n]        run history (outcome, counts, requests, problem)
 //   discover [--json]                     ATS boards behind the links of open postings (nothing is sent)
 //   standin [--dir d] [--port p]          start the stand-in feeds (loopback only) and print JOBLEFT_HOST_MAP
 //   standin-set <id> <scenario> [--dir d] switch a stand-in source to a scenario (ok, http500, hang, renamed, ...)
+//   standin-reset [--dir d]               restore the shipped fixtures and set every scenario to ok
 //
 // Environment
 //   JOBLEFT_HOME                 data folder (default: the OS default); the database is $JOBLEFT_HOME/data/jobleft.db
@@ -41,7 +43,7 @@ import { discoverBoards } from './discover.ts';
 import { migrateSourcesOther } from './db.ts';
 import { SourceService, envSecretStore } from './service.ts';
 import type { SourceRunResult } from './runner.ts';
-import { SCENARIOS, setScenario, startStandin } from './standin.ts';
+import { SCENARIOS, seedStandinDir, setScenario, startStandin } from './standin.ts';
 import { exportFeedJobs, feedJobs } from './view.ts';
 
 function defaultHome(): string {
@@ -188,7 +190,7 @@ async function main(): Promise<number> {
     case 'jobs': {
       const store = openStore();
       const status = (opt('status') ?? 'open') as 'open' | 'closed' | 'all';
-      const jobs = feedJobs(store.db, { sourceId: opt('source'), status, remote: flag('remote'), openToUs: flag('open-to-us'), includeUnknownRegion: flag('include-unknown-region'), limit: opt('limit') ? Number(opt('limit')) : undefined });
+      const jobs = feedJobs(store.db, { sourceId: opt('source'), status, remote: flag('remote'), includeOff: flag('include-off'), openToUs: flag('open-to-us'), includeUnknownRegion: flag('include-unknown-region'), limit: opt('limit') ? Number(opt('limit')) : undefined });
       if (flag('json')) { console.log(JSON.stringify(jobs, null, 2)); store.close(); return 0; }
       for (const j of jobs) {
         const pay = j.pay ? `${j.pay.currency} ${j.pay.min ?? '?'}-${j.pay.max ?? '?'} per ${j.pay.period}` : 'pay not stated';
@@ -246,6 +248,12 @@ async function main(): Promise<number> {
       await s.close();
       return 0;
     }
+    case 'standin-reset': {
+      const dir = resolve(opt('dir') ?? join(process.cwd(), 'standin'));
+      seedStandinDir(dir, true);
+      console.log(`${dir}: fixtures restored and every scenario set to "ok" (the request log is kept)`);
+      return 0;
+    }
     case 'standin-set': {
       const [id, scenario] = positional();
       const dir = resolve(opt('dir') ?? join(process.cwd(), 'standin'));
@@ -255,7 +263,7 @@ async function main(): Promise<number> {
       return 0;
     }
     default:
-      console.log('usage: node packages/sources-other/src/cli.ts <list|enable|disable|refresh|due|simulate|jobs|export|runs|discover|standin|standin-set> [options]');
+      console.log('usage: node packages/sources-other/src/cli.ts <list|enable|disable|refresh|due|simulate|jobs|export|runs|discover|standin|standin-set|standin-reset> [options]');
       console.log('See packages/sources-other/README.md.');
       return cmd === 'help' || cmd === '--help' ? 0 : 2;
   }

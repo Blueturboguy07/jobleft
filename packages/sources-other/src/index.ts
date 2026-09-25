@@ -29,7 +29,7 @@ export { DAY_MS, backoffMs, finishRun, getState, nextAllowed, recordRequest, res
 export type { RunReason, Wait, WaitReason } from './limits.ts';
 export { MASS_CLOSE_CONFIRM_MS, MASS_CLOSE_MIN_OPEN, MASS_CLOSE_SHARE, applyFeedResult, jobKeyOf, plainProblem, refreshSources } from './runner.ts';
 export type { RefreshOptions, SkipReason, SourceRunResult } from './runner.ts';
-export { SHOWN_SQL, creditLine, ephemeralJobs, exportFeedJobs, feedJobs, openJobsFor } from './view.ts';
+export { SHOWN_SQL, creditLine, enabledSources, ephemeralJobs, exportFeedJobs, feedJobs, openJobsFor } from './view.ts';
 export type { FeedJobQuery } from './view.ts';
 export { SourceService, SourceServiceError, envSecretStore } from './service.ts';
 export type { RefreshReport, SourceServiceOptions } from './service.ts';

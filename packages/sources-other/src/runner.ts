@@ -292,7 +292,12 @@ export async function refreshSources(opts: RefreshOptions): Promise<SourceRunRes
     };
     try {
       const res = await feed.fetch({ http: client, key, now: now(), signal: opts.signal, etag: st.etag });
+      const openBefore = (db.prepare(`SELECT count(*) AS n FROM feed_postings WHERE source_id = ? AND status = 'open'`).get(feed.id) as { n: number }).n;
       const counts = applyFeedResult(store, feed, res, now());
+      // An empty answer from a source that listed jobs before is a problem to show, never a reason to close (O6).
+      if (!res.problem && !res.notModified && counts.listed === 0 && Number(openBefore) > 0) {
+        res.problem = `the answer listed no jobs, although this source listed ${openBefore} before`;
+      }
       Object.assign(r, counts);
       r.skipped = res.skipped ?? 0;
       r.complete = res.complete;

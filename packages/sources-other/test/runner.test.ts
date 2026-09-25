@@ -198,7 +198,9 @@ test('O6: an error, an empty answer, a cut-off body or a failed page never close
       const r = (await t.svc.refresh({ ids: ['remoteok'] })).results[0]!;
       assert.equal(r.closed, 0, `${sc} closed nothing`);
       assert.deepEqual(feedJobs(t.store.db, { sourceId: 'remoteok' }).map((j) => j.id).sort(), ids, `${sc}: all 10 still open`);
-      assert.notEqual((await t.svc.get('remoteok')).status.lastProblem, null, `${sc}: the problem is shown`);
+      const info = await t.svc.get('remoteok');
+      assert.equal(info.status.state, 'failing', `${sc}: the state shows the problem`);
+      assert.notEqual(info.status.lastProblem, null, `${sc}: the problem is shown`);
     }
     assert.equal(t.store.count("ats = 'feed:remoteok'"), 10, 'no row was deleted');
     // A paged source that fails on a later page keeps page 1 and closes nothing.
@@ -319,6 +321,12 @@ test('O14: a source turned off gets no request, its jobs are hidden from the sou
     assert.equal(r.skipReason, 'off');
     assert.equal(t.log().length, before);
     assert.equal((await t.svc.get('remoteok')).status.state, 'off');
+    assert.equal(feedJobs(t.store.db, { sourceId: 'remoteok' }).length, 0, 'hidden while off');
+    assert.equal((await t.svc.get('remoteok')).status.openJobs, 0, 'the count agrees with the list');
+    assert.equal(feedJobs(t.store.db, { sourceId: 'remoteok', includeOff: true }).length, 10, 'nothing was deleted');
+    assert.equal(t.store.count("ats = 'feed:remoteok'"), 10);
+    await t.svc.update('remoteok', { enabled: true });
+    assert.equal(feedJobs(t.store.db, { sourceId: 'remoteok' }).length, 10, 'back when turned on');
     await assert.rejects(t.svc.update('remotive', { enabled: true }), /robots\.txt/);
     await assert.rejects(t.svc.update('usajobs', { enabled: true }), /robots\.txt/);
     await assert.rejects(t.svc.update('nope', { enabled: true }), /no source called/);

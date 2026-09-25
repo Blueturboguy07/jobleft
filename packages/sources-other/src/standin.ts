@@ -28,10 +28,10 @@ const SOURCE_IDS = ['remoteok', 'themuse', 'hn-whoishiring', ...GITHUB_LISTS.map
 const PKG = join(dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURES = join(PKG, 'fixtures');
 
-/** Copies the lane's fixtures into a stand-in folder (only the files that are missing). */
-export function seedStandinDir(dir: string): void {
+/** Copies the lane's fixtures into a stand-in folder (only the files that are missing, or all with overwrite). */
+export function seedStandinDir(dir: string, overwrite = false): void {
   mkdirSync(join(dir, 'robots'), { recursive: true });
-  const copy = (from: string, to: string) => { if (!existsSync(join(dir, to))) cpSync(join(FIXTURES, from), join(dir, to), { recursive: true }); };
+  const copy = (from: string, to: string) => { if (overwrite || !existsSync(join(dir, to))) cpSync(join(FIXTURES, from), join(dir, to), { recursive: true, force: true }); };
   copy('remoteok/api.json', 'remoteok.json');
   copy('themuse/jobs.json', 'themuse.json');
   copy('hn/search.json', 'hn-search.json');
@@ -44,7 +44,7 @@ export function seedStandinDir(dir: string): void {
   copy('remotive/remote-jobs.json', 'remotive.json');
   copy('usajobs/search.json', 'usajobs.json');
   const sc = join(dir, 'scenarios.json');
-  if (!existsSync(sc)) writeFileSync(sc, JSON.stringify(Object.fromEntries(SOURCE_IDS.map((id) => [id, 'ok'])), null, 2) + '\n');
+  if (overwrite || !existsSync(sc)) writeFileSync(sc, JSON.stringify(Object.fromEntries(SOURCE_IDS.map((id) => [id, 'ok'])), null, 2) + '\n');
 }
 
 export function setScenario(dir: string, sourceId: string, scenario: string): void {

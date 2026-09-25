@@ -149,6 +149,11 @@ export interface FeedJobQuery {
   status?: 'open' | 'closed' | 'all';
   /** Remote jobs only (work model remote, or a remote region stated). */
   remote?: boolean;
+  /**
+   * Also show jobs that only sources turned off list (default false: they are hidden, never deleted; O14).
+   * A source that is off gives no attribution to a job unless this is set.
+   */
+  includeOff?: boolean;
   /** Jobs open to US applicants (in the US, or remote with US, North America or worldwide stated); with includeUnknownRegion, also jobs whose region is not stated. */
   openToUs?: boolean;
   includeUnknownRegion?: boolean;
@@ -171,9 +176,12 @@ export function feedJobs(db: DatabaseSync, q: FeedJobQuery = {}): Job[] {
   const sql = `SELECT j.* FROM jobs j WHERE ${where.join(' AND ')} ORDER BY COALESCE(j.posted_at, '') DESC, j.id ${q.limit ? `LIMIT ${Math.max(1, Math.floor(q.limit))}` : ''}`;
   const rows = db.prepare(sql).all(...params) as unknown as Row[];
   const postingsFor = db.prepare('SELECT * FROM feed_postings WHERE job_ats = ? AND job_board = ? AND job_ext_id = ? ORDER BY first_seen_at, source_id');
+  const on = enabledSources(db);
   const out: Job[] = [];
   for (const r of rows) {
-    const postings = postingsFor.all(r.ats, r.board, r.job_id) as unknown as PostingRow[];
+    let postings = postingsFor.all(r.ats, r.board, r.job_id) as unknown as PostingRow[];
+    if (!q.includeOff) postings = postings.filter((p) => on.has(p.source_id));
+    if (q.sourceId && !postings.some((p) => p.source_id === q.sourceId)) continue;
     if (!postings.length) continue;
     const job = toJob(db, r, postings);
     const v = validate(JobSchema, job);
@@ -190,10 +198,19 @@ export function feedJobs(db: DatabaseSync, q: FeedJobQuery = {}): Job[] {
   return out;
 }
 
-/** Open jobs a source lists now, counted the way the job list shows them. null before its first run. */
+/** Sources the person turned on (source_state.enabled = 1). */
+export function enabledSources(db: DatabaseSync): Set<string> {
+  return new Set((db.prepare('SELECT source_id FROM source_state WHERE enabled = 1').all() as Array<{ source_id: string }>).map((r) => r.source_id));
+}
+
+/**
+ * Open jobs a source lists now, counted the way the job list shows them: 0 while the source is off (its jobs are
+ * hidden, not deleted). null before its first run.
+ */
 export function openJobsFor(db: DatabaseSync, sourceId: string): number | null {
   const any = db.prepare('SELECT 1 FROM source_runs WHERE source_id = ? AND outcome <> ? LIMIT 1').get(sourceId, 'running');
   if (!any) return null;
+  if (!enabledSources(db).has(sourceId)) return 0;
   const r = db.prepare(`SELECT count(DISTINCT j.id) AS n FROM feed_postings fp JOIN jobs j ON j.ats = fp.job_ats AND j.board = fp.job_board AND j.job_id = fp.job_ext_id
     WHERE fp.source_id = ? AND fp.status = 'open' AND ${SHOWN_SQL}`).get(sourceId) as { n: number };
   return Number(r.n);
@@ -201,7 +218,8 @@ export function openJobsFor(db: DatabaseSync, sourceId: string): number | null {
 
 /** NDJSON lines: one contract Job per line, each with its sources, links and credits (sources-other O2). */
 export function* exportFeedJobs(db: DatabaseSync, q: FeedJobQuery = {}): Iterable<string> {
-  for (const j of feedJobs(db, q)) yield JSON.stringify({ ...j, creditLine: creditLine(j.sources) });
+  // An export is a copy of the person's data: jobs of sources that are off are included (with their credits).
+  for (const j of feedJobs(db, { includeOff: true, ...q })) yield JSON.stringify({ ...j, creditLine: creditLine(j.sources) });
 }
 
 /** Contract Jobs for results that must not be stored (per-query partners, O13). Never written anywhere. */
