@@ -188,6 +188,11 @@ async function stage(upload: string, stageDir: string, l: HomeLayout): Promise<M
       const ok = db.prepare('PRAGMA integrity_check').get() as Record<string, string> | undefined;
       if (!ok || Object.values(ok)[0] !== 'ok') throw reject('The database in the backup is damaged.');
       if (!hasTable(db, 'schema_migrations')) throw reject('The file is not a jobleft backup.');
+      // A backup brings data, never code: every trigger and view in the copy is dropped. The app makes its own again
+      // when it opens the database (the crawler's full-text triggers, the server's search index triggers).
+      const objs = db.prepare("SELECT type, name FROM sqlite_schema WHERE type IN ('trigger', 'view')").all() as Array<{ type: string; name: string }>;
+      for (const o of objs) db.exec(`DROP ${o.type === 'view' ? 'VIEW' : 'TRIGGER'} IF EXISTS "${o.name.replace(/"/g, '""')}"`);
+      if (objs.length) db.exec("DROP TABLE IF EXISTS srv_job_index");
     } catch (e) {
       if (e instanceof ApiFailure) throw e;
       throw reject('The database in the backup is damaged.');

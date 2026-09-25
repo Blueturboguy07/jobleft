@@ -84,6 +84,7 @@ test('backup then restore into a fresh folder brings back every kind, files byte
     assert.equal(liked.items[0].entry.notes[0].text, 'note ✓');
     assert.equal(liked.items[0].job.title.length > 0, true, 'the liked job came back with its details');
     assert.equal((await b.call('GET', '/api/v1/ai/settings')).json.keySet, false, 'keys never travel in a backup');
+    assert.equal((await b.call('GET', '/api/v1/jobs?q=analyst')).json.total, 1, 'search works on the restored data');
     const again = await b.call('POST', '/api/v1/restore', backup, { 'content-type': 'application/zip' });
     assert.deepEqual(again.json.restored, counts, 'a second restore replaces, never duplicates');
   } finally { await b.stop(); cleanup(b.home); }
