@@ -587,7 +587,7 @@ appear. CLI (planned): `jobleft-sources run <sourceId> --feed-url <loopback stan
 
 ### `@jobleft/boards`
 
-Status: **Built** (boards lane). Purpose: the board directory (3,622 rows from JobSync's MIT lists, checked against the
+Status: **Built** (boards lane). Purpose: the board directory (3,581 rows from JobSync's MIT lists, checked against the
 providers; a stated source and licence in the file header), the person's boards and choices, link-to-board resolution
 (including employer pages that embed a board and `gh_jid` links), board health with dead-board back-off, crawl planning
 and the scheduler, a directory refresh with dead-token pruning, and Common Crawl discovery. Owns: tables `board_prefs`,

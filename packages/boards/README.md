@@ -3,7 +3,7 @@
 How jobleft finds employer job boards, keeps the board list that ships with the app, and keeps the boards a person
 adds. It holds:
 
-- **the directory**: 3,000+ public job boards (Greenhouse, Lever, Ashby) that ship with the app, with a stated source
+- **the directory**: 3,581 public job boards (Greenhouse, Lever, Ashby) that ship with the app, with a stated source
   and licence (`data/board-directory.json`);
 - **your boards and choices**: boards you add from a link, and follow, hide or disable on any board;
 - **link to board**: paste a careers page, a job page, an embed link or a `gh_jid` link on an employer's own site,
@@ -80,7 +80,7 @@ export JOBLEFT_BOARD_DIRECTORY=$PWD/packages/boards/examples/demo-directory.json
 ```
 
 `JOBLEFT_HOST_MAP` sends a real provider host to a loopback server (only loopback targets are accepted).
-`JOBLEFT_BOARD_DIRECTORY` swaps the 3,600-board directory for a small file (`none` = an empty directory), so a
+`JOBLEFT_BOARD_DIRECTORY` swaps the 3,581-board directory for a small file (`none` = an empty directory), so a
 refresh asks only the boards you care about. The mock config format is described at the top of
 `scripts/mock-hosts.ts`; each board can follow a script of answers (`ok`, `404`, `500`, `403`, `timeout`, `empty`,
 `broken`, `429:<seconds>`). Stop the mock hosts with `pkill -f mock-hosts.ts` when you are done.
@@ -167,7 +167,7 @@ jb jobs greenhouse:acme --all  # the jobs a board's refreshes stored; closed one
 - Time-skip: `JOBLEFT_CLOCK_OFFSET=2d jb refresh` (or `JOBLEFT_NOW=2026-10-01T00:00:00Z`) runs as if the clock were
   later, so a board's next check date can be reached without waiting.
 - A refresh that would ask more than 25 boards on live (unmapped) hosts stops and asks for `--live`; this protects
-  you from starting a 3,600-board live crawl by accident.
+  you from starting a 3,581-board live crawl by accident.
 
 ### Offline and pending links (O2)
 
@@ -223,7 +223,7 @@ Errors use the local API error body: `{"error":{"code":"conflict","message":"Thi
 
 Without `JOBLEFT_HOST_MAP` the same commands talk to the real providers, politely. For example
 `jb resolve 'https://boards.greenhouse.io/airbnb'` sends two requests (robots.txt and the board's public job list).
-A refresh of the whole shipped directory is about 3,600 requests (roughly 35 minutes, three hosts in parallel) and
+A refresh of the whole shipped directory is about 3,600 requests (one per board, plus robots.txt), roughly 35 minutes with three hosts in parallel, and
 needs `jb refresh --live`.
 
 ## 6. Directory maintenance
@@ -259,10 +259,11 @@ recording real answers would have broken robots.txt. `cc-discover` keeps only bo
 reads only the URL index (never crawled pages), sends at most `--max-requests` requests (default 20), 1 per 1.1
 seconds, with the project User-Agent, robots.txt and Retry-After honoured. `--record <dir>` saves answers for replay.
 
-The shipped directory today: 3,622 rows from JobSync (602 Greenhouse, 1,160 Lever of which 81 on Lever's EU host,
-1,860 Ashby). On 2026-09-25 every Greenhouse row, every EU Lever row and 400 random Lever and Ashby rows were
-checked live: 1,029 live, 41 suspect (one "not found"; removed only after a second "not found" later), the rest
-unverified. An earlier random sample of 150 rows (50 per provider) found 143 live.
+The shipped directory today: 3,581 rows (571 Greenhouse, 1,151 Lever of which 78 on Lever's EU host, 1,859 Ashby),
+all from JobSync. On 2026-09-25 every Greenhouse row, every EU Lever row and 400 random Lever and Ashby rows were
+checked live: 1,029 answered as live boards (status `live`), 41 answered "not found" and answered "not found" again
+about 40 minutes later, so they were removed (`data/board-directory-pruned.json` lists them with both times); the
+other 2,552 rows are `unverified`. An earlier random sample of 150 rows (50 per provider) found 143 live.
 
 ## 7. Using the package from code
 
