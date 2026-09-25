@@ -58,7 +58,16 @@ test('fit order finds the target job for most hand-written profiles (real model)
     const r = s.search({ sort: 'top_matched', limit: 10 }, { ...CTX, profileVector: pv, fit });
     if (r.items.some((it) => it.job.id === `target:${i}`)) hits++; else misses.push(PAIRS[i]![1]);
   }
+  // Negative control: profile i with target i+7 must NOT land in the first 10 (the ranking is about duties, not style).
+  let wrong = 0;
+  for (const [i, [profile]] of PAIRS.entries()) {
+    const j = (i + 7) % PAIRS.length;
+    const pv = await fit.profileVector(profile);
+    const r = s.search({ sort: 'top_matched', limit: 10 }, { ...CTX, profileVector: pv, fit });
+    if (r.items.some((it) => it.job.id === `target:${j}`)) wrong++;
+  }
   await e.close();
-  process.stderr.write(`fit quality: ${hits} of ${PAIRS.length} targets in the first 10 among ${SIZE + PAIRS.length} jobs; missed: ${misses.join(', ')}\n`);
+  process.stderr.write(`fit quality: ${hits} of ${PAIRS.length} targets in the first 10 among ${SIZE + PAIRS.length} jobs; missed: ${misses.join(', ')}; wrong target in the first 10: ${wrong}\n`);
   assert.ok(hits >= 25, `only ${hits} of 30`);
+  assert.ok(wrong <= 5, `wrong target in the first 10 for ${wrong} of 30`);
 });

@@ -116,7 +116,9 @@ The same search runs in the CLI (`search`) and the endpoint `POST /api/v1/jobs/s
 **Words.** A job matches when every word appears in its title, company, skills, department, places or description.
 Words are matched by stem (`engineering` finds `engineer`) and without accents (`Societe Generale` finds
 `Société Générale`). `C++`, `C#`, `F#`, `.NET`, `ASP.NET`, `Node.js` (also `nodejs`, `node js`), `401(k)`, `R&D`
-are words of their own: `C++` does not find `C` jobs and `C#` does. Quotes, `*`, brackets, hyphens, a lone `-`, and
+are words of their own: `C++` finds neither `C` nor `C#` jobs. A one-letter prefix with an apostrophe is also one
+word: `Loreal`, `L'Oréal` and `L Oreal` all find `L'Oréal` (`O'Reilly` the same; contractions such as `I'll` are left
+alone). Quotes, `*`, brackets, hyphens, a lone `-`, and
 `AND`, `OR`, `NOT`, `NEAR` are ordinary text, never syntax: such a query returns results or zero results, never an
 error. Glue words (`and`, `or`, `the`, `in` ...) are dropped when other words remain. An empty query, or one with
 nothing searchable (`-`, `""`), returns the normal list.
@@ -137,7 +139,7 @@ listed values.
 | `minAnnualPayUsd: n` | The top of the stated range (the maximum, or the minimum when there is no maximum), converted to a year, is at least n US dollars. Unknown pay and pay in another currency fail unless `includeUnknown: ["pay"]` |
 | `h1bSponsorship: true` | The posting says it sponsors, or the company's H-1B history is `likely` (company facts). A posting that says it does not sponsor always fails |
 | `excludeClearanceRequired`, `excludeUsCitizenOnly` | Removes jobs whose posting states that requirement |
-| `skills` / `excludedSkills` | Any listed skill is in the job's skills list (case and accents ignored) / none is |
+| `skills` / `excludedSkills` | Any listed skill is in the job's skills list (case and accents ignored; `C++`, `C#`, `C` and `.NET` are four different skills) / none is |
 | `companies` / `excludedCompanies` | Company names or keys ("Stripe" matches "Stripe, Inc.") |
 | `industries` / `excludedIndustries`, `companyStages`, `excludeStaffingAgencies` | Company facts. A company with no stated industry or stage fails an include filter; `excludeStaffingAgencies` removes only companies known to be agencies |
 | `jobFunctions` | Every word of a listed function appears in the title or department |
@@ -149,10 +151,13 @@ listed values.
 **Sorts.** `recommended`: with words, jobs with the exact words in the title first, then stemmed title words, the
 words in order, the share of the title they cover, company-name words; then the newest posting day. Without words:
 the newest posting day, then postings that state more facts. `most_recent`: the employer's posted time, newest first;
-jobs with no posted date come last (never the time the store first saw them). `top_matched`: cosine of the job's
-vector to the profile vector, highest first; jobs that wait for fit indexing follow, marked `fitScore: null`
-("not scored yet"). Ties always break by the job's row number, so the same query on the same data gives the same
-order every time, also after a restart.
+jobs with no posted date come last (never the time the store first saw them). `top_matched`: the fit score, highest
+first. Fit score = cosine(profile, job) minus 0.5 x cosine(average job, job), where the average is over every current
+job vector in the store. The second part takes off the pull of text that every posting shares (communication
+skills, benefits, equal-opportunity lines), so a job whose duties match ranks above a generic one. Jobs that wait
+for fit indexing follow, marked `fitScore: null` ("not scored yet"). Ties always break by the job's row number, so
+the same query on the same data gives the same order every time, also after a restart (the session scores with the
+profile vector rounded to float16, the same copy that is kept on disk and read back after a restart).
 
 ## 6. Closed, hidden and duplicate jobs
 
@@ -313,9 +318,14 @@ capped at 64 MB; the fit model (about 300 MB) is loaded only while it works and 
 - `match` (percent and band) and `networkCount` in results are filled by other lanes in the app, null here.
 - Measured on one Mac under load; the 16 GB base Mac was not available.
 - Fit quality, measured with 30 hand-written profile and target pairs hidden among 10,000 synthetic jobs
-  (`JOBLEFT_TEST_MODEL_DIR=<model folder> JOBLEFT_TEST_FIT_SIZE=10000 pnpm --filter @jobleft/store test`): 24 of 30
-  targets in the first 10. The misses were fields where many synthetic jobs repeat the profile's own words
-  ("forklift", "Kubernetes", "Zendesk") and so rank above a target written with other words.
+  (`JOBLEFT_TEST_MODEL_DIR=<model folder> JOBLEFT_TEST_FIT_SIZE=10000 pnpm --filter @jobleft/store test`): 27 of 30
+  targets in the first 10 (plain cosine gave 24); a profile paired with the wrong target puts it in the first 10 for
+  2 of 30. Misses: Material Handler, Customer Care Associate, UI Engineer, fields where many synthetic jobs repeat the
+  profile's own words ("forklift", "Zendesk", "React"). With 3,000 synthetic jobs: 30 of 30.
+- A new fit vector moves the average job, so the fit scores of a search change a little while indexing runs; with
+  the same data the scores are the same in every session and after a restart.
+- Skill tags and search words are made when a job is saved. A data file made before this build keeps the old skill
+  tags (`C++`, `C#` and `C` as one skill) and the old apostrophe words until its jobs are imported again.
 - Bulk writes are about 4,000 jobs a second with realistic descriptions, not the 70,000 a second the spike measured
   with 400-character summaries: indexing every word of a 4,500-character description is most of the cost.
 
@@ -323,7 +333,7 @@ capped at 64 MB; the fit model (about 300 MB) is loaded only while it works and 
 
 | Command | What it does |
 |---|---|
-| `pnpm --filter @jobleft/store test` | Unit and integration tests (20; the real-model fit check runs only with `JOBLEFT_TEST_MODEL_DIR=<model folder>`) |
+| `pnpm --filter @jobleft/store test` | Unit and integration tests (24; the real-model fit check runs only with `JOBLEFT_TEST_MODEL_DIR=<model folder>`) |
 | `pnpm --filter @jobleft/store typecheck` | Type check (`tsc`, no output files) |
 
 Code: `src/db.ts` (schema, migrations), `src/record.ts` (import shape, keys, hashes, facets), `src/writer.ts`
