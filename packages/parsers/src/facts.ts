@@ -137,7 +137,7 @@ export function extractFacts(input: PostingInput): PostingFacts {
   if (years) evidence.years = years.evidence;
   const emp = safe(warnings, 'employment type', () => parseEmploymentType(input.employmentType ?? null, description, title), { value: null, evidence: null });
   if (emp.evidence) evidence.employmentType = emp.evidence;
-  const lv = safe(warnings, 'level', () => parseLevel({ title, text: description, years: years ? { min: years.min, max: years.max } : null, boardSeniority: input.seniority ?? null, employmentType: emp.value }), { level: null, levels: [], evidence: null });
+  const lv = safe(warnings, 'level', () => parseLevel({ title, text: description, years: years ? { min: years.min, max: years.max, evidence: years.evidence } : null, boardSeniority: input.seniority ?? null, employmentType: emp.value }), { level: null, levels: [], evidence: null });
   if (lv.evidence && lv.levels.length) evidence.level = lv.evidence;
   const st = safe(warnings, 'statements', () => parseStatements(description), { sponsorship: null, clearanceRequired: null, usCitizenOnly: null, evidence: {} });
   if (st.evidence.sponsorship) evidence.sponsorship = st.evidence.sponsorship;

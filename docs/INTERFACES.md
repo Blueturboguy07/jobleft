@@ -395,24 +395,35 @@ Details and change rules: `packages/contracts/README.md`.
 
 ### `@jobleft/parsers`
 
-Status: **Built** (ported from spike S1, 12 tests). Pure functions only: no network, no clock, no files.
+Status: **Built** (parsers lane, 48 tests). Pure functions only: no network, no clock, no files. Deterministic.
+Purpose: every fact of a posting (pay, seniority, required years, places, US or not, work model and remote area,
+employment type, posting statements), each with `FactEvidence`, or `null`/`[]` when the posting does not state it.
+Everything the crawler, sources-other (added jobs) and store need is in `extractFacts`.
 
 | Export | Signature | Notes |
 |---|---|---|
-| `htmlToText` | `(html: string) => string` | Blocks become lines, `li` becomes "- ", entities decode, scripts and styles vanish |
-| `unescapeEncodedHtml`, `decodeEntities` | `(s: string) => string` | One entity layer, only when encoded tags outnumber live tags |
-| `levelFromTitle` | `(title: string) => Level \| null` | Most senior marker wins; non-tech titles work |
-| `levelFromDescription` | `(text: string) => Level \| null` | Weak fallback from "N+ years ... experience" |
-| `parsePayFromText` | `(text: string) => ParsedPay \| null` | `{ min, max, currency, period }`; conservative |
-| `annualize` | `(v: number \| null, period: PayPeriod) => number \| null` | 2,080 hours, 260 days, 52 weeks, 12 months |
-| `isUsLocation` | `(location: string, countries?: string[]) => boolean \| null` | Country codes from the API win |
-| `isRemoteText` | `(location: string) => boolean` | |
+| `extractFacts` | `(input: PostingInput) => PostingFacts` | The one call. `PostingFacts` = `{ pay, places, isUs, workModel, remoteScope, employmentType, level, levels, yearsRequired, statements, evidence, description, warnings }` in contract shapes (`Pay`, `Place[]`, `RemoteScope`, `ExperienceLevel[]`, `PostingStatements`, `JobEvidence`). Never throws; a failed reader leaves its fact null and adds a warning. `description` is the whole plain text (never cut) |
+| `PostingInput` | `{ title, location?, locations?, addresses?, countries?, descriptionHtml?, description?, pay?: BoardPay[], workplaceType?, remote?, employmentType?, seniority?, experienceMonths?, extraText? }` | Board fields that carry facts. `pay` is the board's pay field (period may be null); `extraText` is board text next to the body (Lever `salaryDescription`, Ashby pay summary) |
+| `postingsFromBoard`, `fromGreenhouse`, `fromLever`, `fromAshby`, `fromWorkable`, `fromRecruitee`, `fromPersonio`, `fromJsonLd`, `detectFormat`, `fromBoard` | `(json) => PostingInput` (and a list for a whole board) | Reads the fact fields of each public format. JSON-LD `estimatedSalary` is never read |
+| `parsePay`, `payFromBoard` | `(text, { country?, title?, placeWords? }) => { pay: Pay, evidence } \| null` | Single figures (`min = max`), "up to" (`min: null`), "from"/"+" (`max: null`), tiers (`ranges`), OTE and add-ons excluded, many currencies and number styles. `source` is `description` or `board_field` |
+| `payMeetsMinimum`, `paySortKey`, `formatPay`, `PAY_FILTER_RULE`, `yearlyPay` | `(pay, minYearly, currency?) => boolean \| null` ... | The one pay rule for filters, sorts and cards: the top of the range (or the only figure), per year (2,080 hours, 260 days, 52 weeks, 12 months), in the filter's currency; unknown pay is `null` |
+| `parsePlaces`, `parseLocationText`, `placesFromText`, `placeFromAddress`, `usFromFacts`, `countryName` | `(text, { context? }) => Place[]` ... | Every place; `region` is the US state or Canadian province code when known; `country` ISO alpha-2; `placeId` stays null (static-data resolves it). `parseLocationText` also returns work-model words and remote regions of a location field |
+| `parseWorkModel` | `(text, { workplaceType?, remote?, location?, locations?, title? }) => { workModel, remoteScope, evidence }` | Strictest stated reading wins; `remoteScope.regions` are ISO codes or `WORLDWIDE`, `EU`, `EMEA`, `APAC`, `LATAM`, `NA`, `AMER`; `remoteScope.text` keeps the posting's words (state lists, time zones, distance) |
+| `parseYearsRequired` | `(text) => { min, max, evidence } \| null` | Experience requirements only; lowest alternative; preferred never replaces required |
+| `parseLevel`, `readTitle`, `levelsOf`, `bucketsForYears`, `bucketsFromBoardSeniority`, `BUCKETS` | `parseLevel({ title, text?, years?, boardSeniority?, employmentType? }) => { level, levels, evidence }`; `levelsOf(level, years) => ExperienceLevel[]` | One or two adjacent buckets |
+| `parseStatements`, `parseEmploymentType` | `(text) => PostingStatements & { evidence }`; `(field, text, title) => { value, evidence }` | EEO boilerplate is never a statement |
+| `htmlToText`, `unescapeEncodedHtml`, `decodeEntities` | `(s: string) => string` | Blocks become lines, `li` becomes "- ", table cells " \| ", entities decode (twice-encoded too), scripts and styles vanish |
+| Spike API (kept) | `levelFromTitle`, `levelFromDescription`, `parsePayFromText`, `annualize`, `isUsLocation`, `isRemoteText`, `parseNumber` | Same signatures as the S1 port; better rules |
 
-Planned by the parsers lane (names fixed here): `parsePlaces(text): Place[]` (every place, never a default country),
-`parseWorkModel(text, fields): { workModel, remoteScope, evidence }`, `parseYearsRequired(text): { min, max, evidence } | null`,
-`parseStatements(text): PostingStatements & { evidence }` (sponsorship yes or no, clearance, US citizen only; negations
-near and far), `levelsOf(level, years): ExperienceLevel[]`, and evidence for each fact. The crawler lane calls them in
-`normalizeJob`.
+CLI `jobleft-parse` (`packages/parsers/src/cli.ts`): `text [FILE|-] [--title T] [--location L] [--workplace W] [--html]`,
+`board <FILE|loopback URL> [--format F] [--table|--ndjson]`, `rule`. It fetches only loopback URLs (a local mock board).
+`packages/parsers/scripts/serve-board.ts <file> [--port N]` serves a file as a mock board on 127.0.0.1.
+
+For the crawler lane: call `extractFacts` in `normalizeJob` with the adapter's fields (`fromGreenhouse` and friends show
+which board fields matter), and store `pay.ranges`, every place, `remoteScope`, `levels`, `yearsRequired`, `statements`
+and `evidence`. Keep board pay unrounded (the S1 `makePay` rounds $17.68 to $18). When a board shows pay outside the
+description (Greenhouse pay box, Lever salary range, Ashby compensation), store that text with the posting so a reader
+can see it (parsers O14).
 
 ### `@jobleft/crawler`
 

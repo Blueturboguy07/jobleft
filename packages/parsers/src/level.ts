@@ -178,7 +178,7 @@ const NOT_ENTRY = /\bnot\s+(?:an?\s+)?(?:entry[- ]level|new\s+grad)/i;
 export interface LevelInput {
   title: string;
   text?: string | null;
-  years?: { min: number | null; max: number | null } | null;
+  years?: { min: number | null; max: number | null; evidence?: FactEvidence | null } | null;
   /** A board's own seniority field (Recruitee experience_code, Personio seniority, ...). */
   boardSeniority?: string | null;
   employmentType?: string | null;
@@ -218,7 +218,8 @@ export function parseLevel(input: LevelInput): LevelResult {
   const newGrad = NEW_GRAD_TEXT.exec(head);
   const noExp = NOT_ENTRY.test(head) ? null : NO_EXP_TEXT.exec(head);
   const yearsBuckets = years ? bucketsForYears(years.min!, years.max) : [];
-  const yearsEv: FactEvidence | null = years ? { source: 'description', text: 'Asks for ' + (years.max !== null && years.max !== years.min ? `${years.min}-${years.max}` : `${years.min}+`) + ' years of experience' } : null;
+  // The years sentence from the posting is the evidence for a level the years decide.
+  const yearsEv: FactEvidence | null = years ? (years.evidence ?? { source: 'description', text: `${years.min}${years.max !== null && years.max !== years.min ? '-' + years.max : '+'} years of experience` }) : null;
 
   if (reading && reading.strength === 'strong') {
     const b = reading.buckets ?? [experienceLevelOf(reading.level)];
