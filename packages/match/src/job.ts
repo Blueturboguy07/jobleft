@@ -211,7 +211,11 @@ function levelOfTitlePart(title: string): Level | null {
   const t = title.trim().replace(/\s+(to|for|supporting|reporting to)\s+(the\s+)?(ceo|cfo|coo|cto|president|founder|vp|vice president|director|chief\b.*|executive team|leadership team|partners?|owner|head of\b.*|svp|evp)\b.*$/i, '');
   if (/\b(executive chef|head chef|chef de cuisine|culinary director)\b/i.test(t)) return 'manager';
   if (/\bsous chef\b/i.test(t)) return 'lead';
+  // A bare "General Manager" runs the company (a site general manager is caught in levelOfTitle first).
+  if (/^general manager$/i.test(t)) return 'exec';
   const base = levelFromTitle(t);
+  // "VP and General Manager" is the head of a business unit: executive, as before.
+  if (base === 'vp' && /\bgeneral manager\b/i.test(t)) return 'exec';
   // Titles that are entry level by their nature, with no level word ("Cashier", "Teacher Aide", "Electrician Helper").
   if (!base && /\b(cashier|stocker|crew member|team member|dishwasher|busser|barista|hostess|host|picker|packer|bagger|courtesy clerk|cart attendant|greeter|food runner|runner|porter|laborer|helper|trainee|aide|attendant|clerk|caregiver|nanny|babysitter|sitter)\b/i.test(t)) return 'entry';
   if (base === 'manager' && IC_MANAGER.test(t) && !/\b(managers|team manager|people manager)\b/i.test(t)) {
