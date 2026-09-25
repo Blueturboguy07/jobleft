@@ -175,7 +175,7 @@ const MARKET_PHRASE = /\b(?:median|average|avg|typical|mean)\s+(?:\w+\s+){0,2}(?
 const AFTER_EXCL = /\b(?:sales|orders|revenue|arr|gmv|funding|loans?|deals?|contracts?|spend|budget|volume|assets|in\s+(?:annual\s+|yearly\s+)?(?:sales|revenue|funding|savings|value))\b/i;
 
 /** Words that show a figure is pay. */
-const PAY_CUE = /\b(?:starting\s+at|starts\s+at|ctc|cost\s+to\s+company|pay|paid|pays|hourly|salaried|salary|salaries|salario|salário|sueldo|compensation|comp|wages?|rates?|earn\w*|income|remuneration|rémunération|remuneração|remuneraci[oó]n|gehalt|vergütung|verguetung|lohn|stundenlohn|salaire|retribuzione|stipendio|ral|range|pago|paga|paye|stipend)\b|時給|月給|年収|年俸|日給|給与|시급|연봉|월급/gi;
+const PAY_CUE = /\b(?:starting\s+at|starts\s+at|ctc|cost\s+to\s+company|pay|paid|pays|hourly|salaried|salary|salaries|salario|salário|sueldo|compensation|comp|wages?|rates?|earn\w*|income|remuneration|rémunération|remuneração|remuneraci[oó]n|\w*gehalt|vergütung|verguetung|\w*lohn|verdienst|salaire|retribuzione|stipendio|ral|range|pago|paga|paye|stipend)\b|時給|月給|年収|年俸|日給|給与|시급|연봉|월급/gi;
 const BASE_CUE = /\b(?:base|basic|fixed|fixe|fijo|grundgehalt|garantizado|guaranteed)\b/gi;
 const TOTAL_CUE = /\b(?:ote|on[- ]target(?:\s+earnings)?|total\s+(?:target\s+)?(?:compensation|comp|cash|pay|package|earnings|rewards?|remuneration)|at\s+plan|target\s+(?:earnings|compensation|comp|cash|total)|earning\s+potential|income\s+potential|potential\s+(?:earnings|income)|(?:with|including|incl\.?|inclusive\s+of)\s+(?:commissions?|bonus(?:es)?|tips|incentives?|variable)|uncapped|package|pacchetto|paquete|pacote|incluso\s+bonus|variable\s+incluid[oa])\b/gi;
 /** "plus a $4/hr differential", "additional $2/hr": a figure added on top of another. */

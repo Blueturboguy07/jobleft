@@ -565,6 +565,10 @@ function placesFromPiece(piece: string, context: string): Place[] {
         flush();
         break;
       case 'country':
+        // "Monterrey, NL, México": a region code read as another country's province gives way to the stated country.
+        if (cur.country && cur.country !== tok.cc && cur.region && /^[A-Z]{2,3}$/.test(cur.region) && (!cur.cityTok || cur.cityTok.world.includes(tok.cc) || !cur.cityTok.world.includes(cur.country))) {
+          cur.country = tok.cc; addText(raw); flush(); break;
+        }
         if (cur.cityTok || cur.city || cur.region || cur.stateHint) {
           if (!cur.country || cur.country === tok.cc) {
             // "Tbilisi, Georgia (country)"; "Toronto, ON, Canada"; "London, UK".
