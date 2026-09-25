@@ -388,6 +388,16 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const origin = `http://127.0.0.1:${port}`;
   writeRunFile(layout.runFile, { pid: process.pid, port, token: opts.launchToken, version: APP_VERSION, startedAt: new Date().toISOString() });
   log.info('server.listening', { port, version: APP_VERSION, ui: uiDir ? 'built' : 'fallback', offline: cfg.offline, dev: cfg.dev });
+  // Warm the search index's pages once, in the background: the first search after launch on a large store paid
+  // ~0.5 s for a cold page cache (gate 9); every later search takes tens of milliseconds.
+  const warm = setTimeout(() => {
+    try {
+      const db = app.data.db;
+      db.prepare(`SELECT rowid FROM jobs_fts WHERE jobs_fts MATCH 'engineer OR manager OR nurse OR analyst OR sales' LIMIT 1`).all();
+      db.prepare('SELECT count(*) AS n FROM jobs WHERE closed_at IS NULL').get();
+    } catch { /* no index yet, or the folder is being replaced: nothing to warm */ }
+  }, 300);
+  warm.unref();
   data.startBackground(log);
 
   let closing: Promise<void> | null = null;

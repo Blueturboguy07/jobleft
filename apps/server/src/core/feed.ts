@@ -206,6 +206,8 @@ const TOP_MATCHED_POOL = 200;
 export class FeedService {
   private readonly d: FeedDeps;
   private readonly ranked = new Map<string, Ranked>();
+  /** The cache key of the plain Recommended feed, never evicted. */
+  private baseKey: string | null = null;
   private readonly matches = new Map<string, MatchResult>();
   private readonly h1bCache = new Map<string, H1bLookupDetail>();
   private h1bSet: { stamp: string; ids: number[] } | null = null;
@@ -297,6 +299,9 @@ export class FeedService {
   }
 
   search(req: JobSearchRequest, deps: SearchDeps): JobSearchResponse {
+    // Text with no letter or digit (a lone "*", quotes, dashes) is no search at all: the plain feed answers, instead
+    // of an every-row scan that a wildcard would start (sys-perf O1, gate 9).
+    if (req.q !== undefined && !/[\p{L}\p{N}]/u.test(req.q)) req = { ...req, q: undefined };
     const t0 = performance.now();
     const restrict = req.filter?.h1bSponsorship ? this.h1bIds() : null;
     const profile = deps.hasProfile() ? this.d.profile() : null;
@@ -339,7 +344,11 @@ export class FeedService {
       if (!ranked) {
         ranked = this.rank(req, profile, m, restrict);
         this.ranked.set(full, ranked);
-        if (this.ranked.size > 24) this.ranked.delete(this.ranked.keys().next().value!);
+        // The plain Recommended feed (no words, no filters) is the order every visit comes back to; a burst of
+        // searches must not push it out (a re-rank of 100,000 jobs costs about 0.2 s; gate 9).
+        const isBase = !rest.q && Object.keys(rest.filter ?? {}).length === 0 && (rest.sort ?? 'recommended') === 'recommended';
+        if (isBase) this.baseKey = full;
+        if (this.ranked.size > 24) { for (const k of this.ranked.keys()) { if (k !== this.baseKey) { this.ranked.delete(k); break; } } }
       }
       h = full;
     }
