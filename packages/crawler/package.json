@@ -14,10 +14,17 @@
   },
   "scripts": {
     "test": "node --test \"test/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "crawl": "node src/cli.ts crawl",
+    "verify": "node src/cli.ts verify",
+    "report": "node src/cli.ts report",
+    "search": "node src/cli.ts search"
   },
   "dependencies": {
     "@jobleft/contracts": "workspace:*",
     "@jobleft/parsers": "workspace:*"
+  },
+  "bin": {
+    "jobleft-crawl": "./src/cli.ts"
   }
 }
