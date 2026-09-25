@@ -30,7 +30,22 @@ export function cleanJobField(value: string, fallback: string): { value: string;
 }
 
 function lowerFirst(s: string): string {
-  return /^[A-Z][a-z]/.test(s) ? s[0]!.toLowerCase() + s.slice(1) : s;
+  // "A personal app" -> "a personal app", "Built with" -> "built with"; acronyms ("AWS") and "I" stay.
+  return /^[A-Z](?:[a-z]|\s)/.test(s) && !/^I\s/.test(s) ? s[0]!.toLowerCase() + s.slice(1) : s;
+}
+
+const ROLE_START = /^(?:[A-Za-z][\w-]*\s){0,4}?(?:engineer|developer|programmer|designer|analyst|scientist|manager|nurse|teacher|accountant|consultant|specialist|professional|leader|graduate|student|marketer|writer|architect|administrator|technician|researcher|coordinator)\b/i;
+
+/** A resume summary as a first-person sentence ("Software engineer with..." -> "I am a software engineer with..."). */
+function summarySentence(summary: string): string | null {
+  const first = summary.split(/(?<=[.!?])\s+/)[0]!.trim();
+  if (!first) return null;
+  if (/^I\b|\bI\s(?:am|have|build|work)\b/.test(first)) return asSentence(first);
+  if (ROLE_START.test(first)) {
+    const body = lowerFirst(first);
+    return asSentence(`I am ${/^[aeiou]/i.test(body) ? 'an' : 'a'} ${body.replace(/^(?:a|an)\s+/i, '')}`);
+  }
+  return null;
 }
 
 function asSentence(s: string): string {
@@ -88,7 +103,8 @@ export function ruleLetterBody(ctx: Ctx): string[] {
   const role = title === 'this role' ? 'this role' : `the ${title} role`;
   const current = ctx.profile.work.find((w) => w.current) ?? ctx.profile.work[0];
   const opener = [`I am writing to apply for ${role} at ${company}.`];
-  if (ctx.profile.summary) opener.push(asSentence(ctx.profile.summary.split(/(?<=[.!?])\s+/)[0]!));
+  const sum = ctx.profile.summary ? summarySentence(ctx.profile.summary) : null;
+  if (sum) opener.push(sum);
   else if (current) opener.push(`I work as a ${current.title} at ${current.company}.`.replace(/^I work as a (?=[AEIOU])/, 'I work as an '));
   paras.push(opener.join(' '));
   const bullets = relevantBullets(ctx, 3);
@@ -256,8 +272,8 @@ export async function editLetter(input: {
       return { text: input.current, gaps, changed: false, provider: 'none', costMicros: null, notice: `No project like that is in your profile${intent.name ? ` ("${intent.name}")` : ''}. Add it to your profile first, then ask again.` };
     }
     if (!input.ai) {
-      const clause = pr.bullets[0] ? bulletAsClause(pr.bullets[0]) : null;
-      const sentence = asSentence(`I also built ${pr.name}${pr.description ? `, ${lowerFirst(pr.description.replace(/\.$/, ''))}` : ''}`) + (clause ? ` ${asSentence(clause.replace(/^I built with/, 'I built it with'))}` : '');
+      const detail = pr.bullets[0] ? ` (${lowerFirst(pr.bullets[0].replace(/\.$/, ''))})` : '';
+      const sentence = asSentence(`I also built ${pr.name}${pr.description ? `, ${lowerFirst(pr.description.replace(/\.$/, ''))}` : ''}${detail}`);
       const next = [...body];
       next.splice(Math.max(1, next.length - 1), 0, sentence);
       const gated = gateSentences(next, ctx);

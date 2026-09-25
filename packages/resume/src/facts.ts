@@ -340,6 +340,8 @@ export function findTitles(text: string): Mention[] {
   const push = (t: string, start: number) => {
     const clean = t.replace(/^(?:of|and)\s+/i, '').trim();
     if (!clean) return;
+    // Salutations name no one's title ("Dear Hiring Manager").
+    if (/^(?:dear\s+)?(?:hiring|recruiting)\s+(?:manager|team|lead)s?$/i.test(clean)) return;
     const offset = t.indexOf(clean);
     out.push({ kind: 'title', text: clean, key: foldKey(clean), start: start + offset, end: start + offset + clean.length, seniority: seniorityIn(clean) });
   };
