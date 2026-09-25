@@ -1184,7 +1184,7 @@ required") with evidence; protected traits and names are never inputs; posting t
 
 ### `@jobleft/network`
 
-Status: **Built** (48 tests; probe `evals/network/csv-fixtures`). Purpose: the Network tool on the person's own
+Status: **Built** (50 tests; probe `evals/network/csv-fixtures`). Purpose: the Network tool on the person's own
 `Connections.csv`. Owns: tables `network_contacts` and `network_meta`; routes `importNetwork`, `listContacts`,
 `networkCoverage`, `rankContacts`, `updateContact`, `deleteContact`, `deleteNetwork`, `draftOutreach`, and (added by
 the network lane, additive) `previewDraft`, `networkCompanies`, `explainCompanyMatch`, `networkPlan`,
