@@ -274,6 +274,10 @@ function checkMentions(text: string, where: string, ctx: Ctx, opts: { sentence?:
     out.push(v('skill', m.text, where, fromJob ? 'The job asks for this skill, but your profile does not have it.' : 'This skill is not in your profile.'));
   }
   for (const m of scan.degrees) {
+    if (m.level!.startsWith('honours:')) {
+      if (!inCorpus(pf, m.text)) out.push(v('degree', m.text, where, 'This honour is not in your profile.'));
+      continue;
+    }
     const fields = pf.degreeLevels.get(m.level!);
     if (!fields) {
       out.push(v('degree', m.text, where, 'Your profile has no degree at this level.'));

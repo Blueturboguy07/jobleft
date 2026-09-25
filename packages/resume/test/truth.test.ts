@@ -139,3 +139,15 @@ test('requests to add facts the profile does not have are refused', () => {
   assert.deepEqual(refusedFacts('mention my project Ledger Lite', p), []);
   assert.deepEqual(refusedFacts('say I have 10 years of experience', p), ['10 years']);
 });
+
+test('vaguer claims are caught too: "in half", "certified in", honours, "senior-level", "Fortune 500"', () => {
+  const p = jordanProfile();
+  const base = documentFromProfile(p);
+  const k = (t: string) => kinds(truthGate(withBullet(base, t), p, null));
+  assert.ok(k('Cut batch-job time in half by rewriting the scheduler in TypeScript.').some((x) => x.startsWith('number:')));
+  assert.ok(k('Certified in AWS; led a migration of 12 services to PostgreSQL.').some((x) => x.startsWith('certification:')));
+  assert.ok(k('Graduated summa cum laude.').some((x) => x.startsWith('degree:')));
+  assert.ok(k('Senior-level engineer on the billing API.').some((x) => x.startsWith('title:')));
+  assert.ok(k('Worked at a Fortune 500 company.').includes('number:500'));
+  assert.ok(k('Led the Northwind Labs migration of 12 services.').some((x) => x.startsWith('employer:') || x.startsWith('other:')));
+});

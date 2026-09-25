@@ -134,6 +134,10 @@ export function findSkills(text: string): Mention[] {
 
 export function findCertifications(text: string): Mention[] {
   const out = findTerms(text, CERT_INDEX, 'certification');
+  // Any claim of being certified or licensed, even without a known certificate name.
+  for (const m of text.matchAll(/\b(?:[Cc]ertified|[Cc]ertifications?|[Cc]ertificate|[Ll]icensed|[Ll]icensure|[Aa]ccredited)\b(?:\s+(?:in|as|for)\s+[A-Z][\w+#.-]*(?:\s+[A-Z][\w+#.-]*){0,3})?/g)) {
+    out.push({ kind: 'certification', text: m[0], key: foldKey(m[0]), start: m.index!, end: m.index! + m[0].length });
+  }
   for (const re of CERT_PATTERNS) {
     re.lastIndex = 0;
     for (const m of text.matchAll(re)) {
@@ -146,8 +150,11 @@ export function findCertifications(text: string): Mention[] {
 
 // ------------------------------------------------------------------------------------------------ degrees
 
+const HONOURS_RE = /\b(?:summa cum laude|magna cum laude|cum laude|with (?:high(?:est)? )?honou?rs|dean'?s list|valedictorian|salutatorian|phi beta kappa)\b/gi;
+
 export function findDegrees(text: string): Mention[] {
   const out: Mention[] = [];
+  for (const m of text.matchAll(HONOURS_RE)) out.push({ kind: 'degree', text: m[0], key: `honours:${foldKey(m[0])}`, level: `honours:${foldKey(m[0])}`, field: null, start: m.index!, end: m.index! + m[0].length });
   for (const d of DEGREE_LEVELS) {
     for (const re of d.patterns) {
       re.lastIndex = 0;
@@ -312,6 +319,9 @@ export function findNumbers(text: string): Mention[] {
     const unit = m[2] ? 'percent' : 'plain';
     out.push({ kind: 'number', text: m[0], key: numKey(unit, v), value: v, unit, start: m.index!, end: m.index! + m[0].length });
   }
+  for (const m of text.matchAll(/\b(?:cut|reduced|dropped|lowered|decreased|slashed|trimmed)?\s*(?:by\s+)?(?:nearly\s+|almost\s+|about\s+)?in half\b/gi)) {
+    out.push({ kind: 'number', text: m[0].trim(), key: numKey('mult', 0.5), value: 0.5, unit: 'mult', start: m.index!, end: m.index! + m[0].length });
+  }
   for (const m of text.matchAll(/\b(doubled|doubling|tripled|tripling|quadrupled|halved|halving)\b/gi)) {
     const v = MULT_WORDS[m[1]!.toLowerCase()]!;
     out.push({ kind: 'number', text: m[0], key: numKey('mult', v), value: v, unit: 'mult', start: m.index!, end: m.index! + m[0].length });
@@ -357,6 +367,8 @@ export function findTitles(text: string): Mention[] {
     push(t, start);
   }
   for (const m of text.matchAll(AS_ROLE_RE)) push(m[1]!, m.index! + m[0].indexOf(m[1]!));
+  // "senior-level", "staff level": a level claim even without a role noun.
+  for (const m of text.matchAll(/\b(senior|lead|principal|staff|executive|director|mid)[- ]level\b/gi)) push(m[0], m.index!);
   // "tech lead", "team lead", "engineering manager" without "as".
   for (const m of text.matchAll(/\b(?:tech|technical|team|engineering|project|product|program|squad|pod)\s+(?:lead|leader|manager|owner)\b/gi)) push(m[0], m.index!);
   return dropOverlaps(out);
