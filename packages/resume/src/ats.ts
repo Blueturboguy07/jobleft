@@ -149,7 +149,8 @@ export async function atsCheckPdf(bytes: Uint8Array): Promise<AtsReport> {
   }
   const reversed = work.filter((w) => w.startDate && w.endDate && w.endDate < w.startDate);
   if (reversed.length) add({ id: 'dates-reversed', rule: 'end_before_start', severity: 'critical', part: 'dates', message: 'A job ends before it starts.', evidence: reversed.map((w) => `${w.company}: ${w.startDate} to ${w.endDate}`).join('; ') });
-  const dateLines = lines.map((l) => findDateRange(l.text)?.raw).filter((x): x is string => !!x);
+  // Styles of date ranges on entry lines (a year inside a link or a sentence is not a date style).
+  const dateLines = lines.filter((l) => !/https?:\/\/|www\.|@/.test(l.text)).map((l) => findDateRange(l.text)).filter((d) => d && d.start && (d.end || d.current)).map((d) => d!.raw);
   const styles = new Set(dateLines.map((d) => (/[A-Za-z]{3}/.test(d) ? 'month-name' : /\d{1,2}\/\d{4}/.test(d) ? 'numeric' : 'year')));
   if (styles.size > 1) add({ id: 'dates-mixed', rule: 'mixed_date_formats', severity: 'optional', part: 'dates', message: 'Dates are written in more than one style.', evidence: `Styles: ${[...styles].join(', ')}.` });
 

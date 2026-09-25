@@ -450,5 +450,10 @@ async function run(argv: string[]): Promise<number> {
   }
 }
 
+// A closed pipe (for example "| head") ends the program quietly, never with a stack trace.
+for (const stream of [process.stdout, process.stderr]) {
+  stream.on('error', (e: NodeJS.ErrnoException) => { if (e.code === 'EPIPE') process.exit(process.exitCode ?? 0); });
+}
+
 const code = await run(process.argv.slice(2));
 process.exitCode = code;
