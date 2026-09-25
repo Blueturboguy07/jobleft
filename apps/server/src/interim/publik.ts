@@ -163,6 +163,21 @@ export class PublikService {
     return key ? { baseUrl: s.baseUrl ?? this.baseUrl, key } : null;
   }
 
+  /**
+   * After a paid answer: the balance card follows the balance publik stamped on the answer (x-publik-balance), or,
+   * when the answer has none, asks publik for the balance once. Never called for a failed answer, so a failed
+   * request never changes the card.
+   */
+  async noteAnswer(balanceMicros: number | null): Promise<void> {
+    const s = this.load();
+    if (s.state !== 'connected') return;
+    if (balanceMicros !== null && s.wallet) {
+      this.save({ ...s, wallet: { ...s.wallet, balanceMicros: Math.max(0, balanceMicros), updatedAt: nowIso() } });
+      return;
+    }
+    try { await this.refresh(); } catch { /* the card keeps its last balance */ }
+  }
+
   /** A 402 answer as one plain sentence in dollars with exactly one link (INTERFACES 6.2). */
   balanceFailure(raw: string): ApiFailure {
     let e: Record<string, any> = {};

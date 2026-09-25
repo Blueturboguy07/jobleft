@@ -35,6 +35,11 @@ export class NotificationService {
     return rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, target: r.target, createdAt: r.created_at }));
   }
 
+  /** Removes the notifications of one kind that nobody has dismissed yet (a deleted contact's follow-up must not fire). */
+  dropPending(kind: Notification['kind']): number {
+    return tx(this.db, () => Number(this.db.prepare('DELETE FROM srv_notifications WHERE kind = ? AND acked_at IS NULL').run(kind).changes));
+  }
+
   ack(id: string): boolean {
     return tx(this.db, () => {
       const r = this.db.prepare('UPDATE srv_notifications SET acked_at = ? WHERE id = ? AND acked_at IS NULL').run(nowIso(), id);

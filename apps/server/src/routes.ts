@@ -9,6 +9,8 @@ import {
   CONTRACTS_VERSION, EXTENSION_PROTOCOL_VERSION, LOCAL_API_VERSION, nowIso, parseDuration,
   type ChatStreamEvent, type RouteBody, type RouteName, type RouteQuery,
 } from '@jobleft/contracts';
+import { AiError, type AiClient } from '@jobleft/ai-engine';
+import { NetworkApiError, handleNetworkRoute, profileSummary, type NetworkRouteName } from '@jobleft/network';
 import type { App, AppData } from './app.ts';
 import { ApiFailure, notFound, notReady } from './errors.ts';
 import { tmpName } from './home.ts';
@@ -56,6 +58,45 @@ function jobOr404(d: AppData, id: string) {
   const j = d.jobs.get(id);
   if (!j) notFound('That job');
   return j;
+}
+
+/** The target companies of the Network tool: the companies of jobs the person liked, applied to or added. */
+function networkTargets(d: AppData): Array<{ companyKey: string; companyName: string }> {
+  const targets = new Map<string, string>();
+  for (const v of ['liked', 'applied', 'external'] as const) for (const it of d.tracker.list(v).items) if (it.job.companyKey) targets.set(it.job.companyKey, it.job.company);
+  return [...targets].map(([companyKey, companyName]) => ({ companyKey, companyName }));
+}
+
+/** Runs one Network route through the package's own handler and turns its error into the API error. */
+async function network<K extends NetworkRouteName>(name: K, c: Ctx<K>): Promise<Out> {
+  const { d, app } = c;
+  const body = (c.body ?? {}) as { template?: boolean };
+  let client: AiClient | null = null;
+  let clientError: unknown = new AiError('no_provider', 'No AI provider is set up.');
+  // A client is made only for a real AI draft. Making it sends nothing. A failure here is raised by the package at the
+  // point where it needs the client, after its own checks (no provider, offline, first remote draft).
+  if (name === 'draftOutreach' && !body.template && d.ai.destination()) {
+    try { client = await d.ai.draftClient(); } catch (e) { clientError = e; }
+  }
+  try {
+    const json = await handleNetworkRoute(name, { params: c.params, query: c.query as Record<string, string | undefined>, body: c.body }, {
+      service: d.network,
+      job: (id) => d.jobs.get(id),
+      profileSummary: () => profileSummary(d.profile.exists() ? d.profile.get() : null),
+      ai: () => { if (!client) throw clientError; return client; },
+      aiDestination: () => d.ai.destination(),
+      targets: () => networkTargets(d),
+      offline: app.cfg.offline,
+    });
+    if (name === 'deleteNetwork' || name === 'deleteContact') d.notifications.dropPending('follow_up');
+    if (name === 'updateContact') d.followUpReminders();
+    return { json };
+  } catch (e) {
+    if (e instanceof NetworkApiError) {
+      throw new ApiFailure(e.code, e.message, { ...(e.details !== undefined ? { details: e.details } : {}), ...(e.link ? { link: e.link } : {}) });
+    }
+    throw e;
+  }
 }
 
 export const HANDLERS: HandlerTable = {
@@ -106,13 +147,14 @@ export const HANDLERS: HandlerTable = {
     for (const id of ids) { const j = d.jobs.get(id); if (j) lines.push(JSON.stringify(j)); }
     return { file: { fileName: `jobleft-saved-jobs-${today()}.ndjson`, mimeType: 'application/x-ndjson', bytes: Buffer.from(lines.join('\n') + (lines.length ? '\n' : '')) } };
   },
-  devClock: ({ app, body }) => {
+  devClock: ({ app, d, body }) => {
     if (!app.cfg.dev) notFound('That page');
     if (body.now !== undefined) { process.env.JOBLEFT_NOW = body.now; delete process.env.JOBLEFT_CLOCK_OFFSET; }
     else if (body.offset !== undefined) {
       try { parseDuration(body.offset); } catch { throw new ApiFailure('bad_request', 'offset must look like 72h, -30m, 3d, 90s or 1500ms.'); }
       process.env.JOBLEFT_CLOCK_OFFSET = body.offset; delete process.env.JOBLEFT_NOW;
     } else { delete process.env.JOBLEFT_NOW; delete process.env.JOBLEFT_CLOCK_OFFSET; }
+    d.reminderTick(); // a test that moves the clock sees a due reminder now, not at the next 30-second tick
     return { json: { now: nowIso() } };
   },
 
@@ -204,23 +246,20 @@ export const HANDLERS: HandlerTable = {
   listDatasets: () => ({ json: [] }),
   updateDatasets: () => notReady('Dataset updates'),
 
-  // ---------------------------------------------------------------- network
-  importNetwork: ({ d, body }) => {
-    let text: string;
-    try { text = new TextDecoder('utf-8', { fatal: true }).decode(body); } catch { throw new ApiFailure('bad_request', 'The file is not UTF-8 text. Nothing was imported.'); }
-    return { json: d.network.import(text) };
-  },
-  listContacts: ({ d, query }) => ({ json: d.network.list({ companyKey: query.companyKey, stage: query.stage, q: query.q, due: query.due === undefined ? undefined : query.due === 'true', inPlan: query.inPlan === undefined ? undefined : query.inPlan === 'true', today: today() }) }),
-  networkCoverage: ({ d }) => {
-    const targets = new Map<string, string>();
-    for (const v of ['liked', 'applied', 'external'] as const) for (const it of d.tracker.list(v).items) targets.set(it.job.companyKey, it.job.company);
-    return { json: d.network.coverage([...targets].map(([companyKey, companyName]) => ({ companyKey, companyName }))) };
-  },
-  rankContacts: ({ d, query }) => ({ json: d.network.rank(query.companyKey, query.jobId ? d.jobs.get(query.jobId) : null) }),
-  updateContact: ({ d, params, body }) => ({ json: d.network.update(params.contactId!, body) }),
-  deleteContact: ({ d, params }) => { if (!d.network.delete(params.contactId!)) notFound('That contact'); return ok; },
-  deleteNetwork: ({ d }) => ({ json: { ok: true, deleted: d.network.deleteAll() } }),
-  draftOutreach: () => notReady('Message drafts (the network tool)'),
+  // ---------------------------------------------------------------- network (the Network tool, @jobleft/network)
+  importNetwork: (c) => network('importNetwork', c),
+  listContacts: (c) => network('listContacts', c),
+  networkCoverage: (c) => network('networkCoverage', c),
+  rankContacts: (c) => network('rankContacts', c),
+  updateContact: (c) => network('updateContact', c),
+  deleteContact: (c) => network('deleteContact', c),
+  deleteNetwork: (c) => network('deleteNetwork', c),
+  draftOutreach: (c) => network('draftOutreach', c),
+  previewDraft: (c) => network('previewDraft', c),
+  networkCompanies: (c) => network('networkCompanies', c),
+  explainCompanyMatch: (c) => network('explainCompanyMatch', c),
+  networkPlan: (c) => network('networkPlan', c),
+  planTopContacts: (c) => network('planTopContacts', c),
 
   // ---------------------------------------------------------------- AI and publik
   getAiSettings: async ({ d }) => ({ json: await d.ai.settings() }),

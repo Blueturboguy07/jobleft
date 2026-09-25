@@ -1,15 +1,5 @@
-// INTERIM stand-in for @jobleft/static-data companyKey (the rule in docs/INTERFACES.md, "@jobleft/static-data"):
-// lower case; accents removed; "&" and "+" become "and"; a leading "the" and legal suffixes are removed;
-// punctuation and spaces are removed. Ordinary words ("technologies", "group") are kept.
+// The one company-name key (the rule in docs/INTERFACES.md, "@jobleft/static-data"). Jobs, the job filters and the
+// Network tool all use this same function, so "You know 3 people at Stripe" on a card and the list behind it
+// always come from the same key.
 
-const SUFFIXES = new Set(['inc', 'llc', 'l.l.c.', 'corp', 'corporation', 'co', 'ltd', 'llp', 'plc', 'pbc', 'gmbh']);
-
-export function companyKey(name: string): string {
-  let s = name.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-  s = s.replace(/[&+]/g, ' and ');
-  let words = s.split(/[\s,]+/).filter(Boolean);
-  if (words[0] === 'the' && words.length > 1) words = words.slice(1);
-  while (words.length > 1 && SUFFIXES.has(words[words.length - 1]!.replace(/\.$/, '')) ) words.pop();
-  while (words.length > 1 && SUFFIXES.has(words[words.length - 1]!)) words.pop();
-  return words.join('').replace(/[^\p{L}\p{N}]/gu, '');
-}
+export { companyKey } from '@jobleft/static-data';
