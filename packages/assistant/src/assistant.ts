@@ -189,6 +189,7 @@ export class Assistant {
         let done: { incomplete: boolean; costMicros: number | null; reason?: { code: string; message: string } } | null = null;
         for await (const c of client.chat({ messages, tools: canUseTools ? tools : undefined, requestId: req.requestId, signal, temperature: 0.2 })) {
           if (c.type === 'delta') {
+            if (typeof c.text !== 'string' || !c.text) continue; // a tool-call chunk carries no text; never the word "undefined"
             roundText += c.text;
             const out = grounder.push(c.text);
             if (out) {

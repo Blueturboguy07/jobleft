@@ -84,9 +84,9 @@ export const defaultScript: Script = (ctx) => {
     if (v?.error) return { text: `I could not read that: ${v.error}` };
     if (v?.items) return { text: `You have ${v.count} job(s) in this list:\n${v.items.map((i: any) => `- ${i.title} at ${i.company}${i.trackerStatus ? ` (${i.trackerStatus})` : ''}`).join('\n')}` };
     if (v?.jobs) return { text: v.total === 0 ? 'I found no job that matches.' : `I found ${v.total} job(s):\n${v.jobs.map((j: any) => `- ${j.title} at ${j.company}, pay: ${j.pay ?? 'not listed'}`).join('\n')}` };
-    if (v?.match) return { text: v.match.available ? `Your match for ${v.job.title} at ${v.job.company} is ${v.match.percent}% (${v.match.band}). Missing skills: ${v.match.missingSkills.join(', ') || 'none'}.` : String(v.match.reason) };
-    if (v?.job && 'untrusted' in v) return { text: `${v.job.title} at ${v.job.company}. Pay: ${v.job.pay ?? 'not listed in the posting'}.` };
-    if (v?.proposed !== undefined) return { text: v.proposed ? `I proposed ${v.actions.length} change(s). Nothing has changed yet. Please approve or decline each one.` : `I could not propose that: ${(v.problems ?? []).join(' ')}` };
+    if (v?.match && !('untrusted' in v)) return { text: v.match.available ? `Your match for ${v.job.title} at ${v.job.company} is ${v.match.percent}% (${v.match.band}). Missing skills: ${v.match.missingSkills.join(', ') || 'none'}.` : String(v.match.reason ?? 'The match is not available for this job.') };
+    if (v?.job && 'untrusted' in v) return { text: `${v.job.title} at ${v.job.company}. Pay: ${v.job.pay == null ? 'not listed in the posting' : typeof v.job.pay === 'string' ? v.job.pay : JSON.stringify(v.job.pay)}.` };
+    if (v?.proposed !== undefined) return { text: v.proposed ? `I proposed ${v.actions?.length ?? 1} change(s)${v.costMicros != null || v.price ? ' with a price' : ''}. Nothing has changed yet. Please approve or decline each one.` : `I could not propose that: ${(v.problems ?? []).join(' ')}` };
     if (v?.facts !== undefined) return { text: `${v.name}: ${v.facts.length} stored fact(s). Not known: ${v.notKnown.slice(0, 4).join(', ')}. ${v.sponsorship.text}` };
     if (v?.overdueFollowUps !== undefined) return { text: `Overdue: ${v.overdueFollowUps.length}. Interviews: ${v.interviews.length}. Liked and not applied: ${v.likedNotAppliedYet.length}.` };
     return { text: `The tool answered: ${ctx.lastToolResult.slice(0, 200)}` };
