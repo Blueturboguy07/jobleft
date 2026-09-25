@@ -26,7 +26,11 @@ export const HELD_BACK_FAMILIES: Readonly<Record<string, { name: string; re: Reg
 });
 
 function cleanHost(host: string): string {
-  return host.trim().toLowerCase().replace(/\.$/, '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
+  let h = host.trim().toLowerCase();
+  const bracket = /^\[([^\]]+)\](:\d+)?$/.exec(h);
+  if (bracket) return bracket[1]!;
+  if ((h.match(/:/g) ?? []).length === 1) h = h.replace(/:\d+$/, ''); // "host:port"; an IPv6 address keeps its colons
+  return h.replace(/\.$/, '');
 }
 
 /** The rule that forbids a host, or null when the host may be contacted. `allowHeldBack` lists family ids the owner turned on. */

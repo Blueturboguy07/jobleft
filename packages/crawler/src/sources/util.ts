@@ -1,3 +1,4 @@
+import { nowMs } from '@jobleft/contracts';
 import type { PayPeriod, RawJob, RawPay, WorkMode } from '../types.ts';
 
 /**
@@ -85,8 +86,8 @@ export function countryFromCode(code: string): string[] {
   return n ? [n] : [];
 }
 
-/** Date to ISO, or null. Future dates beyond 48h are dropped (freehire NotFuture). */
-export function isoDate(v: unknown, now = Date.now()): string | null {
+/** Date to ISO, or null. Future dates beyond 48h are dropped (freehire NotFuture). `now` honours JOBLEFT_NOW / JOBLEFT_CLOCK_OFFSET. */
+export function isoDate(v: unknown, now = nowMs()): string | null {
   let t: number;
   if (typeof v === 'number') t = v;
   else if (typeof v === 'string' && v.trim()) t = Date.parse(v);

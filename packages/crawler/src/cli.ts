@@ -163,7 +163,7 @@ async function cmdRun(args: Record<string, string>): Promise<number> {
     const everRan = runs.latest() !== null;
     console.log(`jobleft-crawl run: ${boards.length} board(s), database ${store.path}, clock ${iso(clock())}, identity "${cfg.userAgent}"`);
     const out = await runOnce(
-      { store, config: cfg, hostMap, clock, onBoard: (r) => console.log(lineFor(r)) },
+      { store, config: cfg, hostMap, clock, onBoard: (r) => console.log(lineFor(r)), log: (l) => console.log(l) },
       { reason: everRan ? 'manual' : 'first_run', boards, force: args.force === 'true', retryFailing: args.due !== 'true', signal: ac.signal },
     );
     if (!out) { console.log('nothing to crawl'); return 0; }
