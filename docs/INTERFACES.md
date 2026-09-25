@@ -108,8 +108,10 @@ message and left untouched.
 
 | Table(s) | Owner | Notes |
 |---|---|---|
-| `jobs`, `jobs_fts`, `boards` | crawler | Built (from spike S1). `jobs` holds every stored posting: ATS boards, other feeds (`ats = 'feed:<sourceId>'`) and added jobs (`ats = 'external'`, `board = 'url'` or `'text'`). The crawler lane adds the columns the `Job` contract needs (places, levels, years, remote scope, statements, evidence, source attribution). `boards` is board health |
-| `job_sources` | crawler | Planned. Every source that listed a posting (the same posting from two places keeps both credits) |
+| `jobs`, `jobs_fts`, `boards` | crawler | Built. `jobs` holds every stored posting: ATS boards, other feeds (`ats = 'feed:<sourceId>'`, planned) and added jobs (`ats = 'external'`, `board = 'url'` or `'text'`, planned). Crawler schema 2 added the columns the `Job` contract needs: `page_url`, `apply_link`, `places_json`, `work_model`, `remote_scope_json`, `employment`, `levels_json`, `years_min`, `years_max`, `statements_json`, `evidence_json`, `pay_ranges`, `board_updated_at`, `role_key`, and the closing bookkeeping `miss_count`, `first_missed_at`. `canonical_url` is no longer unique (two ids on one board are two jobs even with one page link). `duplicate_of` is set only for a repeat of the same company, title AND places from ANOTHER board. `boards` is board health plus the last outcome (`last_status`, `last_reason_code`, `last_reason`, `last_listed`, `last_checked_at`), conditional-request validators (`etag`, `last_modified`, `validators_url`), the mass-close hold (`held_streak`, `held_since`), the not-found net (`notfound_streak`, `notfound_since`) and a mock `origin`. Read contract `Job` records with `queryJobs` / `getJobById` / `toContractJob` |
+| `job_sources` | crawler | Built. Every source that listed a posting: `(job, source_id, url)` with name and first/last seen (the same posting from two boards keeps both credits) |
+| `crawler_runs`, `crawler_run_boards` | crawler | Built. One row per crawl run (reason, state, counts) and one per board of the run (pending or done, status, reason code and sentence, counts). A run cut short resumes with its pending boards. The boards lane can read run history from here (`lastRunReport`, `crawlProgress`) instead of keeping its own |
+| `crawler_hosts`, `crawler_robots`, `crawler_meta` | crawler | Built. Per host: the last request time (pacing across runs) and a wait the host asked for; robots.txt files (24 hours); the crawl lease and the clock offset left by `simulate` |
 | `schema_migrations`, `job_vectors`, `job_skills`, `tracker`, `tracker_notes`, `tracker_reminders`, `saved_filters`, `profile`, `chats`, `notifications`, `settings` | store | Planned. `job_vectors`: float16 BLOB per (job id, content hash, model). `settings` is key-value JSON (other packages' small settings go here through `SettingsStore`) |
 | `board_prefs`, `crawl_runs`, `crawl_board_reports` | boards | Planned. User boards and choices (follow, hide, disable); crawl run history for the report |
 | `company_facts` | static-data | Planned. Facts per company key with source and date |
@@ -147,8 +149,12 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_LOG_LEVEL` | server | `info` | `error`, `warn`, `info`, `debug`. No level logs personal text, keys or tokens |
 | `CARGO_TARGET_DIR` | shell builds | `<main checkout>/.cache/cargo-target` | The one shared Cargo target dir (every worktree uses the main checkout's) |
 
-The User-Agent of every crawl request is fixed in code (`USER_AGENT` in `@jobleft/crawler`):
-`jobleft-build/0.1 (research build; no personal data)`. It is never read from the environment, a profile or git.
+The User-Agent of every crawl request comes from the crawler config (`CrawlerConfig.userAgent`, default
+`DEFAULT_USER_AGENT` = `jobleft/0.1 (contact: TBD)`; the owner replaces TBD with a project contact address). It must
+start with `jobleft/<version>`, may not name a browser and may not hold a personal e-mail address (`checkUserAgent`).
+It is never read from the environment, a profile or git. `USER_AGENT` (`jobleft-build/0.1 (research build; no personal
+data)`) is the research-build identity: an `HttpClient` made without a `userAgent` option uses it, and development runs
+against live boards pass it explicitly.
 
 ## 5. Start the whole app
 
@@ -416,33 +422,46 @@ near and far), `levelsOf(level, years): ExperienceLevel[]`, and evidence for eac
 
 ### `@jobleft/crawler`
 
-Status: **Built** (ported from spike S1: 64 of the 76 tests, plus 5 foundation tests). Purpose: fetch public job
-boards politely, normalise, dedupe, store, and close vanished postings only when coverage is proven.
+Status: **Built** (the S1 port grown into the production crawler by the crawler lane; 95 tests). Purpose: fetch public
+job boards politely, normalise without inventing, store, keep current on a schedule, and close a posting only when two
+complete readings agree it is gone. How to run it and every rule it keeps: `packages/crawler/README.md`.
 
 | Export | Signature |
 |---|---|
-| Types | `Ats` (= contract `CrawlAtsId`), `BoardRef { ats, board, company, region? }`, `RawJob`, `RawPay`, `Job` (alias `CrawledJob`: the normalised crawl row), `BoardStats`, `HttpGetter { getJson(url) }`, `Source`, `SourceRegistry = Partial<Record<Ats, Source>>` |
-| `Source` | `{ ats; fullBoardListing: boolean; fetchBoard(board: BoardRef, http: HttpGetter): Promise<RawJob[]>; host?(board): string }` |
-| `HttpClient` | `new HttpClient({ fetchImpl?, pacer?, timeoutMs?, maxBodyBytes?, maxRequests?, retries?, retryDelayMs?, respectRobots?, hostMap? })`; `getJson(url)`, `getText(url, accept?)`, `snapshot(host?)`, `isTripped(host)`, `totalRequests`, `stats` |
-| Errors | `HttpError`, `BlockedError` (403, 429), `NotFoundError`, `RobotsError`, `DeniedHostError`, `BudgetError`, `HostTrippedError`, `HostMapError` |
-| `Pacer` | `new Pacer(intervalMs = 1000, now?, sleep?)`; `wait(host, extraIntervalMs?)` |
+| Types | `Ats` (= contract `CrawlAtsId`), `BoardRef { ats, board, company, region?, origin? }` (`origin`: a loopback mock server for this board, tests only), `RawJob` (+ optional `places`, `payRanges`, `payEvidence`, `boardUpdatedAt`, `workModeEvidence`), `RawPay`, `Job` (alias `CrawledJob`; + optional contract facts `pageUrl`, `applyLink`, `places`, `workModel`, `remoteScope`, `employment`, `levels`, `yearsRequired`, `statements`, `evidence`, `payRanges`, `boardUpdatedAt`, `roleKey`), `BoardStats`, `HttpGetter { getJson(url) }`, `Source`, `SourceRegistry` |
+| `Source` | `{ ats; fullBoardListing: boolean; fetchBoard(board, http): Promise<RawJob[]>; host?(board): string; conditional?: boolean }`. `conditional` = the board is read with ONE request, so ETag / If-Modified-Since can answer for the whole board |
+| Config | `CrawlerConfig` (see the README section 8), `DEFAULT_CONFIG`, `DEFAULT_USER_AGENT`, `makeConfig(partial)`, `loadConfigFile(path)`, `checkUserAgent(ua)`, `productTokenOf(ua)`, `ConfigError` |
+| Hosts | `forbiddenHostOf(host, allowHeldBack?)` (`never`: LinkedIn, Indeed, Glassdoor, SmartRecruiters; `held_back`: Workday, iCIMS, Oracle, UKG, Taleo), `forbiddenReason`, `HELD_BACK_FAMILIES`, `isPrivateAddress`, `isLocalName`, `loopbackOrigin` |
+| `HttpClient` | `new HttpClient({ fetchImpl?, pacer?, timeoutMs?, maxBodyBytes?, maxRequests?, retries?, retryDelayMs?, respectRobots?, hostMap?, userAgent?, robotsTimeoutMs?, maxRetryAfterMs?, defaultRetryAfterMs?, tripWaitMs?, allowHeldBack?, lookup?, state? })`; `getJson(url, opts?)`, `getText(url, accept?, opts?)`, `fetchOk(url, { accept?, signal?, origin?, validators?, retries? })`, `forBoard(opts): BoardHttp`, `hostKey(hostOrUrl, origin?)`, `waitLeft(host)`, `snapshot(host?)`, `isTripped(host)`, `totalRequests`, `budgetLeft`, `userAgent`, `stats`. Default transport: `nodeTransport()` (node:http/https: exact headers, address check at connect time) |
+| Errors | `HttpError`, `BlockedError` (403, 429), `NotFoundError`, `NotModifiedError` (304), `RedirectError`, `NotJobDataError` (web page, broken or cut-off JSON, wrong shape), `TooLargeError`, `RequestTimeoutError`, `CutOffError`, `NetworkError`, `AbortedError`, `RobotsError`, `DeniedHostError`, `HeldBackHostError`, `PrivateAddressError`, `BudgetError`, `HostTrippedError`, `HostFailingError`, `HostWaitError`, `HostMapError`, `BoardDeadlineError`, `TooManyJobsError`; `describeFailure(e): { status, code, message, blameless, cooldownMs? }` (the plain sentence of every failure) |
+| `Pacer` | `new Pacer(intervalMs = 1000, now?, sleep?)`; `wait(host, extraIntervalMs?)` (gap = interval + `marginMs` 100), `blockUntil(host, ms)`, `blockedUntil(host)`, `seed(host, lastRequestMs)` |
 | robots | `parseRobots(body, productToken): RobotsRules { allows(pathWithQuery), crawlDelayMs }`, `ALLOW_ALL`, `DISALLOW_ALL` |
-| Identity | `USER_AGENT` = `jobleft-build/0.1 (research build; no personal data)`, `PRODUCT_TOKEN` = `jobleft-build` |
+| Identity | `USER_AGENT` = `jobleft-build/0.1 (research build; no personal data)`, `PRODUCT_TOKEN` = `jobleft-build` (research build; see section 4) |
 | Host map | `checkHostMap(map)`, `hostMapFromEnv(env?)` (loopback targets only; never-crawl hosts refused) |
-| Normalise | `normalizeJob(board, raw): Job \| null`, `canonicalizeUrl(url, { stripGhJid? })` (keeps `gh_jid`), `normalizeCompany`, `normalizeTitle`, `dedupHash`, `dedupeBatch`, `partitionNew`, `contentHash`, `cleanText` |
+| Normalise | `normalizeJob(board, raw): Job \| null`, `skipReason(raw)`, `httpUrl(v)`, `roleKeyOf(company, title, places)`, `canonicalizeUrl(url, { stripGhJid? })` (keeps `gh_jid`), `normalizeCompany`, `normalizeTitle`, `dedupHash`, `dedupeBatch`, `partitionNew`, `contentHash`, `cleanText`; places: `splitPlaces`, `parsePlace`, `isGenericPlace`, `remoteRegions`, `workModelOf`. Optional parsers hooks: when `@jobleft/parsers` exports `parsePlaces`, `parseYearsRequired`, `parseStatements` or `levelsOf`, `normalizeJob` uses them (after a contract check); until then those facts stay unknown |
 | Lifecycle | `boardQualifies`, `sweepableBoards`, `shouldSweep`, `closeTooBroad`, `emptyFeedShouldClose`, `cooldownFor`, `emptyStats`, constants (`DEFAULT_SWEEP_GRACE_MS` 48 h, `MAX_CLOSE_SHARE` 0.5, `EMPTY_FEED_MIN_STREAK` 3, cooldown 6 h doubling to 24 h) |
-| `Store` | `new Store(path, { fts? })`; `upsertJob(job, nowIso)`, `closeUnseenForBoard`, `countUnseenForBoard`, `closeBoardEmpty`, `ensureBoard`, `getBoard`, `isCooledDown`, `recordSuccess`, `recordFailure`, `count`, `search`, `transaction`, `db` |
-| `crawl` | `crawl(boards: BoardRef[], { store, http, sources?, now?, graceMs?, emptyFeedMs?, onBoard? }): Promise<RunReport>`. A board whose ATS has no adapter fails with a reason and sends nothing |
-| Adapters | `SOURCES` (greenhouse, lever, ashby), `greenhouse`, `lever`, `ashby`, `mapGreenhouse`, `mapLever`, `mapAshby`, `hostFor(ats, region?)`, `PAY_QUERY`, helpers in `sources/util.ts` |
+| `Store` | `new Store(pathOrDatabase, { fts?, busyTimeoutMs? })` (runs crawler migrations; `SchemaTooNewError` for a newer file); `upsertJob(job, nowIso)`, `recordReading(ats, board, listedIds, nowIso, policy)`, `recordNotModified`, `pendingMisses`, `closeUnseenForBoard`, `countUnseenForBoard`, `closeBoardEmpty`, `ensureBoard(ats, board, company, region?, origin?)`, `getBoard`, `listBoards`, `isCooledDown`, `recordSuccess`, `recordUnchanged`, `recordFailure(…, { cooldownMs?, notFound? })`, `recordOutcome`, `getValidators`, `setValidators`, `hostState()`, `hostWaits`, `getMeta`, `setMeta`, `schemaVersion`, `count`, `search`, `transaction`, `db`; `CRAWLER_SCHEMA_VERSION` = 2, `ATS_NAMES` |
+| Contract jobs | `queryJobs(db, { status?, q?, board?, includeDuplicates?, limit?, cursor?, companyKey? }): { total, open, closed, items: Job[], nextCursor }`, `getJobById(db, id)`, `toContractJob(row, sources, opts)`, `jobIdOf(ats, board, externalId)` (same rule as store `makeJobId`), `simpleCompanyKey` (the app passes static-data `companyKey` instead), `ftsQuery(words)` |
+| `crawl` | `crawl(boards, { store, http, sources?, now?, graceMs?, emptyFeedMs?, onBoard?, confirmGapMs?, confirmDelayMs?, perHostConcurrency?, globalConcurrency?, maxJobsPerBoard?, boardDeadlineMs?, force?, retryFailing?, runs?, runId?, signal?, notFoundCloseMs?, onProgress? }): Promise<RunReport>`. One transaction per board. A board whose ATS has no adapter fails with a reason and sends nothing. `BoardResult` has `status` (`ok`, `failed`, `cooled`, `blocked`, `host-skipped`, `deferred`, `robots`, `forbidden`), `reasonCode`, `reason`, `notModified`, `missing`, `confirmed`, `skipReasons` |
+| Runs | `Runs(store)`: `create`, `interrupted`, `pendingBoards`, `adopt`, `boardDone`, `finish`, `latest`, `lastFinished`, `recent`, `acquireLease`, `touchLease`, `releaseLease` |
+| Scheduler | `runOnce(deps, { reason, boards, force?, retryFailing?, signal?, resume? })` (resumes a cut-short run first), `new Scheduler({ ...deps, boards: () => BoardRef[] })` with `start({ catchUp })`, `stop()`, `runNow(boards?)`, `progress(): CrawlProgress`, `lastReport(): { run, boards: CrawlBoardReport[] }`; `planDue(store, boards, now, settings, waitLeft?)`, `retryDelayMs(failures, refreshMs)` (1 h, 4 h, 12 h, 1 d, 2 d, 4 d, 7 d at a 24 h refresh), `jitterMs`, `scheduleSettings(config)`, `simulate(deps, forMs)` (time-skip), `crawlerClock(store, { fixedMs?, extraOffsetMs? })`, `crawlProgress`, `lastRunReport`, `httpForRun`, `allMockBoards` |
+| Board lists | `parseBoardList(json): { boards, skipped: { entry, reason }[], duplicates }`, `boardFromUrl(url)` (Greenhouse, Lever and Ashby board and job links; sends nothing) — in `src/boardlist.ts`, used by the CLI |
+| Adapters | `SOURCES` (greenhouse, lever, ashby; all `conditional`), `greenhouse`, `lever`, `ashby`, `mapGreenhouse`, `mapLever`, `mapAshby`, `hostFor(ats, region?)`, `PAY_QUERY`, helpers in `sources/util.ts` (+ `unmappable`) |
+| Test kit | `packages/crawler/testkit/mock-boards.ts`: `startMockBoards({ boards, robots, logFile })` (Greenhouse, Lever and Ashby on one loopback port, ETag, request log, misbehaving modes) and a CLI (`--port --boards --log --robots`) |
 
-CLI `jobleft-crawl` (`packages/crawler/src/cli.ts`): `crawl --boards <file> --db <file> --out <file> [--grace-hours 48]
-[--max-requests 3000] [--now <RFC 3339>]`, `verify --in <file> --out <file>`, `report --db <file> [--out <file>]`,
-`search --db <file> --q <words>`, `probe --url <url> [--key <field>]`. From the root: `pnpm --filter @jobleft/crawler run <command> ...`
-(always `run`: `pnpm search` is a pnpm command). Environment: `JOBLEFT_HOST_MAP`.
+CLI `jobleft-crawl` (`node packages/crawler/src/cli.ts`): `run`, `status`, `jobs`, `daemon`, `simulate`, `verify`,
+`clock`, `report`, `search` (and the S1 commands `crawl`, `probe`). Flags and outputs: `packages/crawler/README.md`.
+Environment: `JOBLEFT_HOME`, `JOBLEFT_HOST_MAP`, `JOBLEFT_NOW`, `JOBLEFT_CLOCK_OFFSET`, `JOBLEFT_OFFLINE`.
 
-Planned by the crawler lane: store every `Job` contract fact (section 3), `job_sources`, the retry-after wait on 429
-and 503 (instead of stopping at once), conditional requests (ETag, If-Modified-Since), resume of an interrupted run,
-per-host concurrency from the scheduler, `feed:<id>` and `external` families, a mock-board kit for tests.
+Closing rule (crawler O3, O4): a posting closes only when its board answered with its whole list cleanly (a
+`fullBoardListing` source, no failure, at least one posting, at most 5% unreadable) and a second reading confirms it is
+gone, either `confirmGapMs` (2 h) after the first miss or, in the same run, when it was last seen `graceMs` (48 h) ago.
+The mass-close guard holds a reading that would close over half of a board with 10 or more open jobs, until 3 held
+readings over 24 hours agree. A clean empty board closes after 3 empty checks over 7 days; a board "not found" on 3
+checks over 14 days closes as gone (`closed_reason = 'board_gone'`, contract `board_empty`).
+
+Still planned: the `feed:<id>` and `external` families in `jobs` (sources-other writes them; the `Job` type's `ats`
+is `CrawlAtsId` today), per-request retry counts in the run's request total when a process is killed.
 
 ### `@jobleft/sources-ats`
 
@@ -1323,16 +1342,19 @@ No telemetry, no crash reporter, no analytics, no update check that sends an ide
 
 ## 10. Never-crawl hosts
 
-Refused before any request, in code (`DENY_HOST` in `packages/crawler/src/http.ts`), also as redirect targets and in
-pasted links: LinkedIn (`linkedin.com`, `licdn.com`), Indeed, Glassdoor, SmartRecruiters, Workday
-(`myworkdayjobs.com`, `myworkdaysite.com`, `workday.com`). Held back until the owner approves: iCIMS, Oracle, UKG,
-Taleo (the lanes add their hosts to the refused list; recognising them from a URL for autofill sends no request).
-Redirects are never followed automatically.
+Refused before any request, in code (`forbiddenHostOf` in `packages/crawler/src/hosts.ts`, applied by `HttpClient`),
+also as redirect targets and in pasted links: LinkedIn (`linkedin.com`, `licdn.com`, `lnkd.in`), Indeed, Glassdoor,
+SmartRecruiters (`smartrecruiters.com`, `smrtr.io`). Held back until the owner approves (refused by default; a family
+is allowed only through `HttpOptions.allowHeldBack` in code): Workday (`myworkdayjobs.com`, `myworkdaysite.com`,
+`workday.com`), iCIMS (`icims.com`), Oracle Recruiting (`oraclecloud.com`, `taleo.net`), UKG (`ultipro.com`,
+`ukg.com`, `ukg.net`), Taleo (`taleo.net`). Recognising them from a URL for autofill sends no request. This computer
+and the local network are refused too (by address, by name, and at connect time), except a loopback mock server named
+by `JOBLEFT_HOST_MAP` or a board `origin`. Redirects are never followed automatically.
 
 ## 11. Testing conventions
 
 - Unit tests: `node --test "test/*.test.ts"` in each package (`pnpm test` runs all). No test makes a live request.
-- Mock servers run on loopback and log every request (time, path, headers, body). Point the crawler at them with `JOBLEFT_HOST_MAP`, publik with `JOBLEFT_PUBLIK_BASE_URL`, AI with a loopback custom provider URL, the model and datasets with their base URLs.
+- Mock servers run on loopback and log every request (time, path, headers, body). Point the crawler at them with `JOBLEFT_HOST_MAP` or a board `origin` (the crawler's mock-board kit: `packages/crawler/testkit/mock-boards.ts`), publik with `JOBLEFT_PUBLIK_BASE_URL`, AI with a loopback custom provider URL, the model and datasets with their base URLs.
 - Time-skip: `JOBLEFT_NOW` or `JOBLEFT_CLOCK_OFFSET` (every Node package reads time through `nowMs()`), or `--now` on the crawl CLI, or `POST /api/v1/dev/clock` with `JOBLEFT_DEV=1`.
 - Data folder for a test: `JOBLEFT_HOME=/private/tmp/<something>`. Delete it at the end.
 - Live requests (only when a lane's plan approves them): public ATS, job and open-data endpoints, at most 1 per second per host, robots.txt obeyed, at most 1,500 per agent, User-Agent `jobleft-build/0.1 (research build; no personal data)`.

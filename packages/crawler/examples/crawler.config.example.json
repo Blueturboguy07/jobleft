@@ -1,0 +1,12 @@
+{
+  "userAgent": "jobleft/0.1 (contact: TBD)",
+  "refreshHours": 24,
+  "confirmHours": 2,
+  "graceHours": 48,
+  "maxRequestsPerRun": 5000,
+  "maxJobsPerBoard": 10000,
+  "maxBodyMB": 64,
+  "requestTimeoutSeconds": 60,
+  "perHostConcurrency": 3,
+  "globalConcurrency": 8
+}

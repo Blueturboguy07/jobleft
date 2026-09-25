@@ -457,7 +457,9 @@ export async function simulate(deps: RunDeps & { boards: BoardRef[] }, forMs: nu
   const realStart = envNowMs();
   const outcomes: RunOutcome[] = [];
   const pacer = deps.pacer ?? new Pacer(deps.config.minHostIntervalSeconds * 1000);
-  const simDeps: RunDeps = { ...deps, pacer, clock: () => simNow };
+  // In a simulation the confirming reading is the scheduled one (hours later in simulated time), so the in-run second
+  // reading does not wait real seconds.
+  const simDeps: RunDeps = { ...deps, pacer, clock: () => simNow, config: { ...deps.config, confirmDelaySeconds: 0 } };
   const probe = httpForRun(simDeps);
   const maxRuns = opts.maxRuns ?? 500;
   let runsDone = 0;

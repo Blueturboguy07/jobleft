@@ -79,6 +79,19 @@ export type { BoardOutcome, RunBoardRow, RunReason, RunRow, RunState } from './r
 export { DEFAULT_CONFIRM_GAP_MS, DEFAULT_MAX_JOBS_PER_BOARD, DEFAULT_NOT_FOUND_CLOSE_MS, crawl } from './crawl.ts';
 export type { BoardResult, CrawlOptions, HttpMetrics, RunReport } from './crawl.ts';
 
+// Scheduler: due plan, runs, daemon loop, time-skip, progress and reports
+export {
+  CLOCK_OFFSET_KEY, DAY_MS, HOUR_MS, Scheduler, allMockBoards, crawlProgress, crawlerClock, formatDuration, httpForRun, jitterMs,
+  lastRunReport, planDue, retryDelayMs, runOnce, scheduleSettings, simulate, storedClockOffset,
+} from './scheduler.ts';
+export type {
+  DueInfo, DueWhy, RunDeps, RunOptions, RunOutcome, ScheduleSettings, SchedulerDeps, SimulationResult,
+} from './scheduler.ts';
+
+// Board lists (the CLI's input): boards or links, with a reason for every entry that is not crawled
+export { boardFromUrl, parseBoardList } from './boardlist.ts';
+export type { BoardList, SkippedEntry } from './boardlist.ts';
+
 // Built-in adapters (Greenhouse, Lever, Ashby) and their hosts
 export { SOURCES, hostFor } from './sources/index.ts';
 export { ashby, mapAshby } from './sources/ashby.ts';
