@@ -9,6 +9,8 @@
 //     from the owning lanes' tables, so a merge never collides; at integration each lane's package replaces its
 //     stand-in (see apps/server/README.md, "Interim stand-ins").
 
+import { RESUME_SCHEMA_VERSION } from '@jobleft/resume';
+
 export interface Migration {
   version: number;
   name: string;
@@ -204,4 +206,5 @@ CREATE TABLE srv_extension_reviews (
 export const SERVER_SCHEMA_VERSION = SERVER_MIGRATIONS[SERVER_MIGRATIONS.length - 1]!.version;
 
 /** Owners whose steps this build runs. A file with steps of any other owner came from a build this one cannot read. */
-export const KNOWN_OWNERS: Readonly<Record<string, number>> = { server: SERVER_SCHEMA_VERSION };
+// 'resume': the resumes, tailor_proposals and cover_letters tables (i-resume wires the resume lane into the app database).
+export const KNOWN_OWNERS: Readonly<Record<string, number>> = { server: SERVER_SCHEMA_VERSION, resume: RESUME_SCHEMA_VERSION };
