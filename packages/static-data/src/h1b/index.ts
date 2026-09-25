@@ -27,6 +27,8 @@ export const LIKELY_MIN_NEW_HIRE = 1;
 /** An excluded same-name company this large (relative to the kept one) makes the name ambiguous. */
 const AMBIGUOUS_SHARE = 1 / 3;
 
+const PAREN_STOP = new Set(['usa', 'unitedstates', 'america', 'northamerica', 'remote', 'hybrid', 'onsite', 'global', 'worldwide', 'international', 'emea', 'apac', 'latam', 'europe', 'canada', 'india', 'contract', 'fulltime', 'parttime', 'temporary', 'intern', 'internship', 'formerly', 'subsidiary', 'parentcompany']);
+
 const PLACEHOLDER_FEINS = new Set(['12-3456789', '98-7654321', '01-2345678', '12-1234567', '11-1111111', '99-9999999', '00-0000000', '22-2222222', '33-3333333', '44-4444444', '55-5555555', '66-6666666', '77-7777777', '88-8888888']);
 
 export interface H1bEntityDetail {
@@ -385,6 +387,37 @@ export function loadH1bIndex(opts: StaticDataOptions & { aliases?: AliasIndex })
     input, companyKey: key, status: 'unknown', summary: null, reason, dataThrough: prepared?.meta.dataThrough ?? null,
   });
 
+  const lookupOne = (p: Prepared, input: string, text: string, jobTitle: string | undefined, window: string): H1bLookupDetail => {
+    const key = companyKey(text);
+    if (key.length < 2) return unknown(input, key || null, 'The name is too short to match safely. Sponsorship is unknown.');
+    if (nameTokens(text).every((t) => LEGAL_SUFFIXES.has(t) || t === 'the')) return unknown(input, key, 'The text is only a legal form (such as "Inc."), not a company name. Sponsorship is unknown.');
+    const entry = aliases.entryForKey(key);
+    let kept: number[] = [];
+    let excluded: number[] = [];
+    let ambiguous = false;
+    let matchedBy: H1bSummaryDetail['matchedBy'] = 'name';
+    if (entry) {
+      matchedBy = 'alias';
+      for (const fk of entry.filerKeys) {
+        const r = resolveKey(p, p.legal.get(fk));
+        kept.push(...r.kept);
+        excluded.push(...r.excluded);
+      }
+    } else {
+      const r = resolveKey(p, p.legal.get(key));
+      if (r.kept.length > 0) ({ kept, excluded, ambiguous } = r);
+      else {
+        const t = resolveKey(p, p.trade.get(key));
+        ({ kept, excluded, ambiguous } = t);
+        matchedBy = 'trade_name';
+      }
+    }
+    if (ambiguous) return unknown(input, key, 'Several different employers file under this name, and jobleft cannot tell which one this is. Sponsorship is unknown, not ruled out.');
+    if (kept.length === 0) return unknown(input, key, `Not found as an employer in the H-1B filing data for ${window}. Sponsorship is unknown, not ruled out.`);
+    const summary = summarize(p, kept, excluded, matchedBy, entry?.basis ?? null, jobTitle);
+    return { input, companyKey: key, status: 'found', summary, reason: null, dataThrough: p.meta.dataThrough };
+  };
+
   return {
     lookup(companyName: string, lookupOpts: { jobTitle?: string } = {}): H1bLookupDetail {
       refresh();
@@ -392,37 +425,26 @@ export function loadH1bIndex(opts: StaticDataOptions & { aliases?: AliasIndex })
       const key = companyKey(input);
       if (!prepared) return unknown(input, key || null, error ?? 'The sponsor data is not available.');
       const window = `${humanDate(prepared.meta.window.from)} to ${humanDate(prepared.meta.window.to)}`;
-      if (key.length < 2) return unknown(input, key || null, 'The name is too short to match safely. Sponsorship is unknown.');
-      if (nameTokens(input).every((t) => LEGAL_SUFFIXES.has(t) || t === 'the')) return unknown(input, key, 'The text is only a legal form (such as "Inc."), not a company name. Sponsorship is unknown.');
-      const entry = aliases.entryForKey(key);
-      let kept: number[] = [];
-      let excluded: number[] = [];
-      let ambiguous = false;
-      let matchedBy: H1bSummaryDetail['matchedBy'] = 'name';
-      if (entry) {
-        matchedBy = 'alias';
-        for (const fk of entry.filerKeys) {
-          const r = resolveKey(prepared, prepared.legal.get(fk));
-          kept.push(...r.kept);
-          excluded.push(...r.excluded);
-        }
-      } else {
-        const r = resolveKey(prepared, prepared.legal.get(key));
-        if (r.kept.length > 0) ({ kept, excluded, ambiguous } = r);
-        else {
-          const t = resolveKey(prepared, prepared.trade.get(key));
-          ({ kept, excluded, ambiguous } = t);
-          matchedBy = 'trade_name';
-        }
+      // Exact variants of the written name, in order: as written; without parenthetical parts ("Stripe, Inc. (US)");
+      // the halves of a "doing business as" name; the text inside parentheses ("Instacart (Maplebear Inc.)").
+      const variants: string[] = [input];
+      const noParens = input.replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (noParens && noParens !== input.trim()) variants.push(noParens);
+      const dba = splitDba(noParens || input);
+      if (dba.others.length > 0) variants.push(dba.legal, ...dba.others);
+      for (const m of input.matchAll(/\(([^)]+)\)/g)) {
+        // Only a real name inside parentheses: never a short code or a place or work-type word ("(US)", "(Remote)").
+        const k = companyKey(m[1]!);
+        if (k.length >= 4 && !PAREN_STOP.has(k)) variants.push(m[1]!);
       }
-      if (ambiguous) {
-        return unknown(input, key, `Several different employers file under this name, and jobleft cannot tell which one this is. Sponsorship is unknown, not ruled out.`);
+      let firstUnknown: H1bLookupDetail | null = null;
+      for (const v of variants) {
+        const r = lookupOne(prepared, input, v, lookupOpts.jobTitle, window);
+        if (r.status === 'found') return { ...r, companyKey: r.companyKey };
+        firstUnknown = firstUnknown ?? r;
+        if (r.reason?.startsWith('Several different employers')) return r;
       }
-      if (kept.length === 0) {
-        return unknown(input, key, `Not found as an employer in the H-1B filing data for ${window}. Sponsorship is unknown, not ruled out.`);
-      }
-      const summary = summarize(prepared, kept, excluded, matchedBy, entry?.basis ?? null, lookupOpts.jobTitle);
-      return { input, companyKey: key, status: 'found', summary, reason: null, dataThrough: prepared.meta.dataThrough };
+      return firstUnknown ?? unknown(input, key || null, `Not found as an employer in the H-1B filing data for ${window}. Sponsorship is unknown, not ruled out.`);
     },
     dataset(): DatasetInfo {
       refresh();
