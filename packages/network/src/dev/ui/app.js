@@ -183,7 +183,7 @@
         el('div', {}, c.company || el('span', { class: 'muted' }, 'Unknown company (blank in your file)')),
         el('div', { class: 'small muted' }, c.email ? `Email: ${c.email}` : 'No email in your file', ' · ', `Connected: ${dateText(c.connectedOn)}`),
         opts.reasons ? el('ul', { class: 'reasons' }, opts.reasons.map((r) => el('li', {}, r.text))) : null,
-        el('div', { class: 'row', style: 'margin-top:6px' }, note, saveNote)),
+        el('div', { class: 'row note-row', style: 'margin-top:6px' }, note, saveNote)),
       el('div', { class: 'controls' },
         stage, follow, plan,
         el('button', { class: 'primary', onclick: () => draftDialog(c, opts.job || null) }, 'Draft a message'),

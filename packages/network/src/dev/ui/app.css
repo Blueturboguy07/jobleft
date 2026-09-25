@@ -51,8 +51,9 @@ label { display: inline-flex; gap: 6px; align-items: center; }
 .big { font-size: 28px; font-weight: 700; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
 .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
-.person { display: grid; grid-template-columns: 1fr auto; gap: 6px 14px; }
-.person .controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
+.person { display: block; }
+.person .controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.person .note-row textarea { flex: 1 1 320px; min-height: 44px; }
 .reasons { margin: 4px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
 ol.steps { padding-left: 20px; }
 dialog { border: 1px solid var(--line); border-radius: 14px; padding: 0; width: min(720px, calc(100vw - 32px)); background: var(--panel); color: var(--ink); }
@@ -62,5 +63,5 @@ pre.sends { white-space: pre-wrap; word-break: break-word; background: var(--chi
 #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100vw - 32px); }
 #toast.show { opacity: 1; }
 .counter.over { color: var(--bad-ink); font-weight: 700; }
-@media (max-width: 640px) { .person { grid-template-columns: 1fr; } .person .controls { justify-content: flex-start; } }
+
 main:focus { outline: none; }
