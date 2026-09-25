@@ -180,9 +180,9 @@ forward with `JOBLEFT_CLOCK_OFFSET` between refreshes.
 | O6 no silent loss | `for p in "http500 7h" "empty 14h" "truncated 21h" "cutoff 28h"; do set -- ${=p}; jls standin-set remoteok $1 --dir $S; JOBLEFT_CLOCK_OFFSET=$2 jls refresh remoteok; done; jls jobs --source remoteok \| tail -1` (in bash use `set -- $p`) | Each refresh fails with a plain reason ("the answer listed no jobs, although this source listed 10 before" for the empty one); `10 job(s)` stay open; `jls list` shows the problem; nothing is deleted |
 | O7 closes | Edit `$S/remoteok.json`: delete one posting object and add a copy of another with a new `id` and `url`. `JOBLEFT_CLOCK_OFFSET=2h jls refresh remoteok` | "1 new, 1 closed". The removed job shows only with `jls jobs --status closed` (`closedReason: source_removed`). Put it back and refresh 1 hour later: "1 reopened". Remove more than half of the jobs: "nothing was closed; they close if an answer at least 12 hours later still leaves them out" |
 | O8 facts | `jls jobs --json` | Remote OK pay in USD per year (its form asks for annual USD); speedyapply `$60/hr` per hour; HN `€60k–€85k` in EUR; unknown pay, level and date stay `null`; `postedAt` is the source's own date |
-| O9 remote regions | `jls jobs --remote --open-to-us` | "USA only", "Worldwide" and "Americas" jobs; never "Europe only" or "Germany"; "Data Annotator" (no region stated) only with `--include-unknown-region` |
+| O9 remote regions | `jls jobs --remote --open-to-us` | "USA only", "Worldwide" and "Americas" jobs; never "Europe only" or "Germany"; "Data Annotator" (no region stated) only with `--include-unknown-region`. Words that leave the US out ("Worldwide (excluding US)", "Anywhere except USA", "Remote (Not US)", "Non-US", "outside the US", "US excluded") never show, not even with `--include-unknown-region`: the job keeps its words and `isUs: false`, and its regions list no US, WORLDWIDE or NA |
 | O10 same posting | `jls jobs` | "Software Engineering Intern" at Acme Robotics is one job with two sources (the SimplifyJobs link with `?utm_source=Simplify`, the vanshb03 link without) and both credits |
-| O11 hosts and identity | Read `$S/requests.ndjson` | Only the stand-in hosts of the sources you turned on; `user-agent` is always `jobleft-build/0.1 (research build; no personal data)`; no persona data; the gap between two requests to one host is never under 1 second |
+| O11 hosts and identity | Read `$S/requests.ndjson` | Only the stand-in hosts of the sources you turned on; `user-agent` is always `jobleft-build/0.1 (research build; no personal data)`; no persona data; the gap between two requests to one host is never under 1 second, and never under a longer `Crawl-delay` from the host's robots.txt (put `User-agent: *` and `Crawl-delay: 4` in `$S/robots/raw.githubusercontent.com.txt`: every gap to that host, the one after `/robots.txt` included, is at least 4 seconds) |
 | O12 safe text | `jls jobs --source remoteok --json`, job "Security Test Posting" | The description is plain text: the script, the image with `onerror`, the frame and the 1-pixel image are gone |
 | O13 no storage | No approved source forbids storage | The runner never stores a feed marked `storable: false` (see the tests) |
 | O14 control | `jls disable remoteok; JOBLEFT_CLOCK_OFFSET=3h jls refresh; JOBLEFT_CLOCK_OFFSET=3h jls list` | `SKIPPED remoteok ... is off`; no new remoteok.com line in the log. Its jobs are hidden from `jls jobs` (never deleted: `jls jobs --include-off` shows them) and its OPEN count is 0. For every source, OPEN in `jls list` equals the count from `jls jobs --source <id> \| tail -1`. `jls enable remoteok` brings them back |
@@ -192,6 +192,13 @@ Timing of closes (O7): a job that a complete, healthy answer no longer lists is 
 the source's next allowed refresh (1 hour later for Remote OK and the GitHub lists, 6 hours for HN and The Muse). A
 drop of more than half of 10 or more open jobs closes only when a second answer at least 12 hours later confirms it.
 
+A job that two sources list (one link, tracking parameters removed) stays open while either source lists it. It closes
+at the refresh where the LAST source drops it, whichever source created the job row and in whichever order the
+sources drop it. Then it is gone from `jls jobs` and shows in `jls jobs --status closed` with `closedReason:
+source_removed`. To see it: put a copy of the same posting (same job link) in both `$S/gh-simplify-internships.json`
+and `$S/gh-vanshb03-internships.json`, refresh both, delete it from one file and refresh that source 2 hours later (the
+job is still open), then delete it from the other file and refresh that source (the job closes at that refresh).
+
 ## 7. Rules the code keeps
 
 | Rule | Where |
@@ -199,13 +206,14 @@ drop of more than half of 10 or more open jobs closes only when a second answer 
 | Nothing is sent to a host outside the source's own list, a never-crawl host (LinkedIn, Indeed, Glassdoor, SmartRecruiters, Workday, iCIMS, Oracle, UKG, Taleo), or any host in stand-in or offline mode | `src/http.ts` `FeedClient` |
 | robots.txt is obeyed on every host; `ROBOTS_EXCEPTIONS` is empty and only the owner may add to it | `src/http.ts`, `src/catalog.ts` |
 | Redirects are never followed | `src/http.ts` |
-| One request a second per host across sources and processes (SQLite slots) | `DbPacer` |
+| One request a second per host across sources and processes (SQLite slots). A robots.txt `Crawl-delay` above that is the gap between all requests to the host: it also holds the first request after `/robots.txt` (`HostPacer.hold`), and a jitter margin of 100 ms is added like for the 1 second floor | `DbPacer`, `FeedClient` in `src/http.ts` |
 | Runs and requests are counted in SQLite over a rolling 24 hours, reserved atomically, with a run lease | `src/limits.ts` |
 | Keys go only to their source's host; The Muse takes its key only as the `api_key` URL parameter, so every URL jobleft writes is redacted; error texts hold host and path only | `src/http.ts`, `src/runner.ts` |
 | Facts are the source's; unknown is `null`; a zone-less time is read as UTC; the fetch time is never a posted date | `src/feeds/*.ts`, `src/text.ts` |
 | Descriptions are stored as plain text (HTML to text) | the crawler's `normalizeJob` |
 | An error, an empty answer, a cut-off or partial answer, or an unreadable posting closes nothing and deletes nothing | `src/runner.ts` |
-| Two sources with the same posting (same link after tracking parameters are removed) share one job and keep both credits; the same title at the same company with another link stays a separate job | `src/runner.ts`, `src/view.ts` |
+| Two sources with the same posting (same link after tracking parameters are removed) share one job and keep both credits; the same title at the same company with another link stays a separate job. The shared job closes when its last source drops it (`settleBoard`) | `src/runner.ts`, `src/view.ts` |
+| A remote region the words leave out ("excluding US", "except USA", "Not US", "Non-US") is never a stated region, and it takes back a wider region that would hold it (WORLDWIDE, NA) | `src/text.ts` `parseRemoteScope`, `scopeOpenToUs` |
 
 ## 8. For other lanes (library)
 

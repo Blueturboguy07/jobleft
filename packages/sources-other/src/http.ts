@@ -50,6 +50,11 @@ export function shapeError(detail: string): FeedError {
  */
 export const MIN_GAP_MS = 1100;
 
+/** The gap the pacer books for a Crawl-delay (ms): the delay plus the same 100 ms for jitter, never under MIN_GAP_MS. */
+export function gapForCrawlDelay(crawlDelayMs: number): number {
+  return Math.max(MIN_GAP_MS, crawlDelayMs > 0 ? crawlDelayMs + (MIN_GAP_MS - 1000) : 0);
+}
+
 /** Spaces requests to one host. Pacing uses real time, never the app clock. */
 export interface HostPacer {
   /** Waits for the host's next slot, then books the slot after it `gapMs` (at least MIN_GAP_MS) later. */
@@ -289,7 +294,7 @@ export class FeedClient implements FeedHttp {
         if (res.status >= 200 && res.status < 300) {
           const rules = parseRobots(body, PRODUCT_TOKEN);
           // The robots.txt request was paced before its Crawl-delay was known: keep the delay for the request after it.
-          if (rules.crawlDelayMs > MIN_GAP_MS) await this.pacer.hold?.(realHost, rules.crawlDelayMs);
+          if (rules.crawlDelayMs > 0) await this.pacer.hold?.(realHost, gapForCrawlDelay(rules.crawlDelayMs));
           return rules;
         }
         if (res.status >= 500) return DISALLOW_ALL;
@@ -320,7 +325,7 @@ export class FeedClient implements FeedHttp {
     let last: FeedError | null = null;
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       if (attempt > 0) await sleep(this.retryDelayMs, this.signal);
-      await this.pacer.wait(realHost, rules.crawlDelayMs, this.signal);
+      await this.pacer.wait(realHost, gapForCrawlDelay(rules.crawlDelayMs), this.signal);
       let res: Response;
       try {
         res = await this.send(target, realHost, headers);

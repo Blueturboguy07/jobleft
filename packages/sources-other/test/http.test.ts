@@ -11,9 +11,9 @@ import { cleanup, noWait, tempDir } from './helpers.ts';
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => void;
 
-async function serve(handler: Handler): Promise<{ origin: string; hits: Array<{ path: string; ua: string; headers: IncomingMessage['headers'] }>; close(): Promise<void> }> {
-  const hits: Array<{ path: string; ua: string; headers: IncomingMessage['headers'] }> = [];
-  const server = createServer((req, res) => { hits.push({ path: req.url ?? '', ua: String(req.headers['user-agent']), headers: req.headers }); handler(req, res); });
+async function serve(handler: Handler): Promise<{ origin: string; hits: Array<{ path: string; ua: string; headers: IncomingMessage['headers']; t: number }>; close(): Promise<void> }> {
+  const hits: Array<{ path: string; ua: string; headers: IncomingMessage['headers']; t: number }> = [];
+  const server = createServer((req, res) => { hits.push({ path: req.url ?? '', ua: String(req.headers['user-agent']), headers: req.headers, t: Date.now() }); handler(req, res); });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
   const port = (server.address() as { port: number }).port;
   return { origin: `http://127.0.0.1:${port}`, hits, close: () => new Promise((r) => { server.closeAllConnections(); server.close(() => r()); }) };
@@ -155,6 +155,49 @@ test('memory pacer spaces one host by at least MIN_GAP_MS and honours a longer c
   await p.wait('h', 0);
   await p.wait('h', 0);
   assert.ok(Date.now() - t0 >= MIN_GAP_MS - 15);
+});
+
+test('robots.txt Crawl-delay above 1 second holds EVERY request to the host, including the first one after robots.txt', async () => {
+  const cases: Array<{ name: string; robots: string; delayMs: number; pacer: () => { pacer: InstanceType<typeof MemoryPacer> | InstanceType<typeof DbPacer>; done(): void } }> = [
+    { name: 'the * group, in-memory pacer', robots: 'User-agent: *\nCrawl-delay: 2\n', delayMs: 2000, pacer: () => ({ pacer: new MemoryPacer(), done() {} }) },
+    { name: 'the jobleft-build group, shared-database pacer', robots: 'User-agent: *\nCrawl-delay: 1\n\nUser-agent: jobleft-build\nCrawl-delay: 2\n', delayMs: 2000, pacer: () => {
+      const dir = tempDir();
+      const db = new DatabaseSync(join(dir, 'pace.db')); migrateSourcesOther(db);
+      return { pacer: new DbPacer(db), done() { db.close(); cleanup(dir); } };
+    } },
+  ];
+  for (const c of cases) {
+    const s = await serve((req, res) => {
+      if (req.url === '/robots.txt') { res.writeHead(200, { 'content-type': 'text/plain' }); res.end(c.robots); return; }
+      res.writeHead(200, { 'content-type': 'application/json' }); res.end('{}');
+    });
+    const p = c.pacer();
+    try {
+      const cl = client(s.origin, { pacer: p.pacer });
+      await cl.getJson('https://feed.example/a');
+      await cl.getJson('https://feed.example/b');
+      await cl.getJson('https://feed.example/c');
+      assert.deepEqual(s.hits.map((h) => h.path), ['/robots.txt', '/a', '/b', '/c']);
+      for (let i = 1; i < s.hits.length; i++) {
+        assert.ok(s.hits[i]!.t - s.hits[i - 1]!.t >= c.delayMs - 30, `${c.name}: gap before ${s.hits[i]!.path} was ${s.hits[i]!.t - s.hits[i - 1]!.t} ms, Crawl-delay is ${c.delayMs} ms`);
+      }
+    } finally { p.done(); await s.close(); }
+  }
+});
+
+test('a Crawl-delay of 1 second or less keeps the 1.1 second floor, and a pacer without hold() still works', async () => {
+  const s = await serve((req, res) => {
+    if (req.url === '/robots.txt') { res.writeHead(200, { 'content-type': 'text/plain' }); res.end('User-agent: *\nCrawl-delay: 1\n'); return; }
+    res.writeHead(200); res.end('{}');
+  });
+  try {
+    const cl = client(s.origin, { pacer: new MemoryPacer() });
+    await cl.getJson('https://feed.example/a');
+    await cl.getJson('https://feed.example/b');
+    for (let i = 1; i < s.hits.length; i++) assert.ok(s.hits[i]!.t - s.hits[i - 1]!.t >= 1000, `gap ${s.hits[i]!.t - s.hits[i - 1]!.t}`);
+    const bare = client(s.origin, { pacer: { async wait() { /* no wait, no hold */ } } });
+    await bare.getJson('https://feed.example/c');
+  } finally { await s.close(); }
 });
 
 test('stand-in mode: with a host map set, an unmapped host is never contacted live', async () => {
