@@ -5,6 +5,8 @@
 // the wrong person, names a company, school, title or number that is not in the inputs, claims a shared past
 // ("we worked together", "as we discussed", "fellow alum") or a referral promise, holds a placeholder, or is too
 // long carries warnings and is not "ready". The person reads, edits and copies it; the app never sends it.
+// Claims are matched by structure (who did or said what, in the past), not by a list of phrasings: the contact row
+// holds no shared history, so every such statement is unsupported.
 
 import type { ChatMessage, Job, NetworkContact, OutreachDraft, Profile } from '@jobleft/contracts';
 import type { AiClient } from '@jobleft/ai-engine';
@@ -89,6 +91,7 @@ export function draftMessages(f: DraftFacts): ChatMessage[] {
     'Rules:',
     `- Greet the contact by their first name exactly as written: "${f.contact.firstName}".`,
     '- Do not claim a shared school, a shared employer, a past job together, a past meeting or talk, or any promise of a referral.',
+    '- Do not say you remember, saw, heard or attended anything of theirs, do not thank them for past help, and do not say you are following up.',
     '- Do not write any number, name, company, school or job title that is not in the facts.',
     '- You may politely ask for a short chat or for advice.',
     '- Plain text only: no markdown, no placeholders in brackets or braces, no subject line.',
@@ -148,6 +151,57 @@ const CLAIMS: Array<[RegExp, string]> = [
   [/\byour referral\b[^.!?\n]*/i, 'a referral promise'],
   [/\b(?:you|he|she|they) (?:referred|recommended) me\b[^.!?\n]*/i, 'a referral promise'],
   [/\b(?:the |as )?hiring manager for\b[^.!?\n]*/i, 'a role the file does not show'],
+];
+
+// A cold message has no shared history with the contact: the file holds only a name, title, company and
+// "connected on". So ANY statement about what the two of you did, said, studied or promised is unsupported, however
+// it is worded. These rules match the structure of such a statement (who did what, in the past), not one phrasing.
+// They run after CLAIMS and skip a span that CLAIMS already reported. A question is not a claim ("Have you worked
+// with new nurses?"), so the "you did X" rules skip a "you" that follows a question or "if" word.
+const NOT_ASKING = String.raw`(?<!\b(?:have|has|had|did|do|does|were|are|would|could|can|will|should|if|whether|hope|wondering|wonder|when|once)\s)`;
+const YOU_AUX = String.raw`(?:'ve|\s+have|\s+had|\s+also|\s+both|\s+already|\s+recently|\s+previously|\s+once|\s+kindly|\s+generously|\s+really)*`;
+const SCHOOL_TOPIC = String.raw`alum\w*|alma mater|grads?|graduates?|classmates?|schoolmates?|schools?|universit(?:y|ies)|colleges?|campus|fraternity|sorority|cohort`;
+const WORK_TOPIC = String.raw`colleagues?|coworkers?|co-workers?|teammates?|employers?|workplace|internship|manager|boss`;
+const FAVOR_ADJ = String.raw`(?:great|kind|generous|helpful|quick|earlier|previous|recent|initial|valuable|useful)\s+`;
+const FAVOR = String.raw`(?:help|advice|support|guidance|tips?|feedback|intro\w*|referr\w*|recommend\w*|offers?|word|vouch\w*|insights?|suggestions?|input|mentorship|assistance)`;
+const THANKS = String.raw`\b(?:thanks|thank you)(?:\s+(?:so much|very much|a lot|a ton|kindly))*`;
+const REFERRAL_WORDS = String.raw`(?:refer\w*|referral|introduc\w*|intro|recommend\w*|vouch\w*|good word|put in|forward\w*|pass\w*|endorse\w*)`;
+
+const RELATION_CLAIMS: Array<[RegExp, string]> = [
+  // A promise or offer to help, put in a good word, refer or introduce.
+  [new RegExp(String.raw`${NOT_ASKING}\byou${YOU_AUX}\s+(?:said|told me|mentioned|promised|agreed|offered|volunteered|suggested|indicated|were (?:going|happy|willing|kind enough) to|would be (?:happy|willing) to)\b[^.!?\n]*?\b${REFERRAL_WORDS}\b[^.!?\n]*`, 'i'), 'a referral promise'],
+  [new RegExp(String.raw`${THANKS}(?:\s+again)?\s+for\s+(?:offering|agreeing|promising|referring|recommending|introducing|vouching|putting|passing|forwarding|endorsing)\b[^.!?\n]*`, 'i'), 'a referral promise'],
+  [/\byour (?:(?:kind|generous|earlier|previous|recent|gracious|initial) )*(?:offer|promise|referral|invitation|invite)\b[^.!?\n]*/i, 'a referral promise'],
+  [/\b(?:take|taking|took|accept|accepting|accepted)\s+(?:you |your offer )?up on\b[^.!?\n]*/i, 'a referral promise'],
+  // A past favor.
+  [new RegExp(String.raw`${THANKS}(?:\s+again\s+for\s+(?:(?:the|that|those|all the|all your|your)\s+)|\s+for\s+(?:the|that|those|all the|all your)\s+)(?:${FAVOR_ADJ})*${FAVOR}\b[^.!?\n]*`, 'i'), 'a past favor'],
+  [new RegExp(String.raw`${THANKS}(?:\s+again)?\s+for\s+(?:helping|getting back|responding|replying|answering|meeting|speaking|talking|chatting|writing back)\b[^.!?\n]*`, 'i'), 'a past favor'],
+  // A talk, post or event of the contact's that the file does not show.
+  [/\byour (?:[\w'-]+ ){0,2}?(?:talks?|presentations?|keynotes?|panels?|sessions?|webinars?|lectures?|workshops?|podcasts?|posts?|articles?|blogs?|books?|papers?|speeches|speech|videos?|newsletters?|seminars?|courses?|classes|class)\b[^.!?\n]*/i, 'a past talk or post'],
+  [/\b(?:at|during|from|after|in)\s+(?:the|that|your|our|a)\s+(?:[\w'&-]+\s+){0,5}?(?:summit|conference|meetup|webinar|symposium|convention|career fair|job fair|networking event|event|panel|workshop|seminar|expo|hackathon|forum|mixer|reception|keynote|talk)\b[^.!?\n]*/i, 'a past meeting or event'],
+  [/\b(?:I|you|we)(?:'d| would| will|'ll)?\s+(?:still\s+|also\s+|may\s+|might\s+|probably\s+)?(?:remember|recall|remembered|recalled)\b[^.!?\n]*/i, 'a past meeting'],
+  [/\bI(?:'ve|\s+have|\s+had)?\s+(?:previously\s+|already\s+|just\s+|also\s+|recently\s+)?(?:met|spoke|talked|chatted|emailed|messaged|called|corresponded|ran into|bumped into|sat next to|introduced myself|followed up|wrote to|reached out again)\b[^.!?\n]*/i, 'a past meeting or message'],
+  // A past conversation or thread.
+  [/\b(?:following|followed|to follow)[- ]up\s+(?:on|to|from|after|regarding|about)\b[^.!?\n]*|\bfollow[- ]up (?:on|to|from) (?:my|our|your|the)\b[^.!?\n]*|\bcircl(?:ing|ed) back\b[^.!?\n]*/i, 'a past conversation'],
+  [/\b(?:my|our|your) (?:last|previous|earlier|prior|recent|first|initial) (?:message|email|note|call|chat|conversation|reply|response|meeting|talk|letter|dm)\b[^.!?\n]*/i, 'a past conversation'],
+  [/\bas (?:promised|agreed|offered|requested|arranged|planned)\b[^.!?\n]*|\bas i (?:mentioned|said|noted|wrote|discussed)\b[^.!?\n]*|\bper (?:our|your)\b[^.!?\n]*/i, 'a past conversation'],
+  // A school that the two of you share, or one the contact is said to have attended.
+  [/\bwe(?:'ve|\s+have|\s+had|\s+both|\s+also|\s+all|\s+each)*\s+(?:graduated|studied|attended|went to|majored|enrolled|trained)\b[^.!?\n]*/i, 'a shared school'],
+  [/\b(?:both of us|the two of us|us both|all of us)\b(?:\s+\w+){0,2}?\s+(?:graduated|studied|attended|went|majored)\b[^.!?\n]*/i, 'a shared school'],
+  [new RegExp(String.raw`\b(?:fellow|same|mutual|common|shared)\b(?:\W+[\w'-]+){0,3}?\W+(?:${SCHOOL_TOPIC})\b[^.!?\n]*`, 'i'), 'a shared school'],
+  [new RegExp(String.raw`\bboth\b(?:\W+[\w'-]+){0,3}?\W+(?:alum\w*|alma|grads?|graduates?|classmates?|schoolmates?)\b[^.!?\n]*`, 'i'), 'a shared school'],
+  [/\b(?:alum\w*|graduates?|grads?)\b[^.!?\n]{0,15}\b(?:too|as well)\b[^.!?\n]*/i, 'a shared school'],
+  [new RegExp(String.raw`${NOT_ASKING}\byou${YOU_AUX}\s+(?:graduated|studied|attended|went to|majored|enrolled)\b[^.!?\n]*`, 'i'), 'a school'],
+  [new RegExp(String.raw`${NOT_ASKING}\byou(?:'re|\s+are|\s+were)\s+(?:also\s+)?(?:an?\s+|one\s+|the\s+)?(?:fellow\s+)?(?:[\w'-]+\s+){0,3}?(?:alum\w*|graduate|grad|classmate|former|ex-?\w+)\b[^.!?\n]*`, 'i'), 'a school or a past role'],
+  [new RegExp(String.raw`\b(?:fellow|same|mutual|common|shared)\b(?:\W+[\w'-]+){0,3}?\W+(?:${WORK_TOPIC})\b[^.!?\n]*`, 'i'), 'a shared past'],
+  [/\bmutual\b[^.!?\n]*|\bin common\b[^.!?\n]*|\bcommon (?:ground|connection|friends?|contacts?|background|interests?)\b[^.!?\n]*/i, 'a shared background'],
+  [/\bwe(?:'re|\s+are)?\s+(?:both\s+)?(?:share|have)\b[^.!?\n]{0,30}\b(?:interest|background|history|connection|passion|experience|friend|contact|alma|school|employer|past)\w*[^.!?\n]*/i, 'a shared background'],
+  [/\b(?:both of us|the two of us|us both|all of us)\b[^.!?\n]*/i, 'a shared background'],
+  // Anything else that says the two of you did something in the past.
+  [/\bwe(?:'ve|\s+have|\s+had|\s+both|\s+also|\s+all|\s+each)*\s+(?:\w+ed|went|met|spoke|took|were|was|had|did|knew|saw|shared|ran|sat|got|made|came|gave|built|led|wrote|read|taught|learned|grew|began|kept|held|found)\b[^.!?\n]*/i, 'a shared past'],
+  // What the contact is said to have done, said or been.
+  [new RegExp(String.raw`${NOT_ASKING}\byou${YOU_AUX}\s+(?:said|told|mentioned|promised|agreed|offered|suggested|helped|introduced|referred|recommended|replied|answered|responded|invited|forwarded|emailed|messaged|called|contacted|approached|encouraged|advised|guided|mentored|supported|vouched|volunteered|confirmed|approved|reached out|got back|talked|chatted|discussed|spoke|presented|gave|taught|wrote|posted|shared|met|knew|remembered)\b[^.!?\n]*`, 'i'), 'a past talk or favor'],
+  [new RegExp(String.raw`${NOT_ASKING}\byou${YOU_AUX}\s+(?:used to|once|formerly|previously|worked|interned|served|led|founded|launched|published|won|received|built|created|joined|moved|started|left)\b[^.!?\n]*`, 'i'), 'a career detail'],
 ];
 
 const PLACEHOLDER = /\{\{?[^{}\n]{1,40}\}\}?|\[(?:your|my|their|name|first|last|company|job|role|position|title|insert|recipient|contact|x)[^\]\n]{0,40}\]|<(?:your|my|name|first|company|job|role|insert)[^>\n]{0,40}>|\bXX+\b/i;
@@ -245,6 +299,18 @@ export function checkDraft(text: string, f: DraftFacts): string[] {
     if (claimed.some(([a, b, w]) => w === what && start < b && end > a)) continue;
     claimed.push([start, end, what]);
     add(`Claims ${what} that your file does not show: "${quote.slice(0, 80)}".`);
+  }
+  // The structural rules catch other wordings of the same claims. Each reports only a span nothing else reported.
+  for (const [re, what] of RELATION_CLAIMS) {
+    for (const m of text.matchAll(new RegExp(re.source, re.flags + 'g'))) {
+      const start = m.index!;
+      const quote = m[0].split(/[,;:]/)[0]!.trim();
+      const end = start + quote.length;
+      if (claimed.some(([a, b]) => start < b && end > a)) continue;
+      claimed.push([start, end, what]);
+      add(`Claims ${what} that your file does not show: "${quote.slice(0, 80)}".`);
+      break;
+    }
   }
 
   // 3. Placeholders.

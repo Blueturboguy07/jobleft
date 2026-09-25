@@ -126,3 +126,61 @@ test('O8: an email or a link inside a title or company never reaches the provide
   assert.ok(!body.includes('www.odd-example.com'));
   assert.ok(body.includes('[email removed]'));
 });
+
+// The check reads the structure of a claim (who did or said what, in the past), not one phrasing. The contact's row
+// holds a name, title and company only, so every one of these is unsupported. The sender's school IS in the inputs,
+// so the "not in the inputs" checks cannot catch the school ones: the claim about the two of you must.
+const nurse = contact({ id: 'c_ann', firstName: 'Ann', lastName: 'Whitcomb', company: 'Mercy Health', position: 'Nurse Manager' });
+const nurseJob = job('Registered Nurse', 'Mercy Health', 'Nursing');
+const nurseFacts = () => draftFacts({ contact: nurse, job: nurseJob, profileSummary: summary, variant: 'short' });
+
+test('O6: paraphrased claims of a shared school, a referral promise and a past talk are each flagged and not ready', async () => {
+  const cases: Array<[string, RegExp]> = [
+    ["Hi Ann, I'm Jordan Testwell, interested in the Registered Nurse role at Mercy Health. Since we both graduated from Sample State University, I thought I would reach out.", /shared school/],
+    ['Hi Ann, as a fellow Sample State grad I wanted to say hello.', /shared school/],
+    ['Hi Ann, we share an alma mater, so I thought I would write.', /shared school/],
+    ['Hi Ann, both of us attended Sample State University.', /shared school/],
+    ["Hi Ann, I'm a Sample State alum too.", /shared school/],
+    ['Hi Ann, I saw you also went to Sample State University.', /school/],
+    ["Hi Ann, you're a Sample State alum, right?", /school/],
+    ['Hi Ann, You said you would put in a good word for me.', /referral promise/],
+    ['Hi Ann, Thanks for offering to refer me.', /referral promise/],
+    ['Hi Ann, Following up on your offer to introduce me to the team.', /referral promise/],
+    ['Hi Ann, you promised to vouch for me with the hiring team.', /referral promise/],
+    ["Hi Ann, I'm taking you up on your offer.", /referral promise/],
+    ['Hi Ann, I remember your talk at the state nursing summit.', /past talk/],
+    ['Hi Ann, I loved your keynote last spring.', /past talk/],
+    ['Hi Ann, I enjoyed your post about night shifts.', /past talk/],
+    ['Hi Ann, I met you at the nursing job fair.', /past meeting/],
+    ['Hi Ann, thanks again for the help with my resume.', /past favor/],
+    ['Hi Ann, thank you for the advice you gave me.', /past favor/],
+    ['Hi Ann, you mentioned that Mercy Health is hiring.', /past talk or favor/],
+    ['Hi Ann, we spoke at the job fair last spring.', /shared past/],
+    ['Hi Ann, we have a mutual connection.', /shared background/],
+    ['Hi Ann, as promised, here is my resume.', /past conversation/],
+    ['Hi Ann, I wanted to follow up on my last message.', /past conversation/],
+  ];
+  for (const [text, want] of cases) {
+    const w = checkDraft(text, nurseFacts());
+    assert.ok(w.some((x) => want.test(x)), `${text} -> ${JSON.stringify(w)}`);
+  }
+  // End to end: the draft is not ready and the warning is visible.
+  for (const [text] of cases.slice(0, 3).concat(cases.slice(7, 9), cases.slice(12, 13))) {
+    const d = await draftOutreach({ contact: nurse, job: nurseJob, profileSummary: summary, variant: 'short', ai: fakeAi(text) });
+    assert.equal(d.ready, false, text);
+    assert.ok(d.warnings.length > 0, text);
+  }
+});
+
+test('O6: honest sentences that share words with those claims stay ready', () => {
+  const ok = [
+    "Hi Ann, I'm Jordan Testwell, a Software Engineer at Northwind Sample Labs. I studied at Sample State University and I'm interested in the Registered Nurse role at Mercy Health. Would you be open to a short chat?",
+    "Hi Ann, I'm Jordan Testwell. As a Sample State University student, I'd love your advice on the Registered Nurse role. Could we chat for ten minutes?".replace('ten', 'a few'),
+    'Hi Ann, have you worked with new hires at Mercy Health? I would value your perspective on the Registered Nurse role.',
+    'Hi Ann, I hope you had a great week. I would value your advice as a Nurse Manager at Mercy Health. Thanks in advance for your help.',
+    'Hi Ann, thanks for connecting. I look forward to your response about the Registered Nurse role.',
+    'Hi Ann, would you be able to point me to the right person for the Registered Nurse role? I would value your perspective on the team.',
+    'Hi Ann, if you attended a hiring event for the Registered Nurse role, I would value a short chat.',
+  ];
+  for (const t of ok) assert.deepEqual(checkDraft(t, nurseFacts()), [], t);
+});

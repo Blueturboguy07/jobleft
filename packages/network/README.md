@@ -298,6 +298,17 @@ or a referral promise; any number, name, company, school or job title that is no
 email addresses and links; and a draft over its limit (300 characters short, 1,200 long). A draft with any warning
 has `ready: false`. Markup and hidden characters are removed first. The words are never changed.
 
+The claim checks read the structure of a statement, not one phrasing. The contact's row holds only a name, a title,
+a company and "Connected On", so any statement about what you and the contact did, said, studied or promised is
+unsupported, even when the school or company named is yours (your school is in the inputs, so a name check alone
+cannot catch "Since we both graduated from Sample State University"). Each of these is flagged, in any wording:
+"we" or "both of us" with a past verb, "fellow", "mutual" or "same" with a school or employer word, "you" with a past
+verb ("you said", "you offered", "you also went to"), thanks for a past favor ("thanks again for the help", "thanks for
+offering to refer me"), "your offer", "as promised", "following up on", "I remember", and "your talk", "your post" or an
+event ("at the state nursing summit"). A question is not a claim ("Have you worked with new nurses?"), and asking for
+advice, a chat or a referral is allowed. Try it with the mock in `custom` mode:
+`{"mode":"custom","text":"Hi Avery, You said you would put in a good word for me."}` then `jn draft "Avery Quill"`.
+
 ### O7. The draft belongs to you
 
 - Screens: draft, change one word in the box, press Copy, paste into a text editor: the text is the text in the box,
