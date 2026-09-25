@@ -111,7 +111,7 @@ message and left untouched.
 | `jobs`, `jobs_fts`, `boards` | crawler | Built (from spike S1). `jobs` holds every stored posting: ATS boards, other feeds (`ats = 'feed:<sourceId>'`) and added jobs (`ats = 'external'`, `board = 'url'` or `'text'`). The crawler lane adds the columns the `Job` contract needs (places, levels, years, remote scope, statements, evidence, source attribution). `boards` is board health |
 | `job_sources` | crawler | Planned. Every source that listed a posting (the same posting from two places keeps both credits) |
 | `schema_migrations`, `job_vectors`, `job_skills`, `tracker`, `tracker_notes`, `tracker_reminders`, `saved_filters`, `profile`, `chats`, `notifications`, `settings` | store | Planned. `job_vectors`: float16 BLOB per (job id, content hash, model). `settings` is key-value JSON (other packages' small settings go here through `SettingsStore`) |
-| `board_prefs`, `board_checks`, `crawl_runs`, `crawl_board_reports`, `board_pending_links`, `host_pacing` | boards | Built (migration `boards` v1). `board_prefs`: user boards and choices (follow, hide, disable; a board the person added keeps its name). `board_checks`: what each board check saw (state, failures in a row, last good check, open jobs, next check date). `crawl_runs`, `crawl_board_reports`: refresh history for the report. `board_pending_links`: links pasted while offline. `host_pacing`: the per-host request schedule every process shares |
+| `board_prefs`, `board_checks`, `crawl_runs`, `crawl_board_reports`, `board_pending_links`, `host_pacing`, `robots_cache` | boards | Built (migrations `boards` v1, v2). `board_prefs`: user boards and choices (follow, hide, disable; a board the person added keeps its name). `board_checks`: what each board check saw (state, failures in a row, last good check, open jobs, next check date). `crawl_runs`, `crawl_board_reports`: refresh history for the report. `board_pending_links`: links pasted while offline. `host_pacing`: the per-host request schedule every process shares. `robots_cache`: robots.txt answers reused for 10 minutes across processes |
 | `company_facts` | static-data | Planned. Facts per company key with source and date |
 | `source_state` | sources-other | Planned. On or off, last run, daily request counts per source (limits survive restarts) |
 | `resumes`, `tailor_proposals`, `cover_letters` | resume | Planned |
@@ -591,7 +591,7 @@ Status: **Built** (boards lane). Purpose: the board directory (3,622 rows from J
 providers; a stated source and licence in the file header), the person's boards and choices, link-to-board resolution
 (including employer pages that embed a board and `gh_jid` links), board health with dead-board back-off, crawl planning
 and the scheduler, a directory refresh with dead-token pruning, and Common Crawl discovery. Owns: tables `board_prefs`,
-`board_checks`, `crawl_runs`, `crawl_board_reports`, `board_pending_links`, `host_pacing`; routes `crawlStatus`,
+`board_checks`, `crawl_runs`, `crawl_board_reports`, `board_pending_links`, `host_pacing`, `robots_cache`; routes `crawlStatus`,
 `crawlRun`, `crawlReport`, `listBoards`, `resolveBoard`, `addBoard`, `updateBoard`, `exportBoards`; data files
 `packages/boards/data/board-directory.json` and `board-directory-pruned.json`. Package README: `packages/boards/README.md`.
 

@@ -13,6 +13,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { HttpClient, Pacer, USER_AGENT } from '@jobleft/crawler';
 import { forbiddenProvider } from './hosts.ts';
 
+/** How long a robots.txt answer is reused across jobleft processes (the long-lived clients renew theirs as often). */
+export const ROBOTS_CACHE_MS = 10 * 60_000;
+
 export class OfflineError extends Error {
   constructor() { super('offline: JOBLEFT_OFFLINE=1, no request sent'); this.name = 'OfflineError'; }
 }
@@ -55,8 +58,18 @@ export class SqlitePacer extends BusyPacer {
     this.db = new DatabaseSync(dbPath);
     this.db.exec('PRAGMA busy_timeout = 5000;');
     this.db.exec(`CREATE TABLE IF NOT EXISTS host_pacing (host TEXT PRIMARY KEY, next_at INTEGER NOT NULL DEFAULT 0, busy_until INTEGER NOT NULL DEFAULT 0)`);
+    this.db.exec(`CREATE TABLE IF NOT EXISTS robots_cache (host TEXT PRIMARY KEY, status INTEGER NOT NULL, body TEXT NOT NULL, fetched_at INTEGER NOT NULL)`);
   }
   close(): void { try { this.db.close(); } catch { /* already closed */ } }
+  /** A robots.txt answer a jobleft process read less than 10 minutes ago (RFC 9309 allows caching). */
+  cachedRobots(host: string, maxAgeMs = ROBOTS_CACHE_MS): { status: number; body: string } | null {
+    const r = this.db.prepare('SELECT status, body, fetched_at FROM robots_cache WHERE host = ?').get(host) as { status: number; body: string; fetched_at: number } | undefined;
+    return r && Date.now() - Number(r.fetched_at) < maxAgeMs ? { status: Number(r.status), body: String(r.body) } : null;
+  }
+  storeRobots(host: string, status: number, body: string): void {
+    this.db.prepare(`INSERT INTO robots_cache (host, status, body, fetched_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT(host) DO UPDATE SET status = excluded.status, body = excluded.body, fetched_at = excluded.fetched_at`).run(host, status, body.slice(0, 512 * 1024), Date.now());
+  }
   override markBusy(host: string, untilMs: number): void {
     this.db.prepare(`INSERT INTO host_pacing (host, next_at, busy_until) VALUES (?, 0, ?)
       ON CONFLICT(host) DO UPDATE SET busy_until = max(busy_until, excluded.busy_until)`).run(host, Math.round(untilMs));
@@ -92,6 +105,24 @@ export class SqlitePacer extends BusyPacer {
       }
     }
     if (start > t) await new Promise((r) => setTimeout(r, start - t));
+  }
+}
+
+/**
+ * The pacer one client uses: the shared schedule, except that the first wait of a host (always the client's
+ * robots.txt fetch) takes no slot when a process read that robots.txt less than 10 minutes ago; the fetch
+ * wrapper then answers it from the cache and nothing is sent.
+ */
+class ClientPacer extends Pacer {
+  private shared: BusyPacer;
+  private seen = new Set<string>();
+  constructor(shared: BusyPacer) { super(shared.intervalMs); this.shared = shared; }
+  override async wait(host: string, extraIntervalMs = 0): Promise<void> {
+    if (!this.seen.has(host)) {
+      this.seen.add(host);
+      if (this.shared instanceof SqlitePacer && this.shared.cachedRobots(host, ROBOTS_CACHE_MS)) return;
+    }
+    return this.shared.wait(host, extraIntervalMs);
   }
 }
 
@@ -168,6 +199,16 @@ export function createBoardHttp(opts: BoardHttpOptions): HttpClient {
     const headers = new Headers(init?.headers);
     headers.set('user-agent', USER_AGENT);
     const isRobots = url.pathname === '/robots.txt';
+    const shared = opts.pacer instanceof SqlitePacer ? opts.pacer : null;
+    if (isRobots && shared) {
+      // A little longer than the pacer's check, so a robots fetch that skipped its slot is always answered here.
+      const c = shared.cachedRobots(url.host, ROBOTS_CACHE_MS + 60_000);
+      if (c) {
+        const v = { status: c.status, error: null };
+        robots.set(url.host, v); const real = reverse.get(url.host); if (real) robots.set(real, v);
+        return new Response(c.body, { status: c.status, headers: { 'content-type': 'text/plain' } });
+      }
+    }
     let res: Response;
     try {
       res = await base(url.href, { ...init, headers, redirect: 'manual', referrerPolicy: 'no-referrer' });
@@ -175,7 +216,13 @@ export function createBoardHttp(opts: BoardHttpOptions): HttpClient {
       if (isRobots) { const v = { status: null, error: networkCode(e) }; robots.set(url.host, v); const real = reverse.get(url.host); if (real) robots.set(real, v); }
       throw e;
     }
-    if (isRobots) { const v = { status: res.status, error: null }; robots.set(url.host, v); const real = reverse.get(url.host); if (real) robots.set(real, v); }
+    if (isRobots) {
+      const v = { status: res.status, error: null }; robots.set(url.host, v); const real = reverse.get(url.host); if (real) robots.set(real, v);
+      if (shared && res.status < 500) {
+        const body = res.status < 300 ? await res.clone().text().catch(() => null) : '';
+        if (body !== null) shared.storeRobots(url.host, res.status, body);
+      }
+    }
     if (res.status >= 300 && res.status < 400) {
       const loc = res.headers.get('location');
       if (loc) log.set(url.href, loc);
@@ -207,7 +254,7 @@ export function createBoardHttp(opts: BoardHttpOptions): HttpClient {
   };
   const http = new HttpClient({
     fetchImpl: wrapped,
-    pacer: opts.pacer,
+    pacer: new ClientPacer(opts.pacer),
     hostMap: opts.hostMap ?? {},
     timeoutMs: opts.timeoutMs ?? 15_000,
     maxRequests: opts.maxRequests ?? 20_000,

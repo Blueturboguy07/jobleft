@@ -8,6 +8,7 @@
 //   crawl_board_reports  one row per board per run, with the reason for anything but ok
 //   board_pending_links  links pasted while offline, kept so the person can try again
 //   host_pacing          the shared request schedule per host (1 request per second per host across every process)
+//   robots_cache         robots.txt answers, kept 10 minutes so separate jobleft processes do not each fetch them
 
 import type { DatabaseSync } from 'node:sqlite';
 
@@ -80,6 +81,15 @@ const MIGRATIONS: string[] = [
     host       TEXT PRIMARY KEY,
     next_at    INTEGER NOT NULL DEFAULT 0,
     busy_until INTEGER NOT NULL DEFAULT 0
+  );
+  `,
+  // 2
+  `
+  CREATE TABLE IF NOT EXISTS robots_cache (
+    host       TEXT PRIMARY KEY,
+    status     INTEGER NOT NULL,
+    body       TEXT NOT NULL,
+    fetched_at INTEGER NOT NULL
   );
   `,
 ];

@@ -60,3 +60,21 @@ test('a reply larger than the cap is refused without reading it all', async () =
     await assert.rejects(http.getText(`http://127.0.0.1:${port}/big.html`, 'text/html'));
   } finally { server.closeAllConnections(); await new Promise<void>((r) => server.close(() => r())); }
 });
+
+test('robots.txt is read once for several clients sharing one database, and its rules still apply', async () => {
+  const mock = await startMockHosts({
+    boards: { 'greenhouse:acme': { name: 'Acme', jobs: 1 } },
+    robots: { 'boards-api.greenhouse.io': 'User-agent: *\nDisallow: /v1/boards/secret' },
+  });
+  const dir = mkdtempSync(join('/private/tmp', 'jl-boards-pacer-'));
+  const pacer = new SqlitePacer(join(dir, 'p.db'), 50);
+  try {
+    for (let i = 0; i < 3; i++) {
+      const http = createBoardHttp({ pacer, hostMap: mock.hostMap });
+      await http.getJson('https://boards-api.greenhouse.io/v1/boards/acme/jobs');
+      await assert.rejects(http.getJson('https://boards-api.greenhouse.io/v1/boards/secret/jobs'), /robots/);
+    }
+    assert.equal(mock.log.filter((e) => e.path === '/robots.txt').length, 1);
+    assert.equal(mock.log.filter((e) => e.path.includes('secret')).length, 0);
+  } finally { pacer.close(); await mock.close(); rmSync(dir, { recursive: true, force: true }); }
+});

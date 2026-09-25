@@ -31,7 +31,7 @@ Quote every link you paste in a shell (`'https://...?a=b'`), because `?` and `&`
 
 | What | Where |
 |---|---|
-| Your boards, choices, board checks, refresh reports | `$JOBLEFT_HOME/data/jobleft.db` (tables `board_prefs`, `board_checks`, `crawl_runs`, `crawl_board_reports`, `board_pending_links`, `host_pacing`; the crawler's `jobs` and `boards` tables are in the same file) |
+| Your boards, choices, board checks, refresh reports | `$JOBLEFT_HOME/data/jobleft.db` (tables `board_prefs`, `board_checks`, `crawl_runs`, `crawl_board_reports`, `board_pending_links`, `host_pacing`, `robots_cache`; the crawler's `jobs` and `boards` tables are in the same file) |
 | The directory that ships with the app | `packages/boards/data/board-directory.json` (header: sources, licences, notice; one row per board) |
 | Boards removed from the directory, with both "not found" dates | `packages/boards/data/board-directory-pruned.json` |
 | A newer directory you loaded | `$JOBLEFT_HOME/datasets/board-directory.json` |
@@ -161,7 +161,8 @@ jb jobs greenhouse:acme --all  # the jobs a board's refreshes stored; closed one
   a warning, not "live, 0 jobs".
 - Every request carries `User-Agent: jobleft-build/0.1 (research build; no personal data)` and nothing else about
   you. Requests to one host are at least 1.1 seconds apart, across pastes, refreshes and even several jobleft
-  processes (the schedule lives in the database, table `host_pacing`). robots.txt is obeyed. A `429` or `503` with
+  processes (the schedule lives in the database, table `host_pacing`). robots.txt is obeyed (an answer is reused
+  for 10 minutes; a robots.txt that cannot be read counts as "disallow everything"). A `429` or `503` with
   `Retry-After` pushes that host's next request back by at least the stated time.
 - Time-skip: `JOBLEFT_CLOCK_OFFSET=2d jb refresh` (or `JOBLEFT_NOW=2026-10-01T00:00:00Z`) runs as if the clock were
   later, so a board's next check date can be reached without waiting.
