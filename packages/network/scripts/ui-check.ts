@@ -178,9 +178,12 @@ async function main() {
     const outside = requests.filter((u) => !u.startsWith(server.origin) && !u.startsWith('data:') && u !== 'about:blank');
     check('the page made no request outside 127.0.0.1', outside.length === 0, outside.slice(0, 3).join(' '));
   } finally {
+    try { await Promise.race([cdp.send('Browser.close'), sleep(2000)]); } catch { /* already closing */ }
     cdp.close();
     chrome.kill('SIGTERM');
-    await sleep(500);
+    for (let i = 0; i < 20 && chrome.exitCode === null && chrome.signalCode === null; i++) await sleep(100);
+    if (chrome.exitCode === null && chrome.signalCode === null) chrome.kill('SIGKILL');
+    await sleep(300);
     await server.close();
     await mock.close();
     if (!keep) { rmSync(home, { recursive: true, force: true }); }
