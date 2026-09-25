@@ -15,7 +15,7 @@ import { App, type AppConfig } from './app.ts';
 import { DataFolderError } from './db/open.ts';
 import { ApiFailure, storageProblem, writeFailed } from './errors.ts';
 import { cleanTmp, ensureHome, homeLayout } from './home.ts';
-import { mediaType, readBody } from './http/body.ts';
+import { mediaType, parseJsonBody, readBody } from './http/body.ts';
 import { crossSiteFetch, extensionIdOf, headerValue, hostAllowed, ownOrigins, queryCarriesToken, sha256, tokenMatches } from './http/gate.ts';
 import { sendError, sendFile, sendJson, setSecurityHeaders, startSse } from './http/respond.ts';
 import { StaticSite } from './http/static.ts';
@@ -307,13 +307,13 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       if (rawTypes) body = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
       else if (spec.body) {
         let parsed: unknown;
-        try { parsed = JSON.parse(buf.toString('utf8')); } catch { sendError(req, res, new ApiFailure('bad_request', 'The body is not valid JSON.')); return; }
+        try { parsed = parseJsonBody(buf); } catch (e) { sendError(req, res, e instanceof ApiFailure ? e : new ApiFailure('bad_request', 'The body is not valid JSON.')); return; }
         const v = validate(spec.body as JsonSchema, parsed);
         if (!v.ok) { sendError(req, res, new ApiFailure('bad_request', 'The body does not match what this request expects.', { details: { issues: v.issues } })); return; }
         body = parsed;
       } else if (buf.length > 0) {
         let parsed: unknown;
-        try { parsed = JSON.parse(buf.toString('utf8')); } catch { sendError(req, res, new ApiFailure('bad_request', 'The body is not valid JSON.')); return; }
+        try { parsed = parseJsonBody(buf); } catch (e) { sendError(req, res, e instanceof ApiFailure ? e : new ApiFailure('bad_request', 'The body is not valid JSON.')); return; }
         if (parsed !== null && (typeof parsed !== 'object' || Array.isArray(parsed) || Object.keys(parsed as object).length > 0)) {
           sendError(req, res, new ApiFailure('bad_request', 'This request takes no body.'));
           return;

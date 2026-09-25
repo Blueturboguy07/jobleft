@@ -114,6 +114,19 @@ test('invalid bodies answer 400 with issue paths and no personal text, and store
   assert.equal(bad.status, 400);
   assert.ok(!bad.text.includes('Jordan'));
   assert.equal((await s.call('GET', '/api/v1/profile')).json.personal.firstName, null);
+  // Text is stored character for character or refused: bytes that are not UTF-8 (Latin-1 "é") and a lone surrogate
+  // are refused, never saved as a replacement character.
+  const h = { 'x-jobleft-token': s.token, 'content-type': 'application/json' };
+  for (const body of [Buffer.from('{"name":"Caf\xe9","filter":{},"sort":"recommended"}', 'latin1'), '{"name":"bad \\ud800 x","filter":{},"sort":"recommended"}', '{"name":"ok","filter":{"\\udfff":1},"sort":"recommended"}']) {
+    const r = await raw(s.port, { method: 'POST', path: '/api/v1/filters', headers: h, body });
+    assert.equal(r.status, 400, String(body));
+    assert.equal(r.json.error.code, 'bad_request');
+  }
+  const pair = await raw(s.port, { method: 'POST', path: '/api/v1/filters', headers: h, body: '{"name":"ok \\ud83c\\udfaf","filter":{},"sort":"recommended"}' });
+  assert.equal(pair.status, 200, 'a surrogate PAIR (an emoji) is fine');
+  assert.equal(pair.json.name, 'ok 🎯');
+  assert.deepEqual((await s.call('GET', '/api/v1/filters')).json.map((f: { name: string }) => f.name), ['ok 🎯']);
+  await s.call('DELETE', `/api/v1/filters/${pair.json.id}`);
 });
 
 test('undocumented and traversal paths answer not found; no file outside the UI folder is served', async () => {

@@ -71,6 +71,30 @@ export function bodyToFile(req: IncomingMessage, path: string, limit: number): P
   });
 }
 
+const UTF8 = new TextDecoder('utf-8', { fatal: true });
+
+function wellFormed(v: unknown, depth = 0): boolean {
+  if (typeof v === 'string') return v.isWellFormed();
+  if (v === null || typeof v !== 'object') return true;
+  if (depth > 200) return false;
+  if (Array.isArray(v)) return v.every((x) => wellFormed(x, depth + 1));
+  for (const [k, x] of Object.entries(v)) if (!k.isWellFormed() || !wellFormed(x, depth + 1)) return false;
+  return true;
+}
+
+/**
+ * A JSON body, read strictly (server O4 and O13: text is stored character for character, or refused). Bytes that are
+ * not UTF-8 and a lone surrogate (such as "\ud800") are refused, instead of being saved as a replacement character.
+ */
+export function parseJsonBody(buf: Buffer): unknown {
+  let text: string;
+  try { text = UTF8.decode(buf); } catch { throw new ApiFailure('bad_request', 'The body is not UTF-8 text. Nothing was stored.'); }
+  let parsed: unknown;
+  try { parsed = JSON.parse(text); } catch { throw new ApiFailure('bad_request', 'The body is not valid JSON.'); }
+  if (!wellFormed(parsed)) throw new ApiFailure('bad_request', 'The body has a broken character (a lone UTF-16 surrogate). Nothing was stored.');
+  return parsed;
+}
+
 /** The media type of a request, lower case, without parameters. */
 export function mediaType(req: IncomingMessage): string | null {
   const h = req.headers['content-type'];
