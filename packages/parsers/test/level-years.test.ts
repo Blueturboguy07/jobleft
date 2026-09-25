@@ -27,7 +27,13 @@ test('level: tech and non-tech titles', () => {
     ['Cashier', ['entry']],
     ['Warehouse Associate', ['entry']],
     ['Line Cook', ['entry']],
-    ['Middle School Math Teacher', []],
+    ['Middle School Math Teacher', ['entry', 'mid']],
+    ['Clinical Psychologist', ['mid', 'senior']],
+    ['Licensed Clinical Social Worker (LCSW)', ['mid']],
+    ['Provisionally Licensed Therapist', ['entry', 'mid']],
+    ['Staff Accountant', ['entry']],
+    ['Registered Nurse', ['entry', 'mid']],
+    ['Software Engineer', []],
   ];
   for (const [t, want] of cases) assert.deepEqual(lv(t), want, t);
 });

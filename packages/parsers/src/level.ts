@@ -120,18 +120,36 @@ export function readTitle(title: string): TitleReading | null {
     const lv: Level = n <= 2 ? 'entry' : n === 3 ? 'entry' : n === 4 ? 'mid' : n === 5 ? 'senior' : n === 6 ? 'staff' : 'principal';
     return { level: lv, strength: 'weak' };
   }
+  // Academic ranks.
+  if (/\b(?:full\s+|associate\s+)?professor\b/i.test(s) && !/\b(?:assistant|adjunct|visiting|clinical\s+assistant)\s+professor\b/i.test(s)) return { level: 'senior', strength: 'medium' };
+  if (/\b(?:assistant|adjunct|visiting)\s+professor\b/i.test(s)) return { level: 'mid', strength: 'medium' };
   if (/\b(?:associate|assistant|coordinator|asistente|auxiliar|assistente|ayudante)\b/i.test(s) && !/\bassociate\s+(?:professor|dean|partner|general\s+counsel|attorney|dentist|veterinarian|physician)\b/i.test(s)) {
     return { level: 'entry', strength: 'weak' };
   }
   if (OCCUPATION_ENTRY.test(s) && !/\b(?:driver\s+trainer|cdl|class\s+a)\b/i.test(s)) return { level: 'entry', strength: 'weak' };
+  // Licensed and trade occupations: the level a license or trade needs, used only when the posting states nothing more.
+  for (const [re, level, buckets] of PROFESSIONS) if (re.test(s)) return { level, strength: 'weak', buckets };
   return null;
 }
+
+const PROFESSIONS: Array<[RegExp, Level, ExperienceLevel[]]> = [
+  [/\b(?:staff\s+(?:accountant|auditor|bookkeeper))\b/i, 'entry', ['entry']],
+  [/\b(?:provisionally\s+licensed|pre-?licensed|license[- ]eligible|lmsw|lsw|lpca|lpc-?a|lamft|apc|lgpc|lmhc-?a|associate\s+(?:counselor|therapist|clinician|marriage))\b/i, 'entry', ['entry', 'mid']],
+  [/\b(?:physician|psychiatrist|surgeon|anesthesiologist|radiologist|oncologist|cardiologist|dermatologist|neurologist|pediatrician|internist|hospitalist|urologist|gastroenterologist|pulmonologist|nephrologist|ophthalmologist|obstetrician|gynecologist|ob\/?gyn|dentist|orthodontist|endodontist|periodontist|optometrist|veterinarian|dvm|pharmacist|pharmd|attorney|lawyer|psychologist|neuropsychologist|nurse\s+practitioner|pmhnp|fnp|crna|nurse\s+anesthetist|physician\s+assistant|pa-c|midwife)\b/i, 'mid', ['mid', 'senior']],
+  [/\b(?:lcsw|licsw|lisw|lpc|lpcc|lmft|lmhc|lcpc|lcmhc|lpcmh|lmhp|licensed\s+(?:clinical|professional|mental\s+health|marriage|independent|behavioral)|therapist|counselor|counsellor|social\s+worker|bcba|behavior\s+analyst|occupational\s+therapist|physical\s+therapist|speech[- ]language\s+pathologist|slp|audiologist|dietitian|nutritionist)\b/i, 'mid', ['mid']],
+  [/\b(?:registered\s+nurse|rn|bsn|lpn|lvn|licensed\s+practical\s+nurse|licensed\s+vocational\s+nurse|nurse)\b/i, 'entry', ['entry', 'mid']],
+  [/\b(?:teacher|educator|instructor|professor|lecturer|tutor)\b/i, 'entry', ['entry', 'mid']],
+  [/\b(?:veterinary\s+technician|vet\s+tech|rvt|dental\s+hygienist|hygienist|dental\s+assistant|radiologic\s+technologist|rad\s+tech|x-ray\s+tech|sonographer|surgical\s+(?:technologist|technician|tech)|respiratory\s+therapist|paramedic|emt|medical\s+technologist|lab(?:oratory)?\s+technician|optician|ophthalmic\s+technician|optometric\s+technician)\b/i, 'entry', ['entry', 'mid']],
+  [/\b(?:electrician|plumber|carpenter|welder|mechanic|machinist|hvac|pipefitter|millwright|technician|installer|operator|cdl|truck\s+driver|driver)\b/i, 'entry', ['entry', 'mid']],
+  [/\b(?:accountant|bookkeeper|auditor|paralegal|legal\s+assistant|recruiter|buyer|planner|underwriter|loan\s+officer|banker|financial\s+advisor|account\s+executive)\b/i, 'mid', ['entry', 'mid']],
+];
 
 /** Fine-grained level from a title alone (the spike API). Occupation defaults are not applied here. */
 export function levelFromTitle(title: string): Level | null {
   const r = readTitle(title);
   if (!r) return null;
-  if (r.strength === 'weak' && OCCUPATION_ENTRY.test(title) && !/\b(?:associate|assistant|coordinator)\b/i.test(title)) return null;
+  // Occupation and profession defaults ("Cashier", "Staff Nurse") are for parseLevel, not for this title-only reading.
+  if (r.strength === 'weak' && !/\b(?:associate|assistant|coordinator|asistente|auxiliar|assistente|ayudante)\b|\b(?:level|lvl|grade)\s*\d|\b(?:L|IC|E|P|T|SWE)\s?-?\d\b/i.test(title)) return null;
   return r.level;
 }
 
