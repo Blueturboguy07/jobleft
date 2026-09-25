@@ -49,10 +49,9 @@ export async function run(cmd: string, rest: string[], values: Record<string, un
     case 'build-places': {
       const { buildPlacesTable } = await import('./places/build.ts');
       const srcDir = resolve((values.src as string | undefined) ?? join(process.env.TMPDIR ?? '/private/tmp', 'jobleft-place-sources'));
-      if (!values.src) {
-        const { fetchPlaceSourcesV2 } = await import('./places/fetch.ts');
-        await fetchPlaceSourcesV2(srcDir, (l) => process.stderr.write(l + '\n'));
-      }
+      // Downloads the source files that are not in the folder yet (files already there are used as they are).
+      const { fetchPlaceSourcesV2 } = await import('./places/fetch.ts');
+      await fetchPlaceSourcesV2(srcDir, (l) => process.stderr.write(l + '\n'));
       const outDir = resolve((values.out as string | undefined) ?? DIST_DIR);
       const r = await buildPlacesTable({ srcDir, outDir, geonamesDir: (values.geonames as string | undefined) ? resolve(values.geonames as string) : null, log: (l) => process.stderr.write(l + '\n') });
       const rec: DatasetRecord = {

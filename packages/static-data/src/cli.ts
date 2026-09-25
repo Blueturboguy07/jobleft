@@ -33,8 +33,8 @@ Checks
 Builds (write to packages/static-data/dist)
   fetch-lca --out <dir>                     Download the official DOL LCA files this build uses (about 670 MB)
   build-h1b --lca <file.xlsx> [--lca ...]   Build the sponsor table from DOL LCA disclosure files
-  build-places [--src <dir>] [--geonames <dir>]  Build the place table (downloads USGS GNIS and Natural Earth,
-                                            about 14 MB, unless --src holds them; GeoNames only from --geonames)
+  build-places [--src <dir>] [--geonames <dir>]  Build the place table (downloads USGS GNIS and Natural Earth into
+                                            --src, about 14 MB, when they are not there yet; GeoNames only from --geonames)
 
 Options
   --json                 Print the full JSON answer
