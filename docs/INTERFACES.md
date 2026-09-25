@@ -148,6 +148,7 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_AI_HOST_MAP` | ai-engine | none | JSON map from an own-key vendor host (`api.openai.com`, `api.anthropic.com`, `openrouter.ai`, `generativelanguage.googleapis.com`) to a LOOPBACK stand-in origin. Other hosts and non-loopback targets are refused |
 | `JOBLEFT_SECRET_STORE` | ai-engine | `keychain` on macOS, else `file` | `keychain` (macOS Keychain), `file` (AES-256-GCM file in `$JOBLEFT_HOME/secrets/`), `memory` (tests) |
 | `JOBLEFT_ORT_MODULE` | ai-engine | none | Path of an installed `onnxruntime-node` entry for the fit model (until the app build bundles it) |
+| `JOBLEFT_PUBLIK_ALLOW_LIVE` | ai-engine (`createEngineFromEnv`) | off | Until `1`, the app token is ignored for any publik address that is not loopback, so no build contacts the live service before gate G-publik |
 | `JOBLEFT_DATASET_MANIFEST_URL` | static-data | none until the owner names the release location | Where newer dataset releases are listed (tests use a local stand-in) |
 | `JOBLEFT_LOG_LEVEL` | server | `info` | `error`, `warn`, `info`, `debug`. No level logs personal text, keys or tokens |
 | `CARGO_TARGET_DIR` | shell builds | `<main checkout>/.cache/cargo-target` | The one shared Cargo target dir (every worktree uses the main checkout's) |
