@@ -13,7 +13,7 @@ import { liveBoardCount, openBoardsApp, resolveHome, type BoardsApp } from './ap
 import {
   BUNDLED_DIRECTORY_PATH, PRUNED_DIRECTORY_PATH, installedDirectoryPath, loadActiveDirectory, parseDirectoryFile, readDirectoryFile,
 } from './directory.ts';
-import { PROVIDER_NAMES, boardApiHost } from './detect.ts';
+import { PROVIDER_NAMES, boardApiHost, boardPageUrl } from './detect.ts';
 import { forbiddenProvider } from './hosts.ts';
 import { isCrawlAts } from './ids.ts';
 import { BoardError } from './service.ts';
@@ -203,6 +203,12 @@ async function main(): Promise<void> {
         const ats = str(a, 'ats') ?? '';
         if (!isCrawlAts(ats)) fail(`unsupported_source: jobleft does not read "${ats}" boards`, 2);
         target = { ats, board: str(a, 'board') ?? fail('missing --board', 2), region: str(a, 'region') ?? null, sourceUrl: null };
+        // Check the board first (it exists, its name, its open jobs), exactly as a pasted link would be.
+        const r = await app.service.resolve(boardPageUrl(target.ats, target.board.toLowerCase(), target.region));
+        if (!json) printResolve(r, `${PROVIDER_NAMES[target.ats]} board "${target.board}"`);
+        if (!r.candidates.length) { if (json) console.log(JSON.stringify(r, null, 1)); process.exitCode = 5; return; }
+        if (r.candidates[0]!.alreadyAdded) { if (json) console.log(JSON.stringify({ added: false, reason: 'already added', candidate: r.candidates[0] }, null, 1)); else console.log('Already added: nothing changed.'); process.exitCode = 3; return; }
+        target.region = r.candidates[0]!.region;
       } else {
         const link = a._[1] ?? fail('usage: add <link> | add --ats <provider> --board <token>', 2);
         const r = await app.service.resolve(link);

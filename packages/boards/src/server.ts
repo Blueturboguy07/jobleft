@@ -11,6 +11,9 @@ import { ERROR_STATUS, JSON_BODY_LIMIT, LAUNCH_TOKEN_HEADER, LOCAL_API, matchRou
 import type { JsonSchema } from '@jobleft/contracts';
 import type { BoardsApp } from './app.ts';
 import { BoardError, type ListView } from './service.ts';
+import { boardPageUrl } from './detect.ts';
+import { boardId } from './ids.ts';
+import type { CrawlAtsId } from '@jobleft/contracts';
 import { liveBoardCount } from './app.ts';
 
 type Code = keyof typeof ERROR_STATUS;
@@ -85,7 +88,19 @@ export async function startDevServer(app: BoardsApp, opts: { port?: number; toke
           ...(query.cursor ? { cursor: query.cursor } : {}), ...(query.limit ? { limit: Number(query.limit) } : {}),
         }));
         case 'resolveBoard': return send(res, 200, await app.service.resolve(String(body.url), { acceptPaidLookup: body.acceptPaidLookup === true }));
-        case 'addBoard': return send(res, 200, app.service.add({ ats: body.ats as never, board: String(body.board), region: (body.region as string | undefined) ?? null }));
+        case 'addBoard': {
+          const ats = body.ats as CrawlAtsId;
+          const board = String(body.board).trim().toLowerCase();
+          const region = (body.region as string | undefined) ?? null;
+          const existing = app.service.get(boardId(ats, board, region));
+          if (existing?.origin === 'user') return err(res, 'conflict', `This board is already in your list (${existing.company}).`);
+          // Check the board with its provider first (name, open jobs), as a pasted link would be; never add a board
+          // the provider says does not exist.
+          const check = await app.service.resolve(boardPageUrl(ats, board, region));
+          const cand = check.candidates.find((c) => c.ats === ats && c.board === board);
+          if (!cand && (check.reason === 'no_board_found' || check.reason === 'unsupported_provider')) return err(res, check.reason === 'no_board_found' ? 'not_found' : 'unsupported_source', check.message);
+          return send(res, 200, app.service.add({ ats, board, region: cand?.region ?? region }));
+        }
         case 'updateBoard': return send(res, 200, app.service.update(m.params.boardId ?? '', body as { followed?: boolean; hidden?: boolean; disabled?: boolean }));
         case 'exportBoards': {
           const lines = [...app.service.export()].join('');

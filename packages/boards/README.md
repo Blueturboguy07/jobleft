@@ -118,7 +118,7 @@ anything. `--json` prints the `BoardResolveResponse` contract.
 jb add 'https://boards.greenhouse.io/acme' --yes                 # resolve, show, add (asks y/N without --yes)
 jb add 'https://job-boards.greenhouse.io/ACME/jobs/1002' --yes   # "Already added: nothing changed." (exit 3)
 jb add 'https://careers.mock.example/two-boards.html' --pick 1 --yes
-jb add --ats lever --board beta --yes                            # the confirmed add, without a link
+jb add --ats lever --board beta --yes                            # checks the board first, then adds it
 jb search 'Stripe, Inc.'                                         # same first entry as "stripe" and "STRIPE"
 jb follow greenhouse:stripe
 jb hide greenhouse:quietco
