@@ -94,3 +94,4 @@ export { cardText, detailText } from './views.ts';
 export { narrativeBrief, checkNarrative, AI_TEXT_LABEL, type NarrativeBrief, type NarrativeIssue } from './narrative.ts';
 export { setSkillClaim, undoSkillClaim, type SkillClaimChange } from './claims.ts';
 export { looseJob, type LooseJob } from './loose.ts';
+export { distanceFromPlaceIndex } from './geo.ts';

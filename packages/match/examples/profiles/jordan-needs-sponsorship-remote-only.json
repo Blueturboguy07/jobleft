@@ -1,0 +1,83 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "summary": "Backend software engineer.",
+  "work": [
+    {
+      "company": "Northwind Cloud Software",
+      "title": "Software Engineer",
+      "startDate": "2022-06",
+      "endDate": "present",
+      "bullets": [
+        "Built REST APIs in TypeScript and Node.js on AWS.",
+        "Ran services on Kubernetes."
+      ]
+    },
+    {
+      "company": "Fabrikam Bank",
+      "title": "Junior Software Engineer",
+      "startDate": "2020-06",
+      "endDate": "2022-05",
+      "bullets": [
+        "Maintained React dashboards for the payments team."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "Sample State University",
+      "degree": "B.S.",
+      "major": "Computer Science",
+      "startDate": "2016-08",
+      "endDate": "2020-05"
+    }
+  ],
+  "skills": [
+    "JavaScript",
+    "TypeScript",
+    "Kubernetes",
+    "React",
+    "Node.js",
+    "PostgreSQL",
+    "AWS",
+    "Docker",
+    "Git"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Software Engineer"
+    ],
+    "targetTitles": [
+      "Backend Engineer"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "remote"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "radiusMiles": 25
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "no",
+    "needsSponsorship": "yes",
+    "usCitizen": "no",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

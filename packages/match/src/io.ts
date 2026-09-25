@@ -6,7 +6,9 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 import type { Company, H1bSummary, Job, Profile } from '@jobleft/contracts';
 import { ProfileSchema, validate } from '@jobleft/contracts';
+import { loadPlaceIndex } from '@jobleft/static-data';
 import { jobFromHtml, jobFromText, looseJob, type LooseJob } from './loose.ts';
+import { distanceFromPlaceIndex } from './geo.ts';
 import { profileVersionOf } from './profile.ts';
 
 const FIXED_TIME = '2026-01-01T00:00:00.000Z';
@@ -133,7 +135,8 @@ export function readJobs(paths: string[]): Job[] {
 
 export function readJobFile(file: string): Job[] {
   const ext = extname(file).toLowerCase();
-  const name = basename(file, ext);
+  // The id is the file name with its extension, so "a.txt" and "a.html" are two jobs.
+  const name = basename(file);
   const text = readFileSync(file, 'utf8');
   if (ext === '.txt' || ext === '.md') return [jobFromText(text, `file:${name}`)];
   if (ext === '.html' || ext === '.htm') return [jobFromHtml(text, `file:${name}`)];
@@ -185,4 +188,17 @@ function normalizeCompany(c: Obj): Company {
     key: String(c.key ?? norm(name)), name, aliases: arrOf<string>(c.aliases), facts, h1b,
     isStaffingAgency: typeof c.isStaffingAgency === 'boolean' ? c.isStaffingAgency : null, factsFreshUntil: null, updatedAt: FIXED_TIME,
   };
+}
+
+/**
+ * Distances between places from the shipped place dictionary of @jobleft/static-data, when that lane has built it.
+ * Until then (its loader says "not implemented yet") there are no distances: two different cities in one state are
+ * "distance not checked", never a broken location preference.
+ */
+export function tryDistance(dataDir: string): ((a: import('@jobleft/contracts').Place, b: import('@jobleft/contracts').PlaceQuery) => number | null) | undefined {
+  try {
+    return distanceFromPlaceIndex(loadPlaceIndex({ dataDir }));
+  } catch {
+    return undefined;
+  }
 }

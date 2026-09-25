@@ -1,0 +1,78 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "summary": "Backend software engineer.",
+  "work": [
+    {
+      "company": "A Sample Co",
+      "title": "Software Engineer",
+      "startDate": "2020-01",
+      "endDate": "2022-12"
+    },
+    {
+      "company": "B Sample Co",
+      "title": "Software Engineer",
+      "startDate": "2021-06",
+      "endDate": "2023-06"
+    }
+  ],
+  "education": [
+    {
+      "school": "Sample State University",
+      "degree": "B.S.",
+      "major": "Computer Science",
+      "startDate": "2016-08",
+      "endDate": "2020-05"
+    }
+  ],
+  "skills": [
+    "JavaScript",
+    "TypeScript",
+    "Kubernetes",
+    "React",
+    "Node.js",
+    "PostgreSQL",
+    "AWS",
+    "Docker",
+    "Git"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Software Engineer"
+    ],
+    "targetTitles": [
+      "Backend Engineer"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "onsite",
+      "hybrid",
+      "remote"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "radiusMiles": 25
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

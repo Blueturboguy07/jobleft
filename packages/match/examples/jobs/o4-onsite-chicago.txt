@@ -1,0 +1,9 @@
+Title: Software Engineer
+Company: Contoso Analytics
+Location: Chicago, IL
+
+This role is onsite in Chicago five days a week.
+
+Requirements
+- TypeScript and React
+- 2+ years of experience

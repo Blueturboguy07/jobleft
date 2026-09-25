@@ -34,7 +34,7 @@ for (const fam of families) {
   const scored = jobs.map((job) => ({ job, match: scoreMatch({ profile, job, company: null, now: NOW }) }));
   const ranked = rankTopMatched(scored);
   const rows = ranked.map((x, i) => {
-    const file = x.job.id.replace(/^file:/, '') + '.txt';
+    const file = x.job.id.replace(/^file:/, '');
     return { rank: i + 1, file, label: labels[file], percent: x.match.percent, band: x.match.band, complete: x.match.complete, E: x.match.subScores.experienceLevel.percent, S: x.match.subScores.skills.percent, I: x.match.subScores.industryExperience.percent, blockers: x.match.blockers.length };
   });
   for (const r of rows) if (!r.label) throw new Error(`${fam}: no label for ${r.file}`);

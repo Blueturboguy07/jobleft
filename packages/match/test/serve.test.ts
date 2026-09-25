@@ -36,12 +36,12 @@ test('preview: security checks, the endpoint, and skill claims with undo', async
     const host = `127.0.0.1:${srv.port}`;
     const auth = { host, 'x-jobleft-token': srv.token };
     try {
-      assert.equal((await call(srv.port, '/api/v1/match/file%3Aa', { headers: { host } })).status, 401);
-      assert.equal((await call(srv.port, `/api/v1/match/file%3Aa?token=${srv.token}`, { headers: { host } })).status, 401);
-      assert.equal((await call(srv.port, '/api/v1/match/file%3Aa', { headers: { ...auth, host: 'evil.example.com' } })).status, 403);
-      assert.equal((await call(srv.port, '/api/v1/match/file%3Aa', { headers: { ...auth, origin: 'https://evil.example.com' } })).status, 403);
-      assert.equal((await call(srv.port, '/api/v1/match/file%3Aa', { headers: { ...auth, origin: 'null' } })).status, 403);
-      const r = await call(srv.port, '/api/v1/match/file%3Aa', { headers: auth });
+      assert.equal((await call(srv.port, '/api/v1/match/file%3Aa.txt', { headers: { host } })).status, 401);
+      assert.equal((await call(srv.port, `/api/v1/match/file%3Aa.txt?token=${srv.token}`, { headers: { host } })).status, 401);
+      assert.equal((await call(srv.port, '/api/v1/match/file%3Aa.txt', { headers: { ...auth, host: 'evil.example.com' } })).status, 403);
+      assert.equal((await call(srv.port, '/api/v1/match/file%3Aa.txt', { headers: { ...auth, origin: 'https://evil.example.com' } })).status, 403);
+      assert.equal((await call(srv.port, '/api/v1/match/file%3Aa.txt', { headers: { ...auth, origin: 'null' } })).status, 403);
+      const r = await call(srv.port, '/api/v1/match/file%3Aa.txt', { headers: auth });
       assert.equal(r.status, 200);
       const m = JSON.parse(r.body);
       assert.ok(validate(MatchResultSchema, m).ok);
@@ -50,13 +50,13 @@ test('preview: security checks, the endpoint, and skill claims with undo', async
       const claim = await call(srv.port, '/preview/api/skills', { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ skill: 'SQL', have: true }) });
       assert.equal(claim.status, 200);
       assert.match(JSON.parse(claim.body).notice, /changes your profile/);
-      for (const id of ['file%3Aa', 'file%3Ab']) {
+      for (const id of ['file%3Aa.txt', 'file%3Ab.txt']) {
         const after = JSON.parse((await call(srv.port, `/api/v1/match/${id}`, { headers: auth })).body);
         assert.ok(after.skills.matched.includes('SQL'), id);
       }
       assert.ok(JSON.parse(readFileSync(profilePath, 'utf8')).skills.some((s: { name: string }) => s.name === 'SQL'));
       assert.equal((await call(srv.port, '/preview/api/skills/undo', { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: '{}' })).status, 200);
-      const undone = JSON.parse((await call(srv.port, '/api/v1/match/file%3Aa', { headers: auth })).body);
+      const undone = JSON.parse((await call(srv.port, '/api/v1/match/file%3Aa.txt', { headers: auth })).body);
       assert.deepEqual(undone, m);
       const feed = JSON.parse((await call(srv.port, '/preview/api/feed', { headers: auth })).body);
       assert.equal(feed.counts.strong + feed.counts.good + feed.counts.fair + feed.counts.incomplete, feed.counts.total);

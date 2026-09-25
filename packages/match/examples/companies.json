@@ -1,0 +1,17 @@
+{
+  "Contoso Analytics": {
+    "h1b": "likely",
+    "industries": [
+      "Software"
+    ],
+    "stage": "growth"
+  },
+  "Tailspin Pay": {
+    "industries": [
+      "Financial Services"
+    ],
+    "investors": [
+      "Example Ventures"
+    ]
+  }
+}

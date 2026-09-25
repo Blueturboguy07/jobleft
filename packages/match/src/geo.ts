@@ -2,7 +2,7 @@
 // US state names and codes, and a city and state comparison. Distances need the place dictionary of
 // @jobleft/static-data; when the caller passes one (MatchInput.distanceMiles), radius preferences are checked too.
 
-import type { Place, PlaceQuery } from '@jobleft/contracts';
+import type { Place, PlaceLookup, PlaceQuery } from '@jobleft/contracts';
 
 export const US_STATES: Record<string, string> = {
   AL: 'alabama', AK: 'alaska', AZ: 'arizona', AR: 'arkansas', CA: 'california', CO: 'colorado', CT: 'connecticut',
@@ -83,4 +83,28 @@ export function comparePlace(job: Place, want: PlaceQuery, distanceMiles?: (a: P
 export function placeLabel(p: Place): string {
   if (p.city && p.region) return `${p.city}, ${p.region}`;
   return p.text;
+}
+
+/**
+ * A MatchInput.distanceMiles function from a place dictionary (the PlaceIndex of @jobleft/static-data):
+ * both places are resolved by their text, and an ambiguous or unknown place gives null (distance not checked).
+ */
+export function distanceFromPlaceIndex(index: { resolve(text: string): PlaceLookup; distanceMiles(a: Place, b: Place): number | null }): (a: Place, b: PlaceQuery) => number | null {
+  const cache = new Map<string, Place | null>();
+  const one = (text: string): Place | null => {
+    if (cache.has(text)) return cache.get(text)!;
+    let p: Place | null = null;
+    try {
+      const r = index.resolve(text);
+      p = !r.notACity && r.places.length === 1 && !r.ambiguous.length ? r.places[0] : null;
+    } catch { p = null; }
+    cache.set(text, p);
+    return p;
+  };
+  return (a, b) => {
+    const pa = a.lat !== undefined && a.lon !== undefined ? a : one(a.text);
+    const pb = one(b.text);
+    if (!pa || !pb) return null;
+    try { return index.distanceMiles(pa, pb); } catch { return null; }
+  };
 }

@@ -13,7 +13,8 @@ const nurseJob = job({ title: 'Registered Nurse - ICU', description: 'Mercy Vall
 test('O1: the result matches the contract, the band fits the cut-offs, and card, detail and endpoint agree', () => {
   for (const j of [backend, nurseJob]) {
     const r = score(swe, j);
-    assert.ok(validate(MatchResultSchema, r).ok, JSON.stringify(validate(MatchResultSchema, r).issues));
+    const v = validate(MatchResultSchema, r);
+    assert.ok(v.ok, v.ok ? '' : JSON.stringify(v.issues));
     assert.equal(r.band, bandFor(r.percent));
     const card = summarizeMatch(r);
     assert.equal(card.percent, r.percent);

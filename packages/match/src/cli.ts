@@ -11,7 +11,9 @@ import {
   bandCounts, bucketOf, cardText, detailText, rankTopMatched, scoreMatch, setSkillClaim, summarize, taxonomyStats, undoSkillClaim,
   ENGINE_VERSION, type FullMatchResult, type MatchConfigInput, type SkillClaimChange,
 } from './index.ts';
-import { readCompanies, readJobs, readProfile } from './io.ts';
+import { readCompanies, readJobs, readProfile, tryDistance } from './io.ts';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { readJob } from './job.ts';
 import { skillName } from './taxonomy.ts';
 
@@ -91,14 +93,17 @@ function jobsOf(args: Args): Job[] {
   return readJobs(list);
 }
 
-interface Ctx { profile: Profile; companyOf: (j: Job) => Company | null; now: number; config: MatchConfigInput | null }
+interface Ctx { profile: Profile; companyOf: (j: Job) => Company | null; now: number; config: MatchConfigInput | null; distanceMiles?: ReturnType<typeof tryDistance> }
 
 function ctxOf(args: Args): Ctx {
-  return { profile: readProfile(need(args, 'profile')), companyOf: readCompanies(typeof args.companies === 'string' ? args.companies : undefined), now: nowOf(args), config: configOf(args) };
+  return {
+    profile: readProfile(need(args, 'profile')), companyOf: readCompanies(typeof args.companies === 'string' ? args.companies : undefined), now: nowOf(args), config: configOf(args),
+    distanceMiles: tryDistance(join(process.env.JOBLEFT_HOME ?? tmpdir(), 'datasets')),
+  };
 }
 
 function score(ctx: Ctx, job: Job): FullMatchResult {
-  return scoreMatch({ profile: ctx.profile, job, company: ctx.companyOf(job), now: ctx.now, config: ctx.config });
+  return scoreMatch({ profile: ctx.profile, job, company: ctx.companyOf(job), now: ctx.now, config: ctx.config, distanceMiles: ctx.distanceMiles });
 }
 
 function cmdScore(args: Args): void {
