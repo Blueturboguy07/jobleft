@@ -9,7 +9,7 @@ import type { EmploymentType, Place, WorkModel } from '@jobleft/contracts';
 import { decodeEntities, htmlToText } from '@jobleft/parsers';
 import type { FeedContext, FeedPosting, FeedResult, JobFeed } from '../types.ts';
 import { FeedError, parseJsonBody, shapeError } from '../http.ts';
-import { clip, countryCode, employmentTypeOf, parseRemoteScope, payFromText, placeFromText, safeHttpUrl, scopeOpenToUs } from '../text.ts';
+import { clip, countryCode, employmentTypeOf, parseRemoteScope, payFromSalaryField, payFromText, placeFromText, safeHttpUrl, scopeOpenToUs } from '../text.ts';
 import { HOUR, arr, countriesOf, creditFor, emptyFacts, ev, isoFrom, obj, rawJob, result, str } from './common.ts';
 
 export const HN_SEARCH_URL = 'https://hn.algolia.com/api/v1/search_by_date?tags=story%2Cauthor_whoishiring&hitsPerPage=10';
@@ -65,19 +65,33 @@ const APPLY_HINT = /(greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|recruit
 
 function cleanCompany(seg: string): string {
   return seg
-    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/https?:\/\/[^\s)]+/g, ' ')
+    .replace(/\(\s*\)/g, ' ')
     .replace(/\((?:[^)]*\b(?:YC|yc|Series|series|seed|Seed|funded|backed|acquired)\b[^)]*|https?:[^)]*|[a-z0-9-]+(?:\.[a-z0-9-]+)+[^)]*)\)/g, ' ')
     .replace(/^[*_\s]+|[*_\s,:;.-]+$/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
+const NOT_A_PLACE = /^(us|usa|uk|eu|apac|emea|latam|na|can|global|worldwide|anywhere|remote)$/i;
+const PLACE_WORDS = /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ.'’ -]*(,\s*[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ.'’ -]*){0,3}$/;
+
+/** Places a header segment names. Only recognisable places are kept (a city list, "City, ST", a country). */
 function placesOf(seg: string): Place[] {
   const out: Place[] = [];
-  const s = seg.replace(/\((?:[^()]*)\)/g, (m) => (/[A-Z][a-z]|,/.test(m) ? ` ; ${m.slice(1, -1)} ; ` : ' '));
-  for (const part of s.split(/\s\/\s|\/(?=\s*[A-Z])|;|\bor\b|\band\b|\s\+\s/)) {
-    const p = placeFromText(part.replace(/\b(onsite|on-site|on site|hybrid|in[- ]office|in[- ]person|preferred|preferably|only|office|offices|required|metros?|area)\b/gi, ' ').replace(/[-–—]\s*$/,'').trim());
-    if (p && p.text.length >= 2 && p.text.length <= 80 && !ROLE.test(p.text) && !TYPE.test(p.text) && !PAY.test(p.text)) out.push(p);
+  // In a segment about remote work, parentheses hold the remote region ("REMOTE (US/Can)"), not a place.
+  let s = /\bremote/i.test(seg) ? seg.replace(/\([^()]*\)/g, ' ') : seg.replace(/\((?:[^()]*)\)/g, (m) => (/[A-Z][a-z]|,/.test(m) ? ` ; ${m.slice(1, -1)} ; ` : ' '));
+  s = s.replace(/\b(fully\s+)?remote(ly)?\b[^;,/|]*$/i, ' ');
+  for (const part of s.split(/\s\/\s|\/(?=\s*[A-Z])|;|\bor\b|\band\b|\s\+\s|\s-\s/)) {
+    const cleaned = part
+      .replace(/\b(onsite|on-site|on site|hybrid|in[- ]office|in[- ]person|preferred|preferably|possible|open to|welcome|only|office|offices|required|metros?|area|based|first)\b/gi, ' ')
+      .replace(/\s+/g, ' ').trim().replace(/^[,.\s-]+|[,.\s-]+$/g, '');
+    if (!cleaned || cleaned.length > 60 || cleaned.split(' ').length > 6 || NOT_A_PLACE.test(cleaned) || !PLACE_WORDS.test(cleaned)) continue;
+    if (cleaned.split(',').some((x) => x.trim().replace(/[^A-Za-zÀ-ÿ]/g, '').length < 2)) continue;
+    const p = placeFromText(cleaned);
+    if (!p || ROLE.test(p.text) || TYPE.test(p.text)) continue;
+    if (!(p.city || p.region || p.country) && !PLACE_HINT.test(p.text)) continue;
+    out.push(p);
   }
   return out;
 }
@@ -92,14 +106,16 @@ export function parseHnComment(c: Record<string, unknown>, thread: HnThreadRef, 
   const segs = header.split('|').map((s) => s.trim()).filter(Boolean);
   if (segs.length < 2) return null;
   const company = cleanCompany(segs[0]!);
-  // A first segment that is a sentence ("We're building ...") is not a company name.
+  // A first segment that is a sentence ("We're building ...") or a role ("Lead SWE") is not a company name.
   if (!company || company.length > 80 || /^(we|we're|we are|i|i'm|our|hi|hello)\b/i.test(company)) return null;
+  if (/\b(engineers?|developers?|swes?|designers?|scientists?|hiring)\b/i.test(company)) return null;
   const facts = emptyFacts();
   let title: string | null = null;
   let remote = false, hybrid = false, onsite = false;
   const workSegs: string[] = [];
   const places: Place[] = [];
   let et: EmploymentType | null = null;
+  let paySeg: string | null = null;
   for (const seg of segs.slice(1)) {
     const noUrl = seg.replace(/https?:\/\/\S+/g, ' ').trim();
     if (!noUrl || URLISH.test(seg.trim())) continue;
@@ -113,7 +129,8 @@ export function parseHnComment(c: Record<string, unknown>, thread: HnThreadRef, 
     }
     if (!et && TYPE.test(noUrl) && !ROLE.test(noUrl.replace(TYPE, ''))) { et = employmentTypeOf(noUrl); continue; }
     if (!title && ROLE.test(noUrl) && !PAY.test(noUrl.replace(/\b(data|ml)\b/gi, '')) && !VISA.test(noUrl)) { title = clip(noUrl, 150); continue; }
-    if (PAY.test(noUrl) || VISA.test(noUrl)) continue;
+    if (PAY.test(noUrl)) { paySeg ??= noUrl; continue; }
+    if (VISA.test(noUrl)) continue;
     if (PLACE_HINT.test(noUrl) || countryCode(noUrl)) places.push(...placesOf(noUrl));
   }
   let workModel: WorkModel | null = null;
@@ -133,8 +150,10 @@ export function parseHnComment(c: Record<string, unknown>, thread: HnThreadRef, 
   const scopeUs = scopeOpenToUs(facts.remoteScope);
   facts.isUs = scopeUs === true || countries.includes('US') ? true : scopeUs === false || (countries.length > 0 && countries.length === places.length) ? false : null;
   if (et) { facts.employmentType = et; facts.evidence.employmentType = ev('description', header); }
-  const pay = payFromText(header) ?? payFromText(htmlToText(html));
-  if (pay) { facts.pay = pay; facts.evidence.pay = ev('description', header); }
+  // A pay segment of the header ("$150 - 210K USD + equity") first, then a range with a currency in the text.
+  const segPay = paySeg ? payFromSalaryField(paySeg) : null;
+  const pay = segPay ? { ...segPay, source: 'description' as const } : payFromText(header) ?? payFromText(htmlToText(html));
+  if (pay) { facts.pay = pay; facts.evidence.pay = ev('description', segPay ? paySeg! : header); }
   facts.postedAt = isoFrom(c.created_at, now) ?? isoFrom(c.created_at_i, now);
   const apply = linksOf(html).find((u) => APPLY_HINT.test(u) && !/news\.ycombinator\.com/i.test(u)) ?? null;
   const url = hnPostUrl(id);

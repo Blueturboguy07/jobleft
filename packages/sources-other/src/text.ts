@@ -91,8 +91,9 @@ export function countryCode(token: string): string | null {
   if (/^[A-Za-z]{2}$/.test(t)) {
     // Two letters are a country code only in upper case and only when they are not a US state code.
     if (t !== t.toUpperCase() || US_STATE_CODES.has(t)) return null;
-    const known = new Set(['GB', 'DE', 'FR', 'ES', 'IT', 'NL', 'IE', 'PL', 'PT', 'SE', 'NO', 'DK', 'FI', 'CH', 'AT', 'BE',
-      'JP', 'SG', 'IL', 'BR', 'MX', 'AU', 'NZ', 'IN', 'UK', 'US']);
+    // PT, ET, CT and MT are left out on purpose: in job posts they are US time zones far more often than countries.
+    const known = new Set(['GB', 'DE', 'FR', 'ES', 'NL', 'IE', 'PL', 'SE', 'NO', 'DK', 'FI', 'CH', 'AT', 'BE',
+      'JP', 'SG', 'IL', 'BR', 'MX', 'AU', 'NZ', 'UK', 'US']);
     if (!known.has(t)) return null;
     return t === 'UK' ? 'GB' : t;
   }
@@ -169,12 +170,16 @@ const US_TOKEN = /(?:^|[^A-Za-z])US(?:$|[^A-Za-z])/;
 export function parseRemoteScope(text: string | null | undefined): RemoteScope | null {
   const t = (text ?? '').replace(/\s+/g, ' ').trim();
   if (!t) return null;
+  // Time zones ("PT/ET hours", "UTC+2", "US Pacific overlap") are working hours, not where applicants may live.
+  const u = t.replace(/\b(PT|ET|CT|MT|PST|EST|CST|MST|PDT|EDT|CET|CEST|GMT|UTC|BST|IST)([+-]\d{1,2})?\b(\s*\/\s*\b(PT|ET|CT|MT|PST|EST|CST|MST|CET|GMT|UTC)\b)*/g, ' ')
+    .replace(/\b\d+\s*h(ours?)?\s+overlap\s+with\s+[^,;)]*/gi, ' ')
+    .replace(/\boverlap\s+with\s+[^,;)]*/gi, ' ');
   const regions: string[] = [];
   const add = (r: string) => { if (!regions.includes(r)) regions.push(r); };
-  if (US_WORDS.test(t) || US_TOKEN.test(t)) add('US');
-  for (const [re, rs] of SCOPE_WORDS) if (re.test(t)) rs.forEach(add);
+  if (US_WORDS.test(u) || US_TOKEN.test(u)) add('US');
+  for (const [re, rs] of SCOPE_WORDS) if (re.test(u)) rs.forEach(add);
   // Countries and US states named as separate words ("USA, Canada", "Remote - Texas", "Poland or Romania").
-  const tokens = t
+  const tokens = u
     .replace(/\b(remote|remoto|only|fully|full[- ]time|residents?|based|in|from|within|time ?zones?|hours?|preferred|required)\b/gi, ',')
     .split(/[,;/|()+&]|\bor\b|\band\b|\s-\s/i)
     .map((s) => s.trim())
@@ -222,6 +227,8 @@ function num(raw: string, k: boolean): number {
 export function payFromSalaryField(text: string | null | undefined): Pay | null {
   const t = (text ?? '').replace(/\s+/g, ' ').trim();
   if (!t || t.length > 200) return null;
+  // More than two money marks ("Junior SWE ($300k), SWE ($350k), Research ($300k-$400k)") is several roles' pay.
+  if ((t.match(/[$€£₹]/g) ?? []).length > 2) return null;
   let currency: string | null = null;
   for (const [re, c] of CUR_MARK) if (re.test(t)) { currency = c; break; }
   if (!currency) return null;
