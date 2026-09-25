@@ -271,7 +271,9 @@ export function checkDraft(text: string, f: DraftFacts): string[] {
     }
   }
   for (const m of text.matchAll(orgPhrase)) {
-    const phrase = m[1]!.replace(/[.'-]+$/, '');
+    const words = m[1]!.replace(/[.'-]+$/, '').split(/\s+/);
+    while (words.length > 1 && (COMMON.has(fold(words[words.length - 1]!)) || ['&', 'of', 'de', 'du'].includes(fold(words[words.length - 1]!)))) words.pop();
+    const phrase = words.join(' ');
     const firstWord = fold(phrase.split(/\s+/)[0] ?? '');
     if (COMMON.has(firstWord)) continue;
     if (!inCorpus(phrase)) {

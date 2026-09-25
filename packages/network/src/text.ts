@@ -92,9 +92,14 @@ export function looksGarbled(name: string): boolean {
     const again = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     return again !== name && /[^\u0000-\u007F]/.test(again);
   } catch {
-    return false;
+    // A cut-off sequence ("å¼" when the export trimmed a no-break space): a UTF-8 lead byte read as a Latin letter,
+    // followed by a continuation byte read as a symbol. Real names do not hold these pairs.
+    return MOJIBAKE_PAIR.test(name);
   }
 }
+
+const CONT = '\\u0080-\\u00BF\\u20AC\\u201A\\u0192\\u201E\\u2026\\u2020\\u2021\\u02C6\\u2030\\u0160\\u2039\\u0152\\u017D\\u2018\\u2019\\u201C\\u201D\\u2022\\u2013\\u2014\\u02DC\\u2122\\u0161\\u203A\\u0153\\u017E\\u0178';
+const MOJIBAKE_PAIR = new RegExp(`[\\u00C2-\\u00DF][${CONT}]|[\\u00E0-\\u00EF][${CONT}]{1,2}|[\\u00F0-\\u00F4][${CONT}]{1,3}`);
 
 // ---------------------------------------------------------------- dates
 

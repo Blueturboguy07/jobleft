@@ -375,7 +375,8 @@ export async function startDevServer(opts: DevServerOptions): Promise<DevServer>
     }
   });
 
-  const tryPorts = opts.port !== undefined && opts.port !== 0 ? [opts.port] : Array.from({ length: 10 }, (_, i) => DEV_PORT_START + i);
+  // undefined = the first free port of 47841 to 47850; 0 = any free port (tests); a number = exactly that port.
+  const tryPorts = opts.port !== undefined ? [opts.port] : Array.from({ length: 10 }, (_, i) => DEV_PORT_START + i);
   for (const p of tryPorts) {
     const ok = await new Promise<boolean>((resolve) => {
       const onErr = () => { server.removeListener('listening', onOk); resolve(false); };
@@ -388,7 +389,7 @@ export async function startDevServer(opts: DevServerOptions): Promise<DevServer>
   }
   if (!port) {
     db.close();
-    throw new Error(`No free port in ${tryPorts[0]} to ${tryPorts[tryPorts.length - 1]}.`);
+    throw new Error(tryPorts.length === 1 ? `Port ${tryPorts[0]} is not free.` : `No free port in ${tryPorts[0]} to ${tryPorts[tryPorts.length - 1]}.`);
   }
 
   const runDir = join(home, 'run');
