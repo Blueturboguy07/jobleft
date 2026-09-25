@@ -53,7 +53,7 @@ const LINE_PREFERRED = /\b(preferred|preferably|a plus|is a plus|nice[- ]to[- ]h
 const LINE_REQUIRED = /\b(required|must|mandatory|minimum|essential|necessary)\b/i;
 
 /** A sentence that states what the person must bring, even without a heading ("2 years of experience, CDL-A, ..."). */
-const REQUIREMENT_SENTENCE = /\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\+?\s*(\(\d+\)\s*)?(years?|yrs?|months?)\b[^.;]{0,60}\b(experience|exp\b)|\bexperience\b[^.;]{0,25}\b\d{1,2}\+?\s*(years?|months?)\b|\b(must have|must be able|must hold|must possess|you have|you'?ll need|you will need|you should have|we'?re looking for someone|looking for someone with|the ideal candidate|candidates? (must|should|will) have|requires?|required|minimum of|need(s)? to have|proven experience|experience (with|in|using|as)|knowledge of|proficien\w+ (in|with)|ability to)\b/i;
+export const REQUIREMENT_SENTENCE = /\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\+?\s*(\(\d+\)\s*)?(years?|yrs?|months?)\b[^.;]{0,60}\b(experience|exp\b)|\bexperience\b[^.;]{0,25}\b\d{1,2}\+?\s*(years?|months?)\b|\b(must have|must be able|must hold|must possess|you have|you'?ll need|you will need|you should have|we'?re looking for someone|looking for someone with|the ideal candidate|candidates? (must|should|will) have|requires?|required|minimum of|need(s)? to have|proven experience|experience (with|in|using|as)|knowledge of|proficien\w+ (in|with)|ability to)\b/i;
 /** Words that make a licence or certificate in plain text a requirement ("Licensed therapists (LCSW, LPC or LMFT)"). */
 const LICENCE_WORDS = /\b(licen[cs]ed|licen[cs]es?|licensure|certified|certifications?|certificates?|card|endorsements?|credentials?|registration)\b/i;
 

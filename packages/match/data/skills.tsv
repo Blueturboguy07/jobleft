@@ -326,8 +326,8 @@ troubleshooting | Troubleshooting | skill | it,support,@trades,maintenance,engin
 call_center | Call center work | skill | support,sales,health_admin | call center, call centre, contact center, contact centre, inbound call center |
 itil | ITIL | method | it | itil, itil v4, itil foundation |
 # ---------- HR and recruiting
-recruiting | Recruiting | skill | hr | recruiting, recruitment, full-cycle recruiting, full cycle recruiting, full life cycle recruiting, talent acquisition, sourcing candidates, candidate sourcing, interviewing candidates, screening candidates, boolean search |
-ats_tools | Applicant tracking systems | tool | hr | applicant tracking system, applicant tracking systems, greenhouse ats, lever ats, icims, jobvite, taleo, bullhorn |
+recruiting | Recruiting | skill | hr | recruiting, recruitment, sourcing, boolean sourcing, full-cycle, full cycle, interviewing, full-cycle recruiting, full cycle recruiting, full life cycle recruiting, talent acquisition, sourcing candidates, candidate sourcing, interviewing candidates, screening candidates, boolean search |
+ats_tools | Applicant tracking systems | tool | hr | applicant tracking system, applicant tracking systems, greenhouse ats, lever ats, icims, jobvite, taleo, bullhorn, =Greenhouse@hr, =Lever@hr, =Workday@hr, =ATS@hr |
 onboarding | Onboarding | skill | hr,admin | employee onboarding, new hire onboarding, onboarding new employees, onboarding process, new hire orientation |
 employee_relations | Employee relations | skill | hr | employee relations, employee investigations, workplace investigations | 
 benefits_admin | Benefits administration | skill | hr,payroll | benefits administration, benefits enrollment, open enrollment, benefits programs, cobra, 401(k) administration |
@@ -468,7 +468,7 @@ edtech | Educational technology | tool | teaching,training | educational technol
 childcare_skills | Child supervision | skill | childcare,teaching | child supervision, supervising children, childcare, child care, caring for children, infant care, toddler care |
 # ---------- retail, food and hospitality
 merchandising | Merchandising | skill | retail | merchandising, visual merchandising, product displays, store displays, planograms, planogram, merchandise displays |
-inventory_mgmt | Inventory management | skill | retail,logistics,food,manufacturing,operations,health_admin | inventory management, inventory control, managing inventory, stock management, inventory replenishment, cycle counting, cycle counts, cycle count, physical inventory, inventory counts, inventory audits |
+inventory_mgmt | Inventory management | skill | retail,logistics,food,manufacturing,operations,health_admin | inventory, inventory management, inventory control, managing inventory, stock management, inventory replenishment, cycle counting, cycle counts, cycle count, physical inventory, inventory counts, inventory audits |
 loss_prevention | Loss prevention | skill | retail,security_services | loss prevention, shrink reduction, shrink control, asset protection, theft prevention |
 store_ops | Store operations | skill | retail,food | store operations, opening and closing procedures, opening and closing the store, store opening, store closing, key holder duties |
 pl_mgmt | P&L management | skill | retail,food,hospitality,operations,sales | p&l, p&l management, p&l responsibility, profit and loss, profit & loss, managing a p&l, sales and profit goals |

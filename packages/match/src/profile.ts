@@ -230,13 +230,31 @@ export function unionMonths(roles: Array<{ from: MonthIndex | null; to: MonthInd
   return total;
 }
 
-/** A profile skill that the dictionaries do not know is still matched word for word when it looks like a name. */
+/** Ordinary words people list as skills; they are never matched word for word in a posting. */
+const COMMON_SKILL_WORDS = new Set(('leadership leading teamwork team communication communications collaboration management managing ' +
+  'sales selling marketing inventory scheduling coaching mentoring training teaching planning budgeting recruiting ' +
+  'hiring customer customers service services operations organization organizational organized negotiation ' +
+  'presentation presentations research writing editing reading analysis analytics problem solving creativity ' +
+  'detail adaptability flexibility multitasking reliability punctuality empathy patience safety quality ' +
+  'accounting finance nursing cooking cleaning driving administration support strategy development design ' +
+  'relationship relationships retail hospitality healthcare education engineering technology computers computer ' +
+  'office excellent strong professional time interpersonal verbal written microsoft google experience skills').split(/\s+/));
+
+/**
+ * A profile skill the dictionaries do not know is matched word for word only when it looks like the name of a tool
+ * or a product ("Pyxis", "PowerSchool", "SAP Ariba", "OSHA-40"): a digit, an inner capital, all capitals, or one
+ * capitalised word that is not an ordinary word.
+ */
 function rawSkillWorthMatching(name: string): boolean {
   const t = name.trim();
   if (t.length < 3 || t.length > 40) return false;
-  if (!/[A-Z0-9]/.test(t)) return false; // "leadership", "communication": ordinary words
-  if (t.split(/\s+/).length > 4) return false;
-  return true;
+  const words = t.split(/\s+/);
+  if (words.length > 3) return false;
+  if (words.every((w) => COMMON_SKILL_WORDS.has(w.toLowerCase().replace(/[^a-z]/g, '')))) return false;
+  if (/\d/.test(t)) return true;
+  if (words.some((w) => /^[A-Z0-9]{2,}$/.test(w))) return true;
+  if (words.some((w) => /^[A-Za-z][a-z]+[A-Z]/.test(w))) return true;
+  return words.length === 1 && /^[A-Z][a-z]{3,}$/.test(t);
 }
 
 const SOURCE_RANK: Record<SkillSource, number> = { skills: 0, certifications: 1, work: 2, projects: 3, summary: 4 };

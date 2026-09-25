@@ -228,6 +228,7 @@ const ABA_ANCHORS = words('therapy autism behavior behavioral rbt bcba children 
 const ACCT_ANCHORS = words('accounting 50 100 300 intacct quickbooks erp software bookkeeping ledger xero netsuite');
 const SPOKEN_ANCHORS = words('fluent fluency bilingual speak speaking spoken written language languages native proficient proficiency conversational english verbal read write');
 const TRADES_ANCHORS = words('programming ladder controls automation allen bradley siemens hmi scada troubleshoot troubleshooting motor electrical logic vfd vfds instrumentation');
+const HR_ANCHORS = words('ats applicant applicants candidate candidates recruiting recruiter recruiters sourcing hiring requisitions offers interview interviews lever greenhouse workday icims taleo');
 const MFG_NEIGHBORS = words('line mechanical electrical product products component components parts manual electronic electronics');
 const HEALTH_NEIGHBORS = words('ehr emr systems charting hyperspace certification certified credentialed');
 const HEALTH_DOC = words('patient patients clinical hospital nursing nurse nurses ehr emr charting physician physicians medical healthcare clinic bedside');
@@ -316,6 +317,7 @@ export const CONTEXT_RULES: Record<string, (doc: ScanDoc, i: number, len: number
   acct: (doc, i, len) => neighbors(doc, i, len, 4, ACCT_ANCHORS),
   spoken: (doc, i, len) => neighbors(doc, i, len, 3, SPOKEN_ANCHORS),
   trades: (doc, i, len) => neighbors(doc, i, len, 5, TRADES_ANCHORS),
+  hr: (doc, i, len) => neighbors(doc, i, len, 8, HR_ANCHORS) || docHas(doc, 'hr', HR_ANCHORS, 3),
   health: (doc, i, len) => neighbors(doc, i, len, 3, HEALTH_NEIGHBORS) || docHas(doc, 'health', HEALTH_DOC, 2),
   sw: (doc) => docHas(doc, 'sw', SW_DOC, 2),
   mfg: (doc, i, len) => neighbors(doc, i, len, 3, MFG_NEIGHBORS) || docHas(doc, 'mfg', MFG_DOC, 1),

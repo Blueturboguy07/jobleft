@@ -6,7 +6,7 @@ import type { Blocker, Company, Job, MatchResult, Place, PlaceQuery, Profile, Re
 import { bandFor } from '@jobleft/contracts';
 import { configTag, resolveConfig, type MatchConfig, type MatchConfigInput } from './config.ts';
 import { comparePlace, placeLabel, parsePlaceText } from './geo.ts';
-import { levelOfTitle, readJob, type JobFacts, type JobSkillItem } from './job.ts';
+import { levelOfTitle, readJob, REQUIREMENT_SENTENCE, type JobFacts, type JobSkillItem } from './job.ts';
 import {
   formatMonths, heldFrom, monthLabel, monthOf, profileFacts, scoringView, unionMonths, type ProfileFacts, type RoleFact,
 } from './profile.ts';
@@ -427,8 +427,10 @@ function scoreSkills(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): SkillsOu
         if (!w.every((x, k) => words[i + k] === x)) continue;
         const t0 = toks[i];
         const sec = jf.text.lines[t0.line]?.section ?? 'other';
+        // Word-for-word names count only where the posting says what it needs.
         const sentence = jf.text.sentences[t0.sentence]?.text ?? '';
-        const imp = sec === 'required' ? 'required' : sec === 'preferred' ? 'preferred' : /\b(required|must)\b/i.test(sentence) ? 'required' : 'mentioned';
+        if (sec !== 'required' && sec !== 'preferred' && !REQUIREMENT_SENTENCE.test(sentence)) continue;
+        const imp = sec === 'preferred' ? 'preferred' : 'required';
         items.push({ id: `raw:${r.name.toLowerCase()}`, importance: imp, quote: jf.text.text.slice(t0.start, toks[i + w.length - 1].end), start: t0.start, name: r.name, raw: true });
         break;
       }
