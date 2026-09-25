@@ -119,4 +119,36 @@ test('a read-only data folder at start is refused and left as it was', async () 
   }
 });
 
+test('a restore and a delete-all right after start leave a server that keeps answering (no stale timer)', async () => {
+  const src = scratchHome('swap-src');
+  execFileSync(process.execPath, [CLI, 'fixture', '--home', src, '--schema', '1'], { stdio: 'ignore' });
+  const s0 = spawnServer(src);
+  const i0 = await s0.ready;
+  const backup = await raw(i0.port, { method: 'POST', path: '/api/v1/backup', headers: { 'x-jobleft-token': s0.token } });
+  assert.equal(backup.status, 200);
+  process.kill(i0.pid, 'SIGTERM');
+  await waitExit(s0.child);
+  cleanup(src);
+
+  const home = scratchHome('swap');
+  // The catch-up crawl timer fires 5 s after start; before the fix it read the database that the restore had closed.
+  const a = spawnServer(home, { JOBLEFT_HOST_MAP: JSON.stringify({ 'boards-api.greenhouse.io': 'http://127.0.0.1:9' }) });
+  const info = await a.ready;
+  const h = { 'x-jobleft-token': a.token };
+  const r = await raw(info.port, { method: 'POST', path: '/api/v1/restore', headers: { ...h, 'content-type': 'application/zip' }, body: backup.body });
+  assert.equal(r.status, 200, r.text);
+  await new Promise((res) => setTimeout(res, 6500));
+  assert.equal(a.child.exitCode, null, 'the server is still running after the old catch-up timer time');
+  const p = await raw(info.port, { path: '/api/v1/profile', headers: h });
+  assert.equal(p.json.personal.lastName, 'Testwell');
+  const d = await raw(info.port, { method: 'POST', path: '/api/v1/data/delete', headers: { ...h, 'content-type': 'application/json' }, body: JSON.stringify({ confirm: 'delete everything' }) });
+  assert.equal(d.status, 200, d.text);
+  await new Promise((res) => setTimeout(res, 6000));
+  assert.equal(a.child.exitCode, null, 'the server is still running after a delete-all');
+  assert.equal((await raw(info.port, { path: '/api/v1/health' })).status, 200);
+  process.kill(info.pid, 'SIGTERM');
+  assert.equal(await waitExit(a.child), 0);
+  cleanup(home);
+});
+
 void createReadStream;

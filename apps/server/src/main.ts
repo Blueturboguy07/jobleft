@@ -31,6 +31,19 @@ process.on('unhandledRejection', (e) => {
   process.stderr.write(`jobleft: an internal task failed (${e instanceof Error ? e.name : 'error'}); the server keeps running.\n`);
 });
 
+// A bug that escapes every handler stops the server cleanly (fail-stop): one plain line on stderr (never a stack
+// trace, a path or personal text), the run file and the lock removed, exit code 1. Every confirmed save is on disk.
+let running: { close(): Promise<void> } | null = null;
+let crashed = false;
+process.on('uncaughtException', (e) => {
+  if (crashed) return;
+  crashed = true;
+  process.stderr.write(`jobleft: an internal error stopped the server (${e instanceof Error ? e.name : 'error'}). Your saved data is safe; start jobleft again.\n`);
+  const force = setTimeout(() => process.exit(1), 4000);
+  force.unref();
+  (running ? running.close() : Promise.resolve()).then(() => process.exit(1), () => process.exit(1));
+});
+
 try {
   const s = await startServer({
     home,
@@ -43,6 +56,7 @@ try {
     env,
     onStop: () => process.exit(0),
   });
+  running = s;
   if (!quiet) {
     process.stdout.write([
       `jobleft server ${APP_VERSION}`,

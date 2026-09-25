@@ -46,6 +46,7 @@ export class BoardsService {
   private runningP: Promise<void> | null = null;
   private progress: { reason: CrawlProgress['reason']; done: number; total: number; seen: number; startedAt: string } | null = null;
   private timer: NodeJS.Timeout | null = null;
+  private catchUpTimer: NodeJS.Timeout | null = null;
   private stopped = false;
 
   constructor(o: CrawlOptions) { this.o = o; }
@@ -255,24 +256,32 @@ export class BoardsService {
 
   /** The scheduler: a catch-up after launch (never before the server answers), then every intervalHours. */
   start(): void {
-    const tick = () => {
-      if (this.stopped || this.runningP || this.o.offline() || this.count() === 0) return;
-      const s = this.o.settings();
-      const last = this.lastRun().finishedAt;
-      const due = !last || nowMs() - Date.parse(last) >= s.crawl.intervalHours * 3_600_000;
-      if (!due) return;
-      const reason = !last ? 'first_run' : 'schedule';
-      this.runNow(undefined, reason).catch(() => { /* offline: try again next tick */ });
+    // A timer never throws: after a restore or a delete-all this service's database is closed, and an exception in
+    // a timer would stop the whole server.
+    const tick = (catchUp: boolean) => {
+      try {
+        if (this.stopped || this.runningP || this.o.offline() || this.count() === 0) return;
+        const s = this.o.settings();
+        if (catchUp && !s.crawl.catchUpOnLaunch) return;
+        const last = this.lastRun().finishedAt;
+        const due = !last || nowMs() - Date.parse(last) >= s.crawl.intervalHours * 3_600_000;
+        if (!due) return;
+        const reason = !last ? 'first_run' : 'schedule';
+        this.runNow(undefined, reason).catch(() => { /* offline: try again next tick */ });
+      } catch (e) {
+        if (!this.stopped) this.o.log.warn('crawl.schedule_failed', { error: e instanceof Error ? e.name : 'error' });
+      }
     };
-    const catchUp = setTimeout(() => { if (this.o.settings().crawl.catchUpOnLaunch) tick(); }, 5000);
-    catchUp.unref();
-    this.timer = setInterval(tick, 60_000);
+    this.catchUpTimer = setTimeout(() => tick(true), 5000);
+    this.catchUpTimer.unref();
+    this.timer = setInterval(() => tick(false), 60_000);
     this.timer.unref();
   }
 
   /** Stops the scheduler and any running crawl (its requests are aborted). */
   async stop(): Promise<void> {
     this.stopped = true;
+    if (this.catchUpTimer) clearTimeout(this.catchUpTimer);
     if (this.timer) clearInterval(this.timer);
     const w = this.worker;
     if (!w) return;
