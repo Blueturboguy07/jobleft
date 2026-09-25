@@ -20,6 +20,7 @@ import { CompanyMark } from '../../components/JobCard.tsx';
 import { InlineError } from '../../components/States.tsx';
 import { calendarDate, dateText, dateTimeText, plural } from '../../lib/format.ts';
 import { noteKeep, patchFresh, reminderKeep } from '../../lib/trackerEdit.ts';
+import { ContactName, MatchExplain, ProfileLink, ReasonList, StageSelect, saveContact } from '../network/shared.tsx';
 
 export function SecHead({ icon, title, id, right }: { icon: ReactNode; title: string; id?: string; right?: ReactNode }) {
   return (
@@ -163,36 +164,50 @@ export function SponsorSection({ job, company }: { job: Job; company: Company | 
 
 export function NetworkSection({ job, networkCount }: { job: Job; networkCount: number | null }) {
   const ranks = useApi<ContactRank[]>(networkCount ? `network:rank:${job.companyKey}:${job.id}` : null, () => call('rankContacts', { query: { companyKey: job.companyKey, jobId: job.id } }));
-  const people = useApi<NetworkContact[]>(networkCount ? `network:contacts:${job.companyKey}` : null, () => call('listContacts', { query: { companyKey: job.companyKey } }));
-  const any = useApi<NetworkContact[]>(!networkCount ? 'network:contacts:' : null, () => call('listContacts', { query: {} }));
+  const people = useApi<NetworkContact[]>(networkCount ? `network:contacts:c:${job.companyKey}` : null, () => call('listContacts', { query: { companyKey: job.companyKey } }));
+  const any = useApi<NetworkContact[]>(!networkCount ? 'network:contacts:any' : null, () => call('listContacts', { query: { limit: '1' } }));
   const [draftFor, setDraftFor] = useState<NetworkContact | null>(null);
+  const [all, setAll] = useState(false);
   const byId = new Map((people.data ?? []).map((p) => [p.id, p]));
+  // The list is the ranked people who are really at this company: the same people the count on the card counts.
+  const ranked = (ranks.data ?? []).filter((r) => byId.has(r.contactId));
+  const shown = all ? ranked : ranked.slice(0, 10);
   return (
     <section className="jl-detail-sec" aria-labelledby="sec-net-h" id="sec-network">
       <SecHead icon={<TeamOutlined />} title={networkCount ? `You know ${plural(networkCount, 'person', 'people')} at ${job.company}` : 'People you know here'} id="sec-net-h" />
       {!networkCount && (
         any.data && any.data.length
           ? <p>None of your imported connections work at {job.company}.</p>
-          : <p>Import your LinkedIn connections file to see who you know here. The file stays on this Mac. <Button type="link" onClick={() => navigate('network')}>Import connections</Button></p>
+          : any.data
+            ? <p>Import your LinkedIn connections file to see who you know here. The file is read on this computer. <Button type="link" onClick={() => navigate('network/import')}>Import connections</Button></p>
+            : null
       )}
       {networkCount && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {ranks.error && <InlineError error={ranks.error} onRetry={() => { void ranks.reload(); }} />}
-          {(ranks.data ?? []).slice(0, 3).map((r) => {
-            const p = byId.get(r.contactId);
-            if (!p) return null;
+          {people.error && <InlineError error={people.error} onRetry={() => { void people.reload(); }} />}
+          <span className="jl-small jl-muted">Best person to contact first is at the top. Each reason comes from your file.</span>
+          {shown.map((r) => {
+            const p = byId.get(r.contactId)!;
             return (
               <div key={r.contactId} className="jl-factbox jl-row" style={{ alignItems: 'flex-start' }}>
-                <div className="jl-avatar" style={{ width: 32, height: 32, fontSize: 13 }} aria-hidden="true">{(p.firstName[0] ?? '?').toUpperCase()}</div>
+                <div className="jl-avatar" style={{ width: 32, height: 32, fontSize: 13 }} aria-hidden="true">{([...(p.firstName || '?')][0] ?? '?').toUpperCase()}</div>
                 <div className="jl-grow">
-                  <strong>{p.firstName} {p.lastName}</strong>{p.maybeGarbled && <Tooltip title="The name may be garbled by the export. It is shown as in your file."><span className="jl-chip" style={{ marginLeft: 6 }} tabIndex={0}>as in file</span></Tooltip>}
+                  <ContactName c={p} />
                   <div className="jl-small">{p.position ?? 'No title in your file'}</div>
-                  <ul style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 13, color: 'var(--jl-text2)' }}>{r.reasons.map((x) => <li key={x.code}>{x.text}</li>)}</ul>
+                  <div><ProfileLink c={p} /></div>
+                  <ReasonList reasons={r.reasons} />
                 </div>
-                <Button size="small" shape="round" onClick={() => setDraftFor(p)}>Draft a message</Button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+                  <StageSelect c={p} />
+                  <Button size="small" shape="round" onClick={() => setDraftFor(p)}>Draft a message</Button>
+                  <Button size="small" shape="round" aria-pressed={p.inPlan} onClick={() => { void saveContact(p, { inPlan: !p.inPlan }, p.inPlan ? 'Removed from your coffee-chat list.' : 'Added to your coffee-chat list.'); }}>{p.inPlan ? 'In my coffee-chat list' : 'Add to coffee-chat list'}</Button>
+                </div>
               </div>
             );
           })}
+          {ranked.length > 10 && <Button type="link" style={{ alignSelf: 'flex-start', padding: 0 }} onClick={() => setAll(!all)}>{all ? 'Show fewer' : `Show all ${ranked.length}`}</Button>}
+          <MatchExplain companyKey={job.companyKey} companyName={job.company} />
           <Button type="link" style={{ alignSelf: 'flex-start', padding: 0 }} onClick={() => navigate('network')}>Open the Network tool</Button>
         </div>
       )}

@@ -122,6 +122,7 @@ export async function handleNetworkRoute(name: NetworkRouteName, input: NetworkR
           ...(q.stage ? { stage: q.stage as OutreachStage } : {}),
           ...(q.q ? { q: q.q } : {}),
           ...(qBool(q.due) !== undefined ? { due: qBool(q.due)! } : {}),
+          ...(qBool(q.withFollowUp) ? { withFollowUp: true } : {}),
           ...(qBool(q.inPlan) !== undefined ? { inPlan: qBool(q.inPlan)! } : {}),
           ...(qBool(q.noCompany) ? { noCompany: true } : {}),
           ...(qInt(q.limit) !== undefined ? { limit: qInt(q.limit)! } : {}),

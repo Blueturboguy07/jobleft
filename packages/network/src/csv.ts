@@ -215,7 +215,13 @@ export function parseConnectionsCsv(input: string): ParseResult {
   while (pos < text.length) {
     const rec = readRecord(text, pos, line, header.delim);
     const blank = rec.fields.length === 1 && clean(rec.fields[0]) === '';
-    if (blank && !rec.unclosedQuote) { pos = rec.next; line = rec.endLine + 1; continue; }
+    if (blank && !rec.unclosedQuote) {
+      // A blank line between or after the rows is a skipped row, said out loud (i-network O1). The one line break that
+      // ends the file is not a row.
+      dataRows++;
+      skipped.push({ line: rec.startLine, reason: 'Blank row: there is nothing on this line.' });
+      pos = rec.next; line = rec.endLine + 1; continue;
+    }
     // Trailing empty fields beyond the header width (spreadsheet padding) are dropped.
     while (rec.fields.length > width && clean(rec.fields[rec.fields.length - 1]) === '') rec.fields.pop();
     const spans = rec.endLine > rec.startLine;

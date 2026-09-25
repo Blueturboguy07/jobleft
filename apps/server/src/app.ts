@@ -8,6 +8,7 @@ import { Store } from '@jobleft/crawler';
 import { createStaticDataRoutes, PoliteFetch, type StaticDataRoutes } from '@jobleft/static-data';
 import { FeedService } from './core/feed.ts';
 import { seedBoards } from './core/seed.ts';
+import { NetworkService } from '@jobleft/network';
 import { openAndMigrate } from './db/open.ts';
 import type { HomeLayout } from './home.ts';
 import { AiFacade } from './integ/engine.ts';
@@ -15,8 +16,8 @@ import { ResumeBridge } from './integ/resume.ts';
 import { BoardsService } from './interim/boards.ts';
 import { ChatService } from './interim/chats.ts';
 import { FilterService } from './interim/filters.ts';
+import { companyKey } from './interim/company-key.ts';
 import { JobsService, rowToJob, toSummary } from './interim/jobs.ts';
-import { NetworkService } from './interim/network.ts';
 import { ProfileService } from './interim/profile.ts';
 import { TrackerService } from './interim/tracker.ts';
 import type { Logger } from './log.ts';
@@ -79,7 +80,7 @@ export class AppData {
     this.pairing = new PairingService(this.db);
     this.profile = new ProfileService(this.db, () => this.settings.createdAt());
     this.jobs = new JobsService(this.db);
-    this.network = new NetworkService(this.db);
+    this.network = new NetworkService({ db: this.db, companyKey });
     this.tracker = new TrackerService(this.db, {
       jobExists: (id) => this.jobs.exists(id),
       summary: (id) => { const r = this.jobs.getRow(id); return r ? toSummary(rowToJob(r)) : null; },
@@ -165,10 +166,18 @@ export class AppData {
       this.notifications.add({ kind: 'reminder', title: job ? `Reminder: ${job.title}, ${job.company}` : 'Reminder', body: r.text || 'A reminder you set is due.', target: `/jobs/${encodeURIComponent(r.jobId)}` }, `reminder:${r.id}:${r.at}`);
       this.tracker.markReminderNotified(r.id);
     }
-    const today = new Date(nowMs()).toISOString().slice(0, 10);
-    for (const c of this.network.due(today)) {
-      this.notifications.add({ kind: 'follow_up', title: `Follow up with ${c.firstName} ${c.lastName}`.trim(), body: c.company ? `You planned to follow up (${c.company}).` : 'You planned to follow up.', target: `/network/${encodeURIComponent(c.id)}` }, `follow:${c.id}:${c.followUpOn}`);
-    }
+    this.followUpReminders();
+  }
+
+  /**
+   * Network follow-ups whose date is today or past, once per date. One notification carries a count and no name:
+   * the desktop notification centre keeps its own copy outside the data folder (network O12).
+   */
+  followUpReminders(): void {
+    if (!this.settings.get().notifications.reminders) return;
+    const r = this.network.takeReminders();
+    if (r.count === 0 || !r.text) return;
+    this.notifications.add({ kind: 'follow_up', title: r.text.title, body: r.text.body, target: '/network/followups' }, `follow:${r.contactIds.join(',')}`);
   }
 
   /** New jobs for saved filters with alerts on (after a crawl that saved new jobs). */

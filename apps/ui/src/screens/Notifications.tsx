@@ -24,7 +24,7 @@ function targetRoute(t: string | null): string | null {
 export function Notifications() {
   const notes = useNotifications();
   const applied = useTrackerView('applied');
-  const contacts = useApi<NetworkContact[]>('network:contacts:', () => call('listContacts', { query: {} }));
+  const contacts = useApi<NetworkContact[]>('network:contacts:soon', () => call('listContacts', { query: { withFollowUp: 'true', due: 'false' } }));
   const dismiss = async (n: Notification) => {
     try { await call('ackNotification', { params: { notificationId: n.id } }); invalidate('notifications'); } catch (e) { ui.message?.error((e as UiError).message); }
   };

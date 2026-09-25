@@ -54,7 +54,7 @@ export function countsOf(db: DatabaseSync): Record<string, number> {
     savedFilters: q('srv_saved_filters'),
     resumes: q('resumes') + q('srv_resumes'),
     resumeFiles: q('resumes', "WHERE file_json IS NOT NULL") + q('srv_resumes', 'WHERE file_path IS NOT NULL'),
-    contacts: q('srv_contacts'),
+    contacts: q('network_contacts'),
     chats: q('srv_chats'),
     chatMessages: q('srv_chat_messages'),
     savedAnswers: q('srv_saved_answers'),
@@ -333,7 +333,7 @@ export async function exportAll(d: AppData, l: HomeLayout): Promise<{ path: stri
       const f = d.resumes.file(r.id);
       if (f) zip.addBuffer(`files/resumes/${r.id}-${f.fileName.replace(/[^\p{L}\p{N} ._()-]/gu, '_')}`, f.bytes, false);
     }
-    const contacts = d.network.list({ today: createdAt.slice(0, 10) });
+    const contacts = d.network.list();
     j('network-contacts.json', contacts);
     const cols = ['firstName', 'lastName', 'profileUrl', 'email', 'company', 'position', 'connectedOn', 'stage', 'note', 'followUpOn', 'inPlan'] as const;
     zip.addBuffer('network-contacts.csv', Buffer.from([cols.join(','), ...contacts.map((c) => cols.map((k) => csvCell(c[k])).join(','))].join('\r\n') + '\r\n'));

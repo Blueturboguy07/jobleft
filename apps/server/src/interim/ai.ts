@@ -12,6 +12,7 @@ import type {
   AiProviderKind, AiSettings, AiSettingsUpdate, ChatRequest, ChatStreamEvent, Job, LocalServerKind, OwnKeyVendor, ProviderCheck,
 } from '@jobleft/contracts';
 import { SECRET_NAMES, nowIso } from '@jobleft/contracts';
+import { AiError, type AiClient, type AiCompletion, type AiRequest } from '@jobleft/ai-engine';
 import { ApiFailure } from '../errors.ts';
 import { CONNECT_LIMIT_MS, OutboundError, isLoopbackUrl, lines, outbound } from '../net.ts';
 import type { Kv } from '../services/kv.ts';
@@ -136,6 +137,91 @@ export class AiService {
     const name = keyName(this.load());
     if (name) { await this.secrets.delete(name); this.keyCache.set(name, null); }
     return this.settings();
+  }
+
+  /**
+   * Where a one-shot AI text (a network draft) would go: the provider kind, a plain label, and whether the text
+   * leaves this computer. null = no provider is chosen. A model server on this computer (loopback address) never
+   * counts as remote.
+   */
+  destination(): { provider: string; label: string; remote: boolean } | null {
+    const s = this.load();
+    if (!s.provider) return null;
+    if (s.provider === 'publik') return { provider: 'publik', label: 'publik', remote: true };
+    if (s.provider === 'own_key') return { provider: 'own_key', label: `your ${s.vendor ?? ''} key`.replace('  ', ' '), remote: true };
+    let host = '';
+    let onThisComputer = false;
+    try { const u = new URL(s.baseUrl ?? ''); host = u.host; onThisComputer = isLoopbackUrl(u); } catch { /* no address */ }
+    if (onThisComputer) return { provider: s.provider, label: `the model on this computer at ${host}`, remote: false };
+    return { provider: s.provider, label: host ? `the AI server at ${host}` : 'the custom AI address', remote: true };
+  }
+
+  /**
+   * One AiClient for one-shot answers (the Network tool's drafts): a whole answer from the ONE provider the person
+   * chose, never another. Only `complete` is used. For publik, the price of the answer (x-publik-charge-micros) is
+   * returned as the cost and the balance card is updated only after an answer arrived, so a failed draft changes
+   * nothing.
+   */
+  async draftClient(): Promise<AiClient> {
+    let t: Target;
+    try { t = await this.target(); } catch (e) {
+      if (e instanceof ApiFailure && e.code === 'needs_provider') throw new AiError('no_provider', e.message);
+      throw new AiError('provider_error', e instanceof ApiFailure ? e.message : 'The provider is not set up.');
+    }
+    const self = this;
+    const unsupported = (): never => { throw new AiError('provider_error', 'This client only writes whole answers.'); };
+    return {
+      provider: t.provider,
+      model: t.model,
+      chat: unsupported,
+      json: unsupported,
+      listModels: async () => [],
+      embed: async () => { throw new AiError('provider_error', 'This client has no embeddings.'); },
+      async complete(req: AiRequest): Promise<AiCompletion> {
+        if (self.offline()) throw new AiError('offline', 'jobleft is set to work offline, so nothing was sent to the AI provider.');
+        const messages = req.messages.map((m) => ({ role: m.role, content: 'content' in m ? m.content : '' }));
+        const url = t.kind === 'ollama' ? `${t.baseUrl}/api/chat` : `${t.baseUrl}/chat/completions`;
+        const body = t.kind === 'ollama'
+          ? { model: t.model, messages, stream: false, options: { num_predict: req.maxTokens ?? 400, temperature: req.temperature ?? 0.3 } }
+          : { model: t.model, messages, stream: false, max_tokens: req.maxTokens ?? 400, temperature: req.temperature ?? 0.3 };
+        let res: Response;
+        try {
+          res = await outbound(url, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', accept: 'application/json', ...(t.key ? { authorization: `Bearer ${t.key}` } : {}) },
+            body: JSON.stringify(body),
+          }, { offline: false, signal: req.signal, connectMs: 60_000 });
+        } catch (e) {
+          const kind = e instanceof OutboundError ? e.kind : 'unreachable';
+          if (kind === 'cancelled') throw new AiError('cancelled', 'The draft was cancelled.');
+          if (kind === 'timeout') throw new AiError('timeout', `${t.label} did not answer in time. Nothing was sent anywhere else.`);
+          throw new AiError('unreachable', `${t.label} could not be reached. Check that it is running. Nothing was sent anywhere else.`);
+        }
+        const raw = (await res.text().catch(() => '')).slice(0, 1_000_000);
+        if (res.status === 402 && t.provider === 'publik') {
+          const f = self.publik.balanceFailure(raw);
+          throw new AiError('insufficient_balance', f.message, (f.extra.link as { url?: string } | undefined)?.url ?? null);
+        }
+        if (res.status === 401 || res.status === 403) throw new AiError('key_refused', `${t.label} refused the key. Check the key in Settings.`);
+        if (res.status === 404) {
+          throw new AiError('model_not_found', t.kind === 'ollama'
+            ? `${t.label} does not have the model "${t.model}".`
+            : `${t.label} answered "not found" for the model "${t.model}". Check the model name, and check the address: an OpenAI-compatible address usually ends in /v1.`);
+        }
+        if (res.status >= 400) throw new AiError('provider_error', `${t.label} failed (HTTP ${res.status}). Nothing was changed.`);
+        let j: any;
+        try { j = JSON.parse(raw); } catch { throw new AiError('not_ai_server', `${t.label} did not answer like an AI server.`); }
+        const text = t.kind === 'ollama' ? j?.message?.content : j?.choices?.[0]?.message?.content;
+        if (typeof text !== 'string') throw new AiError('not_ai_server', `${t.label} did not answer like an AI server.`);
+        let costMicros: number | null = null;
+        if (t.provider === 'publik') {
+          const n = (h: string): number | null => { const v = res.headers.get(h); return v !== null && /^-?\d+$/.test(v.trim()) ? Number(v.trim()) : null; };
+          costMicros = n('x-publik-charge-micros');
+          await self.publik.noteAnswer(n('x-publik-balance') ?? n('x-publik-balance-micros'));
+        }
+        return { text, incomplete: j?.choices?.[0]?.finish_reason === 'length', costMicros, model: String(j?.model ?? t.model) };
+      },
+    };
   }
 
   /** Every provider key name this data folder may hold (delete-all). */
