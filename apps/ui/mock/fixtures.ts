@@ -42,6 +42,8 @@ export interface BoardFile {
   /** Set to true to make the stand-in board answer 503 (an employer site that is down). */
   down?: boolean;
   postings: RawPosting[];
+  /** Postings taken off the board with `ctl remove-posting` (kept so `ctl restore-posting` can put them back). */
+  removed?: RawPosting[];
 }
 
 export interface CompanyFixture {

@@ -8,6 +8,9 @@
 //   node apps/ui/mock/ctl.ts ledger                 print the stand-in publik charge log
 //   node apps/ui/mock/ctl.ts board-down <boardId>   make one employer board answer "service unavailable"
 //   node apps/ui/mock/ctl.ts board-up <boardId>
+//   node apps/ui/mock/ctl.ts remove-posting <jobId>   take one posting off its stand-in employer board (the job id as the API
+//                                                     shows it, for example greenhouse:acme:1234); the next refresh closes the job
+//   node apps/ui/mock/ctl.ts restore-posting <jobId>  put that posting back on its board
 // Add --home DIR when the demo uses another data folder.
 
 import { spawn } from 'node:child_process';
@@ -82,6 +85,30 @@ async function main(): Promise<void> {
     b.down = what === 'board-down';
     writeFileSync(f, JSON.stringify(b));
     console.log(`${action} is now ${b.down ? 'down' : 'up'}.`);
+    return;
+  }
+  if ((what === 'remove-posting' || what === 'restore-posting') && action) {
+    const [ats, board, ...rest] = action.split(':');
+    const externalId = rest.join(':');
+    const f = join(home, 'boards', `${ats}__${board}.json`);
+    if (!ats || !board || !externalId || !existsSync(f)) { console.error(`No board file for job id "${action}". A job id looks like ashby:acmelogistics:1234abcd.`); process.exit(1); }
+    const b = JSON.parse(readFileSync(f, 'utf8')) as { postings: Array<{ externalId: string }>; removed?: Array<{ externalId: string }> };
+    const same = (x: { externalId: string }) => x.externalId.toLowerCase() === externalId.toLowerCase();
+    if (what === 'remove-posting') {
+      const hit = b.postings.find(same);
+      if (!hit) { console.error(`That posting is not on ${ats}:${board}.`); process.exit(1); }
+      b.postings = b.postings.filter((x) => !same(x));
+      b.removed = [...(b.removed ?? []), hit];
+      writeFileSync(f, JSON.stringify(b));
+      console.log(`Removed ${action} from its board. Press "Refresh now" in the app (or wait for the next refresh) and the job moves to the closed views.`);
+    } else {
+      const hit = (b.removed ?? []).find(same);
+      if (!hit) { console.error(`${action} was not removed with this tool.`); process.exit(1); }
+      b.postings.push(hit as never);
+      b.removed = (b.removed ?? []).filter((x) => !same(x));
+      writeFileSync(f, JSON.stringify(b));
+      console.log(`Put ${action} back on its board.`);
+    }
     return;
   }
   console.error('Unknown command. See the top of apps/ui/mock/ctl.ts or the README.');

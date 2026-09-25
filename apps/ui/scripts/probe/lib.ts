@@ -48,6 +48,8 @@ export async function startDemo(opts: { home: string; reset?: boolean; args?: st
     url: url!, origin, port: Number(port), token: token!, home, api,
     log: () => out,
     async stop() {
+      // an API that relaunchApi started runs detached: stop it by the pid it wrote, before the runner goes
+      try { process.kill((JSON.parse(readFileSync(join(home, 'run', 'server.json'), 'utf8')) as { pid: number }).pid, 'SIGTERM'); } catch { /* not running */ }
       proc.kill('SIGTERM');
       await new Promise((r) => setTimeout(r, 900));
       try { proc.kill('SIGKILL'); } catch { /* gone */ }

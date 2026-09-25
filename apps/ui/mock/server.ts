@@ -34,7 +34,7 @@ Usage: node apps/ui/mock/server.ts [options]
   --jobs N             Create about N postings and import them at once, no first crawl (for 50,000-job tests)
   --seed N             Fixture seed (default 7)
   --persona            Load the made-up persona Jordan Testwell (profile) on first start
-  --crawl-delay-ms N   Wait between boards during a refresh (default 900 on the first run, 150 later)
+  --crawl-delay-ms N   Wait between boards during a refresh (default 1500 on the first run, so the first refresh of 40 boards takes about a minute; 150 later)
   --no-crawl           Do not refresh on launch
   --reset              Delete this mock data folder's state and boards first
   --ui-dir DIR         Built UI to serve at / (default: apps/ui/dist)
@@ -176,7 +176,7 @@ async function main(): Promise<void> {
   const dev = !!args.dev;
   const firstRun = state.jobs.size === 0;
   let changeTick = 0;
-  const crawler = new Crawler(state, { delayMs: Number(args['crawl-delay-ms'] ?? (firstRun ? 900 : 150)), now: nowMs, onChange: () => { changeTick++; } });
+  const crawler = new Crawler(state, { delayMs: Number(args['crawl-delay-ms'] ?? (firstRun ? 1500 : 150)), now: nowMs, onChange: () => { changeTick++; } });
 
   const server = createServer(async (req, res) => {
     const port = (server.address() as { port: number }).port;
@@ -263,9 +263,11 @@ async function main(): Promise<void> {
   let port = 0;
   for (const p of want) {
     const ok = await new Promise<boolean>((r) => {
-      server.once('error', () => r(false));
-      server.listen(p, '127.0.0.1', () => r(true));
+      const failed = () => r(false);
+      server.once('error', failed);
+      server.listen(p, '127.0.0.1', () => { server.off('error', failed); r(true); });
     });
+    if (!ok) server.removeAllListeners('error');
     if (ok) { port = p; break; }
   }
   if (!port) { console.error('No free port in 47821-47830. Is another jobleft running? Stop it first.'); process.exit(1); }
