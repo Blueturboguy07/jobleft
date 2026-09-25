@@ -101,6 +101,9 @@
   async function renderImport() {
     const status = await api('GET', '/api/v1/network-dev/status');
     const result = el('div');
+    const footer = el('p', { class: 'muted small' });
+    const showStatus = (st) => { footer.textContent = st.lastImport ? `Last import: ${new Date(st.lastImport.at).toLocaleString()}, ${plural(st.lastImport.inFile, 'person', 'people')} in that file. People in your network now: ${st.contacts}.` : 'No connections imported yet.'; };
+    showStatus(status);
     const file = el('input', { type: 'file', accept: '.csv,text/csv', id: 'file', 'aria-label': 'Connections.csv' });
     const btn = el('button', { class: 'primary', onclick: async () => {
       const f = file.files && file.files[0];
@@ -111,6 +114,7 @@
         const t0 = performance.now();
         const s = await api('POST', '/api/v1/network/import', bytes, 'text/csv');
         clear(result); result.append(importSummary(s, Math.round(performance.now() - t0)));
+        showStatus(await api('GET', '/api/v1/network-dev/status'));
       } catch (e) { clear(result); result.append(errorBox(e)); }
       finally { btn.disabled = false; }
     } }, 'Import');
@@ -133,7 +137,7 @@
         el('p', { class: 'muted small' }, 'Nothing uploads. The file is read on this computer, its rows go into the local jobleft database, and the file itself is not copied or changed.')),
       el('div', { class: 'panel row' }, file, btn),
       result,
-      status.lastImport ? el('p', { class: 'muted small' }, `Last import: ${new Date(status.lastImport.at).toLocaleString()}, ${plural(status.lastImport.inFile, 'person', 'people')} in that file. People in your network now: ${status.contacts}.`) : el('p', { class: 'muted small' }, 'No connections imported yet.'),
+      footer,
     );
   }
 
@@ -337,7 +341,7 @@
           el('strong', {}, fullName(c)), c.position ? ` · ${c.position}` : '', ' ', el('span', { class: 'chip' }, STAGES[c.stage] || c.stage),
           el('div', { class: 'small' }, `Next: ${c.nextStep}`),
           el('div', { class: 'row' },
-            el('button', { onclick: async () => { const full = await api('GET', `/api/v1/network/contacts${q({ q: [c.firstName, c.lastName].join(' ') })}`); const hit = full.find((x) => x.id === c.contactId); if (hit) draftDialog(hit, null); } }, 'Draft a message'),
+            el('button', { onclick: async () => { const inPlan = await api('GET', '/api/v1/network/contacts?inPlan=true'); const hit = inPlan.find((x) => x.id === c.contactId); if (hit) draftDialog(hit, null); } }, 'Draft a message'),
             el('button', { onclick: async () => { await api('PATCH', `/api/v1/network/contacts/${encodeURIComponent(c.contactId)}`, { inPlan: false }); go('plan'); } }, 'Remove from plan')))))));
     }
   }
