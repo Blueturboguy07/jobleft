@@ -215,14 +215,37 @@ const card = summarize(result);                                           // Mat
 
 The full interface is in docs/INTERFACES.md, section `@jobleft/match`.
 
-## 8. Data
+## 8. Where each outcome can be observed
+
+Commands as in section 3 (`node packages/match/src/cli.ts <command> ...`); files under `packages/match/examples/`.
+
+
+| Outcome | Where to look |
+|---|---|
+| O1 same numbers, specific reasons | `score --view all` prints the card, the detail and the endpoint body of one result; `check` compares them for every job |
+| O2 same answer every time | run `score --view json` twice, or restart `serve`; `computedAt` is the first day of the month and nothing else moves |
+| O3 strong above weak | `feed` on a folder of postings; `node evals/match/ranking-pairs/run.ts` |
+| O4 must-haves and deal-breakers | `feed --profile packages/match/examples/profiles/jordan-needs-sponsorship-remote-only.json --jobs packages/match/examples/jobs/o4-*.txt`; edit `workAuthorization` in the profile file and run again |
+| O5 not stated, quotes | the "What the posting states" block of the detail; `check` searches every quote in the posting |
+| O6 skills only from the profile | `packages/match/examples/jobs/java-k8s-c-rust.txt`; `claim --not` for a skill a work bullet names |
+| O7 correct a skill | `claim` / `undo`, or the buttons in `serve`: every job naming the skill changes, the profile file changes |
+| O8 no stale view | `serve` re-reads the profile file and the job folder on every request |
+| O9 not enough information | `packages/match/examples/jobs/o9-*.txt`: parts say "not enough information", the job is INCOMPLETE and ranks below full scores |
+| O10 free and offline | the engine has no network code; `serve` makes no outbound request; `checkNarrative()` for AI text |
+| O11 profile stays local | nothing is written but the profile file and its `.undo.json`; logs hold method, path, status, time |
+| O12 no protected traits | change name, email, phone, links or `eeo` answers: `profileVersion` and every number stay the same |
+| O13 no gaming | `packages/match/examples/jobs/o13-*`: the clean and injected copies score the same; `explain` lists the ignored sentences |
+| O14 years shown | `packages/match/examples/profiles/jordan-overlapping-roles.json` gives 3 years 6 months; the detail lists the roles counted |
+| O15 Top Matched and band filters | `feed --band strong`, `feed --json` (counts add up to the total) |
+
+## 9. Data
 
 The skill, credential, occupation and industry dictionaries in `data/*.tsv` are written for jobleft by the match lane
 (first-party; no third-party list copied; see THIRD_PARTY_NOTICES.md). They cover tech and non-tech work: nursing and
 allied health, teaching and childcare, accounting and finance, sales, retail, food service, warehouse and driving,
 electrical, HVAC, plumbing and construction trades, manufacturing, social work, HR, legal, and more.
 
-## 9. Tests and the fit probe
+## 10. Tests and the fit probe
 
 ```sh
 pnpm --filter @jobleft/match test        # 52 tests: one or more per outcome angle, the dictionaries, the preview server
@@ -233,7 +256,7 @@ node evals/match/ranking-pairs/run.ts    # the labelled fit set: 15 job families
 The probe prints one line per family with the three O3 pass marks and a final JSON line. The labels were written by
 one person (the match lane) before seeing scores; see evals/match/ranking-pairs/README.md for its limits.
 
-## 10. Known limits
+## 11. Known limits
 
 - English postings only; a posting in another language is marked incomplete with a note.
 - Without the place dictionary of @jobleft/static-data (not built yet), distances are not checked: cities in the same
