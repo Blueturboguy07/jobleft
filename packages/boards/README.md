@@ -150,6 +150,11 @@ jb jobs greenhouse:acme --all  # the jobs a board's refreshes stored; closed one
 - One failed check (not found, server error, timeout, broken reply) shows a warning and the board is asked again at
   the next refresh. Two failures in a row make it `unreachable` with a next check date (1 day, then 2, 4, ... up to
   30 days); it gets no request before that date. When it answers again it is `live` again, with no action from you.
+- A `429` makes the board `blocked` until at least its `Retry-After` (never less than 15 minutes); a `403` for 6
+  hours, doubling up to 7 days; a robots.txt that forbids the board's feed for 1 day.
+- Network trouble is not held against a board: when a host cannot be reached at all (its robots.txt does not load),
+  its boards are not counted as checked; when every board of one host fails in the same refresh, they show a warning
+  but are never marked unreachable for it.
 - A failed, "not found", empty or broken answer never closes the board's jobs (the crawler closes a job only after a
   refresh that read the whole board has not listed it for 24 hours). An empty answer from a board that had jobs shows
   a warning, not "live, 0 jobs".
