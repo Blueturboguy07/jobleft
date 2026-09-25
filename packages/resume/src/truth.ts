@@ -301,8 +301,8 @@ function checkMentions(text: string, where: string, ctx: Ctx, opts: { sentence?:
     }
   }
   for (const m of scan.durations) {
-    const plusMargin = /\+|over|more than|at least/i.test(m.text) ? 0 : 0;
-    if (m.years! <= Math.floor(pf.maxYears + 1e-9) - plusMargin || inCorpus(pf, m.text)) continue;
+    // "N years", "N+ years" and "over N years" all need profile dates that cover at least N whole years.
+    if (m.years! <= Math.floor(pf.maxYears + 1e-9) || inCorpus(pf, m.text)) continue;
     out.push(v('duration', m.text, where, `Your profile dates show about ${Math.floor(pf.maxYears)} year${Math.floor(pf.maxYears) === 1 ? '' : 's'}.`));
   }
   for (const m of scan.numbers) {

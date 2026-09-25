@@ -275,6 +275,14 @@ function parseWorkEntry(e: Entry, index: number, warnings: string[]): WorkEntry 
   let company: string | null = null;
   const at = /^(.+?)\s+(?:at|@)\s+(.+)$/i.exec(rest.trim().split(SEP)[0] ?? '');
   let parts = splitParts(rest);
+  // Work type words ("Full-time", "Contract") are a field of their own, not a title, employer or bullet.
+  let employmentType: WorkEntry['employmentType'] = null;
+  const TYPE: Record<string, NonNullable<WorkEntry['employmentType']>> = { 'full time': 'full_time', 'full-time': 'full_time', 'part time': 'part_time', 'part-time': 'part_time', contract: 'contract', contractor: 'contract', internship: 'internship', temporary: 'temporary', freelance: 'contract' };
+  parts = parts.filter((p) => {
+    const k = p.toLowerCase().replace(/[()]/g, '').trim();
+    if (TYPE[k]) { employmentType = TYPE[k]!; return false; }
+    return !/^(?:remote|hybrid|on-?site)$/i.test(k);
+  });
   if (at && titleScore(at[1]!) > 0) {
     title = at[1]!.trim();
     company = at[2]!.trim();
@@ -305,7 +313,7 @@ function parseWorkEntry(e: Entry, index: number, warnings: string[]): WorkEntry 
     id: stableId('w', company ?? '', title ?? '', start ?? '', String(index)),
     company: company ?? extra.shift() ?? '(employer not read)',
     title: title ?? extra.shift() ?? '(title not read)',
-    employmentType: /\bintern(ship)?\b/i.test(title ?? '') ? 'internship' : null,
+    employmentType: employmentType ?? (/\bintern(ship)?\b/i.test(title ?? '') ? 'internship' : null),
     location: loc.location,
     startDate: start,
     endDate: dr && !dr.current ? (end ?? start) : null,
