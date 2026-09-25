@@ -2,7 +2,8 @@
 // No plan, no upsell, nothing that opens by itself.
 
 import { useState } from 'react';
-import { Button, Form, Input, Modal, Progress, Switch, Tooltip } from 'antd';
+import { Button, Form, Input, Modal, Progress, Switch } from 'antd';
+import { Tooltip } from '../../components/Tip.tsx';
 import { BellFilled, BellOutlined, CheckCircleFilled, EditOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { JobFilter, JobSort, SavedFilter } from '@jobleft/contracts';
 import { call } from '../../app/api.ts';

@@ -4,7 +4,8 @@
 // your notes and reminders, and the tools. The apply button opens the employer's own posting in your browser.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, Tooltip } from 'antd';
+import { Alert, Button } from 'antd';
+import { Tooltip } from '../../components/Tip.tsx';
 import {
   CalendarOutlined, ClockCircleOutlined, CloseOutlined, CopyOutlined, DollarOutlined, EnvironmentOutlined, ExportOutlined, FileTextOutlined,
   HeartFilled, HeartOutlined, HomeOutlined, IdcardOutlined, StopOutlined, TeamOutlined, ApartmentOutlined, AimOutlined, ProfileOutlined, BulbOutlined,
@@ -14,10 +15,10 @@ import { call, type UiError } from '../../app/api.ts';
 import { invalidate, setCached, useApi } from '../../app/data.ts';
 import { confirmDiscard, dirtyLabels, ui, useLayer } from '../../app/layers.ts';
 import { navigate } from '../../app/router.ts';
-import { afterTrackerChange, profileIsSet, useProfile } from '../../app/session.ts';
+import { afterTrackerChange, profileIsSet, useH1bSource, useProfile } from '../../app/session.ts';
 import { openChat } from '../../components/chatStore.ts';
 import { IconAssistant, IconInterview, IconResume } from '../../components/Icons.tsx';
-import { CompanyMark, sponsorChip } from '../../components/JobCard.tsx';
+import { CompanyMark, sponsorChip, sponsorTip } from '../../components/JobCard.tsx';
 import { BAND_WORD, bandOf, chipText, pct, type MatchResultX } from '../../components/Match.tsx';
 import { EmptyState, ErrorState, Loading } from '../../components/States.tsx';
 import {
@@ -125,6 +126,7 @@ function Why({ m }: { m: MatchResultX }) {
 export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const d = useApi<JobDetailT>(`job:${id}`, () => call('getJob', { params: { jobId: id } }), { revalidate: true });
   const profile = useProfile();
+  const h1bSrc = useH1bSource();
   const [tab, setTab] = useState<'overview' | 'company'>('overview');
   const [tool, setTool] = useState<'tailor' | 'letter' | 'gaps' | null>(null);
   const [hint, setHint] = useState(() => { try { return sessionStorage.getItem('jobleft.eschint') !== '1'; } catch { return true; } });
@@ -277,7 +279,7 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
                 </div>
                 {!payText(job.pay) && <p className="jl-small jl-muted" style={{ marginTop: 8 }}>Pay: not listed in the posting.</p>}
                 <div className="jl-row jl-wrap" style={{ marginTop: 12 }}>
-                  {sponsor && <Tooltip title={sponsor.tip}><span className="jl-fitchip" tabIndex={0}><span className="tick" aria-hidden="true">✓</span>{sponsor.text}</span></Tooltip>}
+                  {sponsor && <Tooltip title={sponsorTip(h1bTag, h1bSrc)}><span className="jl-fitchip" tabIndex={0}><span className="tick" aria-hidden="true">✓</span>{sponsor.text}</span></Tooltip>}
                   {match?.whyFit.filter((c) => !(sponsor && /sponsor/i.test(chipText(c)))).map((c, i) => (
                     <span key={i} className={`jl-fitchip${c.positive ? '' : ' neg'}`}><span className="tick" aria-hidden="true">{c.positive ? '✓' : '•'}</span>{chipText(c)}</span>
                   ))}

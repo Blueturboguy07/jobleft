@@ -3,7 +3,8 @@
 // profile facts that the person confirms; nothing changes in the profile without that click.
 
 import { useRef, useState } from 'react';
-import { Alert, Button, Dropdown, Input, Modal, Space, Table, Tag, Tooltip } from 'antd';
+import { Alert, Button, Dropdown, Input, Modal, Space, Table, Tag } from 'antd';
+import { Tooltip } from '../components/Tip.tsx';
 import { EllipsisOutlined, PlusOutlined, StarFilled, UploadOutlined, UserOutlined } from '@ant-design/icons';
 import type { ImportReport, ProfileInput, Resume } from '@jobleft/contracts';
 import { call, download, type UiError } from '../app/api.ts';

@@ -2,7 +2,7 @@
 // reasons. Card and detail read the SAME numbers from the API; nothing here recomputes or rounds a score.
 
 import { useId } from 'react';
-import { Tooltip } from 'antd';
+import { Tooltip } from './Tip.tsx';
 import { MATCH_BAND_LABELS, SUB_SCORE_LABELS, bandFor, type MatchBand, type MatchResult, type MatchSummary, type WhyFitChip } from '@jobleft/contracts';
 
 /** Optional fields other lanes add (the match lane): shown when present, ignored when absent. */

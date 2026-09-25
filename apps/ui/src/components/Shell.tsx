@@ -3,7 +3,8 @@
 // and the assistant button and panel.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, Input, Tooltip } from 'antd';
+import { Alert, Button, Input } from 'antd';
+import { Tooltip } from './Tip.tsx';
 import { SearchOutlined, CloseOutlined, ExpandAltOutlined } from '@ant-design/icons';
 import { formatDollars } from '@jobleft/contracts';
 import { navigate } from '../app/router.ts';
@@ -123,13 +124,25 @@ const TITLES: Record<ScreenId, string> = {
   assistant: 'Assistant', settings: 'Settings', notifications: 'Notifications',
 };
 
+/** The assistant button in the top bar: opens or closes the assistant panel (the panel stays over the page, closes with Esc). */
+function AssistantButton() {
+  const t = useChatTarget();
+  return (
+    <Tooltip title={t.open ? 'Close the assistant' : 'Ask the assistant'}>
+      <button type="button" className="jl-assist-btn" aria-label={t.open ? 'Close the assistant panel' : 'Open the assistant panel'} aria-expanded={t.open}
+        onClick={() => { if (t.open) closeChat(); else openChat({}); }}><IconSparkle size={20} /></button>
+    </Tooltip>
+  );
+}
+
 export function TopBar({ screen, jobsTab }: { screen: ScreenId; jobsTab: string | null }) {
   return (
     <header className="jl-topbar">
       <h1 className="jl-title">{TITLES[screen]}</h1>
-      {screen === 'jobs' && <><span aria-hidden="true" style={{ color: 'var(--jl-text3)' }}>›</span><JobsTabs tab={jobsTab} /></>}
+      {screen === 'jobs' && <><span aria-hidden="true" className="jl-sep">›</span><JobsTabs tab={jobsTab} /></>}
       <div className="jl-topbar-right">
         {screen === 'jobs' && <JobSearch onRecommended={jobsTab === 'recommended'} />}
+        {screen !== 'assistant' && <AssistantButton />}
         <ProviderChip />
       </div>
     </header>
@@ -162,16 +175,6 @@ export function ConnectionBanner() {
   if (!local) return <Alert className="jl-banner" type="error" banner showIcon message="jobleft's local service is not answering. Your data is safe on this Mac; jobleft keeps trying to reconnect." />;
   if (!online) return <Alert className="jl-banner" type="warning" banner showIcon message="This Mac reports no internet connection. Your saved jobs, tracker, resumes and profile still work. Steps that need the internet can fail until it is back." />;
   return null;
-}
-
-export function AssistantFab() {
-  const t = useChatTarget();
-  if (t.open) return null;
-  return (
-    <Tooltip title="Assistant" placement="left">
-      <button type="button" className="jl-fab" aria-label="Open the assistant" onClick={() => openChat({})}><IconSparkle size={26} /></button>
-    </Tooltip>
-  );
 }
 
 export function ChatPanel() {

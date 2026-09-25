@@ -2,7 +2,7 @@
 // notifications) and the feed state (filter, sort, words) that survives screen switches and relaunches.
 
 import { useEffect, useRef, useSyncExternalStore } from 'react';
-import type { AiSettings, CrawlProgress, JobFilter, JobSort, Notification, Profile, PublikConnection, TrackerList } from '@jobleft/contracts';
+import type { AiSettings, CrawlProgress, DatasetInfo, JobFilter, JobSort, Notification, Profile, PublikConnection, TrackerList } from '@jobleft/contracts';
 import { call } from './api.ts';
 import { invalidate, load, useApi } from './data.ts';
 import { cleanFilter } from '../lib/filters.ts';
@@ -11,6 +11,13 @@ export const useProfile = () => useApi<Profile>('profile', () => call('getProfil
 export const useAiSettings = () => useApi<AiSettings>('ai:settings', () => call('getAiSettings'));
 export const usePublik = (enabled: boolean) => useApi<PublikConnection>(enabled ? 'ai:publik' : null, () => call('getPublik'));
 export const useTrackerCounts = () => useApi<TrackerList['counts']>('tracker:counts', async () => (await call('listTracker', { query: { view: 'hidden' } })).counts, { staleMs: 3000 });
+/** Where the H-1B filing history comes from and how recent it is (for the sponsorship tooltips). */
+export function useH1bSource(): { name: string; through: string | null } | null {
+  const d = useApi<DatasetInfo[]>('datasets', () => call('listDatasets'));
+  const h = d.data?.find((x) => x.id === 'h1b');
+  if (!h) return null;
+  return { name: h.attribution ?? h.name, through: h.dataThrough };
+}
 export const useNotifications = () => useApi<Notification[]>('notifications', () => call('listNotifications'), { staleMs: 3000 });
 
 /** true when the profile has anything that the match score can use. */

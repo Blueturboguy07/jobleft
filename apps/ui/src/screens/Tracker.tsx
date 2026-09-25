@@ -2,7 +2,8 @@
 // or by dragging its card. Counts come from the same answer as the rows. Closed postings keep their stage and notes.
 
 import { useState } from 'react';
-import { Button, Checkbox, Segmented, Select, Table, Tooltip } from 'antd';
+import { Button, Checkbox, Segmented, Select, Table } from 'antd';
+import { Tooltip } from '../components/Tip.tsx';
 import { TRACKER_STATUSES, TRACKER_STATUS_LABELS, type TrackerEntry, type TrackerList, type TrackerStatus } from '@jobleft/contracts';
 import { call, type UiError } from '../app/api.ts';
 import { ui } from '../app/layers.ts';
@@ -87,8 +88,8 @@ export function TrackerScreen() {
         {!all.length ? (
           <EmptyState art="board" title="Nothing to track yet" text="Like a job, or mark one as applied, and it shows here by stage." action={<Button type="primary" shape="round" onClick={() => navigate('jobs')}>Browse jobs</Button>} />
         ) : view === 'board' ? (
-          <div style={{ overflowX: 'auto', paddingBottom: 8 }}>
-            <div className="jl-board" style={{ gridTemplateColumns: 'repeat(6, minmax(190px, 1fr))', minWidth: 1140 }}>
+          <div style={{ paddingBottom: 8 }}>
+            <div className="jl-board">
               {COLS.map((c) => (
                 <section key={c.id} className="jl-col" aria-label={`${c.label}: ${byCol[c.id].length}`}
                   style={over === c.id ? { outline: '2px dashed #047A52' } : undefined}

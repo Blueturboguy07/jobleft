@@ -3,7 +3,8 @@
 // and what leaves this Mac. Nothing here spends money or sends anything without a button that says so.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, Checkbox, Descriptions, Input, Menu, Popconfirm, Radio, Select, Space, Switch, Table, Tag, Tooltip } from 'antd';
+import { Alert, Button, Checkbox, Descriptions, Input, Menu, Popconfirm, Radio, Select, Space, Switch, Table, Tag } from 'antd';
+import { Tooltip } from '../components/Tip.tsx';
 import { CloudOutlined, DesktopOutlined, KeyOutlined, LinkOutlined, ReloadOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, ApiOutlined, WalletOutlined, BellOutlined, DatabaseOutlined, AppstoreOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import {
   formatDollars, type AiSettings, type AppSettings, type BoardEntry, type BoardResolveResponse, type CrawlBoardReport, type CrawlRunSummary, type DatasetInfo,

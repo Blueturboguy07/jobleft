@@ -3,7 +3,8 @@
 // you know nobody), people, your coffee-chat plan, follow-ups, and the import.
 
 import { useRef, useState } from 'react';
-import { Alert, Button, Checkbox, Drawer, Input, Popconfirm, Select, Space, Table, Tabs, Tag, Tooltip } from 'antd';
+import { Alert, Button, Checkbox, Drawer, Input, Popconfirm, Select, Space, Table, Tabs, Tag } from 'antd';
+import { Tooltip } from '../components/Tip.tsx';
 import { DeleteOutlined, ExportOutlined, MessageOutlined, UploadOutlined } from '@ant-design/icons';
 import { OUTREACH_STAGES, OUTREACH_STAGE_LABELS, type CompanyCoverage, type NetworkContact, type NetworkImportSummary, type OutreachStage } from '@jobleft/contracts';
 import { call, type UiError } from '../app/api.ts';

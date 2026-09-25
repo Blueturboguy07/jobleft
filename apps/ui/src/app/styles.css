@@ -29,6 +29,7 @@
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
+html, body { overflow: clip; }
 body { margin: 0; background: var(--jl-bg); color: var(--jl-text); font-family: var(--jl-font); font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
 button { font-family: inherit; }
 h1, h2, h3, h4, p { margin: 0; }
@@ -43,7 +44,7 @@ a { color: var(--jl-accent-ink); }
 .jl-sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------------------------------------------------------------- shell */
-.jl-shell { display: flex; height: 100vh; overflow: hidden; }
+.jl-shell { display: flex; height: 100vh; overflow: clip; }
 .jl-rail { width: 72px; flex: 0 0 72px; background: #fff; border-right: 1px solid var(--jl-line); display: flex; flex-direction: column; align-items: center; overflow-y: auto; overflow-x: hidden; }
 .jl-rail-logo { height: 64px; flex: 0 0 64px; display: flex; align-items: center; justify-content: center; }
 .jl-rail-nav { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0; }
@@ -56,18 +57,21 @@ a { color: var(--jl-accent-ink); }
 .jl-rail-badge { position: absolute; top: 2px; right: 6px; min-width: 18px; height: 18px; border-radius: 9px; background: #000; color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
 
 .jl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100vh; }
-.jl-topbar { height: 64px; flex: 0 0 64px; background: #fff; border-bottom: 1px solid var(--jl-line); display: flex; align-items: center; gap: 12px; padding: 0 16px; min-width: 0; }
-.jl-title { font-size: 22px; font-weight: 800; letter-spacing: 0.01em; text-transform: uppercase; white-space: nowrap; margin: 0; }
+.jl-topbar { min-height: 64px; flex: 0 0 auto; background: #fff; border-bottom: 1px solid var(--jl-line); display: flex; align-items: center; flex-wrap: wrap; gap: 0 12px; padding: 0 16px; min-width: 0; }
+.jl-title { font-size: 22px; font-weight: 800; letter-spacing: 0.01em; text-transform: uppercase; white-space: nowrap; margin: 0; height: 64px; display: flex; align-items: center; }
 .jl-topbar-tabs { display: flex; align-items: stretch; height: 64px; gap: 4px; margin-left: 4px; min-width: 0; }
 .jl-toptab { display: flex; align-items: center; gap: 6px; padding: 0 12px; font-size: 15px; font-weight: 500; color: var(--jl-text3); text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; }
 .jl-toptab:hover { color: #000; }
 .jl-toptab[aria-current='page'] { color: #000; font-weight: 700; border-bottom-color: #000; }
 .jl-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #000; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }
 .jl-pill.light { background: var(--jl-chip); color: #000; }
-.jl-topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.jl-topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; min-width: 0; height: 64px; }
+.jl-sep { color: var(--jl-text3); }
+.jl-assist-btn { width: 36px; height: 36px; border-radius: 18px; border: 0; background: var(--jl-accent-tint2); color: var(--jl-accent-ink); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex: 0 0 auto; }
+.jl-assist-btn:hover, .jl-assist-btn[aria-expanded='true'] { background: rgba(0, 240, 160, 0.38); }
 .jl-search { width: 240px; }
 .jl-search .ant-input-affix-wrapper, .jl-search.ant-input-affix-wrapper { background: var(--jl-input); border-color: transparent; border-radius: 20px; }
-.jl-content { flex: 1; min-height: 0; display: flex; position: relative; }
+.jl-content { flex: 1; min-height: 0; min-width: 0; display: flex; position: relative; }
 .jl-banner { flex: 0 0 auto; }
 
 /* status chip in the top bar (balance or provider) */
@@ -123,7 +127,7 @@ a { color: var(--jl-accent-ink); }
 
 /* ---------------------------------------------------------------- job card */
 .jl-list-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; position: relative; }
-.jl-list-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0 16px 24px; scroll-padding-top: 140px; }
+.jl-list-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0 max(16px, calc((100% - 1240px) / 2)) 24px; scroll-padding-top: 140px; }
 .jl-filterbar { position: sticky; top: 0; z-index: 5; background: var(--jl-bg); padding: 16px 0 8px; display: flex; flex-direction: column; gap: 8px; }
 .jl-filter-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .jl-filter-btn.ant-btn { height: 32px; border-radius: 8px; border: 1px solid transparent; background: #fff; color: #000; font-weight: 500; font-size: 13px; padding: 0 10px; box-shadow: inset 0 0 0 1px var(--jl-line); }
@@ -148,7 +152,7 @@ a { color: var(--jl-accent-ink); }
 .jl-fact .anticon { font-size: 15px; flex: 0 0 auto; }
 .jl-fact .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jl-card-foot { margin-top: auto; height: 60px; display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--jl-line); }
-.jl-card-foot .left { flex: 1; min-width: 0; font-size: 12px; color: var(--jl-text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jl-card-foot .left { flex: 1; min-width: 0; font-size: 12px; line-height: 1.3; color: var(--jl-text2); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .jl-more { color: var(--jl-accent-ink); font-size: 12px; font-weight: 600; background: var(--jl-accent-tint); border-radius: 4px; padding: 0 4px; margin-left: 4px; }
 .jl-card-why { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; min-height: 96px; }
 .jl-card-why .summary { font-size: 14px; color: var(--jl-text2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -230,7 +234,6 @@ a { color: var(--jl-accent-ink); }
 .jl-avatar { width: 40px; height: 40px; border-radius: 20px; background: #0A8F5C; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; flex: 0 0 auto; }
 
 /* chat */
-.jl-fab { position: fixed; right: 24px; bottom: 24px; width: 56px; height: 56px; border-radius: 28px; background: #fff; border: 0; box-shadow: 0 6px 24px rgba(0,10,20,0.16); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 900; color: #047A52; font-size: 24px; }
 .jl-chatpanel { position: fixed; right: 16px; bottom: 16px; width: 400px; height: min(620px, calc(100vh - 32px)); background: #fff; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,10,20,0.20); z-index: 950; display: flex; flex-direction: column; overflow: hidden; }
 .jl-chat { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .jl-chat-log { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
@@ -255,7 +258,7 @@ a { color: var(--jl-accent-ink); }
 .jl-tl-item::before { content: ''; position: absolute; left: -29px; top: 3px; width: 12px; height: 12px; border-radius: 6px; border: 2px solid #000; background: #fff; }
 
 /* kanban */
-.jl-board { display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 12px; align-items: start; }
+.jl-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; align-items: start; }
 .jl-col { background: #EBEDEF; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
 .jl-col h3 { font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; }
 .jl-mini { background: #fff; border-radius: 10px; padding: 10px; box-shadow: inset 0 0 0 1px var(--jl-line); display: flex; flex-direction: column; gap: 6px; }
@@ -316,3 +319,17 @@ button.jl-kpi:hover { box-shadow: inset 0 0 0 1px #9AA0A6; }
 
 /* toasts sit at the bottom of the window, so they never cover the controls at the top (filters, actions, tabs) */
 .ant-message { top: auto !important; bottom: 20px; }
+
+/* jumps inside the detail (Company tab, "See why") stop below the sticky action bar and tabs, and never move the window shell */
+.jl-detail-sec, #sec-company-anchor { scroll-margin-top: 112px; }
+
+/* the top bar: one row where it fits; below that the job tabs move to a second row, so nothing overlaps at 150% zoom */
+@media (max-width: 1100px) { .jl-search { width: 170px; } }
+@media (max-width: 940px) {
+  .jl-topbar-tabs { order: 10; flex: 1 0 100%; height: 44px; margin: 0 -16px; padding: 0 12px; border-top: 1px solid var(--jl-line); }
+  .jl-topbar .jl-sep { display: none; }
+  .jl-topbar-tabs .jl-toptab { padding: 0 10px; }
+}
+
+/* a table that is wider than its pane scrolls inside its own frame, so the screen itself never scrolls sideways */
+.ant-table-wrapper { max-width: 100%; overflow-x: auto; }

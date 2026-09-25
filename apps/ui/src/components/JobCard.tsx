@@ -3,7 +3,8 @@
 // part-scores) is also reachable with the keyboard through the match tile button.
 
 import { memo, useRef, useState } from 'react';
-import { Button, Dropdown, Popover, Tooltip } from 'antd';
+import { Button, Dropdown, Popover } from 'antd';
+import { Tooltip } from './Tip.tsx';
 import {
   ClockCircleOutlined, CalendarOutlined, DollarOutlined, EllipsisOutlined, EnvironmentOutlined, HeartFilled, HeartOutlined, HomeOutlined,
   IdcardOutlined, StopOutlined, TeamOutlined, ExportOutlined,
@@ -14,6 +15,7 @@ import { IconAssistant } from './Icons.tsx';
 import { MatchTile, PartRings, whySummary, type MatchSummaryX } from './Match.tsx';
 import { useApi } from '../app/data.ts';
 import { call } from '../app/api.ts';
+import { useH1bSource } from '../app/session.ts';
 
 export interface CardItem {
   job: JobSummary;
@@ -46,6 +48,14 @@ export function sponsorChip(tag: CardItem['h1bTag']): { text: string; tip: strin
   return null;
 }
 
+/** The tooltip of a sponsorship chip. History-based chips also name the public data and its date. */
+export function sponsorTip(tag: CardItem['h1bTag'], src: { name: string; through: string | null } | null): string | null {
+  const c = sponsorChip(tag);
+  if (!c) return null;
+  if (tag !== 'likely_by_history' || !src) return c.tip;
+  return `${c.tip} Source: ${src.name}${src.through ? `, data through ${dateText(src.through)}` : ''}.`;
+}
+
 function Fact({ icon, text, tip }: { icon: React.ReactNode; text: string | null; tip?: string }) {
   if (!text) return <div className="jl-fact" aria-hidden="true" />;
   return (
@@ -66,6 +76,7 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
   const places = placesText(j.places);
   const posted = ago(j.postedAt, now);
   const sponsor = sponsorChip(item.h1bTag);
+  const h1bSrc = useH1bSource();
   const applyUrl = j.applyUrl ?? j.url;
   const titleId = `t-${j.id.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
   const pay = payText(j.pay);
@@ -97,7 +108,7 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
               {!closed && posted && <span className="jl-chip time" title={`Posted ${dateText(j.postedAt)}`}>{posted}</span>}
               {item.trackerStatus && <span className="jl-chip dark">{statusLabel(item.trackerStatus)}</span>}
               {item.external && <span className="jl-chip">Added by you</span>}
-              {sponsor && <Tooltip title={sponsor.tip}><span className="jl-chip cyan" tabIndex={0}>{sponsor.text}</span></Tooltip>}
+              {sponsor && <Tooltip title={sponsorTip(item.h1bTag, h1bSrc)}><span className="jl-chip cyan" tabIndex={0}>{sponsor.text}</span></Tooltip>}
               <span style={{ marginLeft: 'auto' }} />
               <Dropdown menu={menu} trigger={['click']}>
                 <Button size="small" shape="circle" className="jl-icon-btn" icon={<EllipsisOutlined />} aria-label={`More actions for ${j.title}`} />

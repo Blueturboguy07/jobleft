@@ -3,7 +3,8 @@
 // Active filters have a green fill; inactive ones are white.
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Button, Checkbox, Input, Popover, Radio, Select, Slider, Switch, Tooltip, Space } from 'antd';
+import { Button, Checkbox, Input, Popover, Radio, Select, Slider, Switch, Space } from 'antd';
+import { Tooltip } from '../../components/Tip.tsx';
 import { DownOutlined, QuestionCircleOutlined, CloseOutlined, FilterOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import type { JobFilter, JobSort, PlaceQuery } from '@jobleft/contracts';
 import {

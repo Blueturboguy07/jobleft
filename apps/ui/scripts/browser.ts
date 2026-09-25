@@ -17,6 +17,8 @@ export interface Page {
   eval<T>(expr: string): Promise<T>;
   waitFor(expr: string, timeoutMs?: number): Promise<boolean>;
   size(w: number, h: number): Promise<void>;
+  /** Sets the window in css pixels with a device scale factor (1.5 is 150% zoom). */
+  sizeScaled(w: number, h: number, dpr: number): Promise<void>;
   shot(path: string): Promise<void>;
   key(key: string, code?: string, keyCode?: number, modifiers?: number): Promise<void>;
   click(selector: string): Promise<boolean>;
@@ -31,6 +33,8 @@ export interface Page {
   press(name: string, shift?: boolean): Promise<void>;
   /** Clicks the first visible element (button, link, tab, menu item) whose text or aria-label equals `text`. */
   clickText(text: string, scope?: string): Promise<boolean>;
+  /** Real mouse click on the first visible element matching `selector` whose text (or aria-label) matches the regular expression `re`; `only` limits it to one selector. */
+  clickMatching(selector: string, re: string, only?: string): Promise<boolean>;
   /** Opens the Ant Design select whose search input has this aria-label (a real mouse press on it). */
   openSelect(ariaLabel: string): Promise<boolean>;
   /** Pretends the network is off for this page (the local API on 127.0.0.1 is unreachable too). */
@@ -128,6 +132,22 @@ export async function launch(): Promise<Browser> {
           for (const type of ['mousePressed', 'mouseReleased']) await s('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 });
           return true;
         },
+        async clickMatching(selector, re, only) {
+          const box = await page.eval<{ x: number; y: number } | null>(`(() => {
+            const rx = new RegExp(${JSON.stringify(re)}, 'i');
+            const list = ${only ? `[...document.querySelectorAll(${JSON.stringify(only)})]` : `[...document.querySelectorAll(${JSON.stringify(selector)})]`};
+            for (const e of list) {
+              const r = e.getBoundingClientRect(); const st = getComputedStyle(e);
+              if (r.width <= 0 || r.height <= 0 || st.visibility === 'hidden' || e.closest('[inert],[aria-hidden=true]')) continue;
+              const t = ((e.getAttribute('aria-label') || '') + ' ' + (e.textContent || '')).trim().replace(/\\s+/g, ' ');
+              if (!(${only ? 'true' : 'rx.test((e.textContent || "").trim().replace(/\\s+/g, " ")) || rx.test(t)'})) continue;
+              e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 };
+            }
+            return null; })()`);
+          if (!box) return false;
+          for (const type of ['mousePressed', 'mouseReleased']) await s('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 });
+          return true;
+        },
         async openSelect(ariaLabel) {
           const box = await page.eval<{ x: number; y: number } | null>(`(() => { const i = [...document.querySelectorAll('input[aria-label]')].find((x) => x.getAttribute('aria-label') === ${JSON.stringify(ariaLabel)}); if (!i) return null; const sel = i.closest('.ant-select'); sel.scrollIntoView({ block: 'center' }); const r = sel.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
           if (!box) return false;
@@ -153,6 +173,7 @@ export async function launch(): Promise<Browser> {
           return false;
         },
         async size(w, h) { await s('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false }); },
+        async sizeScaled(w, h, dpr) { await s('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: dpr, mobile: false }); },
         async shot(path) {
           const r = await s<{ data: string }>('Page.captureScreenshot', { format: 'png' });
           writeFileSync(path, Buffer.from(r.data, 'base64'));

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { Button } from 'antd';
 import { Art, LogoMark, Wordmark } from '../components/Art.tsx';
-import { AssistantFab, ChatPanel, ConnectionBanner, Rail, TopBar, type ScreenId } from '../components/Shell.tsx';
+import { ChatPanel, ConnectionBanner, Rail, TopBar, type ScreenId } from '../components/Shell.tsx';
 import { ErrorBoundary } from '../components/States.tsx';
 import { AssistantScreen } from '../screens/Assistant.tsx';
 import { Dashboard } from '../screens/Dashboard.tsx';
@@ -102,7 +102,6 @@ export function App() {
           <ErrorBoundary label="This screen stopped working" resetKey={route.join('/')}>{body}</ErrorBoundary>
         </main>
       </div>
-      {screen !== 'assistant' && <AssistantFab />}
       <ChatPanel />
     </div>
   );

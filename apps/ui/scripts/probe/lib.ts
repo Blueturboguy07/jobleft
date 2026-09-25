@@ -125,3 +125,28 @@ export async function getPage(url: string): Promise<{ status: number; text: stri
   const r = await fetch(url);
   return { status: r.status, text: await r.text() };
 }
+
+/**
+ * Fills a demo the way a person who used the app for a while would have it: publik connected (dollar balance), a base
+ * resume, imported connections, liked and applied jobs with a note and a reminder. Used by the probes that look at
+ * full screens. Never sends anything anywhere: the demo is on loopback.
+ */
+export async function seedRich(demo: Demo): Promise<{ liked: string[]; applied: string[]; resumeId: string }> {
+  await demo.api.call('connectPublik', { body: { disclosureAccepted: true, disclosureVersion: 1 } });
+  await demo.api.call('putAiSettings', { body: { provider: 'publik' } });
+  const resumes = await demo.api.call('listResumes');
+  const resume = resumes[0] ?? await demo.api.call('createResume', { body: { name: 'Jordan Testwell, software engineer' } });
+  const csv = join(demo.home, 'fixtures', 'Connections.csv');
+  if (existsSync(csv)) {
+    await fetch(`${demo.origin}/api/v1/network/import`, { method: 'POST', headers: { 'content-type': 'text/csv', 'x-jobleft-token': demo.token }, body: readFileSync(csv) });
+  }
+  const list = await demo.api.call('searchJobs', { body: { sort: 'recommended', limit: 12 } });
+  const liked: string[] = [], applied: string[] = [];
+  for (const [i, it] of list.items.slice(0, 8).entries()) {
+    const id = it.job.id;
+    if (i < 5) { await demo.api.call('updateTracker', { params: { jobId: id }, body: { liked: true } }); liked.push(id); }
+    if (i < 3) { await demo.api.call('updateTracker', { params: { jobId: id }, body: { status: i === 0 ? 'applied' : i === 1 ? 'interviewing' : 'offer_received' } }); applied.push(id); }
+  }
+  if (applied[0]) await demo.api.call('updateTracker', { params: { jobId: applied[0] }, body: { notes: [{ text: 'Recruiter said the team is hiring two people' }], reminders: [{ at: new Date(Date.now() + 2 * 86_400_000).toISOString(), text: 'Send a follow-up note', done: false }] } });
+  return { liked, applied, resumeId: (resume as { id: string }).id };
+}

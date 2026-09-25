@@ -117,7 +117,7 @@ says "Already in your list" and adds no second row.
 
 Navigation stays on screen: the rail on the left (Jobs, Tracker, Dashboard, Resume, Profile, Network, Interview,
 Assistant, Alerts, Settings), the tabs at the top of Jobs, and the sub-navigation of Settings and Network. The assistant
-chat is also one click away on every screen (the round sparkle button at the bottom right). Every screen is at most two
+chat is also one click away on every screen (the round sparkle button in the top bar opens it as a panel over the page). Every screen is at most two
 clicks from any other.
 
 | Screen | Address | Content |

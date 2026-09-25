@@ -3,7 +3,8 @@
 // "unknown", never "no"), people you know there, and your notes and reminders.
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, Button, Checkbox, Input, Select, Space, Tooltip } from 'antd';
+import { Alert, Button, Checkbox, Input, Select, Space } from 'antd';
+import { Tooltip } from '../../components/Tip.tsx';
 import { BankOutlined, DeleteOutlined, PlusOutlined, SafetyCertificateOutlined, TeamOutlined, EditOutlined, CalendarOutlined } from '@ant-design/icons';
 import {
   TRACKER_STATUSES, TRACKER_STATUS_LABELS, formatDollars, type Company, type ContactRank, type Job, type NetworkContact, type SourceRef, type TrackerEntry, type TrackerPatch,

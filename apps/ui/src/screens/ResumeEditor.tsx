@@ -3,7 +3,8 @@
 // The readability check grades the exact exported PDF, on this Mac, for free.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Checkbox, Drawer, Dropdown, Input, Select, Space, Tag, Tooltip } from 'antd';
+import { Alert, Button, Checkbox, Drawer, Dropdown, Input, Select, Space, Tag } from 'antd';
+import { Tooltip } from '../components/Tip.tsx';
 import { ArrowDownOutlined, ArrowUpOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, StarFilled, SaveOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import type { AtsReport, Resume, ResumeDocument, ResumeItem, ResumeSection } from '@jobleft/contracts';
 import { call, download, type UiError } from '../app/api.ts';

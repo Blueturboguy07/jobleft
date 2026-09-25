@@ -3,7 +3,8 @@
 // Suggested questions only fill the box; nothing is sent without pressing Send.
 
 import { useEffect, useRef, useState } from 'react';
-import { Button, Checkbox, Input, Tooltip } from 'antd';
+import { Button, Checkbox, Input } from 'antd';
+import { Tooltip } from './Tip.tsx';
 import { CloseOutlined, SendOutlined, StopOutlined, ReloadOutlined } from '@ant-design/icons';
 import { formatDollars, type ActionProposal, type ChatThread } from '@jobleft/contracts';
 import { call, streamChat, type UiError } from '../app/api.ts';

@@ -2,7 +2,8 @@
 // saved filter (with its name, sort and alert). Closing with unsaved changes asks first.
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Button, Checkbox, Drawer, Input, Radio, Select, Slider, Space, Switch, Tag, Tooltip } from 'antd';
+import { Button, Checkbox, Drawer, Input, Radio, Select, Slider, Space, Switch, Tag } from 'antd';
+import { Tooltip } from '../../components/Tip.tsx';
 import { RightOutlined, DeleteOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import type { JobFilter, JobSort, SavedFilter } from '@jobleft/contracts';
 import {

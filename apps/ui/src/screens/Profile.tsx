@@ -238,8 +238,8 @@ export function ProfileScreen() {
       <div className="jl-colmain">
         <p className="jl-info-line"><LockOutlined /> Your profile stays on this Mac. It drives your match scores, resumes and application answers.</p>
         <div className="jl-detail-card">
-          <nav className="jl-detail-tabs" aria-label="Profile sections" style={{ overflowX: 'auto', top: -16 }}>
-            {BLOCKS.map((b) => <button key={b.id} type="button" className="jl-detail-tab" style={{ fontSize: 14, whiteSpace: 'nowrap' }} onClick={() => document.getElementById(`pf-${b.id}`)?.scrollIntoView({ behavior: 'smooth' })}>{b.label}</button>)}
+          <nav className="jl-detail-tabs" aria-label="Profile sections" style={{ top: -16, height: 'auto', flexWrap: 'wrap', gap: '0 20px', padding: '0 24px' }}>
+            {BLOCKS.map((b) => <button key={b.id} type="button" className="jl-detail-tab" style={{ fontSize: 14, whiteSpace: 'nowrap', height: 48 }} onClick={() => document.getElementById(`pf-${b.id}`)?.scrollIntoView({ behavior: 'smooth' })}>{b.label}</button>)}
           </nav>
           <Block id="personal" title={name ?? 'Your name'} onEdit={() => setEdit('personal')}>
             <div className="jl-row jl-wrap">
