@@ -19,6 +19,7 @@
     "standin": "node scripts/standin-app.ts",
     "practice": "node scripts/practice-server.ts",
     "e2e": "node scripts/build.ts && node scripts/e2e.ts",
+    "e2e:app": "node scripts/build.ts && node scripts/e2e-app.ts",
     "record": "node scripts/record-fixture.ts"
   },
   "dependencies": {

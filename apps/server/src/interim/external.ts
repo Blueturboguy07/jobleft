@@ -5,6 +5,7 @@
 
 import { createHash } from 'node:crypto';
 import { htmlToText } from '@jobleft/parsers';
+import { isNeverHost } from '@jobleft/extension';
 import { DeniedHostError, HttpClient, HttpError, NotFoundError, RobotsError, normalizeJob, type Job as CrawledJob, type RawJob, type RawPay, type Store } from '@jobleft/crawler';
 import { nowIso } from '@jobleft/contracts';
 import { ApiFailure } from '../errors.ts';
@@ -171,9 +172,12 @@ export async function addExternal(req: { url?: string; text?: string; applyUrl?:
   let board: 'url' | 'text';
   if (req.url) {
     const u = new URL(req.url);
-    if (NEVER.test(u.hostname)) throw new ApiFailure('forbidden_source', `jobleft never reads ${u.hostname}, so nothing was sent to it. Paste the job text instead.`);
+    if (NEVER.test(u.hostname) || isNeverHost(u.hostname)) throw new ApiFailure('forbidden_source', `jobleft never reads ${u.hostname}, so nothing was sent to it. Paste the job text instead.`);
     if (d.offline()) throw new ApiFailure('offline', 'jobleft is set to work offline, so the link was not read. Paste the job text instead.');
-    const http = new HttpClient({ hostMap: d.hostMap, timeoutMs: 10_000, retries: 0, maxRequests: 3 });
+    // A page on THIS computer (a test form, a mock board) is read only because the person named it on purpose; the
+    // crawler client refuses any other local address. It never reaches another machine.
+    const hostMap = /^(127\.0\.0\.1|localhost|\[::1\])$/i.test(u.hostname) && (u.protocol === 'http:' || u.protocol === 'https:') ? { ...d.hostMap, [u.host.toLowerCase()]: u.origin } : d.hostMap;
+    const http = new HttpClient({ hostMap, timeoutMs: 10_000, retries: 0, maxRequests: 3 });
     let html: string;
     try {
       html = await http.getText(req.url, 'text/html,application/xhtml+xml');

@@ -103,6 +103,8 @@ export type ToWorker =
   | { type: 'popup:pair'; code: string }
   | { type: 'popup:unpair' }
   | { type: 'popup:fill'; tabId: number; resumeId: string | null }
+  | { type: 'popup:addJob'; tabId: number }
+  | { type: 'panel:addJob' }
   | { type: 'panel:fillAgain' }
   | { type: 'panel:undo' }
   | { type: 'panel:stop' }
@@ -126,4 +128,4 @@ export type ToContent =
   | { type: 'close' }
   | { type: 'locate'; fieldId: string }
   | { type: 'panel:show'; report: Report }
-  | { type: 'panel:message'; kind: 'applied' | 'error' | 'info'; text: string; appliedAt?: string };
+  | { type: 'panel:message'; kind: 'applied' | 'error' | 'info'; text: string; appliedAt?: string; job?: Report['job'] };

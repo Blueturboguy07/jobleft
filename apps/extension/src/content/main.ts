@@ -368,7 +368,7 @@ if (!globalThis.__jobleftContent) {
       }
       case 'panel:message': {
         if (window.top !== window) { reply({ ok: false }); return false; }
-        panel().message(msg.kind, msg.text);
+        panel().message(msg.kind, msg.text, msg.job);
         reply({ ok: true });
         return false;
       }

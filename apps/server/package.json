@@ -28,6 +28,7 @@
     "@jobleft/ai-engine": "workspace:*",
     "@jobleft/resume": "workspace:*",
     "@jobleft/match": "workspace:*",
-    "@jobleft/network": "workspace:*"
+    "@jobleft/network": "workspace:*",
+    "@jobleft/extension": "workspace:*"
   }
 }

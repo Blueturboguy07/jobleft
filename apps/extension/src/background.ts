@@ -168,7 +168,7 @@ async function connection(): Promise<ConnState> {
     return { state: 'unpaired', appRunning: !!found, appVersion: found?.version ?? null };
   }
   try {
-    const s = await call<{ paired: boolean; appVersion: string; profileComplete: boolean; missingProfileFields: string[] }>('/api/v1/extension/status', 'GET', undefined, ExtensionStatusSchema, 5000);
+    const s = await call<{ paired: boolean; appVersion: string; profileComplete: boolean; missingProfileFields: string[] }>('/api/v1/extension/check', 'POST', {}, ExtensionStatusSchema, 5000);
     if (!s.paired) { await setPairing(null); return { state: 'unpaired', appRunning: true, appVersion: s.appVersion }; }
     return { state: 'paired', appVersion: s.appVersion, profileComplete: s.profileComplete, missingProfileFields: s.missingProfileFields };
   } catch (e) {
@@ -256,6 +256,24 @@ async function pageInfo(url: string): Promise<PageInfo | null> {
     return await call<PageInfo>('/api/v1/extension/page', 'POST', { pageUrl: url }, PageInfoSchema, 5000);
   } catch {
     return null;
+  }
+}
+
+/** The person pressed "Add this job to jobleft": the app reads the address the way add-by-link does. */
+async function addJob(tabId: number): Promise<{ ok: boolean; message: string; job: Report['job'] }> {
+  const tab = await chrome.tabs.get(tabId);
+  const pageUrl = httpUrl(tab.url);
+  const support = supportFromUrl(tab.url);
+  if (!pageUrl || support.level === 'never' || support.level === 'not_a_page') return { ok: false, message: support.message, job: null };
+  try {
+    const info = await call<PageInfo>('/api/v1/extension/add-job', 'POST', { pageUrl }, PageInfoSchema, 30000);
+    if (!info.jobId) return { ok: false, message: 'jobleft could not tell which job this page is, so nothing was added. Add it in the app with its text.', job: null };
+    const t = await getTab(tabId);
+    if (t) await setTab(tabId, { ...t, jobId: info.jobId });
+    const job = { title: info.title, company: info.company, appliedAt: info.applied?.at ?? null };
+    return { ok: true, message: `Added to jobleft: ${[info.title, info.company].filter(Boolean).join(' · ')}.`, job };
+  } catch (e) {
+    return { ok: false, message: `${e instanceof Error ? e.message : 'The jobleft app did not answer.'} Nothing was added.`, job: null };
   }
 }
 
@@ -412,6 +430,7 @@ chrome.runtime.onMessage.addListener((msg: ToWorker, sender, reply) => {
       if (!fromPopup) return null;
       switch (msg.type) {
         case 'popup:state': return popupState(msg.tabId);
+        case 'popup:addJob': return addJob(msg.tabId);
         case 'popup:pair': return pair(msg.code);
         case 'popup:unpair': await unpair(); return { ok: true };
         case 'popup:fill': return startFill(msg.tabId, msg.resumeId);
@@ -434,6 +453,11 @@ chrome.runtime.onMessage.addListener((msg: ToWorker, sender, reply) => {
       case 'panel:discardDraft': if (t) await toFrame(tabId, t.formFrame, { type: 'discardDraft', fieldId: msg.fieldId }); return { ok: true };
       case 'panel:locate': if (t) await toFrame(tabId, t.formFrame, { type: 'locate', fieldId: msg.fieldId }); return { ok: true };
       case 'panel:markApplied': await markApplied(tabId); return { ok: true };
+      case 'panel:addJob': {
+        const r = await addJob(tabId);
+        await toFrame(tabId, 0, { type: 'panel:message', kind: r.ok ? 'info' : 'error', text: r.message, ...(r.job ? { job: r.job } : {}) });
+        return { ok: r.ok };
+      }
       case 'panel:close': {
         if (t && t.formFrame !== 0) await toFrame(tabId, t.formFrame, { type: 'close' });
         await toFrame(tabId, 0, { type: 'close' });

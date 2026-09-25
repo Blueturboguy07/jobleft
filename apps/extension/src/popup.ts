@@ -89,7 +89,18 @@ async function render(): Promise<void> {
       job.append(h('div', {}, h('strong', {}, [pi.title, pi.company].filter(Boolean).join(' · ') || 'A job in your jobleft app')));
       if (pi.applied) job.append(h('div', { class: 'small warn' }, `You already marked this job as applied on ${pi.applied.at.slice(0, 10)}.`));
     } else {
-      job.append(h('div', { class: 'small muted' }, 'This page is not a job in your jobleft app. You can still fill it.'));
+      job.append(h('div', { class: 'small warn' }, 'jobleft does not know this job. It is not in your jobleft app yet.'));
+      const add = h('button', {}, 'Add this job to jobleft');
+      const addMsg = h('div', { class: 'msg small' });
+      add.addEventListener('click', async () => {
+        add.setAttribute('disabled', 'true');
+        addMsg.textContent = 'Adding…';
+        const r = await ask<{ ok: boolean; message: string }>({ type: 'popup:addJob', tabId: tabId as number });
+        addMsg.textContent = r.message;
+        addMsg.className = `msg small ${r.ok ? 'ok' : 'err'}`;
+        if (r.ok) setTimeout(() => void render(), 600); else add.removeAttribute('disabled');
+      });
+      job.append(h('div', { class: 'small muted' }, 'You can still fill this page. To see it in your tracker later, add it first.'), h('div', { class: 'msg' }, add), addMsg);
     }
     let select: HTMLSelectElement | null = null;
     if (pi && pi.resumes.length) {

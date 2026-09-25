@@ -117,7 +117,8 @@ export class Panel {
 
   private pending = false;
 
-  message(kind: 'applied' | 'error' | 'info', text: string): void {
+  message(kind: 'applied' | 'error' | 'info', text: string, job?: Report['job']): void {
+    if (job && this.report) this.report = { ...this.report, job };
     this.banner = { kind, text };
     this.confirming = false;
     this.render();
@@ -152,7 +153,9 @@ export class Panel {
       body.append(el('div', { class: 'job' }, title || 'A job in your jobleft app'));
       if (r.job.appliedAt) body.append(el('div', { class: 'notice info' }, `Your tracker says you applied to this job on ${r.job.appliedAt.slice(0, 10)}.`));
     } else {
-      body.append(el('div', { class: 'muted small' }, 'This page is not a job in your jobleft app.'));
+      const add = el('button', {}, 'Add this job to jobleft');
+      add.addEventListener('click', this.act(() => this.send({ type: 'panel:addJob' })));
+      body.append(el('div', { class: 'muted small' }, 'jobleft does not know this job. It is not in your jobleft app yet.'), el('div', { class: 'line' }, add));
     }
     if (r.support.level !== 'supported') body.append(el('div', { class: 'notice' }, r.support.message));
 

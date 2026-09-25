@@ -55,6 +55,7 @@ export type HandlerTable = { [K in RouteName]: Handler<K> };
 export const STREAMED_BODY = new Set<RouteName>(['restore']);
 
 const ok = { json: { ok: true as const } };
+const extensionOf = (app: App, d: AppData) => new ExtensionService(d, { hostMap: app.cfg.hostMap, offline: () => app.cfg.offline });
 const today = () => nowIso().slice(0, 10);
 const tmpFile = (p: string): FileBody['cleanup'] => () => { try { rmSync(p, { force: true }); } catch { /* ignore */ } };
 
@@ -320,8 +321,12 @@ export const HANDLERS: HandlerTable = {
   deletePairing: ({ d, params }) => { if (!d.pairing.remove(params.extensionId!)) notFound('That paired extension'); return ok; },
   unpair: ({ d, extensionId }) => { d.pairing.remove(extensionId!); return ok; },
   extensionStatus: ({ d }) => ({ json: new ExtensionService(d).status() }),
-  fill: ({ d, body }) => ({ json: new ExtensionService(d).fill(body) }),
-  review: ({ d, body, extensionId }) => ({ json: new ExtensionService(d).review(body, extensionId) }),
+  extensionCheck: ({ d }) => ({ json: new ExtensionService(d).status() }),
+  extensionPage: ({ app, d, body }) => ({ json: extensionOf(app, d).page(body) }),
+  extensionAddJob: async ({ app, d, body }) => ({ json: await extensionOf(app, d).addJob(body) }),
+  fill: async ({ app, d, body }) => ({ json: await extensionOf(app, d).fill(body) }),
+  extensionDrafts: ({ app, d, body }) => ({ json: extensionOf(app, d).drafts(body) }),
+  review: ({ app, d, body, extensionId }) => ({ json: extensionOf(app, d).review(body, extensionId) }),
 };
 
 export const SERVER_INFO = { contracts: CONTRACTS_VERSION };
