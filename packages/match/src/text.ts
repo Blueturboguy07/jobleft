@@ -116,9 +116,12 @@ const HEADINGS: Array<[SectionKind, RegExp]> = [
 
 /** Classifies a heading line; null when the line is not a heading. */
 export function headingKind(line: string): SectionKind | null {
+  const bulleted = /^\s*[-–—•·*]\s+/.test(line) && !/^\s*\*\*/.test(line);
   let t = line.trim().replace(/^[#>*\-–—•·\s]+/, '').replace(/[*_]+/g, '').trim();
   if (!t || t.length > 90) return null;
   const colon = t.indexOf(':');
+  // A bullet is a list item, not a heading, unless it is a short label ending in a colon ("- Requirements:").
+  if (bulleted && !(colon === t.length - 1 && t.split(/\s+/).length <= 4)) return null;
   let head = t;
   if (colon >= 0) {
     head = t.slice(0, colon);
@@ -137,6 +140,8 @@ export function headingKind(line: string): SectionKind | null {
     // three words after the heading phrase ("What You'll Need to Succeed").
     const rest = h.slice(m[0].length).trim();
     if (colon < 0 && rest && rest.split(' ').length > 3) return null;
+    // One generic word ("Experience", "Skills", "Education") is a heading only on its own line.
+    if (colon < 0 && rest && /^(experience|skills|education|competencies|certifications?|licensure|summary|overview|company|culture|values|mission|schedule|shift|hours|pay|salary|compensation)$/.test(m[0].trim()) && !/^(and|&|required|requirements|needed|preferred|summary)\b/.test(rest)) return null;
     return kind;
   }
   return null;

@@ -150,8 +150,11 @@ skills", "Right level: Senior Level", "Pay stated: $80K–$95K a year" or "Pay m
 posting's statement with its quote, or "not stated".
 
 **Years of experience.** Months covered by your roles, overlaps counted once (January 2020 to December 2022 plus June
-2021 to June 2023 is 3 years 6 months); a current role counts up to this month; a role without a start date is listed
-as not counted. The detail lists every role counted.
+2021 to June 2023 is 3 years 6 months); a current role counts up to this month. For the level and the years a posting
+asks for, roles of the job's kind of work count fully, related roles count half, and other roles are not counted (a
+role whose kind cannot be read counts fully). The detail shows the months used and the total, lists every role
+counted, and says why each other role was counted at half or not at all (including a role without a start date).
+`yearsOfExperience()` returns the total.
 
 **Never.** The score never reads your name, email, phone, address, links or photo, or the equal-employment answers;
 `profileVersion` does not change when they change. It never reads the job's company name (it cannot steer the score).

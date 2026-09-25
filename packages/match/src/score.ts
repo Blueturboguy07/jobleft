@@ -8,7 +8,7 @@ import { configTag, resolveConfig, type MatchConfig, type MatchConfigInput } fro
 import { comparePlace, placeLabel, parsePlaceText } from './geo.ts';
 import { levelOfTitle, readJob, type JobFacts, type JobSkillItem } from './job.ts';
 import {
-  formatMonths, heldFrom, monthLabel, monthOf, profileFacts, scoringView, type ProfileFacts, type RoleFact,
+  formatMonths, heldFrom, monthLabel, monthOf, profileFacts, scoringView, unionMonths, type ProfileFacts, type RoleFact,
 } from './profile.ts';
 import { yearsLabel, type PostedRequirement } from './requirements.ts';
 import {
@@ -192,27 +192,56 @@ function relevanceOf(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): { rel: n
   return { rel, reasons, relevantMonths: best >= 1 ? sameMonths : bestRole ? 0 : null };
 }
 
+/**
+ * Months of work like this job: roles of the same (or a very close) kind count fully, related roles count half,
+ * other roles are not counted. A role whose kind cannot be read counts fully (it is never assumed unrelated).
+ */
+function relevantWork(pf: ProfileFacts, fam: string | null): { months: number | null; full: RoleFact[]; half: RoleFact[]; none: RoleFact[] } {
+  const dated = pf.roles.filter((r) => r.from !== null);
+  if (pf.totalMonths === null) return { months: null, full: [], half: [], none: [] };
+  if (!dated.length) return { months: pf.totalMonths, full: [], half: [], none: [] };
+  if (!fam) return { months: pf.totalMonths, full: dated, half: [], none: [] };
+  const full: RoleFact[] = [], half: RoleFact[] = [], none: RoleFact[] = [];
+  for (const r of dated) {
+    const rel = r.family ? familyRelatedness(fam, r.family) : 1;
+    if (rel >= 0.7) full.push(r); else if (rel >= 0.4) half.push(r); else none.push(r);
+  }
+  const f = unionMonths(full);
+  const both = unionMonths([...full, ...half]);
+  return { months: f + Math.round((both - f) / 2), full, half, none };
+}
+
 function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: number): ExperienceOut {
   const reasons: Reason[] = [];
   const blockers: ExperienceOut['blockers'] = [];
   const mustHaves: MustHave[] = [];
   const caps: Array<{ cap: number; reason: string }> = [];
   void now;
+  const work = relevantWork(pf, jf.family);
+  const kind = jf.family ? familyLabel(jf.family).toLowerCase() : null;
+  const role = (r: RoleFact) => ({ title: r.title, company: r.company, from: monthLabel(r.from!), to: r.current ? 'present' : monthLabel(r.to!), months: r.months });
   const detail: ExperienceDetail = {
     totalMonths: pf.totalMonths,
-    text: pf.totalMonths === null ? 'not in your profile (no roles with dates)' : pf.hasWork ? formatMonths(pf.totalMonths) : 'no work history in your profile (counted as 0)',
-    rolesCounted: pf.roles.filter((r) => r.from !== null).map((r) => ({
-      title: r.title, company: r.company, from: monthLabel(r.from!), to: r.current ? 'present' : monthLabel(r.to!), months: r.months,
-    })),
-    rolesNotCounted: pf.roles.filter((r) => r.from === null).map((r) => ({ title: r.title, company: r.company, why: r.notCounted ?? 'no dates' })),
-    relevantMonths: null,
+    text: work.months === null ? 'not in your profile (no roles with dates)'
+      : !pf.hasWork ? 'no work history in your profile (counted as 0)'
+      : work.months === pf.totalMonths ? formatMonths(work.months)
+      : `${formatMonths(work.months)} of ${kind} and related work (${formatMonths(pf.totalMonths!)} of work in total)`,
+    rolesCounted: work.full.map(role),
+    rolesNotCounted: [
+      ...work.half.map((r) => ({ title: r.title, company: r.company, why: `counted at half: related but not the same kind of work (${r.months} months, ${monthLabel(r.from!)} to ${r.current ? 'present' : monthLabel(r.to!)})` })),
+      ...work.none.map((r) => ({ title: r.title, company: r.company, why: `not counted: a different kind of work than ${kind ?? 'this job'} (${r.months} months)` })),
+      ...pf.roles.filter((r) => r.from === null).map((r) => ({ title: r.title, company: r.company, why: r.notCounted ?? 'no dates' })),
+    ],
+    relevantMonths: work.months,
     jobYears: jf.years ? { min: jf.years.detail.minYears ?? null, max: jf.years.detail.maxYears ?? null, importance: jf.years.importance, quote: jf.years.quote } : null,
     jobLevel: jf.level ? LEVEL_WORD[jf.level] : null,
   };
-  const { rel, reasons: relReasons, relevantMonths } = relevanceOf(pf, jf, cfg);
-  detail.relevantMonths = relevantMonths;
-  const years = pf.totalMonths === null ? null : pf.totalMonths / 12;
+  const { rel, reasons: relReasons } = relevanceOf(pf, jf, cfg);
+  const years = work.months === null ? null : work.months / 12;
   const yearsUsed = years === null ? null : Math.round(years * 100) / 100;
+  const yearsText = work.months === null ? 'no dated work' : pf.hasWork && work.months !== pf.totalMonths && kind
+    ? `${formatMonths(work.months)} of ${kind} and related work`
+    : `${formatMonths(work.months)} of work`;
 
   // Level fit.
   const scale = scaleOf(jf.family);
@@ -221,7 +250,7 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
   // A level read only from the years the posting asks for is used for "above the level" only (the years themselves
   // are compared below, so being under is not counted twice).
   const levelFromYearsOnly = jf.levelSource === 'years';
-  if (jf.level) {
+  if (jf.level && !levelFromYearsOnly) {
     const jobOrd = LEVEL_ORD[scale][jf.level];
     const levelSrc = jf.levelSource === 'title' || jf.levelSource === 'job' ? `title ${q(jf.levelEvidence ?? jf.job.title)}` : q(jf.levelEvidence ?? '');
     if (years === null) {
@@ -267,17 +296,17 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
         const why = `You have led people (${q(leadTitle ?? '')}); this job is ${LEVEL_WORD[jf.level]} (${levelSrc}) and leads nobody, a step down.`;
         levelReasons.push({ code: 'step_down', text: why, points: -40 });
         caps.push({ cap: cfg.caps.stepDown, reason: why });
-      } else if (gap <= -2) {
-        caps.push({ cap: cfg.caps.stepDown, reason: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}), well below the level of ${formatMonths(pf.totalMonths!)} of work in your profile.` });
+      } else if (gap <= -2 && !levelFromYearsOnly) {
+        caps.push({ cap: cfg.caps.stepDown, reason: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}), well below the level of ${yearsText} in your profile.` });
       }
       levelFit = Math.round(fit);
       if (gap > 0.5 && !levelFromYearsOnly) {
-        levelReasons.push({ code: 'level_below', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); ${formatMonths(pf.totalMonths!)} of work in your profile puts you about ${gap >= 1.5 ? `${Math.round(gap)} levels` : 'one level'} below it.`, points: -(100 - levelFit) });
-        if (gap >= 2.5 && !blockers.some((b) => b.kind === 'level')) blockers.push({ kind: 'level', message: `This is ${article(LEVEL_WORD[jf.level])} ${LEVEL_WORD[jf.level]} role (title ${q(jf.job.title)}); your profile shows ${formatMonths(pf.totalMonths!)} of work, well below that level.`, quote: jf.job.title, source: 'title' });
+        levelReasons.push({ code: 'level_below', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); ${yearsText} in your profile puts you about ${gap >= 1.5 ? `${Math.round(gap)} levels` : 'one level'} below it.`, points: -(100 - levelFit) });
+        if (gap >= 2.5 && !blockers.some((b) => b.kind === 'level')) blockers.push({ kind: 'level', message: `This is ${article(LEVEL_WORD[jf.level])} ${LEVEL_WORD[jf.level]} role (title ${q(jf.job.title)}); your profile shows ${yearsText}, well below that level.`, quote: jf.job.title, source: 'title' });
       } else if (gap < -1.5) {
-        levelReasons.push({ code: 'level_above', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); with ${formatMonths(pf.totalMonths!)} of work you are above that level and may be overqualified.`, points: -(100 - levelFit) });
+        levelReasons.push({ code: 'level_above', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); with ${yearsText} you are above that level and may be overqualified.`, points: -(100 - levelFit) });
       } else if (!levelReasons.length && !levelFromYearsOnly) {
-        levelReasons.push({ code: 'level_fit', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); ${formatMonths(pf.totalMonths!)} of work in your profile fits that level.`, points: 0 });
+        levelReasons.push({ code: 'level_fit', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); ${yearsText} in your profile fits that level.`, points: 0 });
       }
       if (levelFromYearsOnly && levelFit === 100) levelFit = null;
     }
@@ -313,18 +342,19 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
       yearsFit = 100;
       mh.state = 'met';
       mh.message = `The posting asks for ${label} (${q(y.quote)}).`;
-      levelReasons.push({ code: 'years_met', text: `The posting asks for ${label} (${q(y.quote)}); your profile shows ${formatMonths(pf.totalMonths!)}.`, points: 0 });
+      levelReasons.push({ code: 'years_met', text: `The posting asks for ${label} (${q(y.quote)}); your profile shows ${yearsText}.`, points: 0 });
     } else if (years >= min) {
       yearsFit = max !== null && years > max + 4 ? 90 : 100;
+      if (max !== null && max <= 3 && years > max + 4 && !y.detail.alternative) caps.push({ cap: cfg.caps.stepDown, reason: `The posting asks for ${label} (${q(y.quote)}); with ${yearsText} you are well above that range.` });
       mh.state = 'met';
-      mh.message = `The posting asks for ${label} (${q(y.quote)}); your profile shows ${formatMonths(pf.totalMonths!)}.`;
+      mh.message = `The posting asks for ${label} (${q(y.quote)}); your profile shows ${yearsText}.`;
       levelReasons.push({ code: 'years_met', text: mh.message + (yearsFit < 100 ? ' That is well above the range.' : ''), points: yearsFit - 100 });
     } else {
       const ratio = years / min;
       yearsFit = Math.round(30 + 70 * Math.pow(ratio, 1.2));
       if (pref) yearsFit = Math.round((yearsFit + 100) / 2);
       mh.state = pref ? 'info' : 'unmet';
-      mh.message = `The posting ${pref ? 'prefers' : 'asks for'} ${label} (${q(y.quote)}); your profile shows ${formatMonths(pf.totalMonths!)}.`;
+      mh.message = `The posting ${pref ? 'prefers' : 'asks for'} ${label} (${q(y.quote)}); your profile shows ${yearsText}.`;
       levelReasons.push({ code: 'years_short', text: mh.message, points: yearsFit - 100 });
       if (!pref && ratio < 0.6 && min - years >= 2) blockers.push({ kind: 'years', message: mh.message, quote: y.quote, source: 'description' });
     }
@@ -364,7 +394,9 @@ const COVERS: Record<string, string[]> = {
   master_elec: ['journeyman_elec', 'elec_apprentice'], journeyman_elec: ['elec_apprentice'], osha30: ['osha10'],
   cdl_a: ['cdl_b', 'cdl', 'drivers_license'], cdl_b: ['cdl', 'drivers_license'], cdl: ['drivers_license'],
   aprn: ['rn'], servsafe: ['food_handler'], ccnp: ['ccna'], cfa: [], cpa: [], lcsw: [], bcba: ['rbt'],
-  paramedic: ['emt'], acls: [], pals: [],
+  paramedic: ['emt'], acls: ['bls', 'cpr_skill', 'cpr'], pals: ['cpr_skill', 'cpr'], bls: ['cpr_skill', 'cpr'],
+  critical_care: ['acute_care'], med_surg: ['acute_care'], emergency_nursing: ['acute_care'], telemetry: ['acute_care'],
+  perioperative: ['acute_care'], nicu: ['pediatrics'],
 };
 
 function heldOrBetter(pf: ProfileFacts, id: string): import('./profile.ts').HeldSkill | null {

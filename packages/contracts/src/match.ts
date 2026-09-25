@@ -101,10 +101,13 @@ export const SkillCheckSchema = named(obj({
 
 /** The years of experience the score used and the roles it counted (overlaps counted once). */
 export const ExperienceDetailSchema = named(obj({
+  /** All work in the profile, overlaps counted once; null = no roles with dates. */
   totalMonths: nullable(int({ minimum: 0 })),
+  /** What the score used, in words: the months of this kind of work (related work at half) and the total. */
   text: str(),
   rolesCounted: arr(obj({ title: str(), company: str(), from: str(), to: str(), months: int({ minimum: 0 }) })),
   rolesNotCounted: arr(obj({ title: str(), company: str(), why: str() })),
+  /** The months the score used: roles of this kind of work fully, related roles at half (= experienceYearsUsed x 12). */
   relevantMonths: nullable(int({ minimum: 0 })),
   /** Years the posting asks for (months as a fraction: 6 months = 0.5). */
   jobYears: nullable(obj({ min: nullable(num({ minimum: 0 })), max: nullable(num({ minimum: 0 })), importance: str(), quote: str() })),

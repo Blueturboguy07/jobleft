@@ -18,6 +18,8 @@ export interface JobSkillItem {
   importance: SkillImportance;
   quote: string;
   start: number;
+  /** Named in a requirement or preferred list (not only in the duties or the text). */
+  listed?: boolean;
 }
 
 export interface JobFacts {
@@ -53,7 +55,7 @@ const LINE_REQUIRED = /\b(required|must|mandatory|minimum|essential|necessary)\b
 /** A sentence that states what the person must bring, even without a heading ("2 years of experience, CDL-A, ..."). */
 const REQUIREMENT_SENTENCE = /\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\+?\s*(\(\d+\)\s*)?(years?|yrs?|months?)\b[^.;]{0,60}\b(experience|exp\b)|\bexperience\b[^.;]{0,25}\b\d{1,2}\+?\s*(years?|months?)\b|\b(must have|must be able|must hold|must possess|you have|you'?ll need|you will need|you should have|we'?re looking for someone|looking for someone with|the ideal candidate|candidates? (must|should|will) have|requires?|required|minimum of|need(s)? to have|proven experience|experience (with|in|using|as)|knowledge of|proficien\w+ (in|with)|ability to)\b/i;
 /** Words that make a licence or certificate in plain text a requirement ("Licensed therapists (LCSW, LPC or LMFT)"). */
-const LICENCE_WORDS = /\b(licen[cs]ed|licen[cs]es?|licensure|certified|certifications?|certificates?|card|endorsements?|credentials?|registered|registration)\b/i;
+const LICENCE_WORDS = /\b(licen[cs]ed|licen[cs]es?|licensure|certified|certifications?|certificates?|card|endorsements?|credentials?|registration)\b/i;
 
 function lineImportance(section: SectionKind, line: string, credential = false): SkillImportance {
   const pref = LINE_PREFERRED.test(line);
@@ -293,8 +295,10 @@ export function readJob(job: Job, company: Company | null): JobFacts {
         if (!fits) continue;
       }
       const prev = items.get(m.id);
-      if (prev && RANK[prev.importance] <= RANK[imp]) continue;
-      items.set(m.id, { id: m.id, importance: imp, quote: quoteAround(a.text, m.start, m.end, 140), start: m.start });
+      const listed = line.section === 'required' || line.section === 'preferred';
+      // Keep the strongest importance; at equal importance, the requirement list's words over a passing mention.
+      if (prev && (RANK[prev.importance] < RANK[imp] || (RANK[prev.importance] === RANK[imp] && (prev.listed || !listed)))) continue;
+      items.set(m.id, { id: m.id, importance: imp, quote: quoteAround(a.text, m.start, m.end, 140), start: m.start, listed });
     }
     // Skills listed only in the structured field (some boards send tags) join as mentioned.
     for (const name of job.skills ?? []) {

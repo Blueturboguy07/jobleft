@@ -391,7 +391,8 @@ wound_care | Wound care | skill | nursing,health_support,health_clinical | wound
 telemetry | Telemetry | skill | nursing,health_support | telemetry, cardiac monitoring, heart monitoring, telemetry monitoring |
 critical_care | Critical care | skill | nursing,health_clinical | critical care, intensive care, =ICU, icu experience, icu nursing, ccu, cvicu, micu, sicu |
 emergency_nursing | Emergency care | skill | nursing,health_clinical,health_support | emergency nursing, emergency department experience, emergency room experience, =ER@health, =ED@health, trauma care, emergency care |
-med_surg | Medical-surgical nursing | skill | nursing | med-surg, med surg, medsurg, medical-surgical, medical surgical, acute care, acute care experience |
+med_surg | Medical-surgical nursing | skill | nursing | med-surg, med surg, medsurg, medical-surgical, medical surgical |
+acute_care | Acute care | skill | nursing,health_clinical,health_support | acute care, acute care experience, acute-care, inpatient care, hospital experience |
 labor_delivery | Labor and delivery | skill | nursing | labor and delivery, l&d, obstetrics, postpartum, mother-baby, antepartum |
 nicu | Neonatal care | skill | nursing | =NICU, neonatal intensive care, neonatal care, newborn care |
 pediatrics | Pediatrics | skill | nursing,health_clinical,health_support | pediatrics, pediatric care, pediatric nursing, pediatric patients, =PICU |
@@ -413,8 +414,8 @@ meditech | Meditech | tool | @health | meditech | epic, cerner
 pointclickcare | PointClickCare | tool | nursing,health_support,health_admin | pointclickcare, point click care, matrixcare | ehr
 infection_control | Infection control | skill | @health,food,security_services | infection control, infection prevention, sterile technique, aseptic technique, standard precautions, universal precautions, isolation precautions, ppe protocols |
 vital_signs | Vital signs | skill | nursing,health_support,health_clinical | vital signs, vitals, taking vitals, taking vital signs, blood pressure measurement, obtaining vital signs |
-patient_education | Patient education | skill | nursing,health_clinical | patient education, patient teaching, educating patients, health education |
-discharge_planning | Discharge planning | skill | nursing,counseling | discharge planning, discharge teaching, discharges, transitions of care |
+patient_education | Patient education | skill | nursing,health_clinical | patient education, patient teaching, educating patients, health education, discharge teaching, patient and family education |
+discharge_planning | Discharge planning | skill | nursing,counseling | discharge planning, transitions of care, discharge coordination |
 catheterization | Catheter care | skill | nursing,health_support | foley catheter, foley insertion, catheter insertion, catheterization, catheter care |
 ventilator | Ventilator management | skill | nursing,health_clinical | ventilator management, mechanical ventilation, ventilators, vent management, airway management |
 ekg | EKG | skill | nursing,health_support,health_clinical | ekg, ecg, ekgs, electrocardiogram, 12-lead, 12 lead ekg |
@@ -431,7 +432,7 @@ radiology_imaging | Diagnostic imaging | skill | health_clinical | diagnostic im
 physical_therapy | Therapeutic exercise | skill | health_clinical | therapeutic exercise, manual therapy, rehabilitation exercises, gait training |
 cpr_skill | Life support procedures | skill | @health | code blue, rapid response, resuscitation |
 # ---------- counselling and social work
-case_management | Case management | skill | counseling,nursing,health_admin,legal | case management, case managing, caseload management, managing a caseload, caseload |
+case_management | Case management | skill | counseling,nursing,health_admin,legal | case management, case managing, caseload management, managing a caseload |
 crisis_intervention | Crisis intervention | skill | counseling,nursing,health_support,security_services | crisis intervention, de-escalation, deescalation, crisis management, cpi training, safety care |
 cbt | Cognitive behavioral therapy | method | counseling | cognitive behavioral therapy, cognitive behavioural therapy, =CBT@therapy | dbt_therapy
 dbt_therapy | Dialectical behavior therapy | method | counseling | dialectical behavior therapy, =DBT | cbt
