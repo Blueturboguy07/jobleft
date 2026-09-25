@@ -1,0 +1,1 @@
+export { generateResumePdfBlob } from "./generateResumePdf";

@@ -1,0 +1,747 @@
+# Changelog
+
+## [1.1.20](https://github.com/Gsync/jobsync/compare/v1.1.19...v1.1.20) (2026-09-14)
+
+
+### Features
+
+* add validation for last-contacted date and update documentation
+* link company details from the Library table and job header; add the companies help page
+* add the company Contacts tab; AddContact company prefill and ContactsTable hideCompanyColumn
+* add the company details page with header, summary card and Jobs tab; extract BoardCell, make the empty-state action optional and keep query params in useTabQueryParam
+* add getCompanyDetails and share the contact include and score helper
+* hide match score for unanalyzed jobs and update related components
+* add a Companies contacts count, contact-aware delete guards and the contacts help page
+* add job-contact link actions and the job-details Contacts tab
+* add the standing contact role, the Contacts Library tab and the Add Contact form
+* add contact CRUD actions, the role-filtered list query and the contact form schema
+* add contact-role actions, the Library Roles tab and two creatable ComboBox cases
+* reshape the Contact model, add ContactRole and JobContact, and seed default roles
+* tag discovered jobs with the resume skills their posting mentions, and raise the wiki section word cap
+* add a Match button to unscored jobs, show the company logo on job details
+* add the watched-boards group and batch add to the wizard picker, plus its spec and wiki entries
+* add watchlist and board-browse scopes to the Companies tab
+* add website, careers and industry fields and scope the delete guard by owner
+* add reference-list filter/sort params and a watchlist scope to getCompanyList
+* add the watch server actions, barrel re-exports and their spec
+
+### Bug Fixes
+
+* upgrade next and eslint-config-next to 15.5.25
+* download attached resume files under their original upload name
+* confine resume file paths; move file uploads out of server actions; guard backup export/import and resume import sinks
+* check ownership of job and contact reference ids; download resume files by resume id
+* update bullet character in style sets to ensure consistency across components
+* clear end date when switching job status to current
+* always show the recent-activity start button and shrink the agent chat composer
+* gate the Match and Cover Letter actions on chat busy, and reload the jobs list when a match score lands
+* match locations on whole terms so "US" stops matching "Australia"
+* make the match threshold a save gate, add a minimum prerank score, and update the wizard copy, wiki and specs
+
+### Other Changes
+
+* update features section
+* add link to resume in JobSummaryCard component
+* add Activities and Tasks documentation
+* update backup functionality to include contact roles and references
+* update e2e tests for company management
+* add e2e tests for contacts
+* update evals package dependencies and scripts in package.json and package-lock.json
+* Add buttons to start and resume activity in BreakModal
+* lazy-load the contact dialog pickers and drop the duplicate roles fetch
+* split JobDetails into job-details/ with URL-backed tabs
+
+
+## [1.1.19](https://github.com/Gsync/jobsync/compare/v1.1.18...v1.1.19) (2026-09-06)
+
+
+### Features
+
+* seed the Ashby company directory, resolve Ashby board tokens and offer Ashby in the wizard
+* add the Ashby fetch adapter and mapper, and register Ashby across the model, schema, ATS registry and board URLs
+* remove the JSearch job board and the RapidAPI provider it powered
+* add Offer Accepted/Declined statuses and make the status badge a picker
+* make Salary Range optional free text, surface it on job details, widen the preset bands
+* cap the weekly Activities chart to top-3 + Other, matching the donut
+* add the OKF help bundle, its CI guard and GitHub wiki publishing
+* wire OTEL_* passthroughs into the Jenkins deploy path
+* trace automation runs end to end and move server logs to log.*
+* add GenAI spans at the five LLM call sites and fix float encoding
+* add log records and fan automation-logger entries out to OTLP
+* add zero-dependency OTLP span exporter and context propagation
+* log measured prompt-prefix sizes per turn
+
+### Bug Fixes
+
+* focus the search input when the ATS company and targeting pickers open
+* drop the Greenhouse keyword floor to 1, log true floor counts, relabel unset titles
+* conditionally render caution message for editing company name
+* stop the activity donut overlapping its total and flickering on panel toggle
+* keep the chip-only user turn, stop swallowing stream errors, and route chat logs to OTLP
+* change filter option label from "None" to "All (Except Dismissed)"
+
+### Other Changes
+
+* add Ashby to automated job discovery and link the help wiki
+* patch the app's fast-uri, qs, xmldom and humanfs, and bump evals' brace-expansion overrides
+* add the automations help page, link it from the index and drop Remote from the locations placeholder
+* move the shared ranking pipeline, HTML helpers and ATS_* constants out of greenhouse/, updating components and specs
+* split the detail page, wizard, ATS step, jobs list and scraper runner into modules
+* add the MCP Access help page, its index entry and an "mcp" feature
+* spike span parenting through the agent chat stream boundary
+* replace hand-rolled auth guards with requireUser() across 12 action files
+
+
+## [1.1.18](https://github.com/Gsync/jobsync/compare/v1.1.17...v1.1.18) (2026-08-23)
+
+
+### Features
+
+* implement version check and update notifications
+* update JobsActivityCard to label slices directly on the chart and add arcLabelLines function
+* add jobs trend calculation and minor adjustments
+* merge the Jobs and Activities cards into one donut card
+* add getDefaultContactInfo, the export dialog and panel, both trigger surfaces and the filename suffix
+* add contact-parts helper, letter template, PDF generator and export guard
+* add CoverLetterExportSettings model, storage key and buildLetterStyles
+* add customizable export settings (font, size, margins, spacing) with token-based style builders
+* wire the preview + settings panes into ExportPdfDialog and add a fit page/width preview control
+* add PdfPreviewPane canvas renderer and ExportSettingsPanel template picker
+* add useResumePdfPreview hook with debounced, cached blob generation
+* add ResumeExportSettings model, canExportResume predicate, prepared-blob export path, and dev:webpack script
+* restructure job actions into separate modules for better organization and maintainability refactor(activity, profile): move requireUser to shared module for reuse across action directories
+
+### Bug Fixes
+
+* update Jobs heading and adjust activity count assertion in tests
+
+### Other Changes
+
+* add GitHub Actions workflow for automated releases
+* move preview pane, settings rows, preview/settings hooks and dialog shell into the shared layer
+* extract shared pdfExport model, style tokens, HTML converter and download helpers
+* replace direct resume ownership check with assertResumeOwnership for improved code clarity
+* replace getCurrentUser with requireUser for authentication consistency across automation actions
+* simplify TasksContainer by removing filter change callback; introduce TasksToolbar for enhanced UI and functionality
+* JobsContainer to use custom hooks for filters and job list management; introduce JobsToolbar for improved UI organization
+* split actions into separate modules for better organization and maintainability
+* automation.actions, reduce file size, use barrel, make it readable
+* Refactor task actions into separate modules for better organization and maintainability; add company actions for CRUD operations; implement dashboard actions for activity and job statistics; introduce shared utility functions for date handling.
+* restructure actions into separate modules for better organization and maintainability
+* resumeContainer file, use barrel, reduce file size, make it readable
+* import actions from specific files, reduce file length, make it more readable
+
+
+## [1.1.17](https://github.com/Gsync/jobsync/compare/v1.1.16...v1.1.17) (2026-08-16)
+
+
+### Features
+
+*  add Data settings panel with backup export, guarded import and snapshot rollback
+*  add backup preflight, import, snapshot list and rollback routes
+*  add destructive backup import with pre-import snapshot, wipe, ordered inserts and post-commit sync
+*  add backup import transforms — id map, FK rewrite, path sanitization and emptiness policy
+*  add backup export with ownership-scoped payload assembly and download route
+*  add backup foundations — jszip, size caps, model spec table, zod schemas and capped zip reader
+*  add activity break UI — banner Break button, break modal, ring timer (Phase 3)
+*  add client-side activity break state to ActivityContext (Phase 2)
+*  add server-side activity break lifecycle (Phase 1)
+*  replace activity time inputs with a TimePicker, fix start/end validation, and add specs
+*  add ExportPdfDialog component showing template previews
+
+### Bug Fixes
+
+*  patch npm audit vulnerabilities in root and evals lockfiles
+*  add whitespace-nowrap class to table headers and cells for better layout
+*  persist tasks activity filter in URL, sticky sidebar, hide empty types, portal tooltip content
+*  verify the session user exists, guard backup import and sign out stale dashboard sessions
+*  ensure proper handling of BACKUP_SNAPSHOT_MAX_TOTAL_BYTES in pruneSnapshots tests
+
+### Other Changes
+
+*  add real-database round-trip, rollback coverage and e2e for data backup; align settings card title size
+* enhance activity management tests to include pause and resume functionality with breaks
+*  remove release script as part of project refactoring
+*  update CardTitle font size for consistency across components
+*  update layout classes in Dashboard and Header for improved responsiveness
+*  update CardHeader and layout classes for improved responsiveness
+*  dedupe no-resumes/pick-a-resume JSX in AgentResultCard renderers
+
+
+## [1.1.16](https://github.com/Gsync/jobsync/compare/v1.1.15...v1.1.16) (2026-08-09)
+
+
+### Features
+
+*  send the chat model a per-turn page-context block, extract the page vocabulary, update the eval harness and trim dashboard padding
+*  drive cover letter generation from the agent chat on the job page
+*  render cover letter streaming and results in the chat
+*  add generate_cover_letter as a nested-generation agent chat tool
+*  add cover letter tool schema, result type and nested-tool registry
+*  drive job matching from the agent chat on the job page
+*  render match_job streaming, results and picker in the chat
+*  add match_job as a nested-generation agent chat tool
+*  add match_job constants, input schema and result type
+*  add ownership-scoped job lookup for the agent chat
+*  update ReviewDetails to use AgentReviewScoreCard and improve layout
+*  render the streaming and finished review in the transcript
+*  route chat reviews through review_resume and shrink the prompt
+*  add review_resume tool with a nested review generation
+*  add card view toggle to the jobs page
+*  add MyJobsGrid card layout for the jobs page
+*  add JobCard component for the jobs card view
+*  add jobs view mode type, storage key, and toggle control
+*  enhance HTML entity decoding in text processing and resume conversion
+*  refactor AgentChat components for improved layout and message handling
+*  enhance AgentChat components with preflight status indicators and improved error messaging
+*  enhance AgentChat functionality with panel expansion and sidebar integration
+*  implement last-used location and source persistence in AddJob component
+*  update job and question form schemas to allow default values for job description and answer
+*  integrate SidebarContext into agent chat and dashboard components
+*  score card and auto-save for chat resume reviews
+*  read and review resumes in the agent chat
+*  render assistant chat prose as markdown
+*  move account menu from header into sidebar footer
+*  dock agent chat panel beside page content
+*  agent chat panel, trigger and transcript
+*  agent chat provider and composer
+*  agent chat UI foundation and tool cards
+*  agent chat add_job tool and /api/ai/chat route
+*  agent chat server helpers
+*  agent chat foundations and model eval suite
+*  add job source search functionality to job listing
+
+### Bug Fixes
+
+*  update @modelcontextprotocol/sdk to version 1.30.0
+*  stop the add_job prompt explaining app internals, name jobDescription at the point of action, validate tool input in the evals and run them at the route's temperature
+*  always carry jobDescription on add_job, end the turn only once it settles, lower the paste threshold, and correct the eval harness's tool-call shape
+*  refresh the jobs list on the add_job write, and answer the add-job suggestion without a turn
+*  harden the agent chat's add_job flow, jobs list and empty state
+*  OpenAI models return schema error Issue #99, enhance error handling in resume import
+*  hold a send while a turn is in flight instead of opening a second one
+*  bound agent chat history by tokens and stub pastes client-side
+*  make the agent chat safe to extend past three tools
+*  harden the resume Review button's chat clear
+*  enhance chat functionality to handle approval pending state in ResumeContainer
+*  enable the Ollama thinking channel for the chat tool loop
+*  build the MCP review directive from the shared user prompt
+* fix settings layout issues when ai chat panel expanded
+*  remove title from resume text conversion output
+*  simplify category formatting in convertResumeToText function
+* fix failing e2e tests
+*  remove elapsed-time display and silence attachment img lint warnings
+*  show in-panel processing feedback in agent chat
+*  use theme tokens in sidebar and header utilities
+*  apply the Inter font that was already being loaded
+*  use v4 parenthesis syntax for CSS variable references
+*  update aria-label for user menu trigger and enhance task visibility checks
+*  remove unnecessary capitalization from select items and form controls
+
+### Other Changes
+
+*  update README to include AI Assistant features and improve job description handling
+*  retire the dedicated cover letter sheet, route and stream util
+*  add generate_cover_letter selection rows to the agent chat eval suite
+*  extract the nested generation plumbing shared by two tools
+*  add match_job selection rows to the agent chat eval suite
+*  retire the dedicated job match sheet, route and stream util
+*  generalize the review stream part for a second nested tool
+* Update AgentChatTrigger to toggle icon based on chat state
+*  remove startTime prop from ActivityBanner and use elapsedTime for display
+*  retire the dedicated resume review sheet and route
+*  retarget the agent-chat evals at review_resume selection
+*  delete the client-side review save heuristic
+*  build the chat response with createUIMessageStream
+*  prove transient writes from inside a tool execute flush early
+*  extract shared JobStatusBadge and JobActionsMenu from jobs table
+*  eval coverage for get_resume and chat resume reviews
+*  remove unused shiki/code-block/tool ai-elements scaffold
+* Improve activity banner style
+*  prune stale package.json overrides
+*  replace utilities removed in Tailwind v4
+*  rename shadow-sm to shadow-xs and rounded to rounded-sm
+*  rename outline-none to outline-hidden for Tailwind v4
+*  restore v3 button cursor and placeholder colour under v4
+*  migrate Tailwind CSS to v4 with CSS-first config
+*  migrate toast system from Radix to Sonner
+* add reload button to reload job listings
+* update sidebar and header links to point to the dashboard
+* minor dashboard ui adjustment
+* add functions for handling task descriptions and excerpts
+
+
+## [1.1.15](https://github.com/Gsync/jobsync/compare/v1.1.14...v1.1.15) (2026-07-30)
+
+
+### Features
+
+*  pair name and email/phone fields on one row
+*  add Jenkins pipeline for CI/CD process
+*  enhance RecentCardToggle layout and increase displayed jobs/activities limit
+*  add generate action to job details
+*  add generation sheet
+*  add client stream util
+*  save generated letter and link it to the job
+*  add streaming generation endpoint
+*  add generation prompts
+*  extract keywords and tailoring tips from match data
+*  add title builder helper
+*  add 'Create a copy' action to resume menu
+*  add copy resume dialog
+*  add copyResume server action
+*  suggest a title for resume copies
+*  add resume copy title helpers
+*  add MCP tool-routing regression tests
+*  add add_jobs_batch and save_match_results_batch tools
+*  add upsert-by-URL routing to add_job
+*  add find_job and update_job tools
+*  add updateJobFromNames patch helper
+*  label matches scored from incomplete descriptions as provisional
+*  gate match directive on description completeness
+*  classify and persist job description completeness
+*  document job status enum in add_job tool schema
+*  implement local storage for tab selection in RecentCardToggle and WeeklyBarChartToggle components
+*  refactor to use year selection on activity calender
+*  add Save & Start functionality and update task creation flow
+*  add automation and question shortcut on dashboard
+*  create a reusable QuestionTagBadge component and update usages in QuestionCard and QuestionsSidebar refactor(Sidebar): adjust sidebar layout and spacing for improved responsiveness refactor(TasksSidebar): modify layout for better alignment in task sidebar
+*  add collapsible dashboard sidebar with persisted state
+*  add edit and delete buttons for job management
+*  implement duration guard for stopping activities and discard short ones
+*  replace Load More buttons with infinite scroll
+*  add backend search to Companies, Job Titles, and Skills lists
+*  add review_resume + save_resume_review tools
+
+### Bug Fixes
+
+*  add error handling for company logo image fallback
+*  improve update logic to prevent duplicate companies and handle unchanged labels
+*  exclude nested node_modules from the vitest run
+*  scope section writes to the owned resume
+*  reconcile the per-user running activity across sessions
+*  refetch tasks with group-aware ordering on group-by change
+*  reduce timeout duration for AddJob component tests
+*  harden cover-letter/resume-import prompts and MCP schema wording
+*  pin exact JSON key names in resume-import prompt
+*  move promptfoo out of root package.json into evals/
+*  patch dev-scope and remaining runtime advisories via overrides
+*  patch runtime-scope high advisories via overrides
+*  bump next-auth to 5.0.0-beta.32 for critical advisories
+*  scope ComboBox Enter-key highlight check to its own cmdk list
+*  update label visibility logic for collapsed sidebar
+*  smooth sidebar collapse/expand transition
+*  handle Enter key for creatable combobox
+* fix failings tests
+*  point combined config at renamed resume-import fixture
+*  enhance tag description in McpUpdateJobInputShape
+*  handle keydown events with undefined key property
+*  give auto-discovered "new" job status its own badge color
+*  update mockUpdate function signature for consistency
+*  automation schedule conflict
+*  update activity-start tests for stay-on-tasks behavior
+
+### Other Changes
+
+* Update readme with screenshots
+*  update project description, enhance feature details, and improve formatting
+*  add edit coverage for contact info, summary, and education
+*  cover contact info actions and form schema
+*  run prompt regressions against local Ollama alongside DeepSeek
+*  add cover-letter prompt regression tests
+*  improve layout and styling for various components
+* update button selectors for job actions and add resume skills/certifications tests
+* refactor JobsAppliedCard layout for improved button display
+*  update next and eslint-config-next to version 15.5.21
+* Enhance various components with DialogDescription for improved user guidance and update test cases for better data handling
+*  consolidate success/error toasts into shared helpers
+*  update activity test to ensure short activities are discarded and not displayed
+*  replace dropdown menu with direct edit/delete buttons in QuestionCard and update sidebar layout
+*  update job title selection to use userEvent and verify options count
+*  ensure spinner is displayed during save operation
+*  verify job title combobox has more than one option
+* Bump mcp rate limit
+*  consolidate entity resolution behind shared canonical resolver
+*  add activity and automation e2e tests
+*  add unit tests for API authentication and key resolution
+
+
+## [1.1.14](https://github.com/Gsync/jobsync/compare/v1.1.13...v1.1.14) (2026-07-13)
+
+
+### Features
+
+*  add Dashboard e2e tests; add testids to toggle groups
+*  update Node.js version to 20.20.2 in Dockerfile
+*  add Question Bank e2e tests; fix stale tag chip on edit
+*  persist resume review results and show saved review on resume page
+*  Improve JobDetails layout
+*  confirm dialog to switch activities instead of error toast
+*  allow restarting an activity from a task; scope activity-type link check
+*  add partial unique indexes to prevent duplicate automation runs and discovered jobs
+*  add MCP add_job e2e tests and update README with access note
+*  enhance DiscoveredJobDetail component with CircularScore and improved layout
+*  add MCP save_match_result tool and job-match directive for add_job
+*  Enhance job-related tests and components to include total job counts and improve validation handling
+*  Enhance job-related actions and tables to include total job counts
+*  Add Lever ATS provider behind shared ats/ registry
+*  Update job model and related components to handle optional Location and JobSource fields, fix add job mcp tool issue
+
+### Bug Fixes
+
+*  give profile e2e assertions headroom under parallel load
+
+### Other Changes
+
+* Update readme
+*  improve activities table layout, stay on tasks after activity start
+* Add job match and resume import evaluation prompts and assertions
+* Refactor e2e tests, address flakiness
+* Refactor code structure for improved readability and maintainability
+*  extract shared ResponsiveCardHeader and SearchInput components
+
+
+## [1.1.13](https://github.com/Gsync/jobsync/compare/v1.1.12...v1.1.13) (2026-07-06)
+
+
+### Features
+
+*  Add Windows PowerShell deployment script and enhance deploy.sh with app reachability check
+*  Enhance DiscoveredJobsList with StatusBadge and CircularScore components for improved UI
+*  Address github dependabot security alerts
+*  Implement reusable StatusBadge component and centralize badge colors for improved UI consistency
+*  Refactor Greenhouse company loading and improve resume templates with location formatting
+*  Rename labels for clarity in admin, questions, automations
+*  Enhance Greenhouse integration with company toggle functionality and improved UI
+*  Add Greenhouse configuration display with toggle functionality
+*  Add tests for MyJobsTable component including job rendering and actions
+*  Enhance job filtering and display by adding discovery status handling
+*  Add automation deletion and editing functionality with confirmation dialogs
+*  Implement status filtering for discovered jobs and add related tests
+*  Add topK and saveUnanalyzed configuration for Greenhouse automation
+*  Implement job deduplication logic and URL normalization in scraper utilities
+*  Enhance Ollama integration with user-specific settings and error handling
+*  Implement resume section validation and messaging for default resume actions
+*  Add default resume functionality
+*  Actions menu to job details page
+*  Improve automation run performance and enhance concurrency handling in automation runs
+*  Enhance Greenhouse search functionality and add more companies
+*  Implement infinite scroll for jobs and runs in automation detail page
+*  Add Queston mcp tool
+*  add resizable panel functionality and improve UI components
+*  improve job details UI
+*  improve ai review sheets UI
+*  implement automation run cancellation and logging improvements
+*  Add delete functionality for automation runs & better UX
+*  Add support for additional contact info fields including URLs and labels
+*  Add links to resumes in AutomationDetailPage and MatchDetails components
+*  Enhance job scoring and automation management with new features and improvements
+*  Add greenhouse job boards automation support
+*  update activity handling to use startTime instead of endTime and enhance job display in MyJobsTable
+*  add skills to resume import
+*  add skills section to resume with CRUD operations
+*  add MCP support - Add job tool call
+*  implement scroll handling in AiResumeReviewSection for improved user experience
+*  enhance resume import functionality with improved context handling and validation
+*  implement syncSchedulerState function to manage scheduler based on active automations refactor: rename prompt function for clarity in resume review prompt generation refactor: replace hardcoded MAX_AUTOMATIONS_PER_USER with APP_CONSTANTS in automation actions refactor: optimize connection status check in AiResumeReviewSection component
+*  add support for multiple resume layouts with simple and professional templates
+*  implement resume import functionality with text extraction and structured data parsing
+
+### Bug Fixes
+
+*  Unresolved jobType from job discovery automation
+*  MCP issues related to homelab & missing details
+*  Automation job title mismatch issue & tests
+*  Filter out resume with 2 sections or less
+*  Resume import issues
+*  update expiration date handling and improve layout in resume components
+*  import functionality issue with abort controller and auto-import model handling
+*  automation page issues
+* Fix import resume issues
+
+### Other Changes
+
+* Update readme
+* Add alert for JSearch deprecation in AutomationWizard component
+* Refactor job creation logic to return job ID and improve deletion process
+*  Enhance job creation e2e tests with additional scenarios and cleanup logic
+*  Add unit test coverage for MCP tools and resume import feature
+*  update job match analysis to use new scoring and parsing structure
+* Refactor resume review feature to support markdown output and streaming
+*  improve code readability by formatting and restructuring conditional statements in CreateResume and ResumeContainer components
+*  update task display text from "My Tasks" to "Tasks" for consistency
+*  replace hardcoded values with APP_CONSTANTS for improved maintainability and consistency
+*  enhance type safety in resume-related components and update TypeScript configuration
+*  update error logging for Ollama connection checks and tags fetching
+*  resume import functionality to use new prompt structure and text generation method
+*  add unit tests for resume import and text extraction functionalities
+*  remove RecordsPerPageSelector from various components and use APP_CONSTANTS.RECORDS_PER_PAGE directly
+* update readme
+
+
+## [1.1.12](https://github.com/Gsync/jobsync/compare/v1.1.11...v1.1.12) (2026-06-05)
+
+
+### Features
+
+*  Add new job directly from dashboard
+*  attach pdf generated resume & fix failing tests
+*  add PDF export functionality for resumes
+
+### Bug Fixes
+
+*  add default values for contact info, education, experience, and summary sections
+*  address security vulnerability
+*  update resume validation logic and add tests for AiResumeReviewSection
+*  update loading state in AiResumeReviewSection and enhance ResumeContainer layout with dropdown menu
+*  failing job actions tests
+*  revalidate dashboard path after activity and job actions
+*  Date format overlap on chart of smaller screens
+*  update next.js version to 15.5.18
+
+### Other Changes
+
+* check resume content sections before exporting
+* Update readme
+* Optimize performance, reduce unnecessary fetch
+
+
+## [1.1.11](https://github.com/Gsync/jobsync/compare/v1.1.10...v1.1.11) (2026-05-05)
+
+
+### Features
+
+*  Impove weekly jobs chart
+*  Switch pagination to infinite scroll
+*  Add certification section to resume profile
+*  Add rejected number of jobs column to companies table
+*  Show/hide password input
+*  Make secondary sidebar collapsable
+*  Clickable number of jobs for sources
+*  Clickable number of jobs for locations
+*  Clickable number of jobs for job titles
+*  Clickable number of jobs applied for companies
+
+### Bug Fixes
+
+* Fix: Profile e2e tests
+* Fix: Activities card title truncate issue
+* Fix: Gemini key error
+
+### Other Changes
+
+*  Migrate to vitest
+* Refactor: Replace rechart with svg radial chart
+*  Upgrade nextjs to 15.5.15
+*  Upgrade jest
+*  Override picomatch
+*  Override lodash
+* Add view jobs link under actions
+* Add unit tests
+
+
+## [1.1.10](https://github.com/Gsync/jobsync/compare/v1.1.9...v1.1.10) (2026-03-31)
+
+
+### Bug Fixes
+
+* Fix: Missing user validations
+* Fix: Replace dangerouslySetInnerHTML with TipTapContentViewer
+* Fix: Hydration issue
+
+### Other Changes
+
+* Address mock jobs data issue
+* Add recommended security headers
+* Refactor: API Key encryption
+* Add auth to API routes
+* Add auth to export route
+* Address failing unit tests
+
+
+## [1.1.9](https://github.com/Gsync/jobsync/compare/v1.1.8...v1.1.9) (2026-03-30)
+
+
+### Other Changes
+
+*  1.1.8
+
+
+## [1.1.8](https://github.com/Gsync/jobsync/compare/v1.1.8...v1.1.8) (2026-03-30)
+
+
+
+## [1.1.7](https://github.com/Gsync/jobsync/compare/v1.1.8...v1.1.7) (2026-03-30)
+
+
+
+## [1.1.8](https://github.com/Gsync/jobsync/compare/v1.1.7...v1.1.8) (2026-03-30)
+
+
+
+## [1.1.7](https://github.com/Gsync/jobsync/compare/v1.1.6...v1.1.7) (2026-03-30)
+
+
+
+## [1.1.6](https://github.com/Gsync/jobsync/compare/v1.1.4...v1.1.6) (2026-03-30)
+
+
+### Features
+
+*  Add openrouter ai models support
+*  Save ai job match details
+*  Add google gemini provider support
+*  Add cover letter
+*  Add activity types tab on admin page
+*  Improve calender label, add hrs activity
+
+### Bug Fixes
+
+*  Healthcheck
+*  AI settings lint error
+* Fix: Present date issue during ai resume review
+*  stop job match streaming error
+*  Auto load ollama model & lint errors
+*  Openai models list and response
+*  Add handlebar security patch
+* Fix failing unit tests
+*  Combo box search/filter logic
+*  foreign key constraint error, & sort skill by jobs
+
+### Other Changes
+
+* Update release
+* Add unit tests for openrouter
+* Update readme
+* Add warning for delayed ai response
+* Add jobs mock data & allow local icons for companies
+*  Cleanup unused code
+* Refactor: AI models provider registry
+*  Add unit tests for cover letter
+* Minor label adjustment
+*  Bump next to 15.5.14
+* Address deprecation: Migrate lint from next to eslint
+* Sort activity types list in sidebar
+* Add unit tests for activity types
+* Change docker internal port
+
+
+## [1.1.4](https://github.com/Gsync/jobsync/compare/v1.1.3...v1.1.4) (2026-03-06)
+
+
+### Features
+
+*  Add question bank feature
+*  add skill tags to jobs
+*  add notes to job applications
+
+### Bug Fixes
+
+*  edit note issue
+
+### Other Changes
+
+* Update release file
+* Update readme
+* Add questions field column to tags table
+*  Write unit tests for question bank feature
+*  add contributing guidelines and code of conduct
+* Show total hours of weekly activities on dashboard
+*  write unit tests for skill tags feature
+*  write unit tests for add note
+
+
+## [1.1.3](https://github.com/Gsync/jobsync/compare/v1.1.2...v1.1.3) (2026-02-28)
+
+
+
+## [1.1.2](https://github.com/Gsync/jobsync/compare/v1.1.0...v1.1.2) (2026-02-28)
+
+
+### Bug Fixes
+
+*  display user email in profile dropdown instead of static text
+
+### Other Changes
+
+*  replace release-please workflow with local release script
+*  release 1.1.1
+
+
+## [1.1.1](https://github.com/Gsync/jobsync/compare/v1.1.0...v1.1.1) (2026-02-28)
+
+
+### Bug Fixes
+
+* **ui:** display user email in profile dropdown instead of static text ([2fee6ee](https://github.com/Gsync/jobsync/commit/2fee6eeb8b041db26a20d72f1b24485fec51f030))
+* **ui:** display user email in profile dropdown instead of static text ([bc39aa5](https://github.com/Gsync/jobsync/commit/bc39aa5bbda8dfa91fcb8e404b9cc68c2eec5674))
+
+## [1.1.0](https://github.com/Gsync/jobsync/compare/v1.0.0...v1.1.0) (2026-02-28)
+
+
+### Features
+
+* add release automation ([6fd8247](https://github.com/Gsync/jobsync/commit/6fd8247f836208d61eddae935c4cbd63fac36cde))
+
+
+### Bug Fixes
+
+* Add job draft date in job details ([f6c2bb6](https://github.com/Gsync/jobsync/commit/f6c2bb65f14364f1292ecccf66c4f2999ba5cfc6))
+* Admin tab switch ([8c57052](https://github.com/Gsync/jobsync/commit/8c5705297c643a13c9d00da34a45d7d85f785f23))
+* bullet and order styling of editor content ([423b0f4](https://github.com/Gsync/jobsync/commit/423b0f43d0cfff76e1522864bd1b5177773692fb))
+* button hydration error ([d7e97a0](https://github.com/Gsync/jobsync/commit/d7e97a014e2d41ccdb1cd77d6baa0b6975576f4b))
+* Combobox filter issue ([1ab477e](https://github.com/Gsync/jobsync/commit/1ab477eb6e64f0aab7da360fcc936897217583e5))
+* Combobox undefined error ([fdaa9fe](https://github.com/Gsync/jobsync/commit/fdaa9fe72c35695136871a8e92fb5311af52a476))
+* configure release-please to target dev branch ([9ca7db0](https://github.com/Gsync/jobsync/commit/9ca7db003a5fb2d0ef4484a223aa7511eb84c08b))
+* Create company bug when adding experience ([c992077](https://github.com/Gsync/jobsync/commit/c99207744f8f038ad490d10dba581dba8c13d960))
+* DatePicker bug in Safari browser ([0f24106](https://github.com/Gsync/jobsync/commit/0f24106ebe5fabbd65336e2de128a623d3406099))
+* Dialog scroll ([93f8e7d](https://github.com/Gsync/jobsync/commit/93f8e7dbec477b14c924ea0f819283c9a1f142f0))
+* Edit company ([d7a15e2](https://github.com/Gsync/jobsync/commit/d7a15e293345e8097a43e9e4128b1e5a07ff024b))
+* Error accessing ollama api endpoint in docker ([83aa24a](https://github.com/Gsync/jobsync/commit/83aa24a5ec8f503c1f2c758e4fb5ec5d2506bcc4))
+* Failing Tasks playwright tests ([4c2cecf](https://github.com/Gsync/jobsync/commit/4c2cecf95c77106b7f6fafd2ded8ca4c16822d9c))
+* hydration error, minor refactor ([6d2db31](https://github.com/Gsync/jobsync/commit/6d2db31ebde9ee6afc426f8ece397145becfe731))
+* job status undefined issue ([91d3097](https://github.com/Gsync/jobsync/commit/91d309762d87f863ffd481b6c720b91ee8e21c5a))
+* jobsApplied based on applied field ([d0ad166](https://github.com/Gsync/jobsync/commit/d0ad166a291477bd53663d59165a40bc6af203cb))
+* login error validation ([7df090a](https://github.com/Gsync/jobsync/commit/7df090a6b899b89394d29722f7f247730b2b8713))
+* minor layout issues ([55e1e42](https://github.com/Gsync/jobsync/commit/55e1e42d38e26c74ff675f0a761cabe40cde7cb2))
+* no matching decryption secret ([b8f3919](https://github.com/Gsync/jobsync/commit/b8f3919cc5fa39d241b034639c73684c3284e34d))
+* openssl not found ([290a1a7](https://github.com/Gsync/jobsync/commit/290a1a7b6ba54968ba19ebd0c41a378bbd8b1fa0))
+* resume undefined issue ([dbe01a9](https://github.com/Gsync/jobsync/commit/dbe01a91ede0a378dd9678c44ac73823339e4546))
+* Revalidate company list in addjob when adding company ([785c49b](https://github.com/Gsync/jobsync/commit/785c49b92ef6459fdb9d77045795108d78d26c65))
+* route path ([4234c08](https://github.com/Gsync/jobsync/commit/4234c0808d83871bffb1d2d54a2205a244133771))
+* session based conditional rendering ([b008e1b](https://github.com/Gsync/jobsync/commit/b008e1b7efa0912db5512b33561295b4c59b0c4d))
+
+## 1.0.0 (2026-02-28)
+
+
+### Features
+
+* add release automation ([6fd8247](https://github.com/Gsync/jobsync/commit/6fd8247f836208d61eddae935c4cbd63fac36cde))
+
+
+### Bug Fixes
+
+* Add job draft date in job details ([f6c2bb6](https://github.com/Gsync/jobsync/commit/f6c2bb65f14364f1292ecccf66c4f2999ba5cfc6))
+* Admin tab swich ([8c57052](https://github.com/Gsync/jobsync/commit/8c5705297c643a13c9d00da34a45d7d85f785f23))
+* bullet and order styling of editor content ([423b0f4](https://github.com/Gsync/jobsync/commit/423b0f43d0cfff76e1522864bd1b5177773692fb))
+* button hydration error ([d7e97a0](https://github.com/Gsync/jobsync/commit/d7e97a014e2d41ccdb1cd77d6baa0b6975576f4b))
+* Combobox filter issue ([1ab477e](https://github.com/Gsync/jobsync/commit/1ab477eb6e64f0aab7da360fcc936897217583e5))
+* Combobox undefined error ([fdaa9fe](https://github.com/Gsync/jobsync/commit/fdaa9fe72c35695136871a8e92fb5311af52a476))
+* configure release-please to target dev branch ([9ca7db0](https://github.com/Gsync/jobsync/commit/9ca7db003a5fb2d0ef4484a223aa7511eb84c08b))
+* Create company bug when adding experience ([c992077](https://github.com/Gsync/jobsync/commit/c99207744f8f038ad490d10dba581dba8c13d960))
+* DatePicker bug in Safari browser ([0f24106](https://github.com/Gsync/jobsync/commit/0f24106ebe5fabbd65336e2de128a623d3406099))
+* Dialog scroll ([93f8e7d](https://github.com/Gsync/jobsync/commit/93f8e7dbec477b14c924ea0f819283c9a1f142f0))
+* Edit company ([d7a15e2](https://github.com/Gsync/jobsync/commit/d7a15e293345e8097a43e9e4128b1e5a07ff024b))
+* Error accessing ollama api endpoint in docker ([83aa24a](https://github.com/Gsync/jobsync/commit/83aa24a5ec8f503c1f2c758e4fb5ec5d2506bcc4))
+* Failing Tasks playwright tests ([4c2cecf](https://github.com/Gsync/jobsync/commit/4c2cecf95c77106b7f6fafd2ded8ca4c16822d9c))
+* hydration error, minor refactor ([6d2db31](https://github.com/Gsync/jobsync/commit/6d2db31ebde9ee6afc426f8ece397145becfe731))
+* job status undefined issue ([91d3097](https://github.com/Gsync/jobsync/commit/91d309762d87f863ffd481b6c720b91ee8e21c5a))
+* jobsApplied based on applied field ([d0ad166](https://github.com/Gsync/jobsync/commit/d0ad166a291477bd53663d59165a40bc6af203cb))
+* login error validation ([7df090a](https://github.com/Gsync/jobsync/commit/7df090a6b899b89394d29722f7f247730b2b8713))
+* minor layout issues ([55e1e42](https://github.com/Gsync/jobsync/commit/55e1e42d38e26c74ff675f0a761cabe40cde7cb2))
+* no matching decryption secret ([b8f3919](https://github.com/Gsync/jobsync/commit/b8f3919cc5fa39d241b034639c73684c3284e34d))
+* openssl not found ([290a1a7](https://github.com/Gsync/jobsync/commit/290a1a7b6ba54968ba19ebd0c41a378bbd8b1fa0))
+* resume undefined issue ([dbe01a9](https://github.com/Gsync/jobsync/commit/dbe01a91ede0a378dd9678c44ac73823339e4546))
+* Revalidate company list in addjob when adding company ([785c49b](https://github.com/Gsync/jobsync/commit/785c49b92ef6459fdb9d77045795108d78d26c65))
+* route path ([4234c08](https://github.com/Gsync/jobsync/commit/4234c0808d83871bffb1d2d54a2205a244133771))
+* session based conditional rendering ([b008e1b](https://github.com/Gsync/jobsync/commit/b008e1b7efa0912db5512b33561295b4c59b0c4d))

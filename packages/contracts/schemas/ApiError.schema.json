@@ -30,7 +30,8 @@
             "unsupported_source",
             "forbidden_source",
             "offline",
-            "internal"
+            "internal",
+            "write_failed"
           ]
         },
         "message": {

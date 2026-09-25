@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>jobleft</title>
+  <link rel="stylesheet" href="/app.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">jobleft</div>
+    <div class="sub">Server page. The full app window is a separate build; this page runs pairing, backups and your data folder.</div>
+  </header>
+
+  <main>
+    <p id="notice" class="notice" hidden></p>
+
+    <section class="card" id="folder">
+      <h2>Data folder</h2>
+      <p class="muted">All of your jobleft data lives in this one folder. Keys live in the macOS Keychain, never in the folder.</p>
+      <dl class="facts">
+        <dt>Folder</dt><dd><code id="dataDir">…</code></dd>
+        <dt>Database</dt><dd><span id="dbBytes">…</span></dd>
+        <dt>Stored jobs</dt><dd><span id="jobs">…</span></dd>
+      </dl>
+    </section>
+
+    <section class="card" id="records">
+      <h2>Your records</h2>
+      <dl class="facts" id="counts"><dt>Loading</dt><dd>…</dd></dl>
+    </section>
+
+    <section class="card" id="extension">
+      <h2>Browser extension</h2>
+      <p class="muted">The extension gets access only after you pair it here. It can read the facts a form needs, never your keys, contacts or backups.</p>
+      <div class="row">
+        <button id="pairBtn" type="button">Pair a browser extension</button>
+      </div>
+      <div id="codeBox" class="code" hidden>
+        <div class="label">Type this code in the extension</div>
+        <div id="code" class="digits">······</div>
+        <div id="codeExpiry" class="muted"></div>
+      </div>
+      <h3>Paired extensions</h3>
+      <table class="list" id="pairings">
+        <thead><tr><th>Extension</th><th>Browser</th><th>Paired</th><th>Last used</th><th></th></tr></thead>
+        <tbody><tr><td colspan="5" class="muted">None yet.</td></tr></tbody>
+      </table>
+    </section>
+
+    <section class="card" id="backup">
+      <h2>Backup and restore</h2>
+      <p class="muted">A backup is one file with everything, uploaded resumes included, and no key or password. Restoring replaces the data on this computer with the backup's data.</p>
+      <div class="row">
+        <button id="backupBtn" type="button">Download a backup</button>
+        <button id="exportBtn" type="button" class="secondary">Export as readable files</button>
+      </div>
+      <div class="row">
+        <label class="file">Restore from a backup file <input id="restoreFile" type="file" accept=".zip,application/zip"></label>
+      </div>
+    </section>
+
+    <section class="card danger" id="delete">
+      <h2>Delete everything</h2>
+      <p class="muted">Deletes every record and file in the data folder and the keys jobleft saved. This cannot be undone.</p>
+      <div class="row">
+        <input id="confirmText" type="text" placeholder="Type: delete everything" autocomplete="off" spellcheck="false">
+        <button id="deleteBtn" type="button" class="warn" disabled>Delete everything</button>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
