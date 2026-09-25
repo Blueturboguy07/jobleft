@@ -57,6 +57,27 @@ export class AiFacade {
   /** The chosen provider for one step (throws AiError no_provider when none is set). */
   client(): AiClient { return this.engine.client(); }
 
+  /**
+   * Runs one AI step. With publik, an answer that carries no cost (publik states the charge of a streamed answer only
+   * in the balance) gets the cost the balance shows: the balance before minus the balance after. Never an estimate;
+   * when the balance cannot be read, the cost stays unknown.
+   */
+  async metered<T extends { costMicros?: number | null }>(fn: () => Promise<T>): Promise<T> {
+    if (this.engine.settings().provider !== 'publik') return fn();
+    const balance = (c: { wallet: { balanceMicros: number } | null } | null) => c?.wallet?.balanceMicros ?? null;
+    let before: number | null = null;
+    try { before = balance(await this.engine.publik.refresh()); } catch { before = null; }
+    const r = await fn();
+    if ((r.costMicros === null || r.costMicros === undefined) && before !== null) {
+      try {
+        await this.engine.idle();
+        const after = balance(await this.engine.publik.refresh());
+        if (after !== null && before - after > 0) return { ...r, costMicros: before - after };
+      } catch { /* the cost stays unknown */ }
+    }
+    return r;
+  }
+
   cancelAll(): void { /* running requests end with their callers; nothing outlives the data */ }
 
   /** Delete-all: every provider key and the publik connection go. */

@@ -9,6 +9,7 @@
 //     from the owning lanes' tables, so a merge never collides; at integration each lane's package replaces its
 //     stand-in (see apps/server/README.md, "Interim stand-ins").
 
+import { CRAWLER_SCHEMA_VERSION } from '@jobleft/crawler';
 import { RESUME_SCHEMA_VERSION } from '@jobleft/resume';
 
 export interface Migration {
@@ -207,4 +208,5 @@ export const SERVER_SCHEMA_VERSION = SERVER_MIGRATIONS[SERVER_MIGRATIONS.length 
 
 /** Owners whose steps this build runs. A file with steps of any other owner came from a build this one cannot read. */
 // 'resume': the resumes, tailor_proposals and cover_letters tables (i-resume wires the resume lane into the app database).
-export const KNOWN_OWNERS: Readonly<Record<string, number>> = { server: SERVER_SCHEMA_VERSION, resume: RESUME_SCHEMA_VERSION };
+// 'crawler': the crawler's own Store records its steps in the same schema_migrations table, so a second start must know it.
+export const KNOWN_OWNERS: Readonly<Record<string, number>> = { server: SERVER_SCHEMA_VERSION, crawler: CRAWLER_SCHEMA_VERSION, resume: RESUME_SCHEMA_VERSION };

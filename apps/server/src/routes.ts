@@ -168,7 +168,7 @@ export const HANDLERS: HandlerTable = {
   getResume: ({ d, params }) => { const r = d.resumes.get(params.resumeId!); if (!r) notFound('That resume'); return { json: r }; },
   updateResume: ({ d, params, body }) => step(() => ({ json: d.resumes.svc.update(params.resumeId!, body) })),
   deleteResume: ({ d, params, query }) => step(() => ({ json: { deleted: d.resumes.svc.delete(params.resumeId!, query.withVersions === 'true') } })),
-  tailorResume: async ({ d, params, body }) => ({ json: await step(() => d.resumes.svc.tailor(params.resumeId!, body.jobId)) }),
+  tailorResume: async ({ d, params, body }) => ({ json: await d.ai.metered(() => step(() => d.resumes.svc.tailor(params.resumeId!, body.jobId))) }),
   acceptTailoring: async ({ d, params, body }) => ({ json: await step(() => d.resumes.svc.accept(params.resumeId!, body.proposalId, body.acceptChangeIds)) }),
   fitCheck: async ({ d, params }) => ({ json: await step(() => d.resumes.svc.fitCheck(params.resumeId!)) }),
   exportResume: async ({ d, params, query }) => {
@@ -177,8 +177,8 @@ export const HANDLERS: HandlerTable = {
   },
   atsCheck: async ({ d, params }) => ({ json: await step(() => d.resumes.svc.atsCheck(params.resumeId!)) }),
   listCoverLetters: ({ d, query }) => { jobOr404(d, query.jobId); return { json: d.resumes.svc.coverLetters(query.jobId) }; },
-  createCoverLetter: async ({ d, body }) => { jobOr404(d, body.jobId); return { json: await step(() => d.resumes.svc.createCoverLetter(body.jobId, body.resumeId)) }; },
-  updateCoverLetter: async ({ d, params, body }) => ({ json: await step(() => d.resumes.svc.updateCoverLetter(params.letterId!, body)) }),
+  createCoverLetter: async ({ d, body }) => { jobOr404(d, body.jobId); return { json: await d.ai.metered(() => step(() => d.resumes.svc.createCoverLetter(body.jobId, body.resumeId))) }; },
+  updateCoverLetter: async ({ d, params, body }) => ({ json: await d.ai.metered(() => step(() => d.resumes.svc.updateCoverLetter(params.letterId!, body))) }),
   exportCoverLetter: async ({ d, params, query }) => {
     const f = await step(() => d.resumes.svc.exportCoverLetter(params.letterId!, query.format));
     return { file: { fileName: f.fileName, mimeType: f.mimeType, bytes: Buffer.from(f.bytes) } };

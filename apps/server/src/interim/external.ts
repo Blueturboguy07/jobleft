@@ -92,6 +92,25 @@ export function statedDate(v: string): string | null {
   return null;
 }
 
+const NOT_A_NAME = /^(this|we|our|you|your|it|its|their|that|there|he|she|they|i|as|at|in|on|if|what|who|a|an|these|those|all|each|every|some|many|most|one|two)$/i;
+
+/**
+ * i-resume: the employer, only when the text says so in its own words: "<Name> is hiring / building / looking for /
+ * seeking / growing / expanding ...". Anything less certain stays unknown.
+ */
+export function statedEmployer(lines: string[]): string | null {
+  const re = /^(?:about\s+)?((?:[A-Z0-9&][\w&.'’-]*)(?:\s+(?:[A-Z0-9&][\w&.'’-]*|of|and|for|de|the)){0,4}?(?:,?\s+(?:Inc\.?|LLC|Ltd\.?|Co\.?|Corp\.?|GmbH))?)\s+(?:is|are)\s+(?:now\s+)?(?:hiring|building|looking|seeking|growing|expanding|recruiting|searching)\b/;
+  for (const l of lines) {
+    const m = re.exec(l);
+    if (!m) continue;
+    const name = m[1]!.trim();
+    const words = name.split(/\s+/);
+    if (NOT_A_NAME.test(words[0]!) || words.length > 5 || /^(the|of|and|for|de)$/i.test(words[words.length - 1]!)) continue;
+    return name.slice(0, 120);
+  }
+  return null;
+}
+
 const WORK_MODES: Record<string, RawJob['workMode']> = { remote: 'remote', hybrid: 'hybrid', 'on-site': 'onsite', onsite: 'onsite', 'on site': 'onsite', 'in office': 'onsite', 'in-office': 'onsite' };
 const TEXT_EMPLOYMENT: Array<[RegExp, string]> = [[/^full[- ]?time$/i, 'full_time'], [/^part[- ]?time$/i, 'part_time'], [/^(contract|contractor|temporary|temp)$/i, 'contract'], [/^(intern|internship)$/i, 'internship']];
 
@@ -103,7 +122,8 @@ const TEXT_EMPLOYMENT: Array<[RegExp, string]> = [[/^full[- ]?time$/i, 'full_tim
  */
 export function rawFromText(text: string, applyUrl: string | null): RawJob {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  let title = [...(lines[0] ?? '')].slice(0, 200).join('');
+  // i-resume: a first line written as "Title: ..." (or "Job title:", "Position:") is the title without its label.
+  let title = [...(lines[0] ?? '').replace(/^(?:job\s+)?(?:title|position)\s*[:\-–]\s*(?=\S)/i, '')].slice(0, 200).join('');
   let company: string | null = null;
   let location = '';
   let workMode: RawJob['workMode'] = '';
@@ -127,6 +147,7 @@ export function rawFromText(text: string, applyUrl: string | null): RawJob {
     } else if (!department && /^(department|team)$/.test(label)) department = value.slice(0, 120);
     else if (!postedAt && /^(posted|date posted|posted on|posting date)$/.test(label)) postedAt = statedDate(value);
   }
+  if (!company) company = statedEmployer(lines.slice(0, 12));
   const at = /^(.{3,160}?)\s+(?:at|@)\s+([A-Z0-9][\w&.,'’ -]{1,80})$/.exec(title);
   if (!company && at) { company = at[2]!.trim(); title = at[1]!.trim(); }
   const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
