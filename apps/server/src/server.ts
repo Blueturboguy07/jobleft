@@ -216,7 +216,8 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     if (method === 'OPTIONS') {
       const target = matchRoute(headerValue(req, 'access-control-request-method') ?? '', url.pathname);
       const spec = target ? (LOCAL_API[target.name] as RouteSpec) : null;
-      const allowed = !!extId && !!spec && (spec.auth === 'pairing' ? data!.pairing.isPaired(extId) : target!.name === 'pair' || target!.name === 'health');
+      const cur = app.data;
+      const allowed = !!extId && !!spec && (spec.auth === 'pairing' ? !!cur && cur.pairing.isPaired(extId) : target!.name === 'pair' || target!.name === 'health');
       if (!allowed) { sendError(req, res, new ApiFailure('forbidden_origin', 'Requests from other web pages are not allowed.')); return; }
       res.statusCode = 204;
       res.setHeader('access-control-allow-origin', originHeader!);
@@ -319,7 +320,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     }
     const q: Record<string, string> = {};
     for (const [k, v] of url.searchParams) {
-      if (k in q) { sendError(req, res, new ApiFailure('bad_request', `The query parameter "${k.slice(0, 40)}" appears twice.`)); return; }
+      if (k in q) { sendError(req, res, new ApiFailure('bad_request', 'A query parameter appears twice.')); return; }
       q[k] = v;
     }
     if (spec.query) {
