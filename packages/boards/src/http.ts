@@ -169,10 +169,10 @@ export function createBoardHttp(opts: BoardHttpOptions): HttpClient {
     try {
       res = await base(url.href, { ...init, headers, redirect: 'manual', referrerPolicy: 'no-referrer' });
     } catch (e) {
-      if (isRobots) robots.set(url.host, { status: null, error: networkCode(e) });
+      if (isRobots) { const v = { status: null, error: networkCode(e) }; robots.set(url.host, v); const real = reverse.get(url.host); if (real) robots.set(real, v); }
       throw e;
     }
-    if (isRobots) robots.set(url.host, { status: res.status, error: null });
+    if (isRobots) { const v = { status: res.status, error: null }; robots.set(url.host, v); const real = reverse.get(url.host); if (real) robots.set(real, v); }
     if (res.status >= 300 && res.status < 400) {
       const loc = res.headers.get('location');
       if (loc) log.set(url.href, loc);

@@ -208,31 +208,62 @@ export class CrawlScheduler {
           batch = keep;
         }
         if (batch.length === 0) { this.emit(); continue; }
+        const regionOf = (r: BoardResult): string | null => batch.find((b) => b.ats === r.ats && b.board === r.board)?.region ?? null;
+        const hostOf = (r: BoardResult): string => {
+          const ref: BoardRef = { ats: r.ats, board: r.board, company: r.company, ...(regionOf(r) ? { region: regionOf(r)! } : {}) };
+          return this.o.sources[r.ats]?.host?.(ref) ?? hostFor(r.ats, ref.region);
+        };
+        const seen = new Map<string, { r: BoardResult; outcome: CheckOutcome | null; status: CrawlBoardReport['status']; reason: string | null; host: string }>();
+        const record = (id: string, outcome: CheckOutcome, r: BoardResult): void => {
+          let open = 0;
+          try { open = this.o.crawlStore.countUnseenForBoard(r.ats, r.board, iso(this.now())).open; } catch { /* no jobs table yet */ }
+          this.o.boards.recordCheck(id, outcome, { now: this.now(), storeOpenJobs: open });
+        };
         const res = await crawl(batch, {
           store: this.o.crawlStore, http, sources: this.o.sources, now: this.now,
           graceMs: this.o.graceMs ?? DEFAULT_GRACE_MS,
           onBoard: (r) => {
-            const id = boardId(r.ats, r.board, batch.find((b) => b.ats === r.ats && b.board === r.board)?.region ?? null);
+            const id = boardId(r.ats, r.board, regionOf(r));
+            const host = hostOf(r);
             const o = outcomeOf(r);
-            if (o.outcome && !o.outcome.ok && pacer && (o.outcome.httpStatus === 429 || o.outcome.failure === 'busy')) {
-              const host = this.o.sources[r.ats]?.host?.({ ats: r.ats, board: r.board, company: r.company }) ?? hostFor(r.ats, batch.find((b) => b.ats === r.ats && b.board === r.board)?.region);
-              o.outcome.retryAfterMs = Math.max(0, pacer.busyUntil(host) - Date.now());
+            let outcome = o.outcome, status = o.status, reason = o.reason;
+            // robots.txt that did not load (network trouble) is the host's problem, not the board's: no check counted.
+            if (outcome && !outcome.ok && outcome.failure === 'robots' && httpStateFor(http)?.robots.get(host)?.error) {
+              outcome = null; status = 'failed';
+              reason = 'jobleft could not reach the host (its robots.txt did not load), so it asked nothing else; the board is not counted as failing.';
             }
-            if (o.outcome) {
-              let open = 0;
-              try { open = this.o.crawlStore.countUnseenForBoard(r.ats, r.board, iso(this.now())).open; } catch { /* no jobs table yet */ }
-              this.o.boards.recordCheck(id, o.outcome, { now: this.now(), storeOpenJobs: open });
+            if (outcome && !outcome.ok && pacer && (outcome.httpStatus === 429 || outcome.failure === 'busy')) {
+              outcome.retryAfterMs = Math.max(0, pacer.busyUntil(host) - Date.now());
             }
+            seen.set(id, { r, outcome, status, reason, host });
+            if (outcome?.ok) record(id, outcome, r); // good news is shown at once; failures wait for the batch (below)
             this.state.done++;
             this.state.jobsSeen += r.listed;
             this.emit();
           },
         });
+        // A host outage (every board of a host in this batch failed with a network error, a time-out or a server
+        // error) is not held against the boards: they show a warning, but none is marked unreachable for it.
+        const transient = (o: CheckOutcome | null): boolean => !!o && !o.ok && (o.failure === 'network' || o.failure === 'timeout' || o.failure === 'server');
+        const byHost = new Map<string, Array<[string, NonNullable<ReturnType<typeof seen.get>>]>>();
+        for (const [id, v] of seen) (byHost.get(v.host) ?? byHost.set(v.host, []).get(v.host)!).push([id, v]);
+        for (const list of byHost.values()) {
+          const outage = list.length >= 2 && list.every(([, v]) => transient(v.outcome));
+          for (const [id, v] of list) {
+            if (outage && v.outcome && !v.outcome.ok) {
+              v.reason = `${v.reason ?? 'The host failed.'} Every board on this host failed in this refresh (a host outage), so the board shows a warning but is not marked unreachable.`;
+              record(id, { ...v.outcome, hostOutage: true, message: `${v.outcome.message} Every board on this host failed at the same time.` }, v.r);
+              continue;
+            }
+            if (v.outcome && !v.outcome.ok) record(id, v.outcome, v.r);
+          }
+        }
         // Report rows after the sweep, so "closed" is filled in.
         for (const r of res.boards) {
-          const region = batch.find((b) => b.ats === r.ats && b.board === r.board)?.region ?? null;
+          const id = boardId(r.ats, r.board, regionOf(r));
+          const v = seen.get(id);
           const o = outcomeOf(r);
-          report(boardId(r.ats, r.board, region), o.status, o.reason, r);
+          report(id, v?.status ?? o.status, v?.reason ?? o.reason, r);
           if (r.status === 'ok') totals.ok++; else totals.failed++;
           totals.inserted += r.stats.inserted; totals.updated += r.stats.updated; totals.closed += r.closed; totals.requests += r.requests;
         }

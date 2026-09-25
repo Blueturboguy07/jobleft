@@ -72,7 +72,9 @@ const RETRY = new WeakSet<Answer>();
 /** What one check of a board (a refresh or a confirmed paste) saw. */
 export type CheckOutcome =
   | { ok: true; listed: number }
-  | { ok: false; failure: CheckFailure; message: string; retryAfterMs?: number | null; httpStatus?: number | null };
+  | { ok: false; failure: CheckFailure; message: string; retryAfterMs?: number | null; httpStatus?: number | null;
+      /** Every board of the host failed in the same refresh: shown as a warning, never escalated to unreachable. */
+      hostOutage?: boolean };
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -354,10 +356,11 @@ export class BoardService {
         .run(id, at, at, o.listed);
       return;
     }
-    const f = (prev?.consecutive_failures ?? 0) + 1;
+    const f = o.hostOutage ? Math.max(1, Math.min(prev?.consecutive_failures ?? 0, UNREACHABLE_AFTER - 1)) : (prev?.consecutive_failures ?? 0) + 1;
     let state: BoardState;
     let next: number | null = null;
-    if (o.failure === 'robots') { state = 'blocked'; next = now + DAY; }
+    if (o.hostOutage) state = 'failing';
+    else if (o.failure === 'robots') { state = 'blocked'; next = now + DAY; }
     else if (o.failure === 'busy' || (o.failure === 'blocked' && o.httpStatus === 429)) {
       // "Slow down": wait at least the time the host asked for (Retry-After), and never less than 15 minutes.
       state = 'blocked';

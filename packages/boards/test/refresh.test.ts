@@ -138,3 +138,22 @@ test('a board that answers 429 waits at least its Retry-After, and the host gets
     assert.ok(t.length >= 1);
   } finally { await r.close(); }
 });
+
+test('network trouble: an unreachable host leaves boards "not checked yet"; a host outage never makes boards unreachable', async () => {
+  const r = await rig({ boards: { 'lever:down1': { jobs: 1, script: ['500'] }, 'lever:down2': { jobs: 1, script: ['500'] } } },
+    { directory: [row('lever', 'down1', 'Down 1'), row('lever', 'down2', 'Down 2'), row('ashby', 'nohost', 'No Host')] });
+  try {
+    await r.mock.close(); // every mock host stops answering (connection refused)
+    await r.scheduler.runOnce();
+    for (const e of r.service.list({}).items) assert.equal(e.state, 'not_checked', `${e.id} after the host could not be reached`);
+  } finally { await r.close().catch(() => {}); }
+  const r2 = await rig({ boards: { 'lever:down1': { jobs: 1, script: ['500'] }, 'lever:down2': { jobs: 1, script: ['500'] } } },
+    { directory: [row('lever', 'down1', 'Down 1'), row('lever', 'down2', 'Down 2')] });
+  try {
+    for (let i = 0; i < 3; i++) { await r2.scheduler.runOnce(); r2.clock.now += 60_000; }
+    for (const e of r2.service.list({}).items) {
+      assert.equal(e.state, 'failing', `${e.id} shows a warning`);
+      assert.ok(e.lastError);
+    }
+  } finally { await r2.close(); }
+});
