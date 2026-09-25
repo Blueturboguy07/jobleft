@@ -29,10 +29,10 @@ export JOBLEFT_HOME=/private/tmp/jl-ai-demo            # the data folder (create
 export JOBLEFT_SECRET_STORE=file                         # keys in $JOBLEFT_HOME/secrets (encrypted). Omit it to use the macOS Keychain
 export JOBLEFT_PUBLIK_BASE_URL=http://127.0.0.1:4020/api/v1
 export JOBLEFT_PUBLIK_APP_TOKEN=pat_jobleft_devstandin0000000000000000000000
-alias jl='node packages/ai-engine/src/cli.ts'
+jl() { node packages/ai-engine/src/cli.ts "$@"; }        # a shell function; it also works in scripts
 ```
 
-`jl help` lists every command.
+`jl help` lists every command. Each `jl` command is a new process, like a new start of the app.
 
 This build never contacts the live publik service. With a publik address that is not on 127.0.0.1, `publik connect` answers "Connecting to publik is not available in this build yet (it has no publik app token)" and sends nothing.
 
@@ -184,7 +184,7 @@ Tiers: `publik-fast`, `publik-balanced` (default) and `publik-smart` (`jl use pu
 
 ## 5. How to check each outcome
 
-The outcomes are in `docs/outcomes/ai-engine.md`. "jl" is the alias from section 2.
+The outcomes are in `docs/outcomes/ai-engine.md`. "jl" is the shell function from section 2.
 
 | Outcome | How to see it with this package |
 |---|---|
