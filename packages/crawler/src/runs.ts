@@ -138,9 +138,9 @@ export class Runs {
     const deferred = o.status === 'deferred' || o.status === 'host-skipped';
     db.prepare(`UPDATE crawler_runs SET boards_done = boards_done + ?, ok = ok + ?, failed = failed + ?, deferred = deferred + ?,
       listed = listed + ?, inserted = inserted + ?, updated = updated + ?, unchanged = unchanged + ?, closed = closed + ?,
-      requests = requests + ?, heartbeat_at = ? WHERE id = ?`)
+      heartbeat_at = ? WHERE id = ?`)
       .run(newlyDone ? 1 : 0, newlyDone && good ? 1 : 0, newlyDone && !good && !deferred ? 1 : 0, newlyDone && deferred ? 1 : 0,
-        newlyDone ? o.listed : 0, o.inserted, o.updated, newlyDone ? o.unchanged : 0, o.closed, o.requests, new Date().toISOString(), id);
+        newlyDone ? o.listed : 0, o.inserted, o.updated, newlyDone ? o.unchanged : 0, o.closed, new Date().toISOString(), id);
   }
 
   /** Adds closes found by a confirming reading to a board already done. */
@@ -148,7 +148,12 @@ export class Runs {
     if (closed === 0 && requests === 0) return;
     this.store.db.prepare('UPDATE crawler_run_boards SET closed = closed + ?, requests = requests + ? WHERE run_id = ? AND ats = ? AND board = ? AND region = ?')
       .run(closed, requests, id, b.ats, b.board, b.region ?? '');
-    this.store.db.prepare('UPDATE crawler_runs SET closed = closed + ?, requests = requests + ? WHERE id = ?').run(closed, requests, id);
+    this.store.db.prepare('UPDATE crawler_runs SET closed = closed + ? WHERE id = ?').run(closed, id);
+  }
+
+  /** Adds the requests a run sent (every request, robots.txt and retries included). */
+  addRequests(id: number, n: number): void {
+    this.store.db.prepare('UPDATE crawler_runs SET requests = requests + ? WHERE id = ?').run(n, id);
   }
 
   heartbeat(id: number): void {
