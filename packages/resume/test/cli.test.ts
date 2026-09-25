@@ -29,8 +29,9 @@ test('the CLI walk-through: import, correct, restart, tailor, accept, export; fi
     assert.match(show.out, /Feb 2021 – May 2023/);
     assert.match(show.out, /Postgres \[5\]/);
     const bad = cli(home, 'profile', 'set', 'work.1.startDate', 'last spring');
-    assert.equal(bad.code, 3);
-    assert.match(bad.err, /does not match its contract/);
+    assert.equal(bad.code, 2);
+    assert.match(bad.err, /Not saved: the profile does not match its contract/);
+    assert.match(cli(home, 'profile', 'show').out, /Feb 2021 – May 2023/, 'a refused edit changes nothing');
     assert.equal(cli(home, 'job', 'add', '--file', join(FIX, 'jobs', 'j-fit.txt'), '--title', 'Backend Engineer', '--company', 'Globex Sample Co').code, 0);
     const jobId = cli(home, 'job', 'list').out.split(/\s+/)[0]!;
     const resumeId = /\* (res_\S+)/.exec(cli(home, 'resume', 'list').out)![1]!;

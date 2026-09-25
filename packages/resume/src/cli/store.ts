@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { AiProviderKind, Job, Place, Profile, ProfileInput } from '@jobleft/contracts';
 import { nowIso, ProfileInputSchema, validate } from '@jobleft/contracts';
+import { ResumeError } from '../errors.ts';
 import { emptyProfileInput } from '../import/index.ts';
 
 export function resolveHome(env: NodeJS.ProcessEnv = process.env): string {
@@ -73,7 +74,7 @@ export function hasProfile(p: Paths): boolean {
 /** Validates and saves the editable profile; the store sets version and time (like PUT /api/v1/profile). */
 export function writeProfile(p: Paths, input: ProfileInput): Profile {
   const v = validate(ProfileInputSchema, input);
-  if (!v.ok) throw new Error(`The profile does not match its contract: ${v.issues.slice(0, 3).map((i) => `${i.path || '/'} ${i.message}`).join('; ')}`);
+  if (!v.ok) throw new ResumeError('bad_request', `Not saved: the profile does not match its contract (${v.issues.slice(0, 3).map((i) => `${i.path || '/'} ${i.message}`).join('; ')}). Dates are YYYY-MM or YYYY; yes/no fields are true or false.`);
   const { id: _i, version: _v, updatedAt: _u, ...clean } = input as ProfileInput & { id?: string; version?: string; updatedAt?: string };
   void _i; void _v; void _u;
   const profile: Profile = { id: 'default', ...(clean as ProfileInput), version: profileVersion(clean as ProfileInput), updatedAt: nowIso() };

@@ -245,6 +245,8 @@ export class ResumeService {
       throw e;
     }
     for (const x of ids) for (const ext of ['pdf', 'docx', 'txt']) rmSync(join(this.#o.filesDir, `${x}.${ext}`), { force: true });
+    // Push the deletion through the write-ahead log too, so no copy of the deleted text stays in the -wal file.
+    try { this.#o.db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* not in WAL mode, or busy: best effort */ }
     return [...ids, ...letters];
   }
 
