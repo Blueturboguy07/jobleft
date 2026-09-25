@@ -419,11 +419,12 @@ export class Store {
     // New identity. The same canonical URL with the same company, title and text (or places) on ANOTHER board is the
     // same posting reached by a second route: credit it. A generic link shared by different postings is not enough.
     // Gate 1 (single builder): the link, company and title alone are not enough. Two openings of the same role in two
-    // cities can share one careers link, so the merge also needs the same text or the same (non-empty) places.
+    // cities can share one careers link: when both postings state places and the places differ, they stay apart.
+    // Otherwise the shared link is the identity (aggregator lists wrap the same posting in their own words).
     const placesJson = JSON.stringify(j.places ?? []);
     const urlOwner = this.st(`SELECT id FROM jobs WHERE canonical_url = ? AND dedup_hash = ? AND NOT (ats = ? AND board = ?)
-      AND (content_hash = ? OR (places_json = ? AND places_json <> '[]')) ORDER BY id LIMIT 1`)
-      .get(j.canonicalUrl, j.dedupHash, j.ats, j.board, j.contentHash, placesJson) as { id: number } | undefined;
+      AND (content_hash = ? OR places_json = ? OR places_json = '[]' OR ? = '[]') ORDER BY id LIMIT 1`)
+      .get(j.canonicalUrl, j.dedupHash, j.ats, j.board, j.contentHash, placesJson, placesJson) as { id: number } | undefined;
     if (urlOwner) {
       this.credit(urlOwner.id, j, now);
       return { status: 'dupUrl', dupRole: false, row: urlOwner.id };
