@@ -330,6 +330,7 @@ export class AiEngine {
     const s = this.settings();
     if (!s.provider) throw new AiError('no_provider', NO_PROVIDER_MESSAGE);
     this.assertAllowedOffline(s);
+    if (s.provider === 'own_key' && !s.keySet) throw new AiError('key_refused', `Save your ${VENDOR_LABEL[s.vendor!]} key first. jobleft sends nothing to ${VENDOR_LABEL[s.vendor!]} without it.`);
     if (!s.model) throw new AiError('model_not_found', 'No model is chosen for this provider. Choose one in Settings > AI (the setup check lists them).');
     return this.clientFor(s, s.model);
   }
@@ -397,6 +398,9 @@ export class AiEngine {
     try {
       this.assertAllowedOffline(s);
       if (s.provider === 'publik') return await this.checkPublik(s, checkedAt);
+      if (s.provider === 'own_key' && !s.keySet) {
+        return { ok: false, problem: 'other', message: `Save your ${VENDOR_LABEL[s.vendor!]} key, then check again. jobleft sends nothing to ${VENDOR_LABEL[s.vendor!]} without it.`, models, checkedAt };
+      }
       if ((s.provider === 'custom' || s.provider === 'local') && s.localKind !== 'ollama') {
         // Find the API root again: the server behind the address may have changed since the last check.
         const st = this.engineState();

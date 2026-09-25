@@ -129,8 +129,9 @@ function pricesText(): string {
   return `Prices per 1,000 requests: web search ${formatDollars(p.search)}, page fetch ${formatDollars(p.page)}, page that needs JavaScript ${formatDollars(p.jsPage)}. jobleft always tries a free plain fetch first.`;
 }
 
-async function printStatus(engine: AiEngine): Promise<void> {
+async function printStatus(engine: AiEngine, where?: { home: string; keysAt: string }): Promise<void> {
   const s = engine.settings();
+  if (where) out(`Data folder: ${where.home}. Keys are kept in ${where.keysAt}.`);
   out(`Provider: ${s.provider ? engine.describe(s) : 'none (the app works without one; AI features ask you to set one up)'}`);
   if (s.provider && s.provider !== 'publik') out(`Key: ${s.keySet ? (s.keyHint ? `saved, ends in "${s.keyHint}"` : 'saved') : 'none saved'}`);
   out(`Paid page fetch and web search: ${s.meteredFetch.enabled ? 'on' : 'off'}. ${pricesText()}`);
@@ -292,7 +293,7 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  const { engine, home } = createEngineFromEnv();
+  const { engine, home, keysAt } = createEngineFromEnv();
 
   switch (cmd) {
     case 'providers':
@@ -304,7 +305,7 @@ async function main(): Promise<number> {
       out('There is no sign-in with a Claude consumer subscription.');
       return 0;
     case 'status':
-      await printStatus(engine);
+      await printStatus(engine, { home, keysAt });
       return 0;
     case 'detect': {
       const found = await engine.detectLocal();

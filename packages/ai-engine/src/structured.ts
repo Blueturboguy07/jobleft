@@ -47,6 +47,15 @@ export function withJsonInstruction(messages: AiMessage[], schema: JsonSchema): 
   return [{ role: 'system', content: instruction }, ...messages];
 }
 
+function pointer(v: unknown, path: string): unknown {
+  let cur: unknown = v;
+  for (const raw of path.split('/').filter(Boolean)) {
+    const k = raw.replace(/~1/g, '/').replace(/~0/g, '~');
+    if (cur && typeof cur === 'object') cur = (cur as Record<string, unknown>)[k]; else return undefined;
+  }
+  return cur;
+}
+
 /** Finds the first complete JSON object or array in a text. null when there is none. */
 export function extractJson(text: string): unknown | undefined {
   let t = stripThinking(text).trim();
@@ -120,9 +129,14 @@ export function readStructured<S extends JsonSchema>(
     const r = validate(schema, parsed);
     if (r.ok) return r.value;
     const first = r.issues[0]!;
-    jsonProblem = /must be (<|>)=/.test(first.message)
-      ? `The AI answer has a value out of range (${first.path || 'the answer'} ${first.message})`
-      : `The AI answer does not have the expected fields (${first.path || 'the answer'} ${first.message})`;
+    const field = first.path ? first.path.split('/').filter(Boolean).map((x) => x.replace(/~1/g, '/').replace(/~0/g, '~')).join('.') : 'the answer';
+    const range = /must be (<|>)= (-?[\d.]+)/.exec(first.message);
+    if (range) {
+      const value = pointer(parsed, first.path);
+      jsonProblem = `The AI answer has a value out of range (${field} is ${JSON.stringify(value)}; the ${range[1] === '<' ? 'most' : 'least'} allowed is ${range[2]})`;
+    } else {
+      jsonProblem = `The AI answer does not have the expected fields (${field} ${first.message})`;
+    }
   }
   if (opts.lineFallback) {
     let fromLines: Infer<S> | null = null;

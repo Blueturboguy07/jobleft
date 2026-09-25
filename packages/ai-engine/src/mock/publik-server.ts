@@ -188,7 +188,7 @@ export async function startMockPublikServer(opts: MockPublikOptions = {}): Promi
     }
     if (balance < price) {
       log.note(entry, `402 insufficient: balance ${balance} < price ${price}`, 402);
-      return err(res, 402, 'insufficient_credit', 'Not enough publik credit for this request.', {
+      return err(res, 402, 'insufficient_credit', 'Not enough publik balance for this request.', {
         available_micros: balance, required_micros: price, claim_state: claimState, top_up_url: topUp(),
         claim_url: claimState === 'anonymous' ? claimUrl : null, add_credit_url: addCreditUrl, plans_url: 'https://publikhq.com/developers#plans',
         week: { used_micros: weekUsed, budget_micros: null, resets_at: resetsAt },
