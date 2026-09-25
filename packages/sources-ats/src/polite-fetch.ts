@@ -1,12 +1,16 @@
-// A fetch wrapper the CLI passes to the crawler's HttpClient as `fetchImpl`. It adds two rules on top of the client's
+// A fetch wrapper the CLI passes to the crawler's HttpClient as `fetchImpl`. It adds three rules on top of the client's
 // own (User-Agent, pacer, robots.txt, never-crawl list, no redirects):
 //   1. Retry-After: after a 429 or 503 that carries Retry-After, no request goes to that host until the time has
 //      passed. A wait up to `maxWaitMs` is slept; a longer one fails the request at once (the board waits for a
 //      later run) instead of holding the whole crawl.
 //   2. Never-contact hosts: a request to LinkedIn, Indeed, Glassdoor, SmartRecruiters, Workday, iCIMS, Oracle, UKG or
 //      Taleo is refused before it leaves, even if some code asked for it.
+//   3. Crawl-delay: it reads each robots.txt answer that passes through it and keeps that delay between EVERY two
+//      requests to the host, including the first request after robots.txt (the crawler's pacer applies the delay
+//      only from the second feed request on).
 // It can also report every request (time, host, status) to a log callback. It never adds or changes a header.
 
+import { parseRobots, PRODUCT_TOKEN } from '@jobleft/crawler';
 import { neverContactHost } from './detect.ts';
 
 export interface PoliteFetchOptions {
@@ -47,6 +51,8 @@ export function politeFetch(opts: PoliteFetchOptions = {}): typeof fetch {
   const now = opts.now ?? (() => Date.now());
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const notBefore = new Map<string, number>();
+  const crawlDelay = new Map<string, number>();
+  const lastSent = new Map<string, number>();
 
   const wrapped = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
@@ -58,19 +64,28 @@ export function politeFetch(opts: PoliteFetchOptions = {}): typeof fetch {
       throw new NeverHostError(u.hostname, never.name);
     }
     let waited = 0;
-    const until = notBefore.get(host) ?? 0;
+    const delay = crawlDelay.get(host) ?? 0;
+    const last = lastSent.get(host);
+    const until = Math.max(notBefore.get(host) ?? 0, delay > 0 && last !== undefined ? last + delay : 0);
     const t0 = now();
     if (until > t0) {
       const ms = until - t0;
-      if (ms > maxWait) {
+      if (ms > maxWait && (notBefore.get(host) ?? 0) > t0) {
         opts.onRequest?.({ at: new Date(t0).toISOString(), url, host, status: null, waitedMs: 0, error: 'refused: Retry-After not over' });
         throw new RetryAfterError(host, Math.ceil(ms / 1000));
       }
       await sleep(ms);
       waited = ms;
     }
+    lastSent.set(host, now());
     try {
       const res = await base(input, init);
+      if (u.pathname === '/robots.txt' && res.status >= 200 && res.status < 300) {
+        try {
+          const rules = parseRobots(await res.clone().text(), PRODUCT_TOKEN);
+          if (rules.crawlDelayMs > 0) crawlDelay.set(host, rules.crawlDelayMs);
+        } catch { /* an unreadable robots.txt changes nothing here; the crawler decides what it means */ }
+      }
       if (res.status === 429 || res.status === 503) {
         const ms = retryAfterMs(res.headers.get('retry-after'), now());
         if (ms !== null) notBefore.set(host, Math.max(notBefore.get(host) ?? 0, now() + ms));

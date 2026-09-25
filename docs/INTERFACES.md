@@ -489,7 +489,7 @@ Key signatures (the block above only lists the re-exports of `src/index.ts`):
 | `ATS_SOURCE_LIST` | `ReadonlyArray<Omit<SourceInfo, 'enabled' \| 'keySet' \| 'status'>>`. Ids: `ats:<family>` for ATS families, `site:linkedin`, `site:indeed`, `site:glassdoor`. `ATS_SOURCE_DETAILS` adds `ats`, `docsFile`, `quote`, `quoteSource` |
 | `buildHealthReport` | `(run: RunReport, store: Store) => HealthReport`: per board (status, plain reason, flag, last checked, listed, read, new, updated, closed, open) and per ATS totals that add up |
 | `plainReason` | `(crawlerError: string) => string`: one plain sentence for a failed board (404, 429, 5xx, timeout, HTML, invalid JSON, cut-off XML, redirect, robots, ...) |
-| `politeFetch` | `(opts?) => typeof fetch`: a `fetchImpl` for `HttpClient` that obeys Retry-After (429 and 503) per host and refuses never-contact hosts before any request |
+| `politeFetch` | `(opts?) => typeof fetch`: a `fetchImpl` for `HttpClient` that obeys Retry-After (429 and 503) per host, keeps a robots.txt `Crawl-delay` between every two requests to a host (the crawler's `Pacer` applies it only from the second request after robots.txt), and refuses never-contact hosts before any request |
 
 Rules: every adapter uses only the `HttpGetter` it is given (the XML adapters also need its `getText`, which the
 crawler's `HttpClient` has); `fullBoardListing` is true for all five: one answer is the whole board, and the paged

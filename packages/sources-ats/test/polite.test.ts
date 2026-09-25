@@ -87,3 +87,26 @@ test('boards on one host are paced 1 s apart; boards on their own sub-domains ar
     await s.close(); store.close(); t.done();
   }
 });
+
+test('robots.txt on an ATS host: a disallowed board gets no request, and a 3 s crawl delay is kept (O7)', async () => {
+  const t = tmp();
+  const dir = join(t.dir, 's');
+  mkdirSync(join(dir, 'workable'), { recursive: true });
+  writeFileSync(join(dir, 'workable', 'robots.txt'), 'User-agent: *\nDisallow: /api/v1/widget/accounts/secret-demo\nCrawl-delay: 3\n');
+  for (const b of ['open-demo', 'secret-demo']) writeFileSync(join(dir, 'workable', `${b}.json`), JSON.stringify({ name: b, jobs: [] }));
+  const s = await startStandin(dir);
+  const store = new Store(join(t.dir, 'jobs.db'));
+  try {
+    const http = new HttpClient({ hostMap: s.hostMap, pacer: new Pacer(1000), fetchImpl: politeFetch() });
+    const r = await crawl(s.boards.map(({ ats, board, company }) => ({ ats, board, company })), { store, http, sources: allSources() });
+    const by = Object.fromEntries(r.boards.map((b) => [b.board, b]));
+    assert.equal(by['open-demo'].status, 'ok');
+    assert.match(by['secret-demo'].error ?? '', /RobotsError/);
+    assert.ok(!s.requests.some((q) => q.path.includes('secret-demo')), 'the disallowed path was requested');
+    const times = s.requests.map((q) => Date.parse(q.at));
+    assert.equal(times.length, 2); // robots.txt and the open board
+    assert.ok(times[1] - times[0] >= 2990, `gap ${times[1] - times[0]} ms`);
+  } finally {
+    await s.close(); store.close(); t.done();
+  }
+});
