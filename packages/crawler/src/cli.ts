@@ -164,7 +164,7 @@ async function cmdRun(args: Record<string, string>): Promise<number> {
     console.log(`jobleft-crawl run: ${boards.length} board(s), database ${store.path}, clock ${iso(clock())}, identity "${cfg.userAgent}"`);
     const out = await runOnce(
       { store, config: cfg, hostMap, clock, onBoard: (r) => console.log(lineFor(r)) },
-      { reason: everRan ? 'manual' : 'first_run', boards, force: args.force === 'true', signal: ac.signal },
+      { reason: everRan ? 'manual' : 'first_run', boards, force: args.force === 'true', retryFailing: args.due !== 'true', signal: ac.signal },
     );
     if (!out) { console.log('nothing to crawl'); return 0; }
     const r = out.run;
@@ -588,7 +588,8 @@ const HELP = `jobleft-crawl <command> [--flags]
 
   run       --boards <file> [--db <file>] [--force] [--due] [--fresh] [--out <file>]
             Crawl the listed boards now. A run that was cut short is finished first (only its unfinished boards).
-            --force tries boards that are in back-off; --due crawls only boards whose time has come.
+            A board that failed before is asked once, without retries. A board whose host refused access (403/429) waits
+            out its back-off unless --force. --due crawls only boards whose time has come (the scheduler's rule).
   status    [--db <file>] [--boards <file>] [--json] [--run <id>]
             Crawl progress, the last run, and each board: state, open jobs, last and next check, the problem in words.
   jobs      [--db <file>] [--status open|closed|all] [--q <words>] [--board <ats:board>] [--id <job id>]

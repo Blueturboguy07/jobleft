@@ -109,8 +109,13 @@ export interface CrawlOptions {
   maxJobsPerBoard?: number;
   /** One board may not take longer than this (real time). Default 300 s. */
   boardDeadlineMs?: number;
-  /** Try boards that are in back-off after failures (never skips robots.txt, pacing or a host's own wait). */
+  /** Try boards that are in back-off, even after a 403/429 (never skips robots.txt, pacing or a host's own wait). */
   force?: boolean;
+  /**
+   * Try boards that are in back-off after failures (not after a refusal: 403/429). A board that failed before is asked
+   * once, without retries. Manual runs use this; scheduled runs do not.
+   */
+  retryFailing?: boolean;
   /** Record each board in this run (crawler_run_boards), in the same transaction as its jobs. */
   runs?: Runs;
   runId?: number | null;
@@ -289,8 +294,10 @@ export async function crawl(input: BoardRef[], opts: CrawlOptions): Promise<RunR
         store.transaction(() => finish(r, b, nowIsoAt()));
         return settle(r);
       }
-      if (!opts.force && store.isCooledDown(b.ats, b.board, nowMs())) {
-        const row = store.getBoard(b.ats, b.board);
+      const cooledRow = store.isCooledDown(b.ats, b.board, nowMs()) ? store.getBoard(b.ats, b.board) : undefined;
+      const refused = cooledRow?.last_status === 'blocked';
+      if (cooledRow && !opts.force && !(opts.retryFailing && !refused)) {
+        const row = cooledRow;
         r.status = 'cooled'; r.reasonCode = 'cooldown'; r.error = 'board is in cooldown';
         r.reason = `in back-off after ${row?.consecutive_failures ?? 0} failed checks in a row, until ${row?.cooldown_until ?? '?'}; last failure: ${row?.last_error ?? 'unknown'}`;
         store.transaction(() => finish(r, b, nowIsoAt()));

@@ -143,8 +143,10 @@ export interface RunDeps {
 export interface RunOptions {
   reason: RunReason;
   boards: BoardRef[];
-  /** Try boards that are in back-off after failures. */
+  /** Try boards that are in back-off, even after a refusal (403/429). */
   force?: boolean;
+  /** Try boards in back-off after failures (not after a refusal), once and without retries. Manual runs. */
+  retryFailing?: boolean;
   signal?: AbortSignal;
   note?: string | null;
   /** Resume an interrupted run first (default true). */
@@ -210,6 +212,7 @@ export async function runOnce(deps: RunDeps, opts: RunOptions): Promise<RunOutco
       maxJobsPerBoard: config.maxJobsPerBoard,
       boardDeadlineMs: config.boardDeadlineSeconds * 1000,
       force: opts.force,
+      retryFailing: opts.retryFailing,
       runs, runId,
       signal: opts.signal,
       onBoard: deps.onBoard,
@@ -352,7 +355,7 @@ export class Scheduler {
           if (this.manual) {
             const list = this.manual.length ? this.manual : boards;
             this.manual = null;
-            await this.cycle('manual', list, true);
+            await this.cycle('manual', list);
             continue;
           }
           const plan = planDue(this.deps.store, boards, now, this.settings, (b) => this.waitLeft(b));
@@ -390,10 +393,10 @@ export class Scheduler {
     return this.probe.waitLeft(this.probe.hostKey(real, b.origin ?? null));
   }
 
-  private async cycle(reason: RunReason, boards: BoardRef[], force = false): Promise<void> {
+  private async cycle(reason: RunReason, boards: BoardRef[]): Promise<void> {
     this.busy = true;
     try {
-      const out = await runOnce(this.deps, { reason, boards, force, signal: this.ac.signal });
+      const out = await runOnce(this.deps, { reason, boards, retryFailing: reason === 'manual', signal: this.ac.signal });
       if (out) {
         const r = out.run;
         this.log(`run #${out.runId} (${out.resumed ? 'resumed' : reason}) ${r.state}: ${r.boards_done}/${r.boards_total} boards, ${r.ok} ok, ${r.failed} failed, ` +

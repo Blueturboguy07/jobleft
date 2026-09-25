@@ -214,7 +214,7 @@ export async function startMockBoards(opts: MockServerOptions = {}): Promise<Moc
     }
     const body = JSON.stringify(bodyFor(b, origin, rt.token));
     const tag = `"${createHash('sha256').update(body).digest('hex').slice(0, 16)}"`;
-    if ((b.etag ?? true) && req.headers['if-none-match'] === tag) {
+    if ((b.etag ?? true) && mode === 'ok' && req.headers['if-none-match'] === tag) {
       log(304); res.writeHead(304, { etag: tag }); res.end(); return;
     }
     const headers: Record<string, string> = { 'content-type': 'application/json' };
