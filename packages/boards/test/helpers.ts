@@ -20,6 +20,8 @@ export interface Rig {
 
 export async function rig(config: MockConfig, opts: {
   directory?: DirectoryRow[]; intervalMs?: number; offline?: boolean; paid?: PaidPageFetcher | null; timeoutMs?: number;
+  /** Replaces the network call under every client (to make the network fail on purpose). */
+  fetchImpl?: typeof fetch;
 } = {}): Promise<Rig> {
   const mock = await startMockHosts(config);
   const dir = mkdtempSync(join('/private/tmp', 'jl-boards-test-'));
@@ -27,7 +29,7 @@ export async function rig(config: MockConfig, opts: {
   const pacer = new BusyPacer(opts.intervalMs ?? 0);
   const clock = { now: Date.parse('2026-09-25T12:00:00Z') };
   const sent: string[] = [];
-  const newHttp = () => createBoardHttp({ pacer, hostMap: mock.hostMap, timeoutMs: opts.timeoutMs ?? 1500, retries: 1, retryDelayMs: 10, offline: () => !!opts.offline, onRequest: (i) => sent.push(i.url) });
+  const newHttp = () => createBoardHttp({ pacer, hostMap: mock.hostMap, ...(opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {}), timeoutMs: opts.timeoutMs ?? 1500, retries: 1, retryDelayMs: 10, offline: () => !!opts.offline, onRequest: (i) => sent.push(i.url) });
   const http = newHttp();
   const sources = boardSources(SOURCES);
   const service = new BoardService({

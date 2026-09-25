@@ -62,6 +62,9 @@ export function outcomeOf(r: BoardResult): { outcome: CheckOutcome | null; statu
   else if (name === 'DeniedHostError' || name === 'ForbiddenHostError') { failure = 'forbidden'; status = 'forbidden'; message = 'The host is on the never-crawl list; nothing was sent.'; }
   else if (name === 'HostBusyError') { failure = 'busy'; status = 'blocked'; message = 'The host asked jobleft to wait before asking again.'; }
   else if (name === 'OfflineError') { return { outcome: null, status: 'failed', reason: 'jobleft is offline; nothing was sent.' }; }
+  // The client refused to ask (its host refused jobleft twice in a row earlier in this run): this board was not asked,
+  // so no check is counted against it. Boards of a mapped host reach here as an error instead of 'host-skipped'.
+  else if (name === 'HostTrippedError') return { outcome: null, status: 'host_skipped', reason: 'The host refused jobleft earlier in this run, so jobleft did not ask this board. It is not counted as failing; the next refresh asks it again.' };
   else if (name === 'HttpError') {
     if (/invalid JSON/i.test(err)) { failure = 'bad_reply'; message = 'The board sent a reply that is not job data.'; }
     else if (/too large/i.test(err)) { failure = 'bad_reply'; message = 'The reply was too large to read.'; }
@@ -70,7 +73,7 @@ export function outcomeOf(r: BoardResult): { outcome: CheckOutcome | null; statu
   } else if (/timeout|aborted/i.test(err)) { failure = 'timeout'; message = 'The board did not answer in time.'; }
   else if (/fetch failed|ECONN|ENOTFOUND|EAI_AGAIN|socket/i.test(err)) { failure = 'network'; message = 'The connection to the board failed.'; }
   else if (/BudgetError/.test(name)) return { outcome: null, status: 'failed', reason: 'The request budget for this run ran out; the board waits for the next run.' };
-  else { const c = classifyError(new Error(err)); failure = c.failure; message = err.slice(0, 200) || c.message; }
+  else { const c = classifyError(new Error(err)); failure = c.failure; message = c.message; }
   return { outcome: { ok: false, failure, message }, status, reason: message };
 }
 

@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { outcomeOf } from '../src/index.ts';
 import { rig, row } from './helpers.ts';
 
 const DAY = 86_400_000;
@@ -156,4 +157,52 @@ test('network trouble: an unreachable host leaves boards "not checked yet"; a ho
       assert.ok(e.lastError);
     }
   } finally { await r2.close(); }
+});
+
+test('boards skipped after their host tripped are not asked, not counted as failing, and shown in plain words', async () => {
+  const boards: Record<string, { name: string; jobs: number; script?: string[] }> = {};
+  boards['greenhouse:s1'] = { name: 'S1', jobs: 20, script: ['ok', '403'] };
+  boards['greenhouse:s2'] = { name: 'S2', jobs: 20, script: ['ok', '429:0'] };
+  for (let i = 3; i <= 7; i++) boards[`greenhouse:s${i}`] = { name: `S${i}`, jobs: 20 };
+  const directory = Object.keys(boards).map((k) => row('greenhouse', k.split(':')[1]!, boards[k]!.name));
+  const r = await rig({ boards }, { directory });
+  try {
+    await r.scheduler.runOnce();
+    for (const e of r.service.list({}).items) assert.equal(e.state, 'live', e.id);
+    await r.scheduler.runOnce(); // s1 answers 403, s2 answers 429: the host trips for the rest of this run
+    const rep = r.scheduler.lastReport().boards;
+    const skipped = rep.filter((b) => b.status === 'host_skipped');
+    assert.equal(skipped.length, 5, 'the five boards that were never asked');
+    for (const b of skipped) {
+      assert.doesNotMatch(b.reason ?? '', /HostTrippedError|Error:|tripped/, 'plain words');
+      assert.equal(r.mock.listRequests(b.boardId).length, 1, `${b.boardId} got no request in the second refresh`);
+    }
+    for (let i = 3; i <= 7; i++) {
+      const e = r.service.get(`greenhouse:s${i}`)!;
+      assert.equal(e.state, 'live', `s${i} was not asked, so it is still live`);
+      assert.equal(e.lastError, null);
+    }
+    // More refreshes, days apart: boards that were never asked never pile up failures or reach "unreachable".
+    for (const days of [2, 5, 10]) {
+      r.clock.now += days * DAY;
+      await r.scheduler.runOnce();
+      for (let i = 3; i <= 7; i++) {
+        const e = r.service.get(`greenhouse:s${i}`)!;
+        assert.ok(e.state === 'live' || e.state === 'not_checked', `s${i} after +${days} days: ${e.state} ${e.lastError ?? ''}`);
+        assert.doesNotMatch(e.lastError ?? '', /HostTrippedError|tripped/);
+      }
+    }
+    assert.equal(r.store.count("ats = 'greenhouse' AND closed_at IS NULL"), 7 * 20, 'no job closed');
+  } finally { await r.close(); }
+});
+
+test('outcomeOf: a board the client refused to ask is no check at all', () => {
+  const base = { ats: 'greenhouse', board: 'x', company: 'X', listed: 0, requests: 0 } as never;
+  const o = outcomeOf({ ...(base as object), status: 'failed', error: 'HostTrippedError: host 127.0.0.1:1 tripped after repeated 403/429; skipped for the rest of the run' } as never);
+  assert.equal(o.outcome, null);
+  assert.equal(o.status, 'host_skipped');
+  assert.doesNotMatch(o.reason ?? '', /Error|tripped/);
+  // An error nobody planned for still shows plain words, never the raw error name.
+  const u = outcomeOf({ ...(base as object), status: 'failed', error: 'SomethingOdd: internal detail 0xdead' } as never);
+  assert.doesNotMatch(u.reason ?? '', /SomethingOdd|0xdead/);
 });

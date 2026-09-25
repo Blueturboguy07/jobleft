@@ -156,6 +156,9 @@ jb jobs greenhouse:acme --all  # the jobs a board's refreshes stored; closed one
 - Network trouble is not held against a board: when a host cannot be reached at all (its robots.txt does not load),
   its boards are not counted as checked; when every board of one host fails in the same refresh, they show a warning
   but are never marked unreachable for it.
+- A board that was not asked is not a failed board. When a host refuses jobleft twice in a row (`403` or `429`) the
+  rest of its boards are skipped for that run. The report shows them as `host_skipped` with a plain reason, and their
+  health, failure count and next check date do not change, so they cannot slide to `unreachable`.
 - A failed, "not found", empty or broken answer never closes the board's jobs (the crawler closes a job only after a
   refresh that read the whole board has not listed it for 24 hours). An empty answer from a board that had jobs shows
   a warning, not "live, 0 jobs".
@@ -178,7 +181,12 @@ jb pending --retry                                                  # try the ke
 ```
 
 `JOBLEFT_OFFLINE=1` sends no request at all. A link that failed because the network or the site did not answer is
-also kept in the pending list.
+also kept in the pending list. This holds for a provider board link (Greenhouse, Lever, Ashby and the others) as
+well as for a careers page: when the provider host cannot be reached at all (network down, name lookup failed,
+connection refused, time-out), `jb resolve` says reason `offline` with the plain cause (for example "The site
+refused the connection."), offers no board, adds nothing and keeps the link. It never says `blocked_by_robots` for
+that: only a robots.txt that was read and says no gives that reason. The next paste of the link after the network
+is back works at once, and the kept link is removed.
 
 ### Paid lookup: never without your consent (O13)
 

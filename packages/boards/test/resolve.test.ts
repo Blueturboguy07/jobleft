@@ -131,6 +131,52 @@ test('offline: no request, the link is kept as pending', async () => {
   } finally { await r.close(); }
 });
 
+test('a real network failure on a provider link says offline, keeps the link, adds nothing (never "robots.txt")', async () => {
+  // Every connect fails the way a dead network fails. The crawler reads an unreachable robots.txt as "disallow all";
+  // that must not reach the person as a robots.txt block.
+  for (const code of ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ENETUNREACH', 'ETIMEDOUT']) {
+    const fetchImpl = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(code), { code }) }); }) as typeof fetch;
+    const r = await rig(CONFIG, { fetchImpl });
+    try {
+      const links = ['https://boards.greenhouse.io/acme', 'https://jobs.lever.co/beta', 'https://jobs.ashbyhq.com/gamma'];
+      for (const link of links) {
+        const a = await r.service.resolve(link);
+        assert.equal(a.candidates.length, 0, `${code} ${link}: nothing offered`);
+        assert.equal(a.reason, 'offline', `${code} ${link}: ${a.message}`);
+        assert.doesNotMatch(a.message, /robots/i, `${code} ${link}`);
+        assert.match(a.message, /pending links/, `${code} ${link}`);
+      }
+      assert.deepEqual(r.service.listPending().map((p) => p.url).sort(), links.sort(), `${code}: every link is kept`);
+      assert.equal(r.service.list({}).total, 0, 'nothing was added');
+    } finally { await r.close(); }
+  }
+});
+
+test('a robots.txt that says no is still a robots block; a link kept while the network was down clears when it works again', async () => {
+  const r = await rig({ ...CONFIG, robots: { 'boards-api.greenhouse.io': 'User-agent: *\nDisallow: /' } });
+  try {
+    const a = await r.service.resolve('https://boards.greenhouse.io/acme');
+    assert.equal(a.reason, 'blocked_by_robots');
+    assert.deepEqual(r.service.listPending(), []);
+  } finally { await r.close(); }
+  // The network is down for the first attempts only; the shared client must not stay stuck on "robots.txt unreadable".
+  let failing = true;
+  const fetchImpl = ((input: string | URL | Request, init?: RequestInit) => failing
+    ? Promise.reject(Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('x'), { code: 'ENOTFOUND' }) }))
+    : fetch(input, init)) as typeof fetch;
+  const r2 = await rig(CONFIG, { fetchImpl });
+  try {
+    const down = await r2.service.resolve('https://boards.greenhouse.io/acme');
+    assert.equal(down.reason, 'offline');
+    assert.equal(r2.service.listPending().length, 1);
+    failing = false;
+    const up = await r2.service.resolve('https://boards.greenhouse.io/acme');
+    assert.equal(up.candidates.length, 1, up.message);
+    assert.equal(up.candidates[0]!.openJobs, 4);
+    assert.deepEqual(r2.service.listPending(), [], 'the kept link is cleared once the link works');
+  } finally { await r2.close(); }
+});
+
 test('paid lookup: offered with a dollar price, never used unless accepted, used once when accepted', async () => {
   let calls = 0;
   const paid: PaidPageFetcher = {
