@@ -250,7 +250,7 @@ node packages/static-data/src/cli.ts build-h1b --lca /private/tmp/lca/LCA_Disclo
 node packages/static-data/src/cli.ts build-places --src /private/tmp/jl-place-src
 ```
 
-Expected: `h1b-lca.json.gz` sha256 `69255ecb...` and `places.json.gz` sha256 `22e58704...` (full values in
+Expected: `h1b-lca.json.gz` sha256 `69255ecb...` and `places.json.gz` sha256 `257d54c5...` (full values in
 `dist/datasets.json`). The H-1B build report lists, per file, the rows, the certified H-1B rows and every status count
 (for example FY2026 Q3: 437,496 rows, 392,175 certified H-1B), and the total of 931,619 certified H-1B filings in
 94,974 filer entities.

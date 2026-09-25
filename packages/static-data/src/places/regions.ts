@@ -32,7 +32,7 @@ export const CA_PROVINCES: ReadonlyArray<readonly [code: string, name: string]> 
 /** Extra country names and codes people write, beyond the names in the place data. Keys are normalized text. */
 export const COUNTRY_ALIASES: Readonly<Record<string, string>> = {
   us: 'US', usa: 'US', 'u s': 'US', 'u s a': 'US', 'united states': 'US', 'united states of america': 'US', america: 'US',
-  uk: 'GB', 'u k': 'GB', 'united kingdom': 'GB', 'great britain': 'GB', britain: 'GB', gb: 'GB',
+  uk: 'GB', 'u k': 'GB', 'united kingdom': 'GB', 'great britain': 'GB', britain: 'GB', gb: 'GB', england: 'GB', scotland: 'GB', wales: 'GB', 'northern ireland': 'GB',
   uae: 'AE', 'united arab emirates': 'AE', 'south korea': 'KR', korea: 'KR', 'republic of korea': 'KR',
   'north korea': 'KP', czechia: 'CZ', 'czech republic': 'CZ', holland: 'NL', netherlands: 'NL', 'the netherlands': 'NL',
   russia: 'RU', 'russian federation': 'RU', vietnam: 'VN', 'viet nam': 'VN', taiwan: 'TW', 'hong kong': 'HK',

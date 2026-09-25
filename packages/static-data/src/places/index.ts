@@ -138,16 +138,44 @@ function milesBetween(aLat: number, aLon: number, bLat: number, bLon: number): n
 // ---------------------------------------------------------------------------------------------------------------
 // Parsing
 
-const REMOTE_RE = /\b(remote(?:ly)?|work from home|wfh|telecommut\w*|distributed|virtual|anywhere|home[- ]based)\b/i;
+const REMOTE_RE = /\b(remote(?:ly)?|work from home|wfh|telecommut\w*|distributed|virtual|anywhere|home[- ]based|worldwide)\b/i;
 const HYBRID_RE = /\bhybrid\b/i;
 const ONSITE_RE = /\b(on[- ]?site|in[- ]office|in[- ]person)\b/i;
 const FILLER_RE = /\b(remote(?:ly)?|work from home|wfh|telecommut\w*|distributed|virtual|anywhere|home[- ]based|hybrid|on[- ]?site|in[- ]office|in[- ]person|friendly|first|only|based|eligible|option(?:al)?|within|in the|in|the|from|of|position|role|work)\b/gi;
 
 interface Parsed { places: Place[]; ambiguous: Place[]; notACity: boolean; workModel: WorkModel | null; remoteRegions: string[] | null; unresolved: string | null }
 
+/** Splits "A; B | C / D or E" into places, but never inside parentheses ("Remote (US or Canada)" stays whole). */
 function splitParts(text: string): string[] {
-  return text.split(/\s*(?:;|\||\n|•|·|\s\/\s)\s*|\s+or\s+/).map((s) => s.trim()).filter((s) => s.length > 0);
+  const out: string[] = [];
+  let depth = 0;
+  let cur = '';
+  const seps = [/^\s*;\s*/, /^\s*\|\s*/, /^\n/, /^\s*[•·]\s*/, /^\s\/\s/, /^\s+or\s+/];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (ch === '(' || ch === '[') depth += 1;
+    if ((ch === ')' || ch === ']') && depth > 0) depth -= 1;
+    if (depth === 0) {
+      const rest = text.slice(i);
+      const m = seps.map((re) => re.exec(rest)).find((x) => x !== null);
+      if (m) { out.push(cur); cur = ''; i += m[0].length - 1; continue; }
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map((s) => s.trim()).filter((s) => s.length > 0);
 }
+
+/** Remote scopes named by words, in the contract's codes. */
+const SCOPE_WORDS: ReadonlyArray<readonly [RegExp, string[]]> = [
+  [/\b(worldwide|global(ly)?|anywhere in the world|international)\b/i, ['WORLDWIDE']],
+  [/\bemea\b/i, ['EMEA']],
+  [/\b(apac|asia[- ]pacific)\b/i, ['APAC']],
+  [/\b(latam|latin america|south america)\b/i, ['LATAM']],
+  [/\bnorth america\b/i, ['NA']],
+  [/\bamericas\b/i, ['NA', 'LATAM']],
+  [/\b(europe|european union|eu)\b/i, ['EU']],
+];
 
 export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
   let stamp = '';
@@ -260,8 +288,29 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
       rest = rest.replace(/\(([^)]*)\)/g, ', $1').replace(FILLER_RE, ' ').replace(/\s*[-–—:]\s*/g, ', ');
     }
     rest = rest.replace(/\b\d{5}(?:-\d{4})?\b/g, ' ').replace(/[()]/g, ' ');
-    const tokens = rest.split(',').map((s) => s.trim()).filter((s) => normPlace(s).length > 0);
     const out: Parsed = { places: [], ambiguous: [], notACity: false, workModel, remoteRegions: null, unresolved: null };
+    // Remote scopes named by words ("Remote - Americas", "Remote (EMEA)", "Worldwide").
+    if (workModel === 'remote') {
+      const scopes: string[] = [];
+      for (const [re, codes] of SCOPE_WORDS) if (re.test(rest)) { scopes.push(...codes); rest = rest.replace(re, ' '); }
+      if (scopes.length > 0 && normPlace(rest.replace(/[,/]/g, ' ')) === '') {
+        out.notACity = true;
+        out.remoteRegions = [...new Set(scopes)];
+        return out;
+      }
+      // "Remote (US or Canada)", "Remote: US/Canada": every chunk a country or a US state.
+      const chunks = rest.split(/\s*(?:,|\/|\bor\b|\band\b|&)\s*/i).map((c) => c.trim()).filter((c) => normPlace(c) !== '');
+      if (chunks.length >= 2) {
+        const ccs = chunks.map((c) => countryOf(p, c, c));
+        if (ccs.every((c) => c !== null)) {
+          for (const cc of [...new Set(ccs as string[])]) out.places.push(countryPlace(cc, text));
+          out.notACity = true;
+          out.remoteRegions = [...new Set([...(ccs as string[]), ...scopes])];
+          return out;
+        }
+      }
+    }
+    const tokens = rest.split(',').map((s) => s.trim()).filter((s) => normPlace(s).length > 0);
     if (tokens.length === 0) {
       out.notACity = true;
       if (workModel === 'remote') out.remoteRegions = [];
@@ -330,6 +379,12 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
     for (const it of withCity) {
       const cityNorm = stripArea(it.cityTokens[0]!);
       let idx = p.byName.get(cityNorm) ?? [];
+      if (idx.length === 0) {
+        // A reviewed short or old name used with a state or country ("Bangalore, India").
+        const aid = p.aliases.get(cityNorm);
+        const row = aid !== undefined ? p.s.indexOf(aid) : undefined;
+        if (row !== undefined) idx = [row];
+      }
       if (idx.length === 0 && it.cityTokens.length === 1 && !it.cc && !it.region) {
         // A single token that is only a region or country ("Texas", "Georgia", "Canada").
         const reg = regionOf(p, 'US', it.cityTokens[0]!) ?? regionOf(p, 'CA', it.cityTokens[0]!);

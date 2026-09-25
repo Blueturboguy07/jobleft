@@ -29,6 +29,8 @@
     { "text": "Madras", "city": "Chennai", "region": null, "country": "IN" },
     { "text": "Calcutta", "city": "Kolkata", "region": null, "country": "IN" },
     { "text": "Kiev", "city": "Kyiv", "region": null, "country": "UA" },
-    { "text": "Tel Aviv-Yafo", "city": "Tel Aviv", "region": null, "country": "IL" }
+    { "text": "Tel Aviv-Yafo", "city": "Tel Aviv", "region": null, "country": "IL" },
+    { "text": "Ciudad de Mexico", "city": "Mexico City", "region": null, "country": "MX" },
+    { "text": "CDMX", "city": "Mexico City", "region": null, "country": "MX" }
   ]
 }
