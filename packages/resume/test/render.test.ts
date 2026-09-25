@@ -103,11 +103,22 @@ test('export then re-import gives back the same profile facts (PDF and Word)', a
   }
 });
 
-test('characters the PDF fonts cannot show are refused with a message, never replaced', () => {
+test('letters outside the standard fonts are kept: an embedded font when the computer has one, else a clear refusal', async () => {
+  const { systemFonts } = await import('../src/render/truetype.ts');
   const p = jordanProfile();
   p.personal.firstName = 'Łukasz';
+  p.personal.lastName = 'Nguyễn-Dvořák';
+  const doc = documentFromProfile(p);
+  if (systemFonts()) {
+    const r = renderResumePdf(doc);
+    const back = await importInProcess(r.bytes, 'x.pdf', 'application/pdf');
+    assert.equal(back.proposedProfile.personal.firstName, 'Łukasz');
+    assert.equal(back.proposedProfile.personal.lastName, 'Nguyễn-Dvořák');
+    assert.equal((await readPdf(r.bytes)).pages.length, 1);
+  }
+  p.personal.firstName = '田中';
   assert.throws(() => renderResumePdf(documentFromProfile(p)), /cannot show these characters/);
-  assert.ok(renderResumeDocx(documentFromProfile(p)).bytes.byteLength > 0);
+  assert.ok(renderResumeDocx(documentFromProfile(p)).bytes.byteLength > 0, 'the Word file keeps every character');
 });
 
 test('a cover letter PDF is one page; a letter that is too long is refused, not cut', async () => {

@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto';
 import { deflateSync } from 'node:zlib';
 import { HELVETICA_BOLD_WIDTHS, HELVETICA_WIDTHS } from './helvetica-metrics.ts';
+import { systemFonts, truetypeObjects, type TtFont } from './truetype.ts';
 
 export type FontName = 'regular' | 'bold' | 'italic';
 
@@ -40,14 +41,44 @@ export function winAnsiByte(ch: string): number | null {
   return WIN_ANSI_HIGH.get(cp) ?? null;
 }
 
-/** Characters in `text` the standard fonts cannot show (so the caller can say so instead of dropping them). */
+/** Characters in `text` the standard fonts cannot show (so the caller can embed a font or say so). */
 export function unsupportedChars(text: string): string[] {
   const bad = new Set<string>();
   for (const ch of text.normalize('NFC')) if (ch !== '\n' && ch !== '\t' && winAnsiByte(ch) === null) bad.add(ch);
   return [...bad];
 }
 
+// ------------------------------------------------------------------------------------------------ font choice
+
+type Mode = { kind: 'standard' } | { kind: 'truetype'; regular: TtFont; bold: TtFont };
+let mode: Mode = { kind: 'standard' };
+
+/**
+ * Picks the fonts for a text: the standard Helvetica fonts when they can show every character, otherwise a TrueType
+ * font from this computer. Returns the characters no available font can show (then nothing is printed).
+ */
+export function chooseFonts(text: string): { ok: true; embedded: boolean } | { ok: false; missing: string[] } {
+  const bad = unsupportedChars(text);
+  if (!bad.length) { mode = { kind: 'standard' }; return { ok: true, embedded: false }; }
+  const fonts = systemFonts();
+  if (!fonts) { mode = { kind: 'standard' }; return { ok: false, missing: bad }; }
+  const missing = [...new Set([...text.normalize('NFC')].filter((ch) => ch !== '\n' && ch !== '\t' && ch !== ' ' && (fonts.regular.glyph(ch.codePointAt(0)!) === 0 || fonts.bold.glyph(ch.codePointAt(0)!) === 0)))];
+  if (missing.length) { mode = { kind: 'standard' }; return { ok: false, missing }; }
+  mode = { kind: 'truetype', regular: fonts.regular, bold: fonts.bold };
+  return { ok: true, embedded: true };
+}
+
+export function resetFonts(): void {
+  mode = { kind: 'standard' };
+}
+
 export function textWidth(text: string, font: FontName, size: number): number {
+  if (mode.kind === 'truetype') {
+    const f = font === 'bold' ? mode.bold : mode.regular;
+    let w = 0;
+    for (const ch of text) w += f.advance(f.glyph(ch.codePointAt(0)!));
+    return (w * size) / f.unitsPerEm;
+  }
   const table = font === 'bold' ? HELVETICA_BOLD_WIDTHS : HELVETICA_WIDTHS;
   let w = 0;
   for (const ch of text) {
@@ -67,6 +98,17 @@ function hexString(text: string): string {
   return out + '>';
 }
 
+function glyphString(text: string, f: TtFont, used: Map<number, number>): string {
+  let out = '<';
+  for (const ch of text.normalize('NFC')) {
+    const cp = ch.codePointAt(0)!;
+    const g = f.glyph(cp);
+    if (!used.has(g)) used.set(g, cp);
+    out += g.toString(16).padStart(4, '0');
+  }
+  return out + '>';
+}
+
 function num(n: number): string {
   const r = Math.round(n * 100) / 100;
   return Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
@@ -80,37 +122,50 @@ function pdfString(s: string): string {
 const FONT_RES: Record<FontName, string> = { regular: 'F1', bold: 'F2', italic: 'F3' };
 
 export function writePdf(pages: PdfPage[], meta: { title: string; subject?: string }): Uint8Array {
-  const objects: Buffer[] = [];
-  const add = (body: string | Buffer): number => {
-    objects.push(Buffer.isBuffer(body) ? body : Buffer.from(body, 'latin1'));
-    return objects.length;
-  };
-  // Fixed object numbers: 1 catalog, 2 pages, 3-5 fonts, 6 info, then page + content pairs.
-  const catalog = 1;
-  const pagesObj = 2;
-  objects.length = 6;
-  const pageRefs: number[] = [];
-  for (const page of pages) {
+  const tt = mode.kind === 'truetype' ? mode : null;
+  const usedRegular = new Map<number, number>();
+  const usedBold = new Map<number, number>();
+  // 1. Content streams (this records which glyphs are used).
+  const contents: Buffer[] = pages.map((page) => {
     let content = '';
     for (const r of page.rules) content += `${num(r.width)} w 0 G ${num(r.x1)} ${num(r.y1)} m ${num(r.x2)} ${num(r.y2)} l S\n`;
     content += '0 g\n';
     for (const run of page.runs) {
       if (!run.text) continue;
-      content += `BT /${FONT_RES[run.font]} ${num(run.size)} Tf ${num(run.x)} ${num(run.y)} Td ${hexString(run.text)} Tj ET\n`;
+      const str = tt ? glyphString(run.text, run.font === 'bold' ? tt.bold : tt.regular, run.font === 'bold' ? usedBold : usedRegular) : hexString(run.text);
+      content += `BT /${FONT_RES[run.font]} ${num(run.size)} Tf ${num(run.x)} ${num(run.y)} Td ${str} Tj ET\n`;
     }
     const stream = deflateSync(Buffer.from(content, 'latin1'), { level: 9 });
-    const contentObj = add(Buffer.concat([
-      Buffer.from(`<< /Length ${stream.length} /Filter /FlateDecode >>\nstream\n`, 'latin1'), stream, Buffer.from('\nendstream', 'latin1'),
-    ]));
-    const pageObj = add(`<< /Type /Page /Parent ${pagesObj} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents ${contentObj} 0 R >>`);
-    pageRefs.push(pageObj);
+    return Buffer.concat([Buffer.from(`<< /Length ${stream.length} /Filter /FlateDecode >>\nstream\n`, 'latin1'), stream, Buffer.from('\nendstream', 'latin1')]);
+  });
+  // 2. Objects: 1 catalog, 2 pages, then fonts, then the info dictionary, then page and content pairs.
+  const objects: Buffer[] = [Buffer.alloc(0), Buffer.alloc(0)];
+  const fontRef: Record<FontName, number> = { regular: 0, bold: 0, italic: 0 };
+  if (tt) {
+    const reg = truetypeObjects(tt.regular, usedRegular.size ? usedRegular : new Map([[0, 32]]), objects.length + 1);
+    objects.push(...reg.objs);
+    fontRef.regular = reg.ref;
+    fontRef.italic = reg.ref;
+    const bold = truetypeObjects(tt.bold, usedBold.size ? usedBold : new Map([[0, 32]]), objects.length + 1);
+    objects.push(...bold.objs);
+    fontRef.bold = bold.ref;
+  } else {
+    for (const [k, base] of [['regular', 'Helvetica'], ['bold', 'Helvetica-Bold'], ['italic', 'Helvetica-Oblique']] as const) {
+      objects.push(Buffer.from(`<< /Type /Font /Subtype /Type1 /BaseFont /${base} /Encoding /WinAnsiEncoding >>`, 'latin1'));
+      fontRef[k] = objects.length;
+    }
   }
-  objects[catalog - 1] = Buffer.from(`<< /Type /Catalog /Pages ${pagesObj} 0 R /Lang (en-US) /ViewerPreferences << /DisplayDocTitle true >> >>`, 'latin1');
-  objects[pagesObj - 1] = Buffer.from(`<< /Type /Pages /Kids [${pageRefs.map((r) => `${r} 0 R`).join(' ')}] /Count ${pageRefs.length} >>`, 'latin1');
-  objects[2] = Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', 'latin1');
-  objects[3] = Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>', 'latin1');
-  objects[4] = Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding >>', 'latin1');
-  objects[5] = Buffer.from(`<< /Title ${pdfString(meta.title)} /Producer (jobleft)${meta.subject ? ` /Subject ${pdfString(meta.subject)}` : ''} >>`, 'latin1');
+  objects.push(Buffer.from(`<< /Title ${pdfString(meta.title)} /Producer (jobleft)${meta.subject ? ` /Subject ${pdfString(meta.subject)}` : ''} >>`, 'latin1'));
+  const info = objects.length;
+  const pageRefs: number[] = [];
+  for (const c of contents) {
+    objects.push(c);
+    const contentObj = objects.length;
+    objects.push(Buffer.from(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${fontRef.regular} 0 R /F2 ${fontRef.bold} 0 R /F3 ${fontRef.italic} 0 R >> >> /Contents ${contentObj} 0 R >>`, 'latin1'));
+    pageRefs.push(objects.length);
+  }
+  objects[0] = Buffer.from('<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /ViewerPreferences << /DisplayDocTitle true >> >>', 'latin1');
+  objects[1] = Buffer.from(`<< /Type /Pages /Kids [${pageRefs.map((r) => `${r} 0 R`).join(' ')}] /Count ${pageRefs.length} >>`, 'latin1');
 
   const parts: Buffer[] = [Buffer.from('%PDF-1.4\n%\xe2\xe3\xcf\xd3\n', 'latin1')];
   const offsets: number[] = [];
@@ -125,7 +180,7 @@ export function writePdf(pages: PdfPage[], meta: { title: string; subject?: stri
   const id = createHash('md5').update(Buffer.concat(parts)).digest('hex');
   let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
   for (const o of offsets) xref += `${String(o).padStart(10, '0')} 00000 n \n`;
-  xref += `trailer\n<< /Size ${objects.length + 1} /Root ${catalog} 0 R /Info 6 0 R /ID [<${id}> <${id}>] >>\nstartxref\n${pos}\n%%EOF\n`;
+  xref += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Info ${info} 0 R /ID [<${id}> <${id}>] >>\nstartxref\n${pos}\n%%EOF\n`;
   parts.push(Buffer.from(xref, 'latin1'));
   return new Uint8Array(Buffer.concat(parts));
 }
