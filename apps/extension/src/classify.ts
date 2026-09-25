@@ -213,6 +213,9 @@ export function classify(f: FormField): Classification {
   if (/\b(gender|sex)\b/.test(S) && !/\bsexual\b/.test(S)) return out('eeo_gender', 'gender');
   if (/\b(disability|disabilities|disabled|handicap|impairment|accommodation|accommodations)\b/.test(S)) return out('eeo_disability', 'disability');
   if (/\b(veteran|veterans|military|armed forces|military service|protected veteran|vevraa|service member|national guard|reserves)\b/.test(S)) return out('eeo_veteran', 'veteran status');
+  // ---------------- consent and opt-ins: never ticked by jobleft
+  if ((f.kind === 'checkbox' || f.kind === 'radio') && anyWords(`${L} ${labelN}`, CONSENT_WORDS)) return out('consent', 'consent or opt-in');
+
   if (anyWords(C, EEO_SECTION_WORDS) && (f.kind === 'select' || f.kind === 'radio' || f.kind === 'checkbox')) {
     return out('eeo_other', 'self-identification section');
   }
@@ -220,9 +223,6 @@ export function classify(f: FormField): Classification {
   // ---------------- another person
   const otherHit = OTHER_PERSON_WORDS.find((w) => hasWords(L, w) || hasWords(C, w) || hasWords(N, w));
   if (otherHit) return out('other_person', 'about another person', { otherWord: otherHit });
-
-  // ---------------- consent and opt-ins: never ticked by jobleft
-  if ((f.kind === 'checkbox' || f.kind === 'radio') && anyWords(`${L} ${labelN}`, CONSENT_WORDS)) return out('consent', 'consent or opt-in');
 
   // ---------------- names
   if (opensAny(L, ['preferred name', 'preferred first name', 'preferred last name', 'nickname', 'nick name', 'chosen name', 'known as', 'goes by', 'preferred full name'])

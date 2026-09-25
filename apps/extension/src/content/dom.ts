@@ -501,15 +501,23 @@ function describe(r: Raw, id: string, headings: Element[]): FormField {
   return field;
 }
 
-/** 0-based repeat of a question inside its section ("School" of the second education block = 1). */
+/**
+ * 0-based repeat of a question inside its section ("School" of the second education block = 1). A section heading
+ * with a number ("Education 2") says the block itself.
+ */
 function assignEntries(found: Found[]): void {
   const count = new Map<string, number>();
   for (const f of found) {
-    const sec = words(f.field.section ?? '').replace(/\b\d+\b/g, '').replace(/\b(first|second|third|additional|another|other)\b/g, '').trim();
-    const key = `${sec}|${words(f.field.label)}|${f.field.kind}`;
+    const secWords = words(f.field.section ?? '');
+    const blocky = /\b(education|school|degree|employment|experience|work|job|position|reference)\b/.test(secWords);
+    const numbered = blocky ? (secWords.match(/\b(\d{1,2})\s*$/) ?? secWords.match(/\b(second|third|fourth)\b/)) : null;
+    const fromHeading = numbered ? (/^\d+$/.test(numbered[1] ?? '') ? Number(numbered[1]) - 1 : ['second', 'third', 'fourth'].indexOf(numbered[1] ?? '') + 1) : 0;
+    const sec = secWords.replace(/\b\d+\b/g, '').replace(/\b(first|second|third|fourth|additional|another|other)\b/g, '').trim();
+    const key = `${sec}|${words(f.field.label)}`;
     const n = count.get(key) ?? 0;
     count.set(key, n + 1);
-    if (n > 0) f.field.entry = Math.min(n, 50);
+    const entry = Math.max(n, fromHeading);
+    if (entry > 0) f.field.entry = Math.min(entry, 50);
   }
 }
 
@@ -535,18 +543,22 @@ function captchaState(doc: Document): 'visible' | 'invisible' | null {
 }
 
 const ATS_FRAME = /greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|myworkdayjobs\.com|myworkdaysite\.com|icims\.com/i;
+const FORMISH = /apply|application|job|career|embed|gh_jid|ashby_jid|form|candidate|recruit/i;
 
-/** Frames from another site that hold an application form this frame cannot reach. */
+/**
+ * Frames from another site that may hold the application form, which jobleft cannot reach from this page:
+ * frames of a known job system, and large visible frames whose address looks like a form.
+ */
 export function blockedFrames(doc: Document): string[] {
   const out: string[] = [];
   for (const f of deepAll(doc, 'iframe') as HTMLIFrameElement[]) {
     let src: URL;
     try { src = new URL(f.src, doc.baseURI); } catch { continue; }
     if (!/^https?:$/.test(src.protocol) || src.origin === doc.location.origin) continue;
+    if (!visibleSelf(f)) continue;
     const r = f.getBoundingClientRect();
-    const big = r.width >= 300 && r.height >= 200 && visibleSelf(f);
-    if (ATS_FRAME.test(src.hostname) && visibleSelf(f)) out.push(src.href);
-    else if (big && /apply|application|job|career/i.test(src.href)) out.push(src.href);
+    const big = r.width >= 300 && r.height >= 200;
+    if (ATS_FRAME.test(src.hostname) || (big && FORMISH.test(src.pathname + src.search))) out.push(src.href);
   }
   return [...new Set(out)].slice(0, 5);
 }

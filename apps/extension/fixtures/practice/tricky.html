@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Operations Analyst (practice page: tricky fields)</title><link rel="stylesheet" href="/practice/_style.css"><script src="/practice/_log.js"></script></head>
+<body>
+<div class="wrap">
+  <h1>Operations Analyst</h1><div class="company">Practice Logistics · a form with a field that clears itself, a list with no match and a late section</div>
+  <form id="app" action="/apply/tricky" method="post">
+    <div class="field"><label for="fn">First name *</label><input id="fn" name="fn" type="text" required></div>
+    <div class="field"><label for="ln">Last name *</label><input id="ln" name="ln" type="text" required></div>
+    <div class="field"><label for="em">Email *</label><input id="em" name="em" type="email" required></div>
+    <div class="field"><label for="ph">Phone *</label><input id="ph" name="ph" type="tel" required></div>
+    <div class="field"><label for="city">City</label><input id="city" name="city" type="text"></div>
+    <div class="field"><label for="country">Country *</label><select id="country" name="country" required><option value="">Choose one</option><option>Canada</option><option>Mexico</option><option>United States Minor Outlying Islands</option></select></div>
+    <div class="field"><label for="degree">Degree</label><select id="degree" name="degree"><option value="">Choose one</option><option>Bachelor of Arts</option><option>Master of Arts</option></select></div>
+    <div class="field"><label for="school">School (this box clears itself one second after a script writes it)</label><input id="school" name="school" type="text"></div>
+    <div class="field"><label for="shift">Which shift can you work? *</label><select id="shift" name="shift" required><option value="">Choose one</option><option>Day</option><option>Night</option></select></div>
+    <div class="field"><label for="start">Earliest start date *</label><input id="start" name="start" type="text" required></div>
+    <div class="field"><label for="cv">Resume *</label><input id="cv" name="cv" type="file" accept=".docx" required></div>
+    <div id="late"></div>
+    <button class="btn" type="submit">Submit</button>
+  </form>
+</div>
+<script>
+  // A page script that rejects values written by a script (not typed by a person): it clears them a second later.
+  document.getElementById('school').addEventListener('input', function (e) { var el = e.target; if (!e.isTrusted) setTimeout(function () { el.value = ''; }, 1000); });
+  // A section that loads late (after 2.5 seconds).
+  setTimeout(function () {
+    document.getElementById('late').innerHTML = '<h3>Links</h3><div class="field"><label for="li">LinkedIn</label><input id="li" name="li" type="text"></div>';
+  }, 2500);
+</script>
+</body></html>

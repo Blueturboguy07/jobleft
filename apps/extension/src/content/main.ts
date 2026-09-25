@@ -125,7 +125,12 @@ async function apply(input: ApplyInput): Promise<void> {
 
   const written: Written[] = [];
   let done = 0;
+  // Keep the page where the person had it: focusing and clicking fields must not scroll it away.
+  const sx = window.scrollX;
+  const sy = window.scrollY;
+  const keepScroll = (): void => { if (window.scrollX !== sx || window.scrollY !== sy) window.scrollTo(sx, sy); };
   for (const fill of resp.fills) {
+    keepScroll();
     if (S.cancel) break;
     const f = S.byId.get(fill.fieldId);
     const it = itemOf.get(fill.fieldId);
@@ -148,6 +153,7 @@ async function apply(input: ApplyInput): Promise<void> {
     pushSoon();
   }
   for (const file of resp.files) {
+    keepScroll();
     if (S.cancel) break;
     const f = S.byId.get(file.fieldId);
     const it = itemOf.get(file.fieldId);
@@ -174,6 +180,7 @@ async function apply(input: ApplyInput): Promise<void> {
     const why = (resp.notes ?? []).find((n) => n.reason === 'file' && found.find((f) => f.id === n.fieldId)?.field.kind === 'file');
     S.report.resume = { fileName: '', status: 'none', message: why?.message ?? 'No resume was attached.' };
   }
+  keepScroll();
   S.undo.push(written);
 
   // Check that the page kept every value (a page can reject or clear a value after the events).

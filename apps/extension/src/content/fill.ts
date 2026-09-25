@@ -69,7 +69,8 @@ export function shownValue(f: Found): string {
   if (isComboField(f)) return displayedValues(el).join(', ');
   if (el instanceof HTMLSelectElement) {
     const o = el.options[el.selectedIndex];
-    return o && !isPlaceholderOption(o.text, o.value) ? o.text.trim() : '';
+    // An option with an empty value ("Month", "Select...") is the list's prompt, not an answer.
+    return o && o.value !== '' && !isPlaceholderOption(o.text, o.value) ? o.text.trim() : '';
   }
   if (el instanceof HTMLInputElement && (el.type === 'radio' || el.type === 'checkbox')) {
     if (f.els.length === 1 && el.type === 'checkbox') return el.checked ? 'checked' : '';
