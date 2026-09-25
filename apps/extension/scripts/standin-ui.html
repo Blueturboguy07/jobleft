@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jobleft stand-in app</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1f2933; background: #f5f7f8; }
+  header { background: #0f766e; color: #fff; padding: 12px 20px; display: flex; gap: 12px; align-items: baseline; }
+  header b { font-size: 18px; }
+  main { max-width: 980px; margin: 0 auto; padding: 16px 20px 60px; }
+  section { background: #fff; border: 1px solid #dde3e8; border-radius: 10px; padding: 14px 16px; margin: 14px 0; }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  .muted { color: #616e7c; font-size: 13px; }
+  .warn { background: #fffaf2; border-left: 3px solid #b45309; padding: 6px 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  td, th { text-align: left; padding: 5px 6px; border-bottom: 1px solid #eef1f4; vertical-align: top; }
+  input[type=text], input[type=url], input[type=number], select, textarea { font: inherit; padding: 5px 7px; border: 1px solid #c6ced6; border-radius: 6px; }
+  textarea { width: 100%; min-height: 260px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  button { font: inherit; cursor: pointer; border-radius: 7px; border: 1px solid #c6ced6; background: #fff; padding: 5px 10px; }
+  button.primary { background: #0f766e; color: #fff; border-color: #0f766e; }
+  .code { font-size: 34px; letter-spacing: 8px; font-weight: 700; color: #0f766e; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 14px; }
+  .grid label { display: flex; flex-direction: column; font-size: 12px; color: #52606d; }
+  #msg { position: fixed; bottom: 14px; left: 14px; background: #1f2933; color: #fff; padding: 8px 12px; border-radius: 8px; display: none; }
+</style>
+</head>
+<body>
+<header><b>jobleft</b><span>stand-in app for extension tests (not the real app; nothing leaves this computer)</span></header>
+<main>
+  <div id="notoken" class="warn" style="display:none;margin-top:14px">This page needs the address the stand-in printed when it started (it ends with #token=...). Open that address.</div>
+
+  <section>
+    <h2>Pair a browser extension</h2>
+    <p class="muted">Pressing the button is your approval. The code works once, for 5 minutes. Type it in the jobleft extension (click the jobleft button in Chrome's toolbar).</p>
+    <button class="primary" id="pairBtn">Pair a browser extension</button>
+    <div id="codeBox" style="margin-top:10px"></div>
+    <h3 style="font-size:14px">Paired browsers</h3>
+    <table id="pairings"><tr><td class="muted">Loading…</td></tr></table>
+  </section>
+
+  <section>
+    <h2>Profile</h2>
+    <div class="grid" id="quick"></div>
+    <h3 style="font-size:14px">Saved answers to sensitive questions (empty = the extension leaves the question to you)</h3>
+    <div class="grid" id="sensitive"></div>
+    <p><button class="primary" id="saveQuick">Save these fields</button></p>
+    <details><summary>Edit the whole profile (JSON)</summary>
+      <p class="muted">Education, work history, skills and links live here. Keep the shape; null means "not stated".</p>
+      <textarea id="json"></textarea>
+      <p><button id="saveJson">Save the JSON profile</button></p>
+    </details>
+  </section>
+
+  <section>
+    <h2>Jobs</h2>
+    <p class="muted">A page whose address matches a job here is "that job" (tracking parameters are ignored).</p>
+    <table id="jobs"></table>
+    <p class="grid" style="grid-template-columns: 1fr 1fr 2fr auto; align-items:end">
+      <label>Title<input type="text" id="jobTitle"></label><label>Company<input type="text" id="jobCompany"></label>
+      <label>Page address<input type="url" id="jobUrl" placeholder="http://127.0.0.1:47900/practice/..."></label><button id="addJob">Add job</button>
+    </p>
+  </section>
+
+  <section>
+    <h2>Resumes</h2>
+    <p class="muted">A fill attaches the resume made for that job, else the default one. The person can pick another in the extension.</p>
+    <table id="resumes"></table>
+    <p><input type="file" id="upload" accept=".pdf,.docx"> <button id="uploadBtn">Upload a resume</button></p>
+  </section>
+
+  <section>
+    <h2>Tracker: applied jobs</h2>
+    <p class="muted">A job appears here only when you press "I submitted this application" in the extension and confirm.</p>
+    <table id="tracker"></table>
+    <p><button id="clearTracker">Clear the tracker</button></p>
+  </section>
+
+  <section>
+    <h2>Drafts for open questions</h2>
+    <p class="muted">"Local template" copies profile facts into fixed sentences on this computer (free). "publik API (simulated)" behaves like a paid provider: the extension shows the price in dollars first, and a fake balance goes down. Nothing is charged anywhere.</p>
+    <p class="grid" style="grid-template-columns: 2fr 1fr 1fr auto; align-items:end">
+      <label>Provider<select id="prov"><option value="local">Local template (free)</option><option value="publik_sim">publik API (simulated)</option><option value="none">None</option></select></label>
+      <label>Price per draft ($)<input type="number" step="0.01" min="0" id="price"></label>
+      <label>Balance ($)<input type="number" step="0.01" min="0" id="balance"></label>
+      <button id="saveProv">Save</button>
+    </p>
+  </section>
+
+  <section>
+    <h2>Requests this app received</h2>
+    <p class="muted">Method, path, answer and caller only. No personal data is logged.</p>
+    <p><button id="refreshLog">Refresh</button> <button id="quit">Quit the app</button></p>
+    <pre id="log" style="max-height:260px;overflow:auto;font-size:11px;background:#f7faf9;padding:8px"></pre>
+  </section>
+</main>
+<div id="msg"></div>
+<script>
+(function () {
+  'use strict';
+  var token = null;
+  var m = location.hash.match(/token=([A-Za-z0-9_-]+)/);
+  if (m) { token = m[1]; try { sessionStorage.setItem('jl-token', token); } catch (e) {} history.replaceState(null, '', location.pathname); }
+  else { try { token = sessionStorage.getItem('jl-token'); } catch (e) {} }
+  if (!token) { document.getElementById('notoken').style.display = 'block'; }
+
+  function $(id) { return document.getElementById(id); }
+  function toast(t) { var e = $('msg'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { e.style.display = 'none'; }, 3000); }
+  function api(method, path, body, raw) {
+    var h = { 'x-jobleft-token': token || '' };
+    var init = { method: method, headers: h };
+    if (raw) { h['content-type'] = raw.type; h['x-jobleft-filename'] = encodeURIComponent(raw.name); init.body = raw.data; }
+    else if (body !== undefined) { h['content-type'] = 'application/json'; init.body = JSON.stringify(body); }
+    return fetch(path, init).then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error((d && d.error && d.error.message) || ('HTTP ' + r.status)); return d; }); });
+  }
+  function cell(tr, text) { var td = document.createElement('td'); td.textContent = text == null ? '' : String(text); tr.appendChild(td); return td; }
+  function btn(text, fn) { var b = document.createElement('button'); b.textContent = text; b.addEventListener('click', fn); return b; }
+  var state = null;
+
+  var QUICK = [['firstName', 'First name'], ['middleName', 'Middle name'], ['lastName', 'Last name'], ['email', 'Email'], ['phone', 'Phone'], ['addressLine', 'Street address'], ['city', 'City'], ['region', 'State or province'], ['postalCode', 'Postal code'], ['country', 'Country (2 letters)']];
+  var YND = [['', '(not saved)'], ['yes', 'Yes'], ['no', 'No'], ['decline', 'Decline to answer']];
+  var YN = [['', '(not saved)'], ['yes', 'Yes'], ['no', 'No']];
+  var SENS = [
+    ['wa.usAuthorized', 'Authorized to work in the US', YN], ['wa.needsSponsorship', 'Needs visa sponsorship', YN], ['wa.usCitizen', 'US citizen', YN],
+    ['eeo.veteran', 'Protected veteran', YND], ['eeo.disability', 'Disability', YND], ['eeo.hispanicOrLatino', 'Hispanic or Latino', YND],
+    ['eeo.gender', 'Gender', [['', '(not saved)'], ['Female', 'Female'], ['Male', 'Male'], ['Non-binary', 'Non-binary'], ['decline', 'Decline to answer']]],
+    ['eeo.race', 'Race', [['', '(not saved)'], ['American Indian or Alaska Native', 'American Indian or Alaska Native'], ['Asian', 'Asian'], ['Black or African American', 'Black or African American'], ['Hispanic or Latino', 'Hispanic or Latino'], ['Native Hawaiian or Other Pacific Islander', 'Native Hawaiian or Other Pacific Islander'], ['White', 'White'], ['Two or More Races', 'Two or More Races'], ['decline', 'Decline to answer']]],
+    ['eeo.lgbtq', 'LGBTQ+', YND],
+  ];
+
+  function render() {
+    var p = state.profile;
+    // pairings
+    var t = $('pairings'); t.innerHTML = '';
+    if (!state.pairings.length) { var tr0 = t.insertRow(); cell(tr0, 'No browser is paired.').className = 'muted'; }
+    state.pairings.forEach(function (x) {
+      var tr = t.insertRow(); cell(tr, x.browser + ' · extension ' + x.extensionVersion); cell(tr, 'id ' + x.extensionId);
+      cell(tr, 'paired ' + x.pairedAt.slice(0, 16).replace('T', ' ')); cell(tr, x.lastSeenAt ? 'last seen ' + x.lastSeenAt.slice(0, 16).replace('T', ' ') : 'not seen yet');
+      cell(tr, '').appendChild(btn('Remove', function () { api('DELETE', '/api/v1/extension/pairings/' + x.extensionId).then(function () { toast('Removed. Its token stops working now.'); load(); }, fail); }));
+    });
+    // quick fields
+    var q = $('quick'); q.innerHTML = '';
+    QUICK.forEach(function (f) { var l = document.createElement('label'); l.textContent = f[1]; var i = document.createElement('input'); i.type = 'text'; i.id = 'q_' + f[0]; i.value = p.personal[f[0]] || ''; l.appendChild(i); q.appendChild(l); });
+    var s = $('sensitive'); s.innerHTML = '';
+    SENS.forEach(function (f) {
+      var l = document.createElement('label'); l.textContent = f[1]; var sel = document.createElement('select'); sel.id = 's_' + f[0];
+      f[2].forEach(function (o) { var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; sel.appendChild(op); });
+      var parts = f[0].split('.'); var src = parts[0] === 'wa' ? p.workAuthorization : p.eeo; sel.value = src[parts[1]] || '';
+      l.appendChild(sel); s.appendChild(l);
+    });
+    var inputJson = Object.assign({}, p); delete inputJson.id; delete inputJson.version; delete inputJson.updatedAt;
+    $('json').value = JSON.stringify(inputJson, null, 2);
+    // jobs
+    var j = $('jobs'); j.innerHTML = '';
+    state.jobs.forEach(function (x) {
+      var tr = j.insertRow(); cell(tr, x.title || '(no title)'); cell(tr, x.company || ''); cell(tr, x.url); cell(tr, x.external ? 'added by a confirm' : '');
+      cell(tr, '').appendChild(btn('Delete', function () { api('DELETE', '/api/v1/standin/jobs/' + x.id).then(load, fail); }));
+    });
+    // resumes
+    var r = $('resumes'); r.innerHTML = '';
+    state.resumes.forEach(function (x) {
+      var tr = r.insertRow(); cell(tr, x.name); cell(tr, x.fileName); cell(tr, x.isDefault ? 'default' : '').appendChild(x.isDefault ? document.createTextNode('') : btn('Make default', function () { api('PATCH', '/api/v1/standin/resumes/' + x.id, { isDefault: true }).then(load, fail); }));
+      var sel = document.createElement('select'); var none = document.createElement('option'); none.value = ''; none.textContent = '(for no job)'; sel.appendChild(none);
+      state.jobs.forEach(function (jb) { var o = document.createElement('option'); o.value = jb.id; o.textContent = 'for ' + (jb.title || jb.url); sel.appendChild(o); });
+      sel.value = x.jobId || ''; sel.addEventListener('change', function () { api('PATCH', '/api/v1/standin/resumes/' + x.id, { jobId: sel.value || null }).then(load, fail); });
+      cell(tr, '').appendChild(sel); cell(tr, x.bytes + ' bytes · ' + x.updatedAt.slice(0, 16).replace('T', ' '));
+      cell(tr, '').appendChild(btn('Delete', function () { api('DELETE', '/api/v1/standin/resumes/' + x.id).then(load, fail); }));
+    });
+    // tracker
+    var tk = $('tracker'); tk.innerHTML = '';
+    if (!state.tracker.length) { var tr1 = tk.insertRow(); cell(tr1, 'No applied jobs yet.').className = 'muted'; }
+    state.tracker.forEach(function (x) {
+      var jb = state.jobs.find(function (y) { return y.id === x.jobId; }) || {}; var rs = state.resumes.find(function (y) { return y.id === x.resumeId; });
+      var tr = tk.insertRow(); cell(tr, 'Applied'); cell(tr, x.appliedAt.slice(0, 10)); cell(tr, (jb.title || '(no title)') + (jb.company ? ' · ' + jb.company : '')); cell(tr, x.pageUrl); cell(tr, rs ? 'resume: ' + rs.fileName : '');
+    });
+    // drafts
+    $('prov').value = state.drafts.kind; $('price').value = (state.drafts.priceMicros / 1e6).toFixed(2); $('balance').value = (state.drafts.balanceMicros / 1e6).toFixed(2);
+  }
+  function fail(e) { toast(e.message || String(e)); }
+  function load() { return api('GET', '/api/v1/standin/state').then(function (d) { state = d; render(); }, fail); }
+
+  $('pairBtn').addEventListener('click', function () {
+    api('POST', '/api/v1/extension/pairing-code').then(function (c) {
+      var box = $('codeBox'); box.innerHTML = '';
+      var d = document.createElement('div'); d.className = 'code'; d.textContent = c.code; box.appendChild(d);
+      var n = document.createElement('div'); n.className = 'muted'; n.textContent = 'Type this code in the jobleft extension. It stops working at ' + new Date(c.expiresAt).toLocaleTimeString() + ' or after 5 wrong tries.'; box.appendChild(n);
+      var poll = setInterval(function () { load(); }, 2000); setTimeout(function () { clearInterval(poll); }, 300000);
+    }, fail);
+  });
+  $('saveQuick').addEventListener('click', function () {
+    var p = JSON.parse(JSON.stringify(state.profile)); delete p.id; delete p.version; delete p.updatedAt;
+    QUICK.forEach(function (f) { var v = $('q_' + f[0]).value.trim(); p.personal[f[0]] = v === '' ? null : (f[0] === 'country' ? v.toUpperCase() : v); });
+    SENS.forEach(function (f) { var v = $('s_' + f[0]).value; var parts = f[0].split('.'); var dst = parts[0] === 'wa' ? p.workAuthorization : p.eeo; dst[parts[1]] = v === '' ? null : v; });
+    api('PUT', '/api/v1/standin/profile', p).then(function () { toast('Saved. The next fill uses these values.'); load(); }, fail);
+  });
+  $('saveJson').addEventListener('click', function () {
+    var p; try { p = JSON.parse($('json').value); } catch (e) { toast('That is not valid JSON.'); return; }
+    api('PUT', '/api/v1/standin/profile', p).then(function () { toast('Saved.'); load(); }, fail);
+  });
+  $('addJob').addEventListener('click', function () {
+    api('POST', '/api/v1/standin/jobs', { title: $('jobTitle').value, company: $('jobCompany').value, url: $('jobUrl').value }).then(function () { toast('Job added.'); load(); }, fail);
+  });
+  $('uploadBtn').addEventListener('click', function () {
+    var f = $('upload').files[0]; if (!f) { toast('Choose a file first.'); return; }
+    var type = /\.docx$/i.test(f.name) ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/pdf';
+    api('POST', '/api/v1/standin/resumes', undefined, { type: type, name: f.name, data: f }).then(function () { toast('Uploaded.'); load(); }, fail);
+  });
+  $('clearTracker').addEventListener('click', function () { api('DELETE', '/api/v1/standin/tracker').then(load, fail); });
+  $('saveProv').addEventListener('click', function () {
+    api('PUT', '/api/v1/standin/draft-provider', { kind: $('prov').value, priceMicros: Math.round(Number($('price').value) * 1e6), balanceMicros: Math.round(Number($('balance').value) * 1e6) }).then(function () { toast('Saved.'); load(); }, fail);
+  });
+  $('refreshLog').addEventListener('click', function () { api('GET', '/api/v1/standin/log').then(function (d) { $('log').textContent = d.lines.join('\n'); }, fail); });
+  $('quit').addEventListener('click', function () { api('POST', '/api/v1/standin/quit').then(function () { document.body.innerHTML = '<p style="padding:20px">The stand-in app stopped. Start it again from the terminal.</p>'; }, fail); });
+  if (token) load();
+})();
+</script>
+</body>
+</html>
