@@ -133,6 +133,7 @@ written: "3 to 5 years preferred" stays a preferred 3 to 5).
 | a trade licence (RN, CPA, journeyman) is not listed | "It is not in your profile" | 70, or 84 when a past title suggests you hold it |
 | a lower degree than required | the degree in your profile | 65 |
 | far fewer years than required; a role 2.5 levels up; a manager or director role with no people-leading title | the gap | 65 / 60 / 60 |
+| a clear step down: two levels below your work, a role that leads nobody after you managed people, patient-care support after nursing | "may be overqualified" / "a step down" (a reason, not a warning) | 72 (never Strong) |
 
 **Deal-breakers** (your firm preferences): work model, places and countries, minimum pay, job type. A broken one is a
 warning with the posting's words, and the percent is held at 60. When the posting does not state the fact, the view

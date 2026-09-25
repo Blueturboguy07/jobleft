@@ -90,6 +90,11 @@ const LEVEL_ORD: Record<Scale, Record<string, number>> = {
 };
 /** People-leading levels: 1 lead, 2 manager, 3 director, 4 vp, 5 executive. */
 const LEAD_ORD: Record<string, number> = { lead: 1, manager: 2, director: 3, vp: 4, exec: 5 };
+/** Kinds of work that sit one step below another on a common ladder (job family -> the families above it). */
+const STEP_DOWN: Record<string, string[]> = {
+  health_support: ['nursing', 'health_clinical'],
+  childcare: ['teaching'],
+};
 const LEVEL_WORD: Record<string, string> = {
   intern: 'Intern', entry: 'Entry Level', mid: 'Mid Level', senior: 'Senior Level', staff: 'Staff', lead: 'Lead',
   manager: 'Manager', principal: 'Principal', director: 'Director', vp: 'Vice President', exec: 'Executive',
@@ -121,6 +126,8 @@ interface ExperienceOut {
   levelFit: number | null;
   blockers: Array<{ kind: 'years' | 'level'; message: string; quote: string; source: 'title' | 'description' }>;
   mustHaves: MustHave[];
+  /** Ceilings that are not must-haves: a clear step down (overqualified). */
+  caps: Array<{ cap: number; reason: string }>;
 }
 
 function relevanceOf(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): { rel: number | null; reasons: Reason[]; relevantMonths: number | null } {
@@ -189,6 +196,7 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
   const reasons: Reason[] = [];
   const blockers: ExperienceOut['blockers'] = [];
   const mustHaves: MustHave[] = [];
+  const caps: Array<{ cap: number; reason: string }> = [];
   void now;
   const detail: ExperienceDetail = {
     totalMonths: pf.totalMonths,
@@ -210,31 +218,39 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
   const scale = scaleOf(jf.family);
   let levelFit: number | null = null;
   const levelReasons: Reason[] = [];
-  if (jf.level && jf.levelSource !== 'years') {
+  // A level read only from the years the posting asks for is used for "above the level" only (the years themselves
+  // are compared below, so being under is not counted twice).
+  const levelFromYearsOnly = jf.levelSource === 'years';
+  if (jf.level) {
     const jobOrd = LEVEL_ORD[scale][jf.level];
     const levelSrc = jf.levelSource === 'title' || jf.levelSource === 'job' ? `title ${q(jf.levelEvidence ?? jf.job.title)}` : q(jf.levelEvidence ?? '');
     if (years === null) {
-      levelReasons.push({ code: 'level_no_dates', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); your work dates are not in your profile, so the level cannot be checked.`, points: 0 });
+      if (!levelFromYearsOnly) levelReasons.push({ code: 'level_no_dates', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); your work dates are not in your profile, so the level cannot be checked.`, points: 0 });
     } else {
-      const candYears = yearsOrd(years, scale);
+      // In frontline work, years alone make a person experienced, not a supervisor: titles show the rest.
+      const candYears = scale === 'frontline' ? Math.min(yearsOrd(years, scale), 2) : yearsOrd(years, scale);
       // Titles can lift the level a little above the years (a charge nurse, a shift lead), never far.
       let titleOrd = 0;
       let candLead = 0;
+      let leadTitle: string | null = null;
       for (const r of pf.roles) {
         const l = levelOfTitle(r.title);
         if (!l) continue;
         const related = !r.family || !jf.family ? 0.5 : familyRelatedness(jf.family, r.family);
-        if (related >= 0.3) titleOrd = Math.max(titleOrd, LEVEL_ORD[scale][l]);
-        candLead = Math.max(candLead, LEAD_ORD[l] ?? 0);
+        if (related >= 0.3) {
+          titleOrd = Math.max(titleOrd, LEVEL_ORD[scale][l]);
+          if ((LEAD_ORD[l] ?? 0) > candLead) { candLead = LEAD_ORD[l]; leadTitle = r.title; }
+        }
       }
       const cand = Math.max(candYears, Math.min(titleOrd, candYears + 1));
       const gap = jobOrd - cand;
-      // Below the level costs a lot; above it costs a little (frontline work barely at all).
-      let fit = gap > 0.5 ? 100 - (gap - 0.5) * 30 : gap < -1.5 ? 100 - (-gap - 1.5) * 15 : 100;
-      fit = clamp(fit, gap > 0 ? 15 : scale === 'frontline' ? 85 : 70, 100);
+      // Below the level costs a lot; far above it costs too (a step down is rarely a strong fit).
+      let fit = gap > 0.5 ? 100 - (gap - 0.5) * 30 : gap < -1.5 ? 100 - (-gap - 1.5) * 25 : 100;
+      fit = clamp(fit, gap > 0 ? 15 : scale === 'frontline' ? 60 : 50, 100);
+      if (levelFromYearsOnly && gap > 0) fit = 100;
       const jobLead = LEAD_ORD[jf.level] ?? 0;
       const tech = jf.family === 'software' || jf.family === 'data' || jf.family === 'security';
-      const peopleRole = jobLead > 0 && !(tech && jf.level === 'lead');
+      const peopleRole = !levelFromYearsOnly && jobLead > 0 && !(tech && jf.level === 'lead');
       const leadGap = peopleRole ? jobLead - candLead : 0;
       if (leadGap >= 1) {
         const capFit = leadGap >= 3 ? 40 : leadGap === 2 ? 60 : 75;
@@ -245,15 +261,38 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
         }
         if (leadGap >= 2) blockers.push({ kind: 'level', message: `This is ${article(LEVEL_WORD[jf.level])} ${LEVEL_WORD[jf.level]} role that leads people (title ${q(jf.job.title)}); ${needs}.`, quote: jf.job.title, source: 'title' });
       }
+      // A manager applying to a role that leads nobody at entry or mid level is stepping down.
+      if (candLead >= 2 && jobLead === 0 && jobOrd <= LEVEL_ORD[scale].mid && fit > 60) {
+        fit = 60;
+        const why = `You have led people (${q(leadTitle ?? '')}); this job is ${LEVEL_WORD[jf.level]} (${levelSrc}) and leads nobody, a step down.`;
+        levelReasons.push({ code: 'step_down', text: why, points: -40 });
+        caps.push({ cap: cfg.caps.stepDown, reason: why });
+      } else if (gap <= -2) {
+        caps.push({ cap: cfg.caps.stepDown, reason: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}), well below the level of ${formatMonths(pf.totalMonths!)} of work in your profile.` });
+      }
       levelFit = Math.round(fit);
-      if (gap > 0.5) {
+      if (gap > 0.5 && !levelFromYearsOnly) {
         levelReasons.push({ code: 'level_below', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); ${formatMonths(pf.totalMonths!)} of work in your profile puts you about ${gap >= 1.5 ? `${Math.round(gap)} levels` : 'one level'} below it.`, points: -(100 - levelFit) });
         if (gap >= 2.5 && !blockers.some((b) => b.kind === 'level')) blockers.push({ kind: 'level', message: `This is ${article(LEVEL_WORD[jf.level])} ${LEVEL_WORD[jf.level]} role (title ${q(jf.job.title)}); your profile shows ${formatMonths(pf.totalMonths!)} of work, well below that level.`, quote: jf.job.title, source: 'title' });
-      } else if (gap < -1) {
+      } else if (gap < -1.5) {
         levelReasons.push({ code: 'level_above', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); with ${formatMonths(pf.totalMonths!)} of work you are above that level and may be overqualified.`, points: -(100 - levelFit) });
-      } else if (!levelReasons.length) {
+      } else if (!levelReasons.length && !levelFromYearsOnly) {
         levelReasons.push({ code: 'level_fit', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); ${formatMonths(pf.totalMonths!)} of work in your profile fits that level.`, points: 0 });
       }
+      if (levelFromYearsOnly && levelFit === 100) levelFit = null;
+    }
+  }
+  // Work one tier below your current field (patient-care support for a registered nurse) is a step down.
+  if (jf.family && STEP_DOWN[jf.family]) {
+    const current = pf.roles.filter((r) => r.family && STEP_DOWN[jf.family!].includes(r.family) && (r.current || (r.months >= 24)));
+    if (current.length && !pf.roles.some((r) => r.current && r.family === jf.family)) {
+      const cap = 60;
+      const why = `The job is ${familyLabel(jf.family).toLowerCase()} work, a step below your ${familyLabel(current[0].family!).toLowerCase()} role ${q(current[0].title)}.`;
+      if (levelFit === null || levelFit > cap) {
+        levelFit = cap;
+        levelReasons.push({ code: 'step_down', text: why, points: -40 });
+      }
+      caps.push({ cap: cfg.caps.stepDown, reason: why });
     }
   }
 
@@ -310,7 +349,7 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
   if (percent === null && rel !== null) {
     reasons.push({ code: 'level_unknown', text: 'Not enough information: the level cannot be checked without work dates in your profile.', points: 0 });
   }
-  return { sub: { percent, reasons: ensureReason(percent, reasons, 'Experience Level') }, detail, yearsUsed, levelFit, blockers, mustHaves };
+  return { sub: { percent, reasons: ensureReason(percent, reasons, 'Experience Level') }, detail, yearsUsed, levelFit, blockers, mustHaves, caps };
 }
 
 function ensureReason(percent: number | null, reasons: Reason[], part: string): Reason[] {
@@ -883,7 +922,7 @@ export function computeMatch(input: ScoreInput): FullMatchResult {
     }
   }
   let percent = pct(raw);
-  const capBy = [...must.capBy, ...deal.capBy, ...ex.blockers.map((b) => ({ cap: b.kind === 'years' ? cfg.caps.years : cfg.caps.level, reason: b.message }))];
+  const capBy = [...must.capBy, ...deal.capBy, ...ex.blockers.map((b) => ({ cap: b.kind === 'years' ? cfg.caps.years : cfg.caps.level, reason: b.message })), ...ex.caps];
   let cap: MatchExtras['cap'] = null;
   if (capBy.length) {
     const lowest = capBy.reduce((a, b) => (b.cap < a.cap ? b : a));

@@ -29,7 +29,7 @@ export function yearMonth(v: unknown): string | null {
     if (mo) return `${m[2]}-${mo}`;
   }
   if (/^\d{4}$/.test(s)) return s;
-  throw new Error(`not a date: "${s}" (use YYYY-MM)`);
+  throw new Error('a date in the profile is not a date (use YYYY-MM, YYYY, "Jan 2020" or "present")');
 }
 
 const isPresent = (v: unknown) => typeof v === 'string' && /^(present|current|now|today|ongoing)$/i.test(v.trim());

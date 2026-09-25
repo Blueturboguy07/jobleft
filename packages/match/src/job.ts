@@ -179,6 +179,8 @@ export function levelOfTitle(title: string): Level | null {
   if (/\b(executive chef|head chef|chef de cuisine|culinary director)\b/i.test(t)) return 'manager';
   if (/\bsous chef\b/i.test(t)) return 'lead';
   const base = levelFromTitle(t);
+  // Titles that are entry level by their nature, with no level word ("Cashier", "Teacher Aide", "Electrician Helper").
+  if (!base && /\b(cashier|stocker|crew member|team member|dishwasher|busser|barista|hostess|host|picker|packer|bagger|courtesy clerk|cart attendant|greeter|food runner|runner|porter|laborer|helper|trainee|aide|attendant|clerk|caregiver|nanny|babysitter|sitter)\b/i.test(t)) return 'entry';
   if (base === 'manager' && IC_MANAGER.test(t) && !/\b(managers|team manager|people manager)\b/i.test(t)) {
     if (/\b(senior|sr\.?)\b/i.test(t)) return 'senior';
     if (/\b(principal|group|lead)\b/i.test(t)) return 'lead';

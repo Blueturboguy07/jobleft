@@ -27,6 +27,8 @@ export interface MatchConfig {
     dealBreaker: number;
     /** A must-have whose answer is not in the profile: never the Strong band. */
     notInProfile: number;
+    /** A clear step down: two or more levels below the profile, a manager for a role that leads nobody. Not a must-have. */
+    stepDown: number;
   };
   skills: {
     /** Weight of a skill by where the posting names it. */
@@ -61,7 +63,7 @@ export interface MatchConfig {
 
 export const DEFAULT_CONFIG: MatchConfig = Object.freeze({
   weights: { experience: 0.24, skills: 0.29, industry: 0.08, intercept: 36, semantic: 0 },
-  caps: { legal: 45, licence: 70, degree: 65, years: 65, level: 60, dealBreaker: 60, notInProfile: 84 },
+  caps: { legal: 45, licence: 70, degree: 65, years: 65, level: 60, dealBreaker: 60, notInProfile: 84, stepDown: 72 },
   skills: { required: 1, preferred: 0.5, mentioned: 0.6, related: 0.5, implied: 0.5, minItems: 2, stuffing: 40 },
   experience: { noLevelStated: 85, unrelated: 0.12, targetOnly: 0.6, studyOnly: 0.6 },
   industry: { unrelated: 15 },
