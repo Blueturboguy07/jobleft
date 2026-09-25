@@ -113,8 +113,9 @@ export function openAndMigrate(dbPath: string): OpenResult {
     throw notJobleft();
   }
   try {
-    // FULL: a confirmed save is on disk before the answer goes out, even across a power cut (server O4).
-    db.exec('PRAGMA synchronous = FULL; PRAGMA busy_timeout = 5000; PRAGMA secure_delete = ON; PRAGMA temp_store = MEMORY;');
+    // FULL: a confirmed save is on disk before the answer goes out, even across a power cut (server O4). On macOS a
+    // plain fsync can leave the data in the drive's cache; fullfsync (F_FULLFSYNC) flushes it to the disk itself.
+    db.exec('PRAGMA synchronous = FULL; PRAGMA fullfsync = ON; PRAGMA checkpoint_fullfsync = ON; PRAGMA busy_timeout = 5000; PRAGMA secure_delete = ON; PRAGMA temp_store = MEMORY;');
   } catch { /* pragmas are best effort */ }
 
   const fresh = !before;
