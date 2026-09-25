@@ -109,21 +109,23 @@ export function LikedTab() {
 }
 
 export function AppliedTab() {
-  const [status, setStatus] = useState<TrackerStatus>('applied');
+  // "All" lists every job the Applied badge counts; the other tabs narrow it to one stage
+  const [status, setStatus] = useState<TrackerStatus | 'all'>('all');
   const [q, setQ] = useState('');
   const [searching, setSearching] = useState(false);
-  const list = useTrackerView('applied', status);
+  const list = useTrackerView('applied', status === 'all' ? undefined : status);
   const counts = list.data?.counts.byStatus;
+  const total = list.data?.counts.applied;
   return (
     <div className="jl-list-pane">
       <div className="jl-row" style={{ padding: '4px 16px 0' }}>
-        <Tabs activeKey={status} onChange={(k) => setStatus(k as TrackerStatus)} className="jl-grow"
-          items={TRACKER_STATUSES.map((s) => ({ key: s, label: `${TRACKER_STATUS_LABELS[s]} (${counts?.[s] ?? 0})` }))} />
+        <Tabs activeKey={status} onChange={(k) => setStatus(k as TrackerStatus | 'all')} className="jl-grow"
+          items={[{ key: 'all', label: `All (${total ?? 0})` }, ...TRACKER_STATUSES.map((s) => ({ key: s, label: `${TRACKER_STATUS_LABELS[s]} (${counts?.[s] ?? 0})` }))]} />
         {searching
           ? <Input autoFocus allowClear size="small" style={{ width: 220 }} placeholder="Search your applications" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search your applications" onBlur={() => { if (!q) setSearching(false); }} />
           : <Button shape="circle" icon={<SearchOutlined />} aria-label="Search your applications" onClick={() => setSearching(true)} />}
       </div>
-      <ListBody list={list} view="applied" emptyArt="send" emptyTitle={`No jobs in ${TRACKER_STATUS_LABELS[status]}`} emptyText="Mark a job as applied from its card or detail, then move it through the stages here or in the tracker." strip filterText={q} />
+      <ListBody list={list} view="applied" emptyArt="send" emptyTitle={status === 'all' ? 'No applications yet' : `No jobs in ${TRACKER_STATUS_LABELS[status]}`} emptyText="Mark a job as applied from its card or detail, then move it through the stages here or in the tracker." strip filterText={q} />
     </div>
   );
 }
@@ -155,7 +157,8 @@ export function ExternalTab() {
       const body = mode === 'url' ? { url: url.trim() } : { text, ...(applyUrl.trim() ? { applyUrl: applyUrl.trim() } : {}) };
       if (mode === 'url' && !/^https?:\/\//i.test(url.trim())) throw { code: 'bad_request', status: 400, message: 'Paste the full link, starting with https:// or http://.', link: null } satisfies UiError;
       const r = await call('addExternalJob', { body });
-      const already = (r as unknown as { alreadyAdded?: boolean }).alreadyAdded;
+      // the same job twice is one row: say so (a server may also say it with alreadyAdded)
+      const already = (r as unknown as { alreadyAdded?: boolean }).alreadyAdded ?? !!list.data?.items.some((x) => x.job.id === r.job.id);
       setResult({ type: already ? 'info' : 'success', msg: already ? `Already in your list: ${r.job.title} at ${r.job.company}. Nothing was added twice.` : `Added: ${r.job.title} at ${r.job.company}.` });
       setUrl(''); setText(''); setApplyUrl('');
       afterTrackerChange();
