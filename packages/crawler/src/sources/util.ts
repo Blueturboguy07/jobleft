@@ -1,4 +1,17 @@
-import type { PayPeriod, RawPay, WorkMode } from '../types.ts';
+import type { PayPeriod, RawJob, RawPay, WorkMode } from '../types.ts';
+
+/**
+ * A listed entry the adapter could not map (no id). It is passed on so the crawl counts it as "listed but not
+ * stored" with a reason, and so a board that lists thousands of junk entries is seen for what it is.
+ */
+export function unmappable(entry: unknown): RawJob {
+  const o = entry && typeof entry === 'object' && !Array.isArray(entry) ? (entry as Record<string, unknown>) : {};
+  const title = typeof o.title === 'string' ? o.title : typeof o.text === 'string' ? o.text : '';
+  return {
+    externalId: '', url: '', applyUrl: '', title, company: '', location: '', descriptionHtml: '', remote: false, workMode: '',
+    countries: [], postedAt: null, employmentType: '', department: '', pay: null,
+  };
+}
 
 export function str(v: unknown): string { return typeof v === 'string' ? v : ''; }
 export function num(v: unknown): number | null {
