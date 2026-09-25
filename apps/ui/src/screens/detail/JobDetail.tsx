@@ -215,7 +215,7 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
           <Tooltip title="Close (Esc)"><Button ref={closeRef} shape="circle" icon={<CloseOutlined />} aria-label="Close job detail and return to the list" onClick={() => { void close(); }} /></Tooltip>
           {closed && <span className="jl-chip closed" style={{ height: 32, padding: '0 10px' }}>Posting closed {dateText(job.closedAt)}</span>}
           {tracker?.status && <span className="jl-chip dark" style={{ height: 32, padding: '0 10px' }}>{statusLabel(tracker.status)}</span>}
-          {networkCount && <span className="jl-chip" style={{ height: 32, padding: '0 10px' }}><TeamOutlined /> You know {networkCount} {networkCount === 1 ? 'person' : 'people'} here</span>}
+          {networkCount && <span className="jl-chip" style={{ height: 32, padding: '0 10px' }}><TeamOutlined /> You know {networkCount} {networkCount === 1 ? 'person' : 'people'} at {job.company}</span>}
           <span style={{ marginLeft: 'auto' }} />
           <Tooltip title={tracker?.hidden ? 'Show again' : 'Not interested'}>
             <Button shape="circle" className={`jl-icon-btn${tracker?.hidden ? ' on' : ''}`} icon={<StopOutlined />} aria-pressed={!!tracker?.hidden} aria-label={tracker?.hidden ? 'Show this job again' : 'Not interested in this job'}

@@ -147,7 +147,7 @@ export function Checklist() {
   const profile = useProfile();
   const ai = useAiSettings();
   const resumes = useApi('resumes', () => call('listResumes'));
-  const contacts = useApi('network:contacts:', () => call('listContacts', { query: {} }));
+  const contacts = useApi('network:contacts:any', () => call('listContacts', { query: { limit: '1' } }));
   const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(CHECK_KEY) === '1'; } catch { return false; } });
   if (hidden) return null;
   const steps = [

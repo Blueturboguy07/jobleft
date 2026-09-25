@@ -150,7 +150,7 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
         <div className="jl-card-foot">
           <div className="left">
             {places && places.more > 0 && !why && <span className="jl-more" aria-hidden="true">+{places.more} more places</span>}{' '}
-            {item.networkCount ? <span><TeamOutlined /> You know {item.networkCount} {item.networkCount === 1 ? 'person' : 'people'} here</span> : null}
+            {item.networkCount ? <span><TeamOutlined /> You know {item.networkCount} {item.networkCount === 1 ? 'person' : 'people'} at {j.company}</span> : null}
           </div>
           <Tooltip title={item.hidden ? 'Show this job again' : 'Not interested'}>
             <Button shape="circle" className={`jl-icon-btn${item.hidden ? ' on' : ''}`} icon={<StopOutlined />} aria-label={item.hidden ? `Show ${j.title} again` : `Not interested in ${j.title}`} aria-pressed={item.hidden} onClick={() => actions.hide(item)} />

@@ -40,6 +40,8 @@ export interface ListQuery {
   stage?: OutreachStage;
   q?: string;
   due?: boolean;
+  /** true = only contacts that have a follow-up date (past, today or coming up). */
+  withFollowUp?: boolean;
   inPlan?: boolean;
   limit?: number;
   offset?: number;
@@ -323,6 +325,7 @@ export class NetworkService {
     if (q.stage) { where.push('stage = ?'); args.push(q.stage); }
     if (q.inPlan !== undefined) { where.push('in_plan = ?'); args.push(q.inPlan ? 1 : 0); }
     const today = this.today();
+    if (q.withFollowUp) where.push('follow_up_on IS NOT NULL');
     if (q.due !== undefined) {
       if (q.due) { where.push('follow_up_on IS NOT NULL AND follow_up_on <= ?'); args.push(today); }
       else { where.push('(follow_up_on IS NULL OR follow_up_on > ?)'); args.push(today); }
