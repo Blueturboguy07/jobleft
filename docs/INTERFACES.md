@@ -111,7 +111,7 @@ message and left untouched.
 | `jobs`, `jobs_fts`, `boards` | crawler | Built (from spike S1). `jobs` holds every stored posting: ATS boards, other feeds (`ats = 'feed:<sourceId>'`) and added jobs (`ats = 'external'`, `board = 'url'` or `'text'`). The crawler lane adds the columns the `Job` contract needs (places, levels, years, remote scope, statements, evidence, source attribution). `boards` is board health |
 | `job_sources` | crawler | Planned. Every source that listed a posting (the same posting from two places keeps both credits) |
 | `schema_migrations`, `job_vectors`, `job_skills`, `tracker`, `tracker_notes`, `tracker_reminders`, `saved_filters`, `profile`, `chats`, `notifications`, `settings` | store | Planned. `job_vectors`: float16 BLOB per (job id, content hash, model). `settings` is key-value JSON (other packages' small settings go here through `SettingsStore`) |
-| `board_prefs`, `crawl_runs`, `crawl_board_reports` | boards | Planned. User boards and choices (follow, hide, disable); crawl run history for the report |
+| `board_prefs`, `board_checks`, `crawl_runs`, `crawl_board_reports`, `board_pending_links`, `host_pacing` | boards | Built (migration `boards` v1). `board_prefs`: user boards and choices (follow, hide, disable; a board the person added keeps its name). `board_checks`: what each board check saw (state, failures in a row, last good check, open jobs, next check date). `crawl_runs`, `crawl_board_reports`: refresh history for the report. `board_pending_links`: links pasted while offline. `host_pacing`: the per-host request schedule every process shares |
 | `company_facts` | static-data | Planned. Facts per company key with source and date |
 | `source_state` | sources-other | Planned. On or off, last run, daily request counts per source (limits survive restarts) |
 | `resumes`, `tailor_proposals`, `cover_letters` | resume | Planned |
@@ -140,6 +140,10 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_NOW` | every Node package through `nowMs()` | real time | Freeze the clock (RFC 3339). Time-skip for tests |
 | `JOBLEFT_CLOCK_OFFSET` | same | `0` | Run the clock ahead or behind: `72h`, `-30m`, `3d`, `90s`, `1500ms` |
 | `JOBLEFT_HOST_MAP` | crawler `hostMapFromEnv()` (Built) | none | JSON map from a real ATS host to a LOOPBACK mock origin, for example `{"boards-api.greenhouse.io":"http://127.0.0.1:4010"}` |
+| `JOBLEFT_BOARD_DIRECTORY` | boards CLI (`loadActiveDirectory`) | none | Use this board directory file instead of the installed or shipped one; `none` = an empty directory (tests and demos) |
+| `JOBLEFT_REFRESH_HOURS` | boards CLI and dev server | `6` | Hours between scheduled refreshes |
+| `JOBLEFT_PAID_FETCH_URL` | boards CLI and dev server | none | A LOOPBACK stand-in of the paid page fetch (`POST <url>/fetch` with `{ url, js, maxPriceMicros }` answers `{ url, html, costMicros }`). Unset = no paid lookup is offered. The app passes sources-other's metered client instead |
+| `JOBLEFT_PAID_FETCH_PRICE_MICROS` | boards CLI and dev server | `4000` | The price the stand-in shows for one paid page fetch |
 | `JOBLEFT_PUBLIK_BASE_URL` | ai-engine, sources-other | `https://publikhq.com/api/v1` | Lanes and tests MUST point this at a local stand-in. No lane calls publikhq.com |
 | `JOBLEFT_PUBLIK_APP_TOKEN` | ai-engine | none | The publik app token. None exists yet (gate G-publik); without it, connect answers a plain error |
 | `JOBLEFT_MODEL_BASE_URL` | ai-engine | the Hugging Face `BAAI/bge-small-en-v1.5` files | Where the fit model is downloaded from, once (tests use a local stand-in) |
@@ -583,103 +587,67 @@ appear. CLI (planned): `jobleft-sources run <sourceId> --feed-url <loopback stan
 
 ### `@jobleft/boards`
 
-Status: **Stub** (`boardId` Built). Purpose: the board directory (at least 3,000 clean rows with a stated licence),
-the person's boards and choices, link-to-board resolution, crawl planning and the scheduler. Owns: tables
-`board_prefs`, `crawl_runs`, `crawl_board_reports`; routes `crawlStatus`, `crawlRun`, `crawlReport`, `listBoards`,
-`resolveBoard`, `addBoard`, `updateBoard`, `exportBoards`.
+Status: **Built** (boards lane). Purpose: the board directory (3,622 rows from JobSync's MIT lists, checked against the
+providers; a stated source and licence in the file header), the person's boards and choices, link-to-board resolution
+(including employer pages that embed a board and `gh_jid` links), board health with dead-board back-off, crawl planning
+and the scheduler, a directory refresh with dead-token pruning, and Common Crawl discovery. Owns: tables `board_prefs`,
+`board_checks`, `crawl_runs`, `crawl_board_reports`, `board_pending_links`, `host_pacing`; routes `crawlStatus`,
+`crawlRun`, `crawlReport`, `listBoards`, `resolveBoard`, `addBoard`, `updateBoard`, `exportBoards`; data files
+`packages/boards/data/board-directory.json` and `board-directory-pruned.json`. Package README: `packages/boards/README.md`.
+
+| Export | What |
+|---|---|
+| `BoardService` | `new BoardService({ db, directory, http, sources, now?, newHttp?, paid?, offline?, resolveDeadlineMs? })`. `list({ q?, view?, cursor?, limit? })`, `get(id)`, `resolve(url, { acceptPaidLookup? })` (adds nothing; answers within 25 s), `add({ ats, board, region? })` (throws `BoardError('conflict')` when the person already added it), `update(id, { followed?, hidden?, disabled? })`, `export()` (NDJSON lines: every `BoardEntry` field plus `source`, `boardUrl`, `apiUrl`), `due(now, { intervalHours, catchUp })`, `recordCheck(id, outcome, { now?, storeOpenJobs? })`, `hiddenBoards()` (the store lane leaves these boards' jobs out of the feed), `counts()`, `listPending()`, `addPending()`, `removePending()` |
+| `CrawlScheduler` | `new CrawlScheduler({ boards, crawlStore, http, sources, intervalHours, now?, onProgress?, newHttp?, offline?, batchSize?, graceMs? })`. `start({ catchUp })`, `stop()`, `runNow(boardIds?)`, `runOnce({ boardIds?, reason?, intervalHours? })`, `progress()`, `lastReport()` |
+| `BoardError` | `code`: `conflict`, `not_found`, `bad_request`, `unsupported_source`, `forbidden_source` (map to the local API error codes) |
+| `PaidPageFetcher` | `{ enabled, prices(), fetchPage(url, { js, maxPriceMicros }) }`, structurally sources-other's `MeteredFetchClient`. Used only when the person accepts the offer |
+| Directory | `BoardDirectory` (`size`, `get`, `has`, `all`, `ids`, `search(q, limit)`), `loadActiveDirectory({ home?, env? })` (`JOBLEFT_BOARD_DIRECTORY`, then `$JOBLEFT_HOME/datasets/board-directory.json`, then the shipped file), `readDirectoryFile`, `parseDirectoryFile`, `nameKey`, `nameWords`, `BUNDLED_DIRECTORY_PATH`, `DIRECTORY_FORMAT` (`jobleft-board-directory/1`). A directory row is a static-data `DirectoryRow` plus `id`, `lastVerified`, `status` (`live`, `suspect`, `unverified`) |
+| Links and pages | `detectBoardFromUrl(url)` (pure), `detectBoard(url, { http })` (reads pages), `scanPage(html, pageUrl)` (pure), `parseLink`, `boardPageUrl`, `boardApiUrl`, `boardApiHost`, `PROVIDER_NAMES`, `forbiddenProvider`, `unsupportedProvider`, `jobSite` |
+| Polite network | `createBoardHttp({ pacer, hostMap?, fetchImpl?, timeoutMs?, maxRequests?, offline?, onRequest? })` (a crawler `HttpClient` that also honours Retry-After, refuses iCIMS, Oracle, UKG and Taleo too, records redirect targets instead of following them), `SqlitePacer(dbPath, intervalMs)` (the per-host schedule in the database, shared by every process), `BusyPacer`, `httpStateFor`, `offlineFromEnv` |
+| Checks | `verifyBoard(ats, board, region, http, sources)`, `classifyError`, `boardSources(registry)` (adds the Greenhouse EU host), `UNREACHABLE_AFTER` (2), `backoffMs(failures)` (1 day, doubling, at most 30 days) |
+| Ids | `boardId(ats, board, region?)`, `parseBoardId(id)`, `isCrawlAts` |
 
 <!-- BEGIN GENERATED: sig:packages/boards -->
 ```ts
-import type { DatabaseSync } from 'node:sqlite';
-import type { BoardEntry, BoardResolveResponse, CrawlAtsId, CrawlBoardReport, CrawlProgress, CrawlRunSummary } from '@jobleft/contracts';
-import type { BoardRef, HttpClient, SourceRegistry, Store } from '@jobleft/crawler';
-import type { DirectoryRow } from '@jobleft/static-data';
-/** "<ats>:<board>" or "<ats>:<region>:<board>", lower case (BoardEntry.id). */
-export declare function boardId(ats: CrawlAtsId, board: string, region?: string | null): string;
-export declare class BoardDirectory {
-    constructor(rows: DirectoryRow[]);
-    get size(): number;
-    /** Case-, accent- and suffix-insensitive company search; the same entry comes first for "stripe" and "Stripe, Inc.". */
-    search(q: string, limit?: number): DirectoryRow[];
-    get(id: string): DirectoryRow | undefined;
-}
-export interface BoardServiceOptions {
-    db: DatabaseSync;
-    directory: BoardDirectory;
-    /** The polite client: every paste and every refresh shares its pacer (1 request per second per host). */
-    http: HttpClient;
-    sources: SourceRegistry;
-    now?: () => number;
-}
-export declare class BoardService {
-    constructor(opts: BoardServiceOptions);
-    list(q: {
-        q?: string;
-        view?: 'all' | 'followed' | 'user' | 'hidden' | 'disabled' | 'failing';
-        cursor?: string;
-        limit?: number;
-    }): {
-        items: BoardEntry[];
-        total: number;
-        nextCursor: string | null;
-    };
-    /** What board is behind a link. Adds nothing. Never contacts a never-crawl host. */
-    resolve(url: string, opts?: {
-        acceptPaidLookup?: boolean;
-    }): Promise<BoardResolveResponse>;
-    /** Adds a confirmed board. Throws a conflict when it is already in the list. */
-    add(input: {
-        ats: CrawlAtsId;
-        board: string;
-        region?: string | null;
-    }): BoardEntry;
-    update(id: string, patch: {
-        followed?: boolean;
-        hidden?: boolean;
-        disabled?: boolean;
-    }): BoardEntry;
-    /** NDJSON lines of the directory and the user boards (GET /api/v1/boards/export). */
-    export(): Iterable<string>;
-    /** The boards due for a crawl now (not hidden, not disabled, not in back-off), spread so they do not all start at once. */
-    due(now: number, opts: {
-        intervalHours: number;
-        catchUp: boolean;
-    }): BoardRef[];
-}
-export interface SchedulerOptions {
-    boards: BoardService;
-    crawlStore: Store;
-    http: HttpClient;
-    sources: SourceRegistry;
-    intervalHours: () => number;
-    now?: () => number;
-    /** Called after each board and at the end, so new jobs are findable at once. */
-    onProgress?: (p: CrawlProgress) => void;
-}
-/** Runs crawls: a catch-up on launch, then every intervalHours while the app or the tray runs. */
-export declare class CrawlScheduler {
-    constructor(opts: SchedulerOptions);
-    start(opts: {
-        catchUp: boolean;
-    }): void;
-    stop(): Promise<void>;
-    runNow(boardIds?: string[]): {
-        started: boolean;
-        message: string;
-        nextAllowedAt: string | null;
-    };
-    progress(): CrawlProgress;
-    lastReport(): {
-        run: CrawlRunSummary | null;
-        boards: CrawlBoardReport[];
-    };
-}
+export { boardId, parseBoardId, isCrawlAts } from './ids.ts';
+export { BoardDirectory, BUNDLED_DIRECTORY_PATH, DIRECTORY_FORMAT, PRUNED_DIRECTORY_PATH, installedDirectoryPath, loadActiveDirectory, nameKey, nameWords, parseDirectoryFile, readDirectoryFile, toFileRow, } from './directory.ts';
+export type { DirectoryEntry, DirectoryFile, DirectoryFileRow, DirectorySource, DirectoryStatus, LoadedDirectory } from './directory.ts';
+export { PROVIDER_NAMES, boardApiHost, boardApiUrl, boardPageUrl, detectBoardFromUrl, parseLink, } from './detect.ts';
+export type { LinkBoard, UrlDetection } from './detect.ts';
+export { scanPage } from './page.ts';
+export type { Evidence, PageBoard, PageScan } from './page.ts';
+export { forbiddenProvider, isForbiddenHost, jobSite, unsupportedProvider } from './hosts.ts';
+export { BusyPacer, ForbiddenHostError, HostBusyError, OfflineError, RedirectLog, SqlitePacer, createBoardHttp, httpStateFor, networkCode, offlineFromEnv, redirectLogFor, } from './http.ts';
+export type { BoardHttpOptions, BoardHttpState } from './http.ts';
+export { boardSources } from './sources.ts';
+export { classifyError, verifyBoard } from './verify.ts';
+export type { CheckFailure, VerifyResult } from './verify.ts';
+export { migrateBoards, SCHEMA_VERSION } from './db.ts';
+export { BoardError, BoardService, UNREACHABLE_AFTER, backoffMs, priceText } from './service.ts';
+export type { BoardErrorCode, BoardServiceOptions, CheckOutcome, ListView, PaidPageFetcher } from './service.ts';
+export { CrawlScheduler, outcomeOf } from './scheduler.ts';
+export type { SchedulerOptions } from './scheduler.ts';
+export { detectBoard } from './discover.ts';
+export type { DetectBoardResult } from './discover.ts';
 ```
 <!-- END GENERATED: sig:packages/boards -->
 
-Rules: every resolve request goes through the shared `HttpClient` (one pacer for pastes and refreshes); an employer
-name comes from the board or the directory, never a guess; a failing board is backed off and re-checked on a stated
-date; a directory update never removes or renames a person's boards. CLI (planned): `jobleft-boards list|export|resolve <url>`.
+Rules: every resolve and refresh request goes through the polite client (one pacer per database, 1.1 s between
+requests to one host, robots.txt, Retry-After); forbidden hosts (LinkedIn, Indeed, Glassdoor, SmartRecruiters,
+Workday, iCIMS, Oracle, UKG, Taleo) get no request, also not as a redirect or embed target; an employer name comes
+from the board or the directory, never from link text or a guess; one failed check never makes a board unreachable,
+two in a row do, with a stated next check date; a failed, empty or broken answer never closes jobs; a directory
+update never removes, renames or re-enables a person's boards or choices; no paid lookup without the person's
+acceptance of a price shown in dollars. CLI `jobleft-boards` (`packages/boards/src/cli.ts`; from the root:
+`node packages/boards/src/cli.ts <command>` or `pnpm --filter @jobleft/boards run boards <command>`): `list`,
+`count`, `search`, `show`, `export`, `resolve`, `add`, `follow|unfollow|hide|unhide|disable|enable`, `pending`,
+`jobs`, `refresh`, `status`, `report`, `directory info|check|load|unload|refresh`, `serve` (a loopback development
+server for the board routes with the section 6.1 rules). Scripts: `scripts/build-directory.ts`, `scripts/cc-discover.ts`,
+`scripts/mock-hosts.ts`.
+
+Overlaps to settle when the lanes merge: `detectBoardFromUrl` recognises board links on its own (sources-ats
+`detectAts` was a stub when this lane was built); the directory file lives in `packages/boards/data/` (static-data's
+`loadDirectoryRows` can read it by path; this lane does not edit static-data).
 
 ### `@jobleft/store`
 
@@ -1312,6 +1280,7 @@ The app contacts only these hosts, and only for these reasons. Anything else is 
 |---|---|---|
 | Approved public ATS APIs: `boards-api.greenhouse.io`, `api.lever.co`, `api.eu.lever.co`, `api.ashbyhq.com`, and the Workable, Recruitee and Personio feed hosts once their adapters land | Job boards | Crawls; 1 request per second per host; robots.txt obeyed |
 | Hosts of links the person pastes (careers pages, job pages) | Resolve a board or read an added job | On the person's action only; same polite client |
+| Board pages of the providers (`jobs.lever.co`, `jobs.eu.lever.co`, `jobs.ashbyhq.com`) and the Greenhouse board endpoint (`boards-api.greenhouse.io/v1/boards/<token>`, EU: `boards-api.eu.greenhouse.io`) | The employer name a board reports, when its job list has none | On a paste of a board that is not in the directory; same polite client |
 | Approved non-ATS feed hosts (sources-other) | Job feeds | Only when that source is on |
 | The fit model host (`JOBLEFT_MODEL_BASE_URL`) | Download bge-small-en-v1.5 once | First fit indexing; never on every launch |
 | The dataset release host (`JOBLEFT_DATASET_MANIFEST_URL`) | Newer H-1B, place or directory data | When the person updates, or a stated schedule |

@@ -18,7 +18,8 @@ type Reason = NonNullable<BoardResolveResponse['reason']>;
 
 export type WalkResult =
   | { kind: 'boards'; boards: Array<LinkBoard | PageBoard>; pageUrl: string; note: string }
-  | { kind: 'cannot'; reason: Reason; message: string; offline?: boolean }
+  /** retryable: the link may be fine; the network or the site failed (the link is kept to try again). */
+  | { kind: 'cannot'; reason: Reason; message: string; offline?: boolean; retryable?: boolean }
   /** Nothing a plain request can see. `hints`: providers the page names without a readable board. */
   | { kind: 'nothing'; hints: CrawlAtsId[]; blocked: boolean };
 
@@ -98,16 +99,16 @@ export async function walkForBoards(first: Extract<UrlDetection, { kind: 'page' 
       if (careersHop) break; // the careers link from the home page failed: the home page itself has no board
       if (fail.failure === 'offline') return { kind: 'cannot', reason: 'offline', message: OFFLINE_MSG, offline: true };
       if (r.robotsNet) {
-        return { kind: 'cannot', reason: 'broken_link', message: `jobleft could not reach ${current.hostname} (the site did not answer). Check the link, or check that you are online. Nothing was added.` };
+        return { kind: 'cannot', reason: 'broken_link', retryable: true, message: `jobleft could not reach ${current.hostname} (the site did not answer). Check the link, or check that you are online. The link is kept in your pending links. Nothing was added.` };
       }
       if (fail.failure === 'robots') return { kind: 'cannot', reason: 'blocked_by_robots', message: `${fail.message.replace(/this address\.$/, 'this page.')} Nothing was added.` };
       if (fail.failure === 'not_found') return { kind: 'cannot', reason: 'broken_link', message: `The page answered "not found" (HTTP ${fail.status}). Check the link. Nothing was added.` };
       if (fail.failure === 'forbidden') return { kind: 'cannot', reason: 'forbidden_host', message: `${fail.message} Nothing was added.` };
       if (fail.failure === 'blocked' && fail.status === 403) { blocked = true; break; }
-      if (fail.failure === 'network') {
-        return { kind: 'cannot', reason: 'broken_link', message: `jobleft could not open ${current.hostname}: ${fail.message} Check the link, or check that you are online. Nothing was added.` };
+      if (fail.failure === 'network' || fail.failure === 'timeout') {
+        return { kind: 'cannot', reason: 'broken_link', retryable: true, message: `jobleft could not open ${current.hostname}: ${fail.message} Check the link, or check that you are online. The link is kept in your pending links. Nothing was added.` };
       }
-      return { kind: 'cannot', reason: 'broken_link', message: `jobleft could not open the page: ${fail.message} Nothing was added.` };
+      return { kind: 'cannot', reason: 'broken_link', retryable: fail.failure === 'server' || fail.failure === 'busy', message: `jobleft could not open the page: ${fail.message} Nothing was added.` };
     }
     const scan = scanPage(r.html, current);
     if (scan.boards.length) {

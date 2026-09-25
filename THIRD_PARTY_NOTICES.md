@@ -36,7 +36,18 @@ Local additions that are not in freehire (written new): the per-host pacer, the 
 
 ## 2. Data shipped with the app
 
-None yet. The static-data lane adds entries here (board directory, H-1B sponsor table from US Department of Labor LCA disclosure files, city dictionary with its attribution, skill dictionary).
+The static-data lane adds its entries here (H-1B sponsor table from US Department of Labor LCA disclosure files, city dictionary with its attribution, skill dictionary).
+
+### 2.1 Board directory (added by the boards lane)
+
+- File: `packages/boards/data/board-directory.json` (the header names every source, its licence, a public page and a notice; it ships with the app). Removed rows, with both "not found" dates: `packages/boards/data/board-directory-pruned.json`.
+- Source: JobSync bundled company board lists, https://github.com/Gsync/jobsync, commit `527333e60d4913f3af217c2153a8ee7bc68cf857` (2026-09-14). Read-only clone at `vendor/jobsync` (not committed). Files: `src/lib/scraper/greenhouse/companies.json` (602 rows), `src/lib/scraper/lever/companies.json` (1,160 rows, 81 on Lever's EU host), `src/lib/scraper/ashby/companies.json` (1,860 rows).
+- Licence: MIT. Copyright (c) 2024 gsync. Full text in section 5.2. The upstream repository does not say how the lists were made (open question for the owner; see below).
+- What was taken: each row's board token and employer name. No JobSync code was copied (`packages/boards/scripts/build-directory.ts` reads the files and is written new).
+- What jobleft changed: rows normalised to `{ ats, slug, name, region, source, lastVerified, status }`; every Greenhouse row, every EU Lever row and a random sample of the other Lever and Ashby rows were checked against the providers' public APIs on 2026-09-25 (1 request per second per host, robots.txt obeyed, User-Agent `jobleft-build/0.1 (research build; no personal data)`); where a Greenhouse board reports a different name in its own API (`GET boards-api.greenhouse.io/v1/boards/{token}`), the row now carries the board's own name (4 rows); rows that answered "not found" are marked `suspect` and are removed only after a second "not found" at a later time.
+- Not used, on purpose: the `data/` board lists of Feashliaa/job-board-aggregator and of colophon-group/jobseek (both CC BY-NC 4.0, non-commercial). No directory row comes from them.
+- Not used yet: the Common Crawl URL index. `packages/boards/scripts/cc-discover.ts` can extract board tokens from it, but on 2026-09-25 the robots.txt of index.commoncrawl.org and data.commoncrawl.org disallows all crawlers, so jobleft sent no index request and the directory holds no Common Crawl row. If the owner later obtains index answers another way, rows added from them are named `commoncrawl-<crawl id>` in the directory header, with the Common Crawl Terms of Use (https://commoncrawl.org/terms-of-use, last updated 2024-03-07: a limited licence; commercial use is not excluded; legal advice is recommended); their employer names come from each board's own API, never from crawled text.
+- Open question for the owner: JobSync's lists carry JobSync's MIT licence, but their own upstream origin is not documented. Before a public release, confirm with the JobSync maintainer that the lists were not copied from a non-commercial list.
 
 ## 3. Development tools (not shipped in the app)
 
@@ -57,6 +68,32 @@ None. `pnpm-workspace.yaml` sets `ignoreScripts: true` and an empty `allowBuilds
 MIT License
 
 Copyright (c) 2026 freehire contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### 5.2 MIT licence (JobSync)
+
+```
+MIT License
+
+Copyright (c) 2024 gsync
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -64,6 +64,7 @@ const file: DirectoryFile = {
     licenceUrl: `https://github.com/Gsync/jobsync/blob/${commit}/LICENSE`,
     commit,
     copyright,
+    licenceText: licence.trim(),
     note: 'The upstream repository does not say how the lists were made. Each row is checked against the provider\'s public API before jobleft treats it as live.',
     rows: rows.length,
   }],

@@ -46,6 +46,8 @@ export interface DirectorySource {
   licenceUrl: string | null;
   commit?: string | null;
   copyright?: string | null;
+  /** The full licence text when the licence asks for it to travel with the data (MIT). */
+  licenceText?: string | null;
   note?: string | null;
   rows: number;
 }

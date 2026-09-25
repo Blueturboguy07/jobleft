@@ -64,6 +64,10 @@ interface CheckRow {
 
 export type ListView = 'all' | 'followed' | 'user' | 'hidden' | 'disabled' | 'failing';
 
+type Answer = BoardResolveResponse;
+/** Answers whose link may be fine (network or site trouble): the link is kept in the pending list. */
+const RETRY = new WeakSet<Answer>();
+
 /** What one check of a board (a refresh or a confirmed paste) saw. */
 export type CheckOutcome =
   | { ok: true; listed: number }
@@ -403,8 +407,10 @@ export class BoardService {
 
   // ------------------------------------------------------------------ resolve
 
-  private reply(candidates: BoardResolveResponse['candidates'], reason: BoardResolveResponse['reason'], message: string, paid: number | null = null): BoardResolveResponse {
-    return { candidates, reason: candidates.length ? null : reason, message, paidLookup: paid === null ? null : { priceMicros: paid } };
+  private reply(candidates: BoardResolveResponse['candidates'], reason: BoardResolveResponse['reason'], message: string, paid: number | null = null, retryable = false): Answer {
+    const a: Answer = { candidates, reason: candidates.length ? null : reason, message, paidLookup: paid === null ? null : { priceMicros: paid } };
+    if (retryable) RETRY.add(a);
+    return a;
   }
 
   /** What board is behind a link. Adds nothing. Never contacts a forbidden host. Answers within the deadline. */
@@ -450,7 +456,7 @@ export class BoardService {
       if (!answer.paidLookup) this.resolveCache.set(cacheKey, { at: Date.now(), answer });
       if (this.resolveCache.size > 300) this.resolveCache.delete(this.resolveCache.keys().next().value!);
     }
-    if (answer.reason === 'offline') this.addPending(d.url.href, 'offline');
+    if (answer.reason === 'offline' || RETRY.has(answer)) this.addPending(d.url.href, answer.reason ?? 'network');
     else this.removePending(d.url.href);
     return answer;
   }
@@ -464,7 +470,13 @@ export class BoardService {
     return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names.join('');
   }
 
-  private client(): HttpClient { return this.http; }
+  private clientBornAt = Date.now();
+  /** The shared polite client. Renewed every 10 minutes when a factory is given, so robots.txt is read again and a
+   *  host that refused twice (and was skipped) is asked again later. */
+  private client(): HttpClient {
+    if (this.newHttp && Date.now() - this.clientBornAt > 10 * 60_000) { this.http = this.newHttp(); this.clientBornAt = Date.now(); }
+    return this.http;
+  }
 
   /** Replaces the shared client when it cached a robots.txt fetch that failed for network reasons. */
   private healClient(host: string): void {
@@ -500,6 +512,7 @@ export class BoardService {
         if (r.failure === 'robots') { robots = true; continue; }
         if (r.failure === 'forbidden') continue;
         if (r.failure === 'offline') { offline = true; continue; }
+        if (r.failure === 'bad_reply') { missing.push(`${PROVIDER_NAMES[f.ats]} board "${f.board}" (the provider did not answer with job data)`); continue; }
         problems.push(`${PROVIDER_NAMES[f.ats]} board "${f.board}": ${r.message}`);
       }
       const dir = this.directory.get(id);
@@ -508,12 +521,12 @@ export class BoardService {
       candidates.push({ boardId: id, ats: f.ats, board: f.board, region, company, openJobs: r.ok ? r.openJobs : null, alreadyAdded: !!pref?.added_by_user });
     }
     if (candidates.length === 0) {
-      if (offline) return this.reply([], 'offline', 'jobleft could not reach the network, so it could not check this link. The link is kept in your pending links; try again when you are online. Nothing was added.');
+      if (offline) return this.reply([], 'offline', 'jobleft could not reach the network, so it could not check this link. The link is kept in your pending links; try again when you are online. Nothing was added.', null, true);
       if (robots) return this.reply([], 'blocked_by_robots', "The provider's robots.txt does not allow jobleft to read this board, so jobleft did not read it. Nothing was added.");
       if (missing.length) {
         return this.reply([], 'no_board_found', `The link names the ${missing.join(' and the ')}, but the provider answered that it does not exist. Nothing was added.`);
       }
-      return this.reply([], 'broken_link', `jobleft could not check the board: ${problems.join(' ')} Nothing was added.`);
+      return this.reply([], 'broken_link', `jobleft could not check the board: ${problems.join(' ')} Nothing was added.`, null, true);
     }
     const parts: string[] = [];
     if (candidates.length === 1) {
@@ -549,7 +562,7 @@ export class BoardService {
   private async resolvePage(first: Extract<UrlDetection, { kind: 'page' }>, acceptPaid: boolean): Promise<BoardResolveResponse> {
     const w = await walkForBoards(first, this.client(), { onRobotsNetworkFailure: (h) => this.healClient(h), maxCandidates: MAX_CANDIDATES });
     if (w.kind === 'boards') return this.answerFor(w.boards, w.pageUrl, w.note);
-    if (w.kind === 'cannot') return this.reply([], w.reason, w.message);
+    if (w.kind === 'cannot') return this.reply([], w.reason, w.message, null, !!w.retryable);
     const hints = new Set(w.hints);
     const blocked = w.blocked;
     // Nothing a plain request can see.

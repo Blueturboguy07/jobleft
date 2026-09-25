@@ -7,6 +7,14 @@
 //        [--pages 0-1] [--max-requests 20] [--out discovered.json]
 //        [--record <dir> [--record-lines 400]]     save each index answer (optionally only its first N lines)
 //        [--replay <dir>]                          read saved answers instead of the network (offline tests)
+//   node scripts/cc-discover.ts --crawl CC-MAIN-2026-39 --from-file <cdx answer> [--from-file ...] [--out f]
+//                                                 extract tokens from CDX answers obtained another way (no network)
+//
+// ROBOTS.TXT: on 2026-09-25 both index.commoncrawl.org and data.commoncrawl.org answer robots.txt with
+// "User-agent: * / Disallow: /" (the index keeps only its home pages open). The live mode obeys robots.txt, so today
+// it stops with a plain message and sends nothing beyond robots.txt. Using the index needs the owner's decision
+// (ask Common Crawl for permission, or read the index from its S3 bucket with an AWS account). --from-file and
+// --replay work offline on answers in the CDX API format (one JSON object per line: urlkey, timestamp, url, status...).
 //
 // Politeness: every request goes through the boards lane's polite client: the project User-Agent, robots.txt,
 // 1 request per second per host, Retry-After honoured, a hard request budget (--max-requests, default 20).
@@ -26,6 +34,18 @@ import { parseCdx, slugsFromCdx } from '../src/commoncrawl.ts';
 import { boardId } from '../src/ids.ts';
 import type { CrawlAtsId } from '@jobleft/contracts';
 
+function sourceEntry(crawl: string, rows: number) {
+  return {
+    id: `commoncrawl-${crawl}`,
+    name: `Common Crawl URL index ${crawl} (board tokens only; each board checked live and named by its own provider answer)`,
+    url: 'https://index.commoncrawl.org/',
+    licence: 'Common Crawl Terms of Use (limited licence; commercial use is not excluded; legal advice recommended)',
+    licenceUrl: 'https://commoncrawl.org/terms-of-use',
+    note: 'Only the board token of each URL is kept. Employer names come from each board\'s own public API.',
+    rows,
+  };
+}
+
 function arg(name: string): string | undefined { const i = process.argv.indexOf(`--${name}`); return i >= 0 ? process.argv[i + 1] : undefined; }
 function args(name: string): string[] { const out: string[] = []; process.argv.forEach((a, i) => { if (a === `--${name}` && process.argv[i + 1]) out.push(process.argv[i + 1]!); }); return out; }
 
@@ -42,6 +62,23 @@ function pageRange(spec: string | undefined, pages: number): number[] {
 async function main(): Promise<void> {
   const crawl = arg('crawl');
   const hosts = args('host');
+  const files = args('from-file');
+  if (crawl && /^CC-MAIN-\d{4}-\d{2}$/.test(crawl) && files.length) {
+    const source = `commoncrawl-${crawl}`;
+    const all = new Map<string, { ats: CrawlAtsId; slug: string; region: string | null; source: string }>();
+    let lines = 0;
+    for (const f of files) {
+      const text = readFileSync(resolve(f), 'utf8');
+      const parsed = parseCdx(text);
+      lines += parsed.length;
+      for (const s of slugsFromCdx(parsed, source)) { const id = boardId(s.ats, s.slug, s.region); if (!all.has(id)) all.set(id, s); }
+    }
+    const result = { source: sourceEntry(crawl, all.size), slugs: [...all.values()].sort((a, b) => (boardId(a.ats, a.slug, a.region) < boardId(b.ats, b.slug, b.region) ? -1 : 1)), stats: { files: files.length, lines }, requests: 0 };
+    const outFile = arg('out') ? resolve(arg('out')!) : null;
+    if (outFile) writeFileSync(outFile, JSON.stringify(result, null, 1) + '\n');
+    console.log(`${all.size} board tokens from ${lines} index lines in ${files.length} file(s) (no network)${outFile ? `; wrote ${outFile}` : ''}`);
+    return;
+  }
   if (!crawl || !/^CC-MAIN-\d{4}-\d{2}$/.test(crawl) || hosts.length === 0) {
     console.error('usage: node scripts/cc-discover.ts --crawl CC-MAIN-2026-39 --host job-boards.greenhouse.io [--pages 0-1] [--max-requests 20] [--out f] [--record dir] [--replay dir]');
     process.exit(2);
@@ -73,6 +110,7 @@ async function main(): Promise<void> {
   };
 
   const source = `commoncrawl-${crawl}`;
+  let robotsBlocked = false;
   const all = new Map<string, { ats: CrawlAtsId; slug: string; region: string | null; source: string }>();
   const stats: Record<string, { pages: number; fetched: number[]; lines: number; slugs: number }> = {};
   for (const host of hosts) {
@@ -82,7 +120,15 @@ async function main(): Promise<void> {
     try {
       const meta = JSON.parse(await fetchText(key('pages.json'), `${base}?${q}&showNumPages=true`)) as { pages?: number };
       pages = Number(meta.pages ?? 0);
-    } catch (e) { console.error(`${host}: cannot read the page count (${(e as Error).message})`); continue; }
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (/robots\.txt/.test(msg)) {
+        console.error(`${host}: index.commoncrawl.org's robots.txt does not allow this address for crawlers, so nothing was asked. See the note at the top of this script.`);
+        robotsBlocked = true;
+        break;
+      }
+      console.error(`${host}: cannot read the page count (${msg})`); continue;
+    }
     const want = pageRange(arg('pages'), pages);
     stats[host] = { pages, fetched: [], lines: 0, slugs: 0 };
     for (const p of want) {
@@ -97,20 +143,14 @@ async function main(): Promise<void> {
     }
   }
   const result = {
-    source: {
-      id: source,
-      name: `Common Crawl URL index ${crawl} (board tokens only; each board checked live and named by its own provider answer)`,
-      url: 'https://index.commoncrawl.org/',
-      licence: 'Common Crawl Terms of Use (limited licence; commercial use is not excluded; legal advice recommended)',
-      licenceUrl: 'https://commoncrawl.org/terms-of-use',
-      note: 'Only the board token of each URL is kept. Employer names come from each board\'s own public API.',
-      rows: all.size,
-    },
+    source: sourceEntry(crawl, all.size),
+    robotsBlocked,
     slugs: [...all.values()].sort((a, b) => (boardId(a.ats, a.slug, a.region) < boardId(b.ats, b.slug, b.region) ? -1 : 1)),
     stats,
     requests: http ? http.totalRequests : 0,
   };
   if (out) writeFileSync(out, JSON.stringify(result, null, 1) + '\n');
+  if (robotsBlocked) process.exitCode = 3;
   console.log(`${all.size} board tokens from ${hosts.join(', ')} (${result.requests} requests${replay ? ', replayed' : ''})${out ? `; wrote ${out}` : ''}`);
 }
 
