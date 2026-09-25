@@ -29,6 +29,8 @@ export interface Mention {
   field?: string | null;
   /** For titles: the seniority word in the phrase, if any. */
   seniority?: string | null;
+  /** For organisations: found by a name ending ("Labs", "University") or after "at/for/with". */
+  via?: 'suffix' | 'at';
 }
 
 // ------------------------------------------------------------------------------------------------ term matching
@@ -383,19 +385,20 @@ export function findOrgs(text: string): Mention[] {
   const out: Mention[] = [];
   for (const m of text.matchAll(SCHOOL_RE)) {
     const t = m[0].replace(/\s+(?:at|and|of)$/, '').trim();
-    out.push({ kind: 'school', text: t, key: orgKey(t), start: m.index!, end: m.index! + t.length });
+    out.push({ kind: 'school', text: t, key: orgKey(t), start: m.index!, end: m.index! + t.length, via: 'suffix' });
   }
   for (const m of text.matchAll(ORG_SUFFIX_RE)) {
     const t = m[1]!.trim();
     if (!/\s/.test(t) && /^(?:Health|Group|Software|Services|Media|Global|International|Analytics|Solutions|Systems|Technology|Technologies|Capital|Lab|Labs|Center|Centre|Department|School|College|Company|Consulting|Insurance)$/.test(t)) continue;
-    out.push({ kind: 'employer', text: t, key: orgKey(t), start: m.index!, end: m.index! + t.length });
+    if (!orgKey(t)) continue; // a bare legal ending ("Inc.") after a name that is matched on its own
+    out.push({ kind: 'employer', text: t, key: orgKey(t), start: m.index!, end: m.index! + t.length, via: 'suffix' });
   }
   for (const m of text.matchAll(AT_ORG_RE)) {
     const name = m[1]!.replace(/[.,;:]+$/, '').replace(/\s+(?:of|and|&)$/, '').trim();
     if (!name || ORDINARY_CAPITALISED.has(name.toLowerCase())) continue;
     const start = m.index! + m[0].indexOf(name);
     const kind = /\b(?:University|College|Institute|School|Academy|Polytechnic)\b/.test(name) ? 'school' : 'employer';
-    out.push({ kind, text: name, key: orgKey(name), start, end: start + name.length });
+    out.push({ kind, text: name, key: orgKey(name), start, end: start + name.length, via: 'at' });
   }
   return dropOverlaps(out);
 }

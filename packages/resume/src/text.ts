@@ -53,7 +53,7 @@ export function orgKey(s: string): string {
   let k = foldKey(s).replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
   k = k.replace(/^the /, '');
   for (let i = 0; i < 2; i++) {
-    k = k.replace(/ (inc|incorporated|llc|l l c|ltd|limited|corp|corporation|co|company|plc|llp|lp|gmbh|pbc|sa|ag|bv|pty)$/, '').trim();
+    k = k.replace(/(?:^| )(inc|incorporated|llc|l l c|ltd|limited|corp|corporation|co|company|plc|llp|lp|gmbh|pbc|sa|ag|bv|pty)$/, '').trim();
   }
   return k;
 }

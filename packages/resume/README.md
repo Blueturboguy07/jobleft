@@ -188,7 +188,7 @@ belongs to the ai-engine lane.
 ## 5. Tests
 
 ```sh
-pnpm --filter @jobleft/resume test        # 52 tests: gate, import, render, gaps, service, readability, CLI
+pnpm --filter @jobleft/resume test        # 53 tests: gate, import, render, gaps, service, readability, CLI
 pnpm --filter @jobleft/resume typecheck
 ```
 

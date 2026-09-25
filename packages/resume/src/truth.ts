@@ -335,7 +335,9 @@ function checkMentions(text: string, where: string, ctx: Ctx, opts: { sentence?:
     }
     // "at scale", "for Engineering" and similar are words, not organisations; only flag capitalised names.
     const tokens = m.text.split(/\s+/).filter((w) => /^\p{Lu}/u.test(w));
-    if (!tokens.length || tokens.every((w) => pf.words.has(foldKey(w)) || ctx.job?.words.has(foldKey(w)) && ctx.mode === 'letter')) continue;
+    // A name with an organisation ending ("Northwind Labs") must be one of yours; words after "at"/"with" that are
+    // all your own words ("with Python") are not an organisation.
+    if (!tokens.length || (m.via !== 'suffix' && tokens.every((w) => pf.words.has(foldKey(w)) || ctx.job?.words.has(foldKey(w)) && ctx.mode === 'letter'))) continue;
     out.push(v(m.kind === 'school' ? 'school' : 'employer', m.text, where, m.kind === 'school' ? 'This school is not in your profile.' : 'This organisation is not in your profile.'));
   }
   for (const m of scan.proper) {
