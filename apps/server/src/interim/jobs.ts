@@ -14,6 +14,7 @@ import {
   type JobSearchResponse, type JobSummary, type Level, type TrackerStatus,
 } from '@jobleft/contracts';
 import { makeJobId } from '@jobleft/store';
+import { canonicalizeUrl } from '@jobleft/crawler';
 import { ApiFailure } from '../errors.ts';
 import { companyKey } from './company-key.ts';
 
@@ -211,6 +212,68 @@ export class JobsService {
   constructor(db: DatabaseSync) {
     this.db = db;
     db.function('jl_company_key', { deterministic: true }, (s: unknown) => companyKey(String(s ?? '')));
+    this.ensureIndexes();
+  }
+
+  /**
+   * INTERIM search index (the store lane's search replaces it). The crawler's `jobs` rows keep the long description
+   * before the state columns, so reading `closed_at` means reading the whole posting. `srv_job_index` holds one
+   * narrow row per OPEN, NON-DUPLICATE job with the facts the filters and sorts use; triggers keep it in step with
+   * every write to `jobs` (they use built-in SQL only, so the crawler's own connection can fire them). A search
+   * reads this small table in index order and fetches full postings only for the page it returns.
+   */
+  private ensureIndexes(): void {
+    const has = (name: string) => this.db.prepare("SELECT 1 FROM sqlite_schema WHERE name = ?").get(name) !== undefined;
+    const cols = `id, sort_rec, sort_new, work_mode, remote, employment_type, level, is_us, pay_currency, pay_annual, has_pay, title, company, location, ats, board`;
+    const vals = (r: string) => `${r}.id, COALESCE(julianday(${r}.posted_at), julianday(${r}.first_seen)), julianday(${r}.posted_at), ${r}.work_mode, ${r}.remote,
+      ${r}.employment_type, ${r}.level, ${r}.is_us, upper(${r}.pay_currency), COALESCE(${r}.pay_max_annual, ${r}.pay_min_annual),
+      (${r}.pay_min IS NOT NULL OR ${r}.pay_max IS NOT NULL), ${r}.title, ${r}.company, ${r}.location, ${r}.ats, ${r}.board`;
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS srv_jobs_apply ON jobs(apply_url);
+      CREATE INDEX IF NOT EXISTS srv_jobs_key ON jobs(lower(ats), lower(board), job_id);
+      DROP INDEX IF EXISTS srv_jobs_feed;
+      DROP INDEX IF EXISTS srv_jobs_recent;
+    `);
+    if (has('srv_job_index') && has('srv_job_index_au')) return;
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.exec(`
+        DROP TABLE IF EXISTS srv_job_index;
+        CREATE TABLE srv_job_index (
+          id INTEGER PRIMARY KEY, sort_rec REAL, sort_new REAL, work_mode TEXT NOT NULL, remote INTEGER NOT NULL,
+          employment_type TEXT NOT NULL, level TEXT, is_us INTEGER, pay_currency TEXT, pay_annual REAL, has_pay INTEGER NOT NULL,
+          title TEXT NOT NULL, company TEXT NOT NULL, location TEXT NOT NULL, ats TEXT NOT NULL, board TEXT NOT NULL
+        );
+        CREATE INDEX srv_job_index_rec ON srv_job_index(sort_rec DESC, id);
+        CREATE INDEX srv_job_index_new ON srv_job_index((sort_new IS NULL), sort_new DESC, id);
+        INSERT INTO srv_job_index (${cols}) SELECT ${vals('j')} FROM jobs j WHERE j.closed_at IS NULL AND j.duplicate_of IS NULL;
+        CREATE TRIGGER IF NOT EXISTS srv_job_index_ai AFTER INSERT ON jobs WHEN NEW.closed_at IS NULL AND NEW.duplicate_of IS NULL BEGIN
+          INSERT OR REPLACE INTO srv_job_index (${cols}) VALUES (${vals('NEW')});
+        END;
+        CREATE TRIGGER IF NOT EXISTS srv_job_index_ad AFTER DELETE ON jobs BEGIN
+          DELETE FROM srv_job_index WHERE id = OLD.id;
+        END;
+        CREATE TRIGGER IF NOT EXISTS srv_job_index_au AFTER UPDATE OF closed_at, duplicate_of, posted_at, first_seen, work_mode, remote,
+          employment_type, level, is_us, pay_currency, pay_min, pay_max, pay_min_annual, pay_max_annual, title, company, location ON jobs BEGIN
+          DELETE FROM srv_job_index WHERE id = OLD.id;
+          INSERT INTO srv_job_index (${cols}) SELECT ${vals('NEW')} WHERE NEW.closed_at IS NULL AND NEW.duplicate_of IS NULL;
+        END;
+      `);
+      this.db.exec('COMMIT');
+    } catch (e) {
+      try { this.db.exec('ROLLBACK'); } catch { /* ended */ }
+      throw e;
+    }
+  }
+
+  /** Crawler row ids of the jobs the person hid. */
+  private hiddenRowIds(): number[] {
+    const out: number[] = [];
+    for (const r of this.db.prepare('SELECT job_id FROM srv_tracker WHERE hidden = 1').all() as Array<{ job_id: string }>) {
+      const row = this.getRow(r.job_id);
+      if (row) out.push(Number(row.id));
+    }
+    return out;
   }
 
   getRow(id: string): JobRow | null {
@@ -221,7 +284,7 @@ export class JobsService {
     // case in this build; the case-blind scan is only a fallback for rows written otherwise.
     const exact = this.db.prepare(`${head} WHERE j.ats = ? AND j.board = ? AND j.job_id = ?`).get(parts[1]!, parts[2]!, parts[3]!) as JobRow | undefined;
     if (exact) return exact;
-    const r = this.db.prepare(`${head} WHERE lower(j.ats) = ? AND lower(j.board) = ? AND j.job_id = ?`)
+    const r = this.db.prepare(`${head} WHERE lower(j.ats) = ? AND lower(j.board) = ? AND j.job_id = ? LIMIT 1`)
       .get(parts[1]!.toLowerCase(), parts[2]!.toLowerCase(), parts[3]!) as JobRow | undefined;
     return r ?? null;
   }
@@ -235,14 +298,19 @@ export class JobsService {
 
   /** The job whose page or apply link is this URL (extension fill), or null. */
   findByUrl(url: string): string | null {
-    const r = this.db.prepare('SELECT ats, board, job_id FROM jobs WHERE canonical_url = ? OR apply_url = ? ORDER BY closed_at IS NOT NULL, id LIMIT 1')
-      .get(url, url) as Pick<JobRow, 'ats' | 'board' | 'job_id'> | undefined;
-    return r ? contractJobId(r) : null;
+    for (const u of new Set([url, canonicalizeUrl(url)])) {
+      if (!u) continue;
+      const r = (this.db.prepare('SELECT ats, board, job_id FROM jobs WHERE canonical_url = ?').get(u)
+        ?? this.db.prepare('SELECT ats, board, job_id FROM jobs WHERE apply_url = ? ORDER BY closed_at IS NOT NULL, id LIMIT 1').get(u)) as Pick<JobRow, 'ats' | 'board' | 'job_id'> | undefined;
+      if (r) return contractJobId(r);
+    }
+    return null;
   }
 
   counts(): { jobs: number; openJobs: number } {
-    const r = this.db.prepare('SELECT count(*) AS n, sum(closed_at IS NULL) AS o FROM jobs').get() as { n: number; o: number | null };
-    return { jobs: Number(r.n), openJobs: Number(r.o ?? 0) };
+    const n = this.db.prepare('SELECT count(*) AS n FROM jobs').get() as { n: number };
+    const o = this.db.prepare('SELECT count(*) AS n FROM jobs WHERE closed_at IS NULL').get() as { n: number };
+    return { jobs: Number(n.n), openJobs: Number(o.n) };
   }
 
   search(req: JobSearchRequest, deps: SearchDeps): JobSearchResponse {
@@ -250,83 +318,93 @@ export class JobsService {
     const filter: JobFilter = req.filter ?? {};
     const sort = req.sort;
     const limit = req.limit ?? 20;
-    const where: string[] = ['j.duplicate_of IS NULL', 'COALESCE(t.hidden, 0) = 0'];
+    const closed = filter.status === 'closed';
+    // Open jobs: the narrow index table. Closed jobs (rare): the crawler's table itself.
+    const T = closed ? 'jobs x' : 'srv_job_index x';
+    const where: string[] = closed ? ['x.closed_at IS NOT NULL', 'x.duplicate_of IS NULL'] : [];
     const args: SQLInputValue[] = [];
     const unknownOk = new Set(filter.includeUnknown ?? []);
     const nothing = () => where.push('0');
-
-    where.push(filter.status === 'closed' ? 'j.closed_at IS NOT NULL' : 'j.closed_at IS NULL');
+    const fts = (text: string): string | null => ftsQuery(text).match;
 
     if (req.q && req.q.trim()) {
       const { match, exact } = ftsQuery(req.q);
-      if (match) { where.push('j.id IN (SELECT rowid FROM jobs_fts WHERE jobs_fts MATCH ?)'); args.push(match); }
-      for (const e of exact) { where.push("(instr(lower(j.title), ?) > 0 OR instr(lower(j.description), ?) > 0)"); args.push(e, e); }
+      if (match) { where.push('x.id IN (SELECT rowid FROM jobs_fts WHERE jobs_fts MATCH ?)'); args.push(match); }
+      for (const e of exact) { where.push('x.id IN (SELECT id FROM jobs WHERE instr(lower(title), ?) > 0 OR instr(lower(description), ?) > 0)'); args.push(e, e); }
     }
     if (filter.workModels?.length) {
-      const parts = [`j.work_mode IN (${filter.workModels.map(() => '?').join(',')})`];
+      const parts = [`x.work_mode IN (${filter.workModels.map(() => '?').join(',')})`];
       args.push(...filter.workModels);
-      if (filter.workModels.includes('remote')) parts.push("(j.work_mode = '' AND j.remote = 1)");
-      if (unknownOk.has('workModel')) parts.push("(j.work_mode = '' AND j.remote = 0)");
+      if (filter.workModels.includes('remote')) parts.push("(x.work_mode = '' AND x.remote = 1)");
+      if (unknownOk.has('workModel')) parts.push("(x.work_mode = '' AND x.remote = 0)");
       where.push(`(${parts.join(' OR ')})`);
     }
     if (filter.employmentTypes?.length) {
-      const parts = [`j.employment_type IN (${filter.employmentTypes.map(() => '?').join(',')})`];
+      const parts = [`x.employment_type IN (${filter.employmentTypes.map(() => '?').join(',')})`];
       args.push(...filter.employmentTypes);
-      if (unknownOk.has('employmentType')) parts.push("j.employment_type = ''");
+      if (unknownOk.has('employmentType')) parts.push("x.employment_type = ''");
       where.push(`(${parts.join(' OR ')})`);
     }
     if (filter.levels?.length) {
       const lv = filter.levels.flatMap((b) => LEVEL_BUCKETS[b] ?? []);
-      const parts = [lv.length ? `j.level IN (${lv.map(() => '?').join(',')})` : '0'];
+      const parts = [lv.length ? `x.level IN (${lv.map(() => '?').join(',')})` : '0'];
       args.push(...lv);
-      if (unknownOk.has('level')) parts.push('j.level IS NULL');
+      if (unknownOk.has('level')) parts.push('x.level IS NULL');
       where.push(`(${parts.join(' OR ')})`);
     }
     if (filter.postedWithin) {
       const ms = { '24h': 86_400_000, '3d': 3 * 86_400_000, '7d': 7 * 86_400_000, '30d': 30 * 86_400_000 }[filter.postedWithin];
       const cutoff = new Date(nowMs() - ms).toISOString();
-      where.push(`(julianday(j.posted_at) >= julianday(?)${unknownOk.has('postedAt') ? ' OR j.posted_at IS NULL' : ''})`);
+      const col = closed ? 'julianday(x.posted_at)' : 'x.sort_new';
+      where.push(`(${col} >= julianday(?)${unknownOk.has('postedAt') ? ` OR ${col} IS NULL` : ''})`);
       args.push(cutoff);
     }
     if (filter.minAnnualPayUsd !== undefined) {
-      where.push(`((upper(j.pay_currency) = 'USD' AND COALESCE(j.pay_max_annual, j.pay_min_annual) >= ?)${unknownOk.has('pay') ? ' OR (j.pay_min IS NULL AND j.pay_max IS NULL)' : ''})`);
+      const cur = closed ? 'upper(x.pay_currency)' : 'x.pay_currency';
+      const amount = closed ? 'COALESCE(x.pay_max_annual, x.pay_min_annual)' : 'x.pay_annual';
+      const none = closed ? '(x.pay_min IS NULL AND x.pay_max IS NULL)' : 'x.has_pay = 0';
+      where.push(`((${cur} = 'USD' AND ${amount} >= ?)${unknownOk.has('pay') ? ` OR ${none}` : ''})`);
       args.push(filter.minAnnualPayUsd);
     }
     if (filter.countries?.length) {
-      const us = filter.countries.includes('US');
-      const other = filter.countries.some((c) => c !== 'US');
       const parts: string[] = [];
-      if (us) parts.push('j.is_us = 1');
-      if (other) parts.push('j.is_us = 0');
-      if (unknownOk.has('place')) parts.push('j.is_us IS NULL');
+      if (filter.countries.includes('US')) parts.push('x.is_us = 1');
+      if (filter.countries.some((c) => c !== 'US')) parts.push('x.is_us = 0');
+      if (unknownOk.has('place')) parts.push('x.is_us IS NULL');
       where.push(`(${parts.join(' OR ')})`);
     }
     if (filter.places?.length) {
-      const parts = filter.places.map(() => 'instr(lower(j.location), ?) > 0');
+      const parts = filter.places.map(() => 'instr(lower(x.location), ?) > 0');
       args.push(...filter.places.map((p) => p.text.toLowerCase()));
-      if (unknownOk.has('place')) parts.push("j.location = ''");
+      if (unknownOk.has('place')) parts.push("x.location = ''");
       where.push(`(${parts.join(' OR ')})`);
     }
     if (filter.companies?.length) {
-      where.push(`jl_company_key(j.company) IN (${filter.companies.map(() => '?').join(',')})`);
+      where.push(`jl_company_key(x.company) IN (${filter.companies.map(() => '?').join(',')})`);
       args.push(...filter.companies);
     }
     if (filter.excludedCompanies?.length) {
-      where.push(`jl_company_key(j.company) NOT IN (${filter.excludedCompanies.map(() => '?').join(',')})`);
+      where.push(`jl_company_key(x.company) NOT IN (${filter.excludedCompanies.map(() => '?').join(',')})`);
       args.push(...filter.excludedCompanies);
     }
-    for (const t of filter.excludedTitles ?? []) { where.push('instr(lower(j.title), ?) = 0'); args.push(t.toLowerCase()); }
+    for (const t of filter.excludedTitles ?? []) { where.push('instr(lower(x.title), ?) = 0'); args.push(t.toLowerCase()); }
     if (filter.jobFunctions?.length) {
-      where.push(`(${filter.jobFunctions.map(() => 'instr(lower(j.title), ?) > 0').join(' OR ')})`);
+      where.push(`(${filter.jobFunctions.map(() => 'instr(lower(x.title), ?) > 0').join(' OR ')})`);
       args.push(...filter.jobFunctions.map((f) => f.toLowerCase()));
     }
-    for (const s of filter.skills ?? []) { where.push('(instr(lower(j.title), ?) > 0 OR instr(lower(j.description), ?) > 0)'); args.push(s.toLowerCase(), s.toLowerCase()); }
-    for (const s of filter.excludedSkills ?? []) { where.push('instr(lower(j.description), ?) = 0'); args.push(s.toLowerCase()); }
+    for (const sk of filter.skills ?? []) {
+      const m = fts(sk);
+      if (m) { where.push('x.id IN (SELECT rowid FROM jobs_fts WHERE jobs_fts MATCH ?)'); args.push(m); }
+    }
+    for (const sk of filter.excludedSkills ?? []) {
+      const m = fts(sk);
+      if (m) { where.push('x.id NOT IN (SELECT rowid FROM jobs_fts WHERE jobs_fts MATCH ?)'); args.push(m); }
+    }
     if (filter.sources?.length) {
       const parts: string[] = [];
-      for (const s of filter.sources) {
-        if (s.startsWith('ats:')) { parts.push('j.ats = ?'); args.push(s.slice(4)); }
-        else if (s === 'external:url' || s === 'external:text') { parts.push("(j.ats = 'external' AND j.board = ?)"); args.push(s.slice(9)); }
+      for (const src of filter.sources) {
+        if (src.startsWith('ats:')) { parts.push('x.ats = ?'); args.push(src.slice(4)); }
+        else if (src === 'external:url' || src === 'external:text') { parts.push("(x.ats = 'external' AND x.board = ?)"); args.push(src.slice(9)); }
       }
       where.push(parts.length ? `(${parts.join(' OR ')})` : '0');
     }
@@ -336,28 +414,42 @@ export class JobsService {
     if (filter.h1bSponsorship) nothing();
     if (filter.industries?.length || filter.companyStages?.length || filter.roleTypes?.length) nothing();
 
-    const keyExpr = sort === 'most_recent' ? 'julianday(j.posted_at)' : 'COALESCE(julianday(j.posted_at), julianday(j.first_seen))';
-    const order = sort === 'most_recent' ? 'ORDER BY (sort_key IS NULL), sort_key DESC, j.id ASC' : 'ORDER BY sort_key DESC, j.id ASC';
-    const hash = createHash('sha256').update(JSON.stringify([sort, req.q ?? '', filter])).digest('hex').slice(0, 16);
+    // Jobs the person hid never appear: a short list of row ids (hidden jobs are few).
+    const hidden = this.hiddenRowIds();
+    if (hidden.length) where.push(`x.id NOT IN (${hidden.join(',')})`);
 
-    const total = Number((this.db.prepare(`SELECT count(*) AS n FROM jobs j LEFT JOIN srv_tracker t ON t.job_id = (lower(j.ats) || ':' || lower(j.board) || ':' || j.job_id) WHERE ${where.join(' AND ')}`).get(...args) as { n: number }).n);
+    const keyExpr = closed
+      ? (sort === 'most_recent' ? 'julianday(x.posted_at)' : 'COALESCE(julianday(x.posted_at), julianday(x.first_seen))')
+      : (sort === 'most_recent' ? 'x.sort_new' : 'x.sort_rec');
+    const order = sort === 'most_recent' ? `ORDER BY (${keyExpr} IS NULL), ${keyExpr} DESC, x.id` : `ORDER BY ${keyExpr} DESC, x.id`;
+    const hash = createHash('sha256').update(JSON.stringify([sort, req.q ?? '', filter])).digest('hex').slice(0, 16);
+    const w = (list: string[]) => (list.length ? `WHERE ${list.join(' AND ')}` : '');
+
+    const total = Number((this.db.prepare(`SELECT count(*) AS n FROM ${T} ${w(where)}`).get(...args) as { n: number }).n);
 
     const pageWhere = [...where];
     const pageArgs = [...args];
     if (req.cursor) {
       const c = decodeCursor(req.cursor);
       if (!c || c.h !== hash || c.s !== sort) throw new ApiFailure('bad_request', 'The cursor belongs to another search. Start again from the first page.');
-      if (c.k === null) { pageWhere.push(`(${keyExpr} IS NULL AND j.id > ?)`); pageArgs.push(c.i); }
-      else { pageWhere.push(`((${keyExpr} < ?) OR (${keyExpr} = ? AND j.id > ?) OR ${keyExpr} IS NULL)`); pageArgs.push(c.k, c.k, c.i); }
+      if (c.k === null) { pageWhere.push(`(${keyExpr} IS NULL AND x.id > ?)`); pageArgs.push(c.i); }
+      else { pageWhere.push(`((${keyExpr} < ?) OR (${keyExpr} = ? AND x.id > ?) OR ${keyExpr} IS NULL)`); pageArgs.push(c.k, c.k, c.i); }
     }
-    const rows = this.db.prepare(`${SELECT.replace('SELECT j.*', `SELECT ${keyExpr} AS sort_key, j.*`)} WHERE ${pageWhere.join(' AND ')} ${order} LIMIT ?`)
-      .all(...pageArgs, limit + 1) as unknown as Row[];
-    const more = rows.length > limit;
-    const page = more ? rows.slice(0, limit) : rows;
-    const last = page[page.length - 1];
-    const items: JobListItem[] = page.map((r) => {
+    const ids = this.db.prepare(`SELECT x.id AS id, ${keyExpr} AS sort_key FROM ${T} ${w(pageWhere)} ${order} LIMIT ?`)
+      .all(...pageArgs, limit + 1) as Array<{ id: number; sort_key: number | null }>;
+    const more = ids.length > limit;
+    const pageIds = more ? ids.slice(0, limit) : ids;
+    const last = pageIds[pageIds.length - 1];
+    const byId = new Map<number, Row>();
+    if (pageIds.length) {
+      for (const r of this.db.prepare(`${SELECT} WHERE j.id IN (${pageIds.map(() => '?').join(',')})`).all(...pageIds.map((x) => x.id)) as unknown as Row[]) byId.set(r.id, r);
+    }
+    const items: JobListItem[] = [];
+    for (const { id } of pageIds) {
+      const r = byId.get(id);
+      if (!r) continue;
       const job = rowToJob(r);
-      return {
+      items.push({
         job: toSummary(job),
         match: null,
         liked: r.t_liked === 1,
@@ -366,8 +458,8 @@ export class JobsService {
         networkCount: deps.networkCount(job.companyKey),
         h1bTag: null,
         fitScore: null,
-      };
-    });
+      });
+    }
     return {
       items,
       total,

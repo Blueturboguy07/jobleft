@@ -6,11 +6,13 @@
 
 import { lookup } from 'node:dns/promises';
 import type { DatabaseSync } from 'node:sqlite';
+import { SHARE_ENV, Worker } from 'node:worker_threads';
 import type {
   AppSettings, BoardEntry, CrawlAtsId, CrawlBoardReport, CrawlProgress, CrawlRunSummary,
 } from '@jobleft/contracts';
 import { CRAWL_ATS_IDS, nowIso, nowMs } from '@jobleft/contracts';
-import { HttpClient, Pacer, SOURCES, crawl, hostFor, type BoardRef, type BoardResult, type Store } from '@jobleft/crawler';
+import { SOURCES, hostFor, type BoardRef, type BoardResult, type Store } from '@jobleft/crawler';
+import type { FromWorker, ToWorker } from './crawl-worker.ts';
 import { b, parseJson, tx } from '../db/util.ts';
 import { ApiFailure } from '../errors.ts';
 import type { Logger } from '../log.ts';
@@ -25,6 +27,8 @@ export function boardIdOf(ats: string, board: string, region?: string | null): s
 
 export interface CrawlOptions {
   db: DatabaseSync;
+  /** The data file; the crawl worker opens its own connection to it. */
+  dbPath: string;
   crawlStore: Store;
   hostMap: Record<string, string>;
   offline: () => boolean;
@@ -36,8 +40,9 @@ export interface CrawlOptions {
 
 export class BoardsService {
   private readonly o: CrawlOptions;
-  private readonly pacer = new Pacer(1000);
-  private readonly stopCtl = new AbortController();
+  private worker: Worker | null = null;
+  private runSeq = 0;
+  private readonly waiters = new Map<number, { onBoard: (r: BoardResult) => void; resolve: (m: FromWorker) => void }>();
   private runningP: Promise<void> | null = null;
   private progress: { reason: CrawlProgress['reason']; done: number; total: number; seen: number; startedAt: string } | null = null;
   private timer: NodeJS.Timeout | null = null;
@@ -180,40 +185,59 @@ export class BoardsService {
     return { started: true, message: `Refreshing ${refs.length} board${refs.length === 1 ? '' : 's'}. New jobs appear as each board finishes.`, nextAllowedAt: null };
   }
 
+  /** The crawl worker (started on first use; it lives until stop()). */
+  private ensureWorker(): Worker {
+    if (this.worker) return this.worker;
+    const w = new Worker(new URL('./crawl-worker.ts', import.meta.url), { workerData: { dbPath: this.o.dbPath, hostMap: this.o.hostMap }, env: SHARE_ENV });
+    w.on('message', (m: FromWorker) => {
+      const waiter = this.waiters.get(m.runId);
+      if (!waiter) return;
+      if (m.type === 'board') waiter.onBoard(m.result as BoardResult);
+      else { this.waiters.delete(m.runId); waiter.resolve(m); }
+    });
+    const lost = () => {
+      this.worker = null;
+      for (const [id, wt] of this.waiters) { this.waiters.delete(id); wt.resolve({ type: 'failed', runId: id, message: 'the crawl worker stopped' }); }
+    };
+    w.on('error', (e) => { this.o.log.warn('crawl.worker_error', { error: e.name }); lost(); });
+    w.on('exit', lost);
+    w.unref();
+    this.worker = w;
+    return w;
+  }
+
   private async execute(refs: BoardRef[], reason: NonNullable<CrawlProgress['reason']>): Promise<void> {
     const startedAt = nowIso();
     this.progress = { reason, done: 0, total: refs.length, seen: 0, startedAt };
     const runId = Number(tx(this.o.db, () => this.o.db.prepare('INSERT INTO srv_crawl_runs (reason, started_at) VALUES (?, ?)').run(reason, startedAt).lastInsertRowid));
-    const stop = this.stopCtl.signal;
-    const fetchImpl: typeof fetch = (input, init) => {
-      if (stop.aborted) return Promise.reject(new Error('stopping'));
-      const signals = [stop, ...(init?.signal ? [init.signal] : [])];
-      return fetch(input, { ...init, signal: AbortSignal.any(signals) });
-    };
-    const http = new HttpClient({ pacer: this.pacer, hostMap: this.o.hostMap, fetchImpl, maxRequests: 5000 });
     const reports: CrawlBoardReport[] = [];
-    try {
-      const rep = await crawl(refs, {
-        store: this.o.crawlStore, http, sources: SOURCES, now: () => nowMs(),
+    const seq = ++this.runSeq;
+    const outcome = await new Promise<FromWorker>((resolve) => {
+      this.waiters.set(seq, {
         onBoard: (r) => {
           if (this.progress) { this.progress.done++; this.progress.seen += r.listed; }
           reports.push(boardReport(r, nowIso()));
         },
+        resolve,
       });
-      if (this.stopped) return;
+      this.ensureWorker().postMessage({ type: 'run', runId: seq, refs } satisfies ToWorker);
+    });
+    if (this.stopped) return;
+    try {
+      if (outcome.type !== 'done') throw new Error(outcome.type === 'failed' ? outcome.message : 'crawl failed');
       // Closing happens in the sweep after every board: copy the final close counts into the report.
-      const byId = new Map(rep.boards.map((r) => [boardIdOf(r.ats, r.board), r]));
+      const byId = new Map(outcome.boards.map((r) => [boardIdOf(r.ats, r.board), r]));
       for (const x of reports) { const r = byId.get(x.boardId); if (r) { x.closed = r.closed; x.closeHeld = r.closeHeld; } }
       this.renameFromJobs(refs);
       const summary: CrawlRunSummary = {
-        startedAt, finishedAt: nowIso(), boards: rep.boards.length,
-        ok: rep.boards.filter((r) => r.status === 'ok').length, failed: rep.boards.filter((r) => r.status !== 'ok').length,
-        inserted: rep.totals.inserted, updated: rep.totals.updated, closed: rep.totals.closed,
-        requests: rep.boards.reduce((a, r) => a + r.requests, 0),
+        startedAt, finishedAt: nowIso(), boards: outcome.boards.length,
+        ok: outcome.boards.filter((r) => r.status === 'ok').length, failed: outcome.boards.filter((r) => r.status !== 'ok').length,
+        inserted: outcome.totals.inserted, updated: outcome.totals.updated, closed: outcome.totals.closed,
+        requests: outcome.boards.reduce((a, r) => a + r.requests, 0),
       };
       tx(this.o.db, () => { this.o.db.prepare('UPDATE srv_crawl_runs SET finished_at = ?, summary = ?, boards = ? WHERE id = ?').run(summary.finishedAt, JSON.stringify(summary), JSON.stringify(reports), runId); });
       this.o.log.info('crawl.done', { boards: summary.boards, ok: summary.ok, failed: summary.failed, inserted: summary.inserted, closed: summary.closed });
-      if (summary.inserted > 0) { try { this.o.afterRun?.(summary); } catch (e) { this.o.log.warn('crawl.after_run_failed', { error: String(e) }); } }
+      if (summary.inserted > 0) { try { this.o.afterRun?.(summary); } catch (e) { this.o.log.warn('crawl.after_run_failed', { error: e instanceof Error ? e.name : 'error' }); } }
     } catch (e) {
       if (!this.stopped) this.o.log.warn('crawl.failed', { error: e instanceof Error ? `${e.name}: ${e.message}` : String(e) });
     }
@@ -250,8 +274,14 @@ export class BoardsService {
   async stop(): Promise<void> {
     this.stopped = true;
     if (this.timer) clearInterval(this.timer);
-    this.stopCtl.abort();
-    if (this.runningP) await Promise.race([this.runningP, new Promise((r) => setTimeout(r, 2000))]);
+    const w = this.worker;
+    if (!w) return;
+    // Ask the worker to stop (its requests abort; a board's transaction finishes or rolls back), then end it.
+    const exited = new Promise<void>((r) => w.once('exit', () => r()));
+    w.postMessage({ type: 'stop' } satisfies ToWorker);
+    const timer = setTimeout(() => { void w.terminate(); }, 2500);
+    await exited;
+    clearTimeout(timer);
   }
 
   isRunning(): boolean { return this.runningP !== null; }

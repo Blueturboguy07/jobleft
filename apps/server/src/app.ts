@@ -83,7 +83,7 @@ export class AppData {
     this.publik = new PublikService({ kv: this.kv, secrets: cfg.secrets, baseUrl: cfg.publikBaseUrl, appToken: cfg.publikAppToken, offline, appVersion: APP_VERSION });
     this.ai = new AiService({ kv: this.kv, secrets: cfg.secrets, publik: this.publik, chats: this.chats, offline });
     this.boards = new BoardsService({
-      db: this.db, crawlStore: this.crawlStore, hostMap: cfg.hostMap, offline, settings: () => this.settings.get(), log: cfg.log,
+      db: this.db, dbPath: cfg.layout.db, crawlStore: this.crawlStore, hostMap: cfg.hostMap, offline, settings: () => this.settings.get(), log: cfg.log,
       afterRun: () => this.savedFilterAlerts(),
     });
     const orphans = this.resumes.removeOrphans();

@@ -44,11 +44,12 @@ const lock = acquireLock(layout.lockFile);
 if (!lock.ok) die('a jobleft server is running on this data folder; stop it first');
 
 const TITLES = ['Software Engineer', 'Data Analyst', 'Registered Nurse', 'Account Executive', 'Product Designer', 'Mechanical Engineer', 'Customer Success Manager', 'Financial Analyst', 'Warehouse Associate', 'Marketing Manager', 'Teacher', 'Electrician', 'Pharmacist', 'Paralegal', 'Chef'];
+const TEAMS = ['Payments', 'Growth', 'Platform', 'Search', 'Risk', 'Clinical', 'Retail', 'Logistics', 'Security', 'Mobile', 'Data', 'Support', 'Billing', 'Identity', 'Ads', 'Maps', 'Media', 'Health', 'Travel', 'Energy', 'Supply', 'Finance', 'Legal', 'People', 'Research', 'Quality', 'Field', 'Studio', 'Kitchen', 'Operations', 'Partnerships', 'Education', 'Hardware', 'Cloud', 'Devices', 'Commerce', 'Trust', 'Insights', 'Labs', 'Core', 'Network', 'Storage', 'Compute', 'Design', 'Brand', 'Events', 'Care', 'Pharmacy', 'Facilities', 'Fleet'];
 const CITIES = ['Austin, TX', 'New York, NY', 'Seattle, WA', 'Chicago, IL', 'Remote - US', 'Denver, CO', 'Boston, MA', 'Atlanta, GA', 'Toronto, ON', 'London, UK'];
 
 function synthetic(i: number): { board: string; company: string; raw: RawJob } {
   const k = i % 2000;
-  const title = `${TITLES[i % TITLES.length]}${i % 3 === 0 ? ' II' : i % 5 === 0 ? ', Senior' : ''}`;
+  const title = `${TITLES[i % TITLES.length]}${i % 3 === 0 ? ' II' : i % 5 === 0 ? ', Senior' : ''}, ${TEAMS[Math.floor(i / 2000) % TEAMS.length]}`;
   const company = `Synthetic Employer ${k}`;
   const hasPay = i % 3 === 0;
   return {
