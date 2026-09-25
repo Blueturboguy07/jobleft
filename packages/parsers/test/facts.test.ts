@@ -180,3 +180,13 @@ test('facts: pathological inputs stay fast (O11 angle 1)', () => {
   }
   assert.ok(performance.now() - t0 < 8000);
 });
+
+test('facts: malformed input never throws and reads as unknown (O11)', () => {
+  const inputs: unknown[] = [undefined, null, 42, 'text', { title: 5, countries: 'US', pay: { min: 1 }, location: ['x'] },
+    { title: 'Nurse', pay: [null, 5, { min: 'a', max: {}, currency: 7, period: 'x' }] }, { title: 'x', description: { html: '<p>' } }];
+  for (const x of inputs) {
+    const f = extractFacts(x as never);
+    assert.equal(f.pay, null);
+    assert.deepEqual(f.places, []);
+  }
+});

@@ -34,6 +34,23 @@ export interface PostingFacts {
 
 const GENERIC_LOCATION = /^\s*(?:multiple(?:\s+locations?)?|various(?:\s+locations?)?|several\s+locations|many\s+locations|n\/?a|tbd|tba|see\s+(?:job\s+)?description|location\s+flexible|flexible|\d+\s+locations?|nowhere(?:,\s*xx)?|home|remote)\s*$/i;
 
+/** Every field in the shape the readers expect; anything else becomes "not given" (a bad field never throws). */
+function sanitize(raw: unknown): PostingInput {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const str = (v: unknown) => (typeof v === 'string' ? v : null);
+  const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+  const arr = <T>(v: unknown) => (Array.isArray(v) ? (v.filter((x) => x && typeof x === 'object') as T[]) : []);
+  return {
+    title: str(o.title) ?? '',
+    location: str(o.location), locations: strs(o.locations), countries: strs(o.countries),
+    addresses: arr(o.addresses), pay: arr(o.pay),
+    descriptionHtml: str(o.descriptionHtml), description: str(o.description), extraText: str(o.extraText),
+    workplaceType: str(o.workplaceType), remote: typeof o.remote === 'boolean' ? o.remote : null,
+    employmentType: str(o.employmentType), seniority: str(o.seniority),
+    experienceMonths: typeof o.experienceMonths === 'number' && Number.isFinite(o.experienceMonths) ? o.experienceMonths : null,
+  };
+}
+
 function safe<T>(warnings: string[], what: string, f: () => T, fallback: T): T {
   try { return f(); } catch (e) {
     warnings.push(`${what} could not be read: ${e instanceof Error ? e.message.slice(0, 120) : 'error'}`);
@@ -58,8 +75,9 @@ function sameRange(a: Pay, b: Pay): boolean {
 }
 
 /** All facts of one posting. Deterministic and offline. */
-export function extractFacts(input: PostingInput): PostingFacts {
+export function extractFacts(raw: PostingInput): PostingFacts {
   const warnings: string[] = [];
+  const input = sanitize(raw);
   const evidence: JobEvidence = {};
   const title = typeof input?.title === 'string' ? input.title : '';
   const description = safe(warnings, 'description', () => {
