@@ -387,6 +387,8 @@ function answerOne(f: FormField, c: Classification, ctx: AnswerContext, st: Stat
       return c.topic === 'current_company' ? text(w.company, 'Current company') : text(w.title, 'Current title');
     }
 
+    case 'summary': return p.summary && p.summary.trim() ? text(p.summary, 'Summary') : missing('summary');
+
     // skills
     case 'skills': {
       const names = p.skills.map((s) => s.name).filter(Boolean);

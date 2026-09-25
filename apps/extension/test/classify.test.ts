@@ -92,3 +92,10 @@ test('education and work dates from the section', () => {
   assert.equal(e.topic, 'work_end');
   assert.equal(e.datePart, 'year');
 });
+
+test('a long question that mentions a link site is not the link field', () => {
+  assert.equal(t("Tell us about something you've built on top of our tools. Share a public link if you have one (GitHub, a demo, a write-up).", { kind: 'textarea' }), 'open_question');
+  assert.equal(t('*Github profile', { kind: 'textarea' }), 'github');
+  assert.equal(t('LinkedIn Profile (please include link)'), 'pro_profile');
+  assert.equal(t('Attach', { kind: 'file', name: 'resume' }), 'resume_file');
+});

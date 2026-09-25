@@ -25,7 +25,7 @@ export type Topic =
   | 'pro_profile' | 'github' | 'twitter' | 'portfolio' | 'website' | 'other_link'
   | 'edu_school' | 'edu_degree' | 'edu_major' | 'edu_gpa' | 'edu_start' | 'edu_end' | 'edu_location'
   | 'work_company' | 'work_title' | 'work_start' | 'work_end' | 'work_current' | 'work_location' | 'work_description'
-  | 'current_company' | 'current_title' | 'skills' | 'skill_years' | 'years_total'
+  | 'current_company' | 'current_title' | 'skills' | 'skill_years' | 'years_total' | 'summary'
   | 'resume_file' | 'cover_letter_file' | 'other_file' | 'open_question'
   | SensitiveTopic
   | 'consent' | 'captcha' | 'account' | 'other_person' | 'unknown';
@@ -208,6 +208,8 @@ export function classify(f: FormField): Classification {
   if (/\bsexual orientation\b|\borientation\b/.test(S) && !/\borientation (session|program|day)\b/.test(S)) return out('eeo_orientation', 'sexual orientation');
   if (/\blgbt|\blgbtq|\bqueer\b/.test(S)) return out('eeo_lgbtq', 'LGBTQ+');
   if (/\bpronouns?\b/.test(S)) return out('eeo_pronouns', 'pronouns');
+  // "Are you Hispanic/Latino?" is its own yes/no question (its field name may still say "ethnicity").
+  if (/\b(hispanic|latino|latina|latinx|latine)\b/.test(L) && !/\b(race|races|racial)\b/.test(L)) return out('eeo_hispanic', 'Hispanic or Latino');
   if (/\b(race|races|racial|ethnicity|ethnicities|ethnic|ancestry)\b/.test(S)) return out('eeo_race', 'race or ethnicity');
   if (/\b(hispanic|latino|latina|latinx|latine)\b/.test(S)) return out('eeo_hispanic', 'Hispanic or Latino');
   if (/\b(gender|sex)\b/.test(S) && !/\bsexual\b/.test(S)) return out('eeo_gender', 'gender');
@@ -350,14 +352,21 @@ export function classify(f: FormField): Classification {
     return out('country', 'country');
   }
 
-  // ---------------- links
-  if (PRO_PROFILE.test(`${L} ${N}`)) return out('pro_profile', 'professional profile link');
-  if (/\bgit ?hub\b/.test(`${L} ${N}`)) return out('github', 'GitHub');
-  if (/\b(twitter|x com)\b|^x$|^x profile\b|\bx twitter\b/.test(`${L} ${N}`)) return out('twitter', 'Twitter or X');
+  // ---------------- links: the label names the link (short, or opening with it), or the field name does
+  const linkish = (re: RegExp): boolean => re.test(N) || (re.test(L) && (L.length <= 45 || new RegExp(`^${re.source}`).test(L)));
+  if (linkish(PRO_PROFILE)) return out('pro_profile', 'professional profile link');
+  if (linkish(/\bgit ?hub\b/)) return out('github', 'GitHub');
+  if (linkish(/\b(twitter|x com)\b/) || /^x$|^x profile\b|\bx twitter\b/.test(L)) return out('twitter', 'Twitter or X');
   if (/^(other|additional) (website|link|url|profile)s?\b|^other$/.test(L)) return out('other_link', 'other link');
-  if (/\bportfolio\b/.test(`${L} ${N}`)) return out('portfolio', 'portfolio');
+  if (linkish(/\bportfolio\b/)) return out('portfolio', 'portfolio');
   if (opensAny(L, ['website', 'personal website', 'personal site', 'web site', 'blog', 'homepage', 'home page', 'personal url', 'personal web site', 'website url', 'site']) || A === 'url' || /^(website|personal ?website|homepage)$/.test(N)) {
     return out('website', 'website');
+  }
+
+  // ---------------- the person's own summary
+  if (opensAny(L, ['summary', 'professional summary', 'profile summary', 'career summary', 'candidate summary', 'personal summary', 'short bio', 'bio'])
+    && (f.kind === 'textarea' || f.kind === 'text') && !workCtx && !eduCtx) {
+    return out('summary', 'profile summary');
   }
 
   // ---------------- skills

@@ -41,6 +41,19 @@ function pushSoon(): void {
   pushTimer = setTimeout(() => { pushTimer = null; pushReport(); }, 120) as unknown as number;
 }
 
+/** What to outline: the chosen option of a radio or checkbox group (its visible label), else the field. */
+function markFor(f: Found): HTMLElement {
+  if (f.els.length > 1) {
+    const chosen = f.els.find((e) => (e as HTMLInputElement).checked) as HTMLInputElement | undefined;
+    if (chosen) {
+      if (visibleSelf(chosen)) return chosen;
+      const l = Array.from(chosen.labels ?? []).find((x) => visibleSelf(x));
+      if (l) return l;
+    }
+  }
+  return f.mark;
+}
+
 function locate(fieldId: string): void {
   const f = S.byId.get(fieldId);
   if (!f) return;
@@ -140,7 +153,7 @@ async function apply(input: ApplyInput): Promise<void> {
       written.push(out.written);
       S.lastWritten.set(f.els[0] as Element, out.written.after);
       Object.assign(it, { status: 'filled', value: out.display, item: fill.item ?? 'Your profile', reason: fill.needsReview ? 'Check this one: the form wanted a different format.' : null });
-      mark(f.mark, 'filled');
+      mark(markFor(f), 'filled');
     } else if (out.status === 'kept') {
       Object.assign(it, { status: 'kept', value: out.display, reason: 'You (or the page) already put a value here. jobleft did not change it.' });
     } else if (out.status === 'unchanged') {
@@ -193,6 +206,7 @@ async function apply(input: ApplyInput): Promise<void> {
     if (isEmpty(w.found)) Object.assign(it, { status: 'failed', value: null, reason: 'The page did not keep this value (it is empty now).' });
     else Object.assign(it, { status: 'failed', value: shownValue(w.found), reason: 'The page changed this value after jobleft wrote it. Check it.' });
     unmark(w.found.mark);
+    unmark(markFor(w.found));
   }
   for (const it of items) {
     if (it.status === 'needs_you' || it.status === 'failed' || it.status === 'draft_ready') {
@@ -224,6 +238,7 @@ function watch(written: Written[]): void {
       if (isEmpty(w.found)) Object.assign(it, { status: 'cleared', value: null, reason: 'The page cleared this value after the fill.' });
       else Object.assign(it, { status: 'edited', value: shownValue(w.found), reason: 'Changed after the fill.' });
       unmark(w.found.mark);
+      unmark(markFor(w.found));
       changed = true;
     }
     if (!told && container && countNow() > before) {
@@ -257,7 +272,7 @@ async function undo(): Promise<void> {
       if (it) Object.assign(it, { status: 'failed', reason: 'jobleft could not put this back. Clear it yourself.' });
     }
   }
-  for (const f of S.byId.values()) unmark(f.mark);
+  unmarkAll();
   if (r.resume?.status === 'attached') r.resume = { ...r.resume, status: 'none', message: 'The resume was removed by undo. If the page still shows the file name, remove it with the page\'s own button.' };
   r.phase = 'undone';
   r.notices = [...r.notices.filter((n) => !n.startsWith('Undo:')),

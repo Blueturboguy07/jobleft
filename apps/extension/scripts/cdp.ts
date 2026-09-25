@@ -44,12 +44,19 @@ export class Browser {
     });
   }
 
-  static async launch(opts: { headless?: boolean; args?: string[] } = {}): Promise<Browser> {
+  /**
+   * proxy: 'none-outside' (default) sends every request that is not to this computer to a closed local port, so a
+   * test browser cannot reach the internet at all; or an explicit "host:port" proxy (the recorder's own filter).
+   */
+  static async launch(opts: { headless?: boolean; args?: string[]; proxy?: string } = {}): Promise<Browser> {
     const profile = mkdtempSync('/private/tmp/jl-chrome-');
+    const proxy = opts.proxy ?? '127.0.0.1:9';
     const args = [
       '--remote-debugging-pipe', '--enable-unsafe-extension-debugging', `--user-data-dir=${profile}`, '--no-first-run',
       '--no-default-browser-check', '--disable-sync', '--disable-background-networking', '--disable-component-update',
-      '--disable-domain-reliability', '--metrics-recording-only', '--no-pings', '--window-size=1400,1000', ...(opts.args ?? []),
+      '--disable-domain-reliability', '--metrics-recording-only', '--no-pings', '--window-size=1400,1000',
+      '--disable-features=OptimizationHints,MediaRouter,Translate,AutofillServerCommunication,CertificateTransparencyComponentUpdater,InterestFeedContentSuggestions',
+      '--safebrowsing-disable-auto-update', `--proxy-server=http://${proxy}`, ...(opts.args ?? []),
     ];
     if (opts.headless !== false) args.unshift('--headless=new');
     const proc = spawn(CHROME, [...args, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });

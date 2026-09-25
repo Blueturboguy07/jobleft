@@ -1,0 +1,105 @@
+[
+  {
+    "file": "greenhouse-gymshark-embed-1.html",
+    "source": "https://job-boards.greenhouse.io/embed/job_app?for=gymshark&token=4981295101",
+    "ats": "greenhouse",
+    "board": "gymshark",
+    "savedAt": "2026-09-25T07:39:25.230Z",
+    "pageRequests": 12,
+    "blockedSample": [
+      "Image s101-recruiting.cdn.greenhouse.io/external_greenhouse_job_boards/logos/40",
+      "Font job-boards.cdn.greenhouse.io/fonts/UntitledSansWeb-Regular.woff",
+      "Font job-boards.cdn.greenhouse.io/fonts/UntitledSansWeb-Bold.woff",
+      "Font job-boards.cdn.greenhouse.io/fonts/UntitledSansWeb-RegularItalic.wof",
+      "Font job-boards.cdn.greenhouse.io/fonts/UntitledSansWeb-Regular.woff2",
+      "Font job-boards.cdn.greenhouse.io/fonts/UntitledSansWeb-Bold.woff2",
+      "Other job-boards.greenhouse.io/favicon.ico",
+      "Script www.recaptcha.net/recaptcha/enterprise.js",
+      "XHR c.spl.greenhouse.io/com.snowplowanalytics.snowplow/tp2"
+    ]
+  },
+  {
+    "file": "lever-kippsocal-1.html",
+    "source": "https://jobs.lever.co/kippsocal/ac3d11eb-acaf-420d-82bc-b1b0e2ac37a2/apply",
+    "ats": "lever",
+    "board": "kippsocal",
+    "savedAt": "2026-09-25T07:41:43.625Z",
+    "pageRequests": 13,
+    "blockedSample": [
+      "Script js.hcaptcha.com/1/secure-api.js",
+      "Image lever-client-logos.s3.amazonaws.com/16e0ab38-f499-4ac7-9ea6-e399c7114661-15",
+      "Image jobs.lever.co/img/lever-logo-refresh.svg",
+      "Script platform.linkedin.com/xdoor/scripts/in.js",
+      "Script www.googletagmanager.com/gtag/js",
+      "Font cdn.lever.co/fonts/Lato2/Lato-Regular.ttf",
+      "Font cdn.lever.co/fonts/Lato2/Lato-Bold.ttf",
+      "Other jobs.lever.co/favicon.ico"
+    ]
+  },
+  {
+    "file": "lever-bluebottlecoffee-1.html",
+    "source": "https://jobs.lever.co/bluebottlecoffee/ec37b73d-2937-4469-9477-161967d04380/apply",
+    "ats": "lever",
+    "board": "bluebottlecoffee",
+    "savedAt": "2026-09-25T07:41:56.969Z",
+    "pageRequests": 10,
+    "blockedSample": [
+      "Script js.hcaptcha.com/1/secure-api.js",
+      "Image lever-client-logos.s3.amazonaws.com/34ea0a29-9f0e-4449-af4a-72f540e93f8f-15",
+      "Font cdn.lever.co/fonts/Lato2/Lato-Regular.ttf",
+      "Font cdn.lever.co/fonts/Lato2/Lato-Bold.ttf",
+      "Image jobs.lever.co/img/lever-logo-refresh.svg",
+      "Script www.googletagmanager.com/gtag/js",
+      "Script www.google-analytics.com/analytics.js",
+      "Other jobs.lever.co/favicon.ico"
+    ]
+  },
+  {
+    "file": "greenhouse-brookecharterschools-1.html",
+    "source": "https://job-boards.greenhouse.io/brookecharterschools/jobs/8096650",
+    "ats": "greenhouse",
+    "board": "brookecharterschools",
+    "savedAt": "2026-09-25T07:42:27.125Z",
+    "pageRequests": 12,
+    "blockedSample": [
+      "Image recruiting.cdn.greenhouse.io/external_greenhouse_job_boards/logos/00",
+      "Font job-boards.cdn.greenhouse.io/fonts/UntitledSansWeb-Regular.woff",
+      "Font job-boards.cdn.greenhouse.io/fonts/UntitledSansWeb-Bold.woff",
+      "Font job-boards.cdn.greenhouse.io/fonts/UntitledSansWeb-RegularItalic.wof",
+      "Font job-boards.cdn.greenhouse.io/fonts/UntitledSansWeb-Regular.woff2",
+      "Font job-boards.cdn.greenhouse.io/fonts/UntitledSansWeb-Bold.woff2",
+      "Other job-boards.greenhouse.io/favicon.ico",
+      "Script www.recaptcha.net/recaptcha/enterprise.js",
+      "Script www.dropbox.com/static/api/2/dropins.js",
+      "Script apis.google.com/js/api.js",
+      "Script accounts.google.com/gsi/client",
+      "XHR c.spl.greenhouse.io/com.snowplowanalytics.snowplow/tp2"
+    ]
+  },
+  {
+    "file": "workable-huggingface-1.html",
+    "source": "https://apply.workable.com/huggingface/j/F4C096B22E/apply/",
+    "ats": "workable",
+    "board": "huggingface",
+    "savedAt": "2026-09-25T07:46:54.198Z",
+    "pageRequests": 63,
+    "blockedSample": [
+      "Other d2y4rc9q318ytb.cloudfront.net/accounts/940cf17f-c078-40ac-95e8-07704e",
+      "Image workablehr.s3.amazonaws.com/uploads/account/logo/514327/logo",
+      "Script challenges.cloudflare.com/turnstile/v0/api.js"
+    ]
+  },
+  {
+    "file": "workable-huggingface-2.html",
+    "source": "https://apply.workable.com/huggingface/j/002470F128/apply/",
+    "ats": "workable",
+    "board": "huggingface",
+    "savedAt": "2026-09-25T07:48:01.527Z",
+    "pageRequests": 60,
+    "blockedSample": [
+      "Other d2y4rc9q318ytb.cloudfront.net/accounts/940cf17f-c078-40ac-95e8-07704e",
+      "Image workablehr.s3.amazonaws.com/uploads/account/logo/514327/logo",
+      "Script challenges.cloudflare.com/turnstile/v0/api.js"
+    ]
+  }
+]

@@ -313,6 +313,61 @@ async function main(): Promise<void> {
       check('generic: warns to check every field', /not on the supported list/.test(rep));
     }
 
+    // ------------------------------------------------ saved copies of real public application pages
+    if (want('recorded')) {
+      console.log('saved copies of real application pages');
+      await fetch('http://127.0.0.1:47900/__reset', { method: 'POST' });
+      const R = 'http://127.0.0.1:47900/recorded';
+      const run = async (file: string): Promise<{ d: Dump; rep: string; popup: string }> => {
+        const tab = await browser.newPage(`${R}/${file}?utm_term=${Date.now()}`);
+        const popup = await (await openPopup(browser, extId, tab)).eval<string>('document.body.innerText');
+        const rep = await fillAndWait(s, tab);
+        await shot(tab, `09-${file.replace('.html', '')}`);
+        return { d: await dump(tab), rep, popup };
+      };
+      const fileOf = (d: Dump): string[] => d.filter((x) => x.type === 'file').map((x) => String(x.value));
+      const checkedAny = (d: Dump, pre: string): boolean => d.some((x) => x.type === 'checkbox' && x.id.startsWith(pre) && x.value === true);
+
+      let r = await run('greenhouse-gymshark-embed-1.html');
+      check('GH gymshark: popup says Greenhouse supported', /Greenhouse[\s\S]*supported/.test(r.popup));
+      check('GH gymshark: names, email, phone', val(r.d, 'first_name') === 'Jordan' && val(r.d, 'last_name') === 'Testwell' && val(r.d, 'email') === 'jordan.testwell@example.com' && /^555-01/.test(String(val(r.d, 'phone'))));
+      check('GH gymshark: resume only in the resume box', /^Jordan_Testwell_Resume.*\.pdf/.test(String(val(r.d, 'resume'))) && val(r.d, 'cover_letter') === '');
+      check('GH gymshark: preferred name, salary, notice period, why-us stay empty', val(r.d, 'preferred_name') === '' && val(r.d, 'question_9681438101') === '' && val(r.d, 'question_9681439101') === '' && val(r.d, 'question_9681437101') === '');
+      check('GH gymshark: demographic consent box not ticked', !r.d.some((x) => x.type === 'checkbox' && x.value === true));
+      check('GH gymshark: custom lists that cannot open are reported, not guessed', /did not open for jobleft/.test(r.rep));
+
+      r = await run('greenhouse-brookecharterschools-1.html');
+      check('GH brooke: names, email, LinkedIn', val(r.d, 'first_name') === 'Jordan' && val(r.d, 'email') === 'jordan.testwell@example.com' && /linkedin\.com/.test(String(val(r.d, 'question_68333117'))));
+      check('GH brooke: race checkboxes untouched', !checkedAny(r.d, 'question_68333122') && !checkedAny(r.d, 'question_68333123'));
+      check('GH brooke: resume attached', /^Jordan_Testwell_Resume/.test(String(val(r.d, 'resume'))));
+
+      r = await run('lever-kippsocal-1.html');
+      check('Lever kipp: popup says Lever supported', /Lever[\s\S]*supported/.test(r.popup));
+      check('Lever kipp: name, email, phone, company', val(r.d, 'name') === 'Jordan Testwell' && val(r.d, 'email') === 'jordan.testwell@example.com' && val(r.d, 'org') === 'Northwind Sample Labs');
+      const lf = fileOf(r.d);
+      check('Lever kipp: resume in the resume box only (not the portfolio uploads)', /^Jordan_Testwell_Resume/.test(lf[0] ?? '') && lf.slice(1).every((x) => x === ''), JSON.stringify(lf));
+      check('Lever kipp: pronoun boxes untouched', !r.d.some((x) => x.name === 'pronouns' && x.value === true));
+      check('Lever kipp: EEO lists untouched', ['eeo[gender]', 'eeo[race]', 'eeo[veteran]'].every((k) => /select/i.test(String(val(r.d, k)))));
+      check('Lever kipp: labels are the questions, not the widget text', /Resume\/CV/.test(r.rep) && !/Analyzing resume/.test(r.rep));
+
+      r = await run('lever-bluebottlecoffee-1.html');
+      check('Lever bluebottle: name and email', val(r.d, 'name') === 'Jordan Testwell' && val(r.d, 'email') === 'jordan.testwell@example.com');
+      check('Lever bluebottle: questions in Korean left for the person', /needs you/.test(r.rep));
+
+      r = await run('workable-huggingface-1.html');
+      check('Workable 1: popup says Workable supported', /Workable[\s\S]*supported/.test(r.popup));
+      check('Workable 1: names, email, summary', val(r.d, 'firstname') === 'Jordan' && val(r.d, 'lastname') === 'Testwell' && val(r.d, 'email') === 'jordan.testwell@example.com' && /Software engineer/.test(String(val(r.d, 'summary'))));
+      check('Workable 1: resume attached', fileOf(r.d).some((x) => /^Jordan_Testwell_Resume/.test(x)), JSON.stringify(fileOf(r.d)));
+      check('Workable 1: yes/no questions untouched', !r.d.some((x) => x.type === 'radio' && x.value === true));
+      check('Workable 1: open questions and cover letter stay empty', r.d.filter((x) => x.type === 'textarea' && /^QA_|cover_letter/.test(x.id)).every((x) => x.value === ''));
+      check('Workable 1: a long question naming GitHub is not a GitHub link box', !/Tell us about something you've built[\s\S]{0,400}no GitHub link/.test(r.rep));
+
+      r = await run('workable-huggingface-2.html');
+      check('Workable 2: names and email', val(r.d, 'firstname') === 'Jordan' && val(r.d, 'email') === 'jordan.testwell@example.com');
+      const lg = await practiceLog();
+      check('saved copies: no submit, Next or page change', lg.counts.submit === 0 && lg.counts.next === 0 && lg.counts.pageChange === 0, JSON.stringify(lg.counts));
+    }
+
     // ------------------------------------------------ O1: app closed, then unpaired
     if (want('lifecycle')) {
       console.log('app closed, restarted, and unpaired');

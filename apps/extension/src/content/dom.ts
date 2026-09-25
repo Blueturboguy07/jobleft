@@ -139,7 +139,7 @@ export function ownText(node: Node, max = 1000): string {
     if (n.nodeType === Node.TEXT_NODE) { out += n.textContent ?? ''; return; }
     if (n.nodeType !== Node.ELEMENT_NODE) return;
     const e = n as Element;
-    if (SKIP_TEXT.has(e.tagName) || e.tagName.toLowerCase() === PANEL_TAG) return;
+    if (SKIP_TEXT.has(e.tagName.toUpperCase()) || e.tagName.toLowerCase() === PANEL_TAG || e.getAttribute('aria-hidden') === 'true' && e.tagName.toUpperCase() === 'SPAN' && (e.textContent ?? '').trim() === '*') return;
     for (const c of Array.from(e.childNodes)) walk(c);
     if (/^(DIV|P|LI|BR|H[1-6]|LEGEND|LABEL)$/.test(e.tagName)) out += ' ';
   };
@@ -163,8 +163,8 @@ function nearbyLabel(el: Element): string {
     let hops = 0;
     while (sib && hops < 3) {
       if (!sib.querySelector('input, select, textarea') && sib.tagName.toLowerCase() !== PANEL_TAG) {
-        const t = ownText(sib, 250);
-        if (t && t.length <= 200) return t;
+        const t = ownText(sib, 1000);
+        if (t) return t;
       } else {
         return '';
       }
@@ -177,10 +177,53 @@ function nearbyLabel(el: Element): string {
   return '';
 }
 
+const GENERIC_LABEL = /^(attach|attach file|upload|upload file|upload a file|choose( a)? file|browse|select( a)? file|enter manually|add( a)? file|drop (your )?files? here.*|or drag and drop.*)$/i;
+
+/** The question a group states (role=group or radiogroup with a label), for controls whose own label is only a verb. */
+function groupLabel(el: Element): string {
+  const root = el.getRootNode() as Document | ShadowRoot;
+  const g = el.closest('[role="group"], [role="radiogroup"], fieldset');
+  if (!g) return '';
+  if (g.tagName === 'FIELDSET') {
+    const lg = Array.from(g.children).find((c) => c.tagName === 'LEGEND');
+    return lg ? ownText(lg, 300) : '';
+  }
+  return byIds(root, g.getAttribute('aria-labelledby')) || (g.getAttribute('aria-label') ?? '').trim();
+}
+
 /** The person-facing question of one control. */
 export function labelOf(el: Element): string {
+  const own = labelOfSelf(el);
+  if (own && !GENERIC_LABEL.test(own.trim())) return own;
+  const g = groupLabel(el);
+  if (g) return g;
+  const near = nearbyLabel(el);
+  if (near && !GENERIC_LABEL.test(near.trim())) return near;
+  return own;
+}
+
+/** A label's words. For a label that wraps its control (and more), only the words before the control's block. */
+function labelWords(label: HTMLElement, el: Element): string {
+  if (label.contains(el)) {
+    let child: Element | null = el;
+    while (child && child.parentElement !== label) child = child.parentElement;
+    const before: string[] = [];
+    for (let sib = child?.previousElementSibling ?? null; sib; sib = sib.previousElementSibling) before.unshift(ownText(sib, 500));
+    // Text nodes directly in the label before that block count too ("Name <input>").
+    let lead = '';
+    for (const n of Array.from(label.childNodes)) {
+      if (n === child) break;
+      if (n.nodeType === Node.TEXT_NODE) lead += n.textContent ?? '';
+    }
+    const t = `${lead} ${before.join(' ')}`.replace(/\s+/g, ' ').trim();
+    if (t) return t;
+  }
+  return ownText(label, 500);
+}
+
+function labelOfSelf(el: Element): string {
   const root = el.getRootNode() as Document | ShadowRoot;
-  const labels = Array.from((el as HTMLInputElement).labels ?? []).map((l) => ownText(l, 500)).filter(Boolean);
+  const labels = Array.from((el as HTMLInputElement).labels ?? []).map((l) => labelWords(l, el)).filter(Boolean);
   if (labels.length) return labels.join(' ');
   const lb = byIds(root, el.getAttribute('aria-labelledby'));
   if (lb) return lb;
@@ -422,6 +465,7 @@ function rawControls(doc: Document): { raws: Raw[]; hidden: Map<Element, number>
     }
     const kind = kindOf(el);
     const combobox = isCombo(el);
+    const markEl = combobox ? comboBox(el, mark) : mark;
     if (el instanceof HTMLInputElement && (el.type === 'radio' || el.type === 'checkbox')) {
       const scope = el.form ?? container;
       const key = el.name ? `${el.type}:${el.name}` : '';
@@ -448,9 +492,20 @@ function rawControls(doc: Document): { raws: Raw[]; hidden: Map<Element, number>
         }
       }
     }
-    raws.push({ els: [el], mark, kind, combobox, container });
+    raws.push({ els: [el], mark: markEl, kind, combobox, container });
   }
   return { raws, hidden, passwords };
+}
+
+/** The visible box of a custom dropdown (its control), so the outline wraps the whole widget, not its tiny input. */
+function comboBox(el: Element, fallback: HTMLElement): HTMLElement {
+  let best: HTMLElement = fallback;
+  let a: HTMLElement | null = el.parentElement;
+  for (let i = 0; i < 3 && a; i++, a = a.parentElement) {
+    if (a.tagName === 'FORM' || a.querySelectorAll(COMBO_WIDGET).length > 1 || a.querySelectorAll('input, select, textarea').length > 2) break;
+    if (visibleSelf(a) && a.getBoundingClientRect().height <= 80) best = a;
+  }
+  return best;
 }
 
 const scopeIds = new WeakMap<Element, number>();
@@ -476,6 +531,7 @@ function describe(r: Raw, id: string, headings: Element[]): FormField {
   }
   const kind: FormField['kind'] = r.els.length > 1 && first instanceof HTMLInputElement && first.type === 'checkbox' ? 'checkbox' : r.kind;
   const name = first.getAttribute('name') || first.getAttribute('data-automation-id') || first.closest('[data-field-path]')?.getAttribute('data-field-path')
+    || first.getAttribute('data-ui') || first.getAttribute('data-qa') || first.getAttribute('data-testid')
     || (first.id && !/^[:\d]|[:]/.test(first.id) && first.id.length < 60 ? first.id : null);
   const maxLength = (first instanceof HTMLInputElement || first instanceof HTMLTextAreaElement) && first.maxLength > 0 ? first.maxLength : null;
   const section = sectionOf(first, headings);

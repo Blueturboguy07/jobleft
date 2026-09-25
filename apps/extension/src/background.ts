@@ -100,14 +100,19 @@ async function isJobleft(port: number): Promise<string | null> {
   }
 }
 
-/** The app's port now: the paired port if it still answers as jobleft, else the first port that does. */
-async function findApp(prefer: number | null): Promise<{ port: number; version: string } | null> {
+/** Every port where a jobleft app answers now, the preferred one first. */
+async function appPorts(prefer: number | null): Promise<Array<{ port: number; version: string }>> {
   const order = prefer ? [prefer, ...PORTS.filter((p) => p !== prefer)] : PORTS;
+  const out: Array<{ port: number; version: string }> = [];
   for (const port of order) {
     const v = await isJobleft(port);
-    if (v) return { port, version: v };
+    if (v) out.push({ port, version: v });
   }
-  return null;
+  return out;
+}
+
+async function findApp(prefer: number | null): Promise<{ port: number; version: string } | null> {
+  return (await appPorts(prefer))[0] ?? null;
 }
 
 function errorMessage(data: unknown): string | null {
@@ -115,22 +120,36 @@ function errorMessage(data: unknown): string | null {
   return typeof e?.message === 'string' ? e.message : null;
 }
 
-/** A call with the pairing token. Finds the app again when its port changed. */
+/**
+ * A call with the pairing token. The paired app is the one that accepts the token: when the app moved to another
+ * port (a restart), or another jobleft app answers on the old port, the call finds the paired one again.
+ */
 async function call<T>(path: string, method: string, body: unknown, schema: JsonSchema, timeoutMs = 15000): Promise<T> {
   const p = await getPairing();
   if (!p) throw new AppError('unpaired', 'This browser is not paired with the jobleft app. Pair it first.');
-  let port = p.port;
-  let res: { status: number; data: unknown };
+  let res: { status: number; data: unknown } | null = null;
   try {
-    res = await request(port, path, { method, body, token: p.token, timeoutMs });
-  } catch (e) {
-    const found = await findApp(null);
-    if (!found) throw e;
-    port = found.port;
-    await setPairing({ ...p, port, appVersion: found.version });
-    res = await request(port, path, { method, body, token: p.token, timeoutMs });
+    res = await request(p.port, path, { method, body, token: p.token, timeoutMs });
+  } catch {
+    res = null;
   }
-  if (res.status === 401) {
+  if (res === null || res.status === 401) {
+    const seen = res?.status === 401;
+    let found = false;
+    for (const a of await appPorts(null)) {
+      if (a.port === p.port && res === null) continue;
+      if (a.port === p.port && seen) continue;
+      const r = await request(a.port, path, { method, body, token: p.token, timeoutMs }).catch(() => null);
+      if (r && r.status !== 401) {
+        await setPairing({ ...p, port: a.port, appVersion: a.version });
+        res = r;
+        found = true;
+        break;
+      }
+    }
+    if (!found && !seen) throw new AppError('not_running', 'The jobleft app is not running on this computer. Start the app, then try again.');
+  }
+  if (!res || res.status === 401) {
     await setPairing(null);
     throw new AppError('unpaired', 'The jobleft app does not know this browser any more (the pairing was removed). Pair again.', 401);
   }
@@ -163,18 +182,24 @@ async function connection(): Promise<ConnState> {
 
 async function pair(code: string): Promise<{ ok: boolean; message: string }> {
   if (!/^\d{6}$/.test(code)) return { ok: false, message: 'Type the 6 digits the jobleft app shows.' };
-  const found = await findApp(null);
-  if (!found) return { ok: false, message: 'The jobleft app is not running on this computer. Start it, then try again.' };
+  const apps = await appPorts(null);
+  if (apps.length === 0) return { ok: false, message: 'The jobleft app is not running on this computer. Start it, then try again.' };
   const body = {
     code, extensionId: chrome.runtime.id, extensionVersion: chrome.runtime.getManifest().version,
     protocolVersion: EXTENSION_PROTOCOL_VERSION, browser: browserName(),
   };
-  const r = await request(found.port, '/api/v1/extension/pair', { method: 'POST', body, timeoutMs: 8000 });
-  if (r.status !== 200) return { ok: false, message: errorMessage(r.data) ?? 'The code did not work. Check it, or make a new code in the app.' };
-  const v = validate(PairResponseSchema, r.data);
-  if (!v.ok) return { ok: false, message: 'The app sent an answer this extension does not understand.' };
-  await setPairing({ token: v.value.pairingToken, port: found.port, appVersion: v.value.appVersion });
-  return { ok: true, message: `Paired with jobleft ${v.value.appVersion} on this computer.` };
+  let last = 'The code did not work. Check it, or make a new code in the app.';
+  // The code is valid only in the app that showed it; with more than one jobleft app running, try each.
+  for (const a of apps) {
+    const r = await request(a.port, '/api/v1/extension/pair', { method: 'POST', body, timeoutMs: 8000 }).catch(() => null);
+    if (!r) continue;
+    if (r.status !== 200) { last = errorMessage(r.data) ?? last; continue; }
+    const v = validate(PairResponseSchema, r.data);
+    if (!v.ok) return { ok: false, message: 'The app sent an answer this extension does not understand.' };
+    await setPairing({ token: v.value.pairingToken, port: a.port, appVersion: v.value.appVersion });
+    return { ok: true, message: `Paired with jobleft ${v.value.appVersion} on this computer.` };
+  }
+  return { ok: false, message: last };
 }
 
 function browserName(): string {
@@ -328,7 +353,6 @@ async function startFill(tabId: number, resumeId: string | null): Promise<{ ok: 
   const asked = new Set(req.fields.map((f) => f.fieldId));
   resp = { ...resp, fills: resp.fills.filter((f) => asked.has(f.fieldId)), files: resp.files.filter((f) => asked.has(f.fieldId)), drafts: resp.drafts.filter((d) => asked.has(d.fieldId)) };
   if (support.level === 'partial' && support.ats === 'workday') notices.push('Workday: jobleft filled only the step you can see. Add work and education rows yourself, and press Save and Continue yourself.');
-  if (support.level === 'not_supported') notices.push('This site is not on the supported list. Check every field before you submit.');
   for (const w of resp.warnings) notices.push(w);
 
   const input: ApplyInput = {
