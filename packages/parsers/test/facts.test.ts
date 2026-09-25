@@ -65,6 +65,11 @@ test('facts: board formats (Lever, Ashby, Workable, Recruitee, JSON-LD) read the
   assert.deepEqual([ld.pay?.min, ld.pay?.max, ld.pay?.period, ld.places[0]?.region, ld.isUs], [22, 28, 'hour', 'TX', true]);
 });
 
+test('facts: the pay tier that names the job\'s state is shown (O2 angle 4)', () => {
+  const f = extractFacts({ title: 'Analyst', location: 'Denver, CO', description: 'Hiring Compensation Range: $129,000 - $173,500\nColorado Hiring Compensation Range: $139,000 - $173,500' });
+  assert.deepEqual([f.pay?.min, f.pay?.max, f.pay?.ranges], [139000, 173500, 2]);
+});
+
 test('facts: text pay wins over a board field that says something else, and the hint stays', () => {
   const f = extractFacts({ title: 'Therapist', description: 'Compensation range $146k - $193k, based on productivity.', pay: [{ min: 90000, max: 140000, currency: 'USD', period: 'year' }] });
   assert.deepEqual([f.pay?.min, f.pay?.max, f.pay?.ranges], [146000, 193000, 2]);

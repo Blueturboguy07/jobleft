@@ -74,6 +74,8 @@ test('pay: never reads bonuses, benefits, company money or codes (O4)', () => {
   check('The national average salary for nurses is $80,000 per year.', null);
   check('Call us at 555-123-4567. Job ID 48213.', null);
   check('$150 per diem for travel', null);
+  check('Full-Time or Part Time · Hourly (W-2) · On-Site', null, { country: 'US' });
+  check('COVID-19 vaccination required. I-9 on day one.', null, { country: 'US' });
 });
 
 test('pay: base pay, not the add-on, the differential or the OTE (O10 angles 1 and 2)', () => {
