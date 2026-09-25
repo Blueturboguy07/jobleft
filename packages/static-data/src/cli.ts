@@ -15,6 +15,7 @@ const HELP = `jobleft-data: sponsor data, places, company facts and dataset rele
 Lookups
   h1b <company> [--title <job title>]      H-1B filing summary for a company name: found or unknown, never "no"
   place <text>                              Resolve a place text ("San Francisco, CA", "NYC", "Remote - US")
+  within "<center> | <place> | ..." [--miles 25]   Which places are within the radius of the center
   company <name> [--refresh] [--expire]     Company facts, kept in a local cache (network only on --refresh)
   datasets                                  Every shipped dataset with its date, licence and attribution
 
@@ -28,7 +29,8 @@ Checks
 Builds (write to packages/static-data/dist)
   fetch-lca --out <dir>                     Download the official DOL LCA files this build uses (about 670 MB)
   build-h1b --lca <file.xlsx> [--lca ...]   Build the sponsor table from DOL LCA disclosure files
-  build-places [--geonames <dir>]           Build the place table from GeoNames files (downloads them when needed)
+  build-places [--src <dir>] [--geonames <dir>]  Build the place table (downloads USGS GNIS and Natural Earth,
+                                            about 14 MB, unless --src holds them; GeoNames only from --geonames)
 
 Options
   --json                 Print the full JSON answer
@@ -72,6 +74,9 @@ async function main(argv: string[]): Promise<number> {
       'allow-paid': { type: 'boolean' },
       'keep-downloads': { type: 'boolean' },
       host: { type: 'string' },
+      src: { type: 'string' },
+      miles: { type: 'string' },
+      near: { type: 'string' },
     },
   });
   const [cmd, ...rest] = positionals;

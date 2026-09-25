@@ -10,7 +10,7 @@
 
 import { gunzipSync } from 'node:zlib';
 import type { DatasetInfo, H1bLookup, H1bSummary } from '@jobleft/contracts';
-import { companyKey, isJunkTradeName, splitDba } from '../company-key.ts';
+import { LEGAL_SUFFIXES, companyKey, isJunkTradeName, nameTokens, splitDba } from '../company-key.ts';
 import { loadAliasIndex, type AliasIndex } from '../aliases.ts';
 import { activeStamp, loadDataset, writeStateFor, type DatasetRecord, type StaticDataOptions } from '../datasets/store.ts';
 import { H1B_DATASET_ID, H1B_FORMAT, type EntityRow, type H1bTable, type H1bTableMeta } from './build.ts';
@@ -335,6 +335,7 @@ export function loadH1bIndex(opts: StaticDataOptions & { aliases?: AliasIndex })
       if (!prepared) return unknown(input, key || null, error ?? 'The sponsor data is not available.');
       const window = `${humanDate(prepared.meta.window.from)} to ${humanDate(prepared.meta.window.to)}`;
       if (key.length < 2) return unknown(input, key || null, 'The name is too short to match safely. Sponsorship is unknown.');
+      if (nameTokens(input).every((t) => LEGAL_SUFFIXES.has(t) || t === 'the')) return unknown(input, key, 'The text is only a legal form (such as "Inc."), not a company name. Sponsorship is unknown.');
       const entry = aliases.entryForKey(key);
       let kept: number[] = [];
       let excluded: number[] = [];
