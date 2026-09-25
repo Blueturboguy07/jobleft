@@ -118,7 +118,7 @@ export async function handleNetworkRoute(name: NetworkRouteName, input: NetworkR
       case 'listContacts': {
         const q = input.query;
         return s.list({
-          ...(q.companyKey !== undefined ? { companyKey: q.companyKey } : {}),
+          ...(q.companyKey !== undefined ? { companyKey: s.normalizeKey(q.companyKey) } : {}),
           ...(q.stage ? { stage: q.stage as OutreachStage } : {}),
           ...(q.q ? { q: q.q } : {}),
           ...(qBool(q.due) !== undefined ? { due: qBool(q.due)! } : {}),
@@ -132,7 +132,7 @@ export async function handleNetworkRoute(name: NetworkRouteName, input: NetworkR
         return s.coverage(deps.targets());
       case 'rankContacts': {
         const job = jobOrThrow(deps, input.query.jobId);
-        return s.rank(String(input.query.companyKey ?? ''), job);
+        return s.rank(s.normalizeKey(String(input.query.companyKey ?? '')), job);
       }
       case 'updateContact': {
         const b = (input.body ?? {}) as { stage?: OutreachStage; note?: string | null; followUpOn?: string | null; inPlan?: boolean };
@@ -150,12 +150,12 @@ export async function handleNetworkRoute(name: NetworkRouteName, input: NetworkR
       case 'networkCompanies':
         return s.companies();
       case 'explainCompanyMatch':
-        return s.explain(String(input.query.companyKey ?? ''), input.query.companyName ?? null);
+        return s.explain(s.normalizeKey(String(input.query.companyKey ?? '')), input.query.companyName ?? null);
       case 'networkPlan':
         return s.plan();
       case 'planTopContacts': {
         const b = input.body as { companyKey: string; count: number; jobId?: string };
-        return s.addTopToPlan(b.companyKey, b.count, jobOrThrow(deps, b.jobId));
+        return s.addTopToPlan(s.normalizeKey(b.companyKey), b.count, jobOrThrow(deps, b.jobId));
       }
       case 'previewDraft': {
         const b = input.body as { variant: DraftVariant; jobId?: string };

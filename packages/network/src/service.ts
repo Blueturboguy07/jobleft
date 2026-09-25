@@ -124,6 +124,13 @@ export class NetworkService {
 
   private nowIso(): string { return new Date(this.nowFn()).toISOString(); }
 
+  /** A company key from a key or a name. Keys pass through unchanged ("stripe" stays "stripe"); "Stripe, Inc." becomes "stripe". */
+  normalizeKey(keyOrName: string): string {
+    if (!keyOrName) return '';
+    if (/^[\p{Ll}\p{N}\p{Lo}]+$/u.test(keyOrName)) return keyOrName;
+    try { return this.keyFn(keyOrName) || keyOrName; } catch { return keyOrName; }
+  }
+
   /** Today's calendar date in the person's time zone. */
   today(): string { return localDate(this.nowFn(), this.tz); }
 
