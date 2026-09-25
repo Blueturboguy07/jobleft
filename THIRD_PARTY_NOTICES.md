@@ -34,6 +34,21 @@ Local additions that are not in freehire (written new): the per-host pacer, the 
 - Source: the owner's own Python project (`~/Documents/internships`, `pipeline/normalize.py` and `pipeline/dedup.py`). First-party code, no third-party licence applies.
 - jobleft file: `packages/crawler/src/normalize.ts` (URL canonicalisation, company and title normalisers, the two-layer dedupe spine). Two deliberate changes are documented in that file (`gh_jid` is kept; intern words are kept).
 
+### 1.3 UI packages bundled into the built app (installed from npm, no source copied)
+
+Added by the UI lane. The built app in `apps/ui/dist` contains these; nothing is loaded from the internet at run time.
+
+| Package | Version | Licence | Use |
+|---|---|---|---|
+| react, react-dom | 18.3.1 | MIT | UI runtime |
+| antd | 5.29.3 | MIT | Component library (themed with jobleft's own tokens) |
+| @ant-design/icons | 5.6.1 | MIT | Icon components |
+| @fontsource-variable/inter | 5.3.0 | SIL OFL 1.1 (font), MIT (package) | Inter, bundled as woff2 files |
+| @fontsource/titillium-web | 5.3.0 | SIL OFL 1.1 (font), MIT (package) | Titillium Web, bundled as woff2 files |
+| vite | 7.3.6 | MIT | Build tool only (not shipped) |
+
+The logo, icons, drawn illustrations and all screen text of the UI are written new for jobleft.
+
 ## 2. Data shipped with the app
 
 None yet. The static-data lane adds entries here (board directory, H-1B sponsor table from US Department of Labor LCA disclosure files, city dictionary with its attribution, skill dictionary).
