@@ -143,6 +143,14 @@ The starting weights of the overall percent (0.24 / 0.29 / 0.08 / +36) come from
 
 Resume-Matcher's job-description skill adder (`improver.py`) was deliberately not used.
 
+### 1.11 Store lane (`packages/store`): nothing copied
+
+- The BERT WordPiece tokenizer (`packages/store/src/embed/tokenizer.ts`) is written from the published algorithm
+  (BertNormalizer, BertPreTokenizer, greedy longest-match WordPiece, `[CLS] $A [SEP]`). No code was copied. It was
+  checked (outputs only) against the Hugging Face tokenizer of the spike S2 copy of `@huggingface/transformers` 4.3.0
+  (Apache-2.0), which was run read-only from `spikes/s2-snapshot` and is not a dependency.
+- The float16 conversion, zstd record format, search, filters, dedupe and fit queue are written new.
+
 ## 2. Data shipped with the app
 
 Entries 2.1 to 2.5 are from the static-data lane, 2.6 from the ai-engine lane and 2.7 from the match lane (2026-09-25); 2.8 is from the boards lane.
@@ -210,6 +218,20 @@ Note (parsers lane, 2026-09-25): `packages/parsers/src/geo-us.ts`, `geo-world.ts
 - Not used, on purpose: the `data/` board lists of Feashliaa/job-board-aggregator and of colophon-group/jobseek (both CC BY-NC 4.0, non-commercial). No directory row comes from them.
 - Not used yet: the Common Crawl URL index. `packages/boards/scripts/cc-discover.ts` can extract board tokens from it, but on 2026-09-25 the robots.txt of index.commoncrawl.org and data.commoncrawl.org disallows all crawlers, so jobleft sent no index request and the directory holds no Common Crawl row. If the owner later obtains index answers another way, rows added from them are named `commoncrawl-<crawl id>` in the directory header, with the Common Crawl Terms of Use (https://commoncrawl.org/terms-of-use, last updated 2024-03-07: a limited licence; commercial use is not excluded; legal advice is recommended); their employer names come from each board's own API, never from crawled text.
 - Open question for the owner: JobSync's lists carry JobSync's MIT licence, but their own upstream origin is not documented. Before a public release, confirm with the JobSync maintainer that the lists were not copied from a non-commercial list.
+
+### 2.1 Downloaded on first use (not shipped): the fit model
+
+| Item | Source | Licence | Where it goes |
+|---|---|---|---|
+| BAAI/bge-small-en-v1.5, fp32 ONNX (`onnx/model.onnx`, `vocab.txt`, `tokenizer_config.json`, `config.json`) | https://huggingface.co/BAAI/bge-small-en-v1.5, revision `5c38ec7c405ec4b44b94cc5a9bb96e735b38267a`; sha256 of each file pinned in `packages/store/src/embed/model.ts` | MIT (model card) | `$JOBLEFT_HOME/models/bge-small-en-v1.5-5c38ec7/`, verified before use |
+
+### 2.2 Runtime dependencies (installed by pnpm, shipped with the app)
+
+| Package | Version | Licence | Use |
+|---|---|---|---|
+| onnxruntime-node | 1.30.0 | MIT | Runs the fit model on the CPU (`packages/store`). Its install script (downloads CUDA files on Linux only) does not run and is not needed on macOS: the macOS binary is in the package |
+| onnxruntime-common | 1.30.0 | MIT | Tensor types for onnxruntime-node |
+| adm-zip 0.6.1, global-agent 4.1.3 and their dependencies (define-data-property, define-properties, es-define-property, es-errors, escape-string-regexp, globalthis, gopd, has-property-descriptors, matcher, object-keys, semver, serialize-error, type-fest) | as locked | MIT, BSD-3-Clause (global-agent), ISC (semver), MIT or CC0-1.0 (type-fest) | Used only by onnxruntime-node's install script, which never runs; installed because they are declared dependencies |
 
 ## 3. Development tools (not shipped in the app)
 

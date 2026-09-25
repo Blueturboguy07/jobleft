@@ -122,7 +122,7 @@ message and left untouched.
 | `job_sources` | crawler | Built. Every source that listed a posting: `(job, source_id, url)` with name and first/last seen (the same posting from two boards keeps both credits) |
 | `crawler_runs`, `crawler_run_boards` | crawler | Built. One row per crawl run (reason, state, counts) and one per board of the run (pending or done, status, reason code and sentence, counts). A run cut short resumes with its pending boards. The boards lane can read run history from here (`lastRunReport`, `crawlProgress`) instead of keeping its own |
 | `crawler_hosts`, `crawler_robots`, `crawler_meta` | crawler | Built. Per host: the last request time (pacing across runs) and a wait the host asked for; robots.txt files (24 hours); the crawl lease and the clock offset left by `simulate` |
-| `schema_migrations`, `job_vectors`, `job_skills`, `tracker`, `tracker_notes`, `tracker_reminders`, `saved_filters`, `profile`, `chats`, `notifications`, `settings` | store | Planned. `job_vectors`: float16 BLOB per (job id, content hash, model). `settings` is key-value JSON (other packages' small settings go here through `SettingsStore`) |
+| `schema_migrations`, `store_meta`, `store_jobs`, `job_docs`, `job_keys`, `job_tombstones`, `facet_tags`, `companies`, `job_head_fts`, `job_body_fts`, `job_title_fts`, `job_vectors`, `fit_runs`, `tracker`, `tracker_history`, `tracker_notes`, `tracker_reminders`, `saved_filters`, `profile`, `chats`, `chat_messages`, `notifications`, `settings` | store | Built (store schema 1). The store keeps its own copy of every posting in `store_jobs` + `job_docs` (it never creates or writes the crawler's `jobs`/`jobs_fts`); the crawler's rows reach it through `JobStore.syncFromCrawler()` or the upsert APIs. `job_vectors`: float16 BLOB per (row, model) with the hash of the embedded text. `settings` is key-value JSON (other packages' small settings go here through `SettingsStore`). `job_skills` was not needed (skills live in the job record and the filter arrays) |
 | `board_prefs`, `board_checks`, `crawl_runs`, `crawl_board_reports`, `board_pending_links`, `host_pacing`, `robots_cache` | boards | Built (migrations `boards` v1, v2). `board_prefs`: user boards and choices (follow, hide, disable; a board the person added keeps its name). `board_checks`: what each board check saw (state, failures in a row, last good check, open jobs, next check date). `crawl_runs`, `crawl_board_reports`: refresh history for the report. `board_pending_links`: links pasted while offline. `host_pacing`: the per-host request schedule every process shares. `robots_cache`: robots.txt answers reused for 10 minutes across processes |
 | `company_facts`, `company_fact_labels` | static-data | Built. Facts per company key with source and date, freshness, last error and paid cost; cached Wikidata labels of people and places |
 | `source_state`, `source_runs`, `source_requests`, `source_host_slots`, `feed_postings` | sources-other | Built (migrations 1 and 2). `source_state`: on or off, last run, last problem, 429 wait, ETag, run lease. `source_runs` and `source_requests`: the rolling 24-hour counts (limits survive restarts and hold across processes). `source_host_slots`: the pacer shared by every process. `feed_postings`: each posting as each feed lists it (see "Reading feed jobs" under `@jobleft/sources-other`) |
@@ -151,7 +151,7 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_PARENT_PID` | server | none | The shell's pid. The server exits within 10 s after that process is gone |
 | `JOBLEFT_UI_DIR` | server | `apps/ui/dist` when it exists | The built UI to serve at `/` |
 | `JOBLEFT_DEV` | server | off | `1` enables `POST /api/v1/dev/clock` and readable logs |
-| `JOBLEFT_OFFLINE` | server | off | `1` = no outbound request at all (crawl and AI answer `offline`) |
+| `JOBLEFT_OFFLINE` | server, store | off | `1` = no outbound request at all (crawl and AI answer `offline`; the store never downloads the fit model) |
 | `JOBLEFT_NOW` | every Node package through `nowMs()` | real time | Freeze the clock (RFC 3339). Time-skip for tests |
 | `JOBLEFT_CLOCK_OFFSET` | same | `0` | Run the clock ahead or behind: `72h`, `-30m`, `3d`, `90s`, `1500ms` |
 | `JOBLEFT_TZ` | network | the system time zone (or `TZ`) | The person's time zone for "today" (follow-up dates and reminders), e.g. `America/Chicago` |
@@ -165,7 +165,7 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_SOURCE_KEY_<ID>` | sources-other CLI only | none | A source key for the `jobleft-sources` CLI (for example `JOBLEFT_SOURCE_KEY_THEMUSE`). Read, never saved or printed. The app uses the OS secret store (`SECRET_NAMES.sourceKey(id)`) |
 | `JOBLEFT_SOURCE_TIMEOUT_MS` | sources-other CLI | `15000` | Per-request timeout of other-source requests |
 | `JOBLEFT_PUBLIK_APP_TOKEN` | ai-engine | none | The publik app token. None exists yet (gate G-publik); without it, connect answers a plain error. The server's interim publik client uses it only when `JOBLEFT_PUBLIK_BASE_URL` is a loopback address (tests), and ignores it otherwise |
-| `JOBLEFT_MODEL_BASE_URL` | ai-engine | the Hugging Face `BAAI/bge-small-en-v1.5` files | Where the fit model is downloaded from, once (tests use a local stand-in) |
+| `JOBLEFT_MODEL_BASE_URL` | ai-engine, store | the Hugging Face `BAAI/bge-small-en-v1.5` files at revision `5c38ec7c` | Where the fit model is downloaded from, once (tests use a local stand-in). The store also accepts a `file://` URL or a folder path (copied, verified the same way) |
 | `JOBLEFT_AI_HOST_MAP` | ai-engine | none | JSON map from an own-key vendor host (`api.openai.com`, `api.anthropic.com`, `openrouter.ai`, `generativelanguage.googleapis.com`) to a LOOPBACK stand-in origin. Other hosts and non-loopback targets are refused |
 | `JOBLEFT_SECRET_STORE` | ai-engine | `keychain` on macOS, else `file` | `keychain` (macOS Keychain), `file` (AES-256-GCM file in `$JOBLEFT_HOME/secrets/`), `memory` (tests) |
 | `JOBLEFT_ORT_MODULE` | ai-engine | none | Path of an installed `onnxruntime-node` entry for the fit model (until the app build bundles it) |
@@ -775,119 +775,71 @@ Overlaps to settle when the lanes merge: `detectBoardFromUrl` recognises board l
 
 ### `@jobleft/store`
 
-Status: **Stub** (`openDatabase`, `makeJobId` Built). Purpose: the one database, job search and fit indexing, and the
+Status: **Built** (lane/store). Purpose: the one database, job search and fit indexing, and the
 person's records. Owns: the tables in section 3; routes `storage`, `exportJobs`, `listJobs`, `searchJobs`, `getJob`,
 `listTracker`, `updateTracker`, `listFilters`, `createFilter`, `updateFilter`, `deleteFilter`, `getProfile`,
 `putProfile`, `fitIndexStatus`.
 
 <!-- BEGIN GENERATED: sig:packages/store -->
 ```ts
-import { DatabaseSync } from 'node:sqlite';
-import type { AppSettings, ChatThread, Embedder, FitIndexStatus, Job, JobSearchRequest, JobSearchResponse, Notification, Profile, ProfileInput, SavedFilter, StorageInfo, TrackerEntry, TrackerList, TrackerPatch, TrackerStatus, TrackerView } from '@jobleft/contracts';
-import type { H1bIndex, PlaceIndex } from '@jobleft/static-data';
-/**
- * Opens (or creates) the database. A new file gets `page_size = 16384` before any table (spike S2), then WAL,
- * `synchronous = NORMAL` and `foreign_keys = ON`. Migrations are the store lane's (see migrate()).
- */
-export declare function openDatabase(path: string): DatabaseSync;
-/**
- * Runs the store's migrations (forward only, one transaction each, recorded in `schema_migrations`).
- * A newer file than this build knows is refused with a plain error and left untouched (server O12).
- */
-export declare function migrate(db: DatabaseSync): {
-    from: number;
-    to: number;
-};
+export { openDatabase, migrate, tx, StoreError, STORE_SCHEMA_VERSION, storeVersion, type OpenOptions } from './db.ts';
+export { JobStore, crawlRowToInput, type SearchContext, type ImportResult } from './jobstore.ts';
+export { FitIndex, profileTextOf, priorityFilterOf, type FitIndexOptions, type ModelInfo } from './fit.ts';
+export { TrackerStore, FilterStore, ProfileStore, ChatStore, NotificationStore, SettingsStore, DEFAULT_SETTINGS, emptyProfileInput, canonicalJobId, } from './userdata.ts';
+export { type CompanyInput, type UpsertStats } from './writer.ts';
+export { normalizeInput, companyKeyOf, embedTextOf, EMBED_RECIPE } from './record.ts';
+export { parseQuery, rewriteSpecialTokens, localCompanyKey } from './text.ts';
+export { SynthGenerator, type SynthCompany } from './synth.ts';
+export { MODEL_ID, MODEL_DIMS, MODEL_REVISION, MODEL_FILES, MODEL_TOTAL_BYTES, DEFAULT_MODEL_BASE_URL, MODEL_FOLDER, checkModel, ensureModel, defaultModelSource, modelDirIn, type ModelFile, type ModelSource, } from './embed/model.ts';
+export { createBgeEmbedder, type LocalEmbedder } from './embed/onnx.ts';
 /** The contract job id of a crawled posting: "<ats>:<board>:<externalId>", lower-case ATS and board. */
 export declare function makeJobId(ats: string, board: string, externalId: string): string;
-export interface SearchContext {
-    /** The profile vector for Top Matched; null = no profile (the answer says fit needs a profile). */
-    profileVector: Float32Array | null;
-    h1b: H1bIndex;
-    places: PlaceIndex;
-    now: number;
-}
-/** Reads jobs (crawler tables + the store's side tables) as contract Jobs. */
-export declare class JobStore {
-    constructor(db: DatabaseSync);
-    get(id: string): Job | null;
-    /** Search with words, filters and a sort. Closed, hidden and duplicate jobs never appear or count. */
-    search(req: JobSearchRequest, ctx: SearchContext): JobSearchResponse;
-    /** Saves a job added by URL or text (External tab). Returns the stored job. */
-    saveExternal(job: Job): Job;
-    /** NDJSON lines of saved jobs with their source credits (GET /api/v1/export/jobs). */
-    exportSaved(): Iterable<string>;
-    storage(dbPath: string, dataDir: string): StorageInfo;
-}
-export declare class TrackerStore {
-    constructor(db: DatabaseSync);
-    get(jobId: string): TrackerEntry | null;
-    list(view: TrackerView, status?: TrackerStatus): TrackerList;
-    /** Applies a patch in one transaction (status and its history entry together). */
-    patch(jobId: string, patch: TrackerPatch, now: number): TrackerEntry;
-}
-export declare class FilterStore {
-    constructor(db: DatabaseSync);
-    list(): SavedFilter[];
-    create(input: Pick<SavedFilter, 'name' | 'filter' | 'sort'> & {
-        alert?: boolean;
-    }, now: number): SavedFilter;
-    update(id: string, input: Pick<SavedFilter, 'name' | 'filter' | 'sort'> & {
-        alert?: boolean;
-    }, now: number): SavedFilter;
-    delete(id: string): boolean;
-}
-export declare class ProfileStore {
-    constructor(db: DatabaseSync);
-    /** The one profile (an empty one on a fresh install). */
-    get(): Profile;
-    /** Replaces the editable part; the store sets version and updatedAt. */
-    put(input: ProfileInput, version: string, now: number): Profile;
-}
-export declare class ChatStore {
-    constructor(db: DatabaseSync);
-    list(): Array<Pick<ChatThread, 'id' | 'title' | 'jobId' | 'updatedAt'>>;
-    get(id: string): ChatThread | null;
-    append(id: string | null, message: ChatThread['messages'][number], meta: {
-        jobId: string | null;
-        now: number;
-    }): ChatThread;
-    delete(id: string): boolean;
-}
-export declare class NotificationStore {
-    constructor(db: DatabaseSync);
-    add(n: Omit<Notification, 'id' | 'createdAt'>, now: number): Notification;
-    pending(): Notification[];
-    ack(id: string): boolean;
-}
-export declare class SettingsStore {
-    constructor(db: DatabaseSync);
-    get(): AppSettings;
-    put(s: AppSettings): AppSettings;
-    /** Key-value rows for other packages' small settings (for example the key-free AI settings). */
-    getJson<T>(key: string): T | null;
-    setJson(key: string, value: unknown): void;
-}
-/** Fit indexing: vectors per (job content hash, model). Never repeats work on an unchanged job (store O10). */
-export declare class FitIndex {
-    constructor(db: DatabaseSync, embedder: Embedder | null);
-    status(): FitIndexStatus;
-    /** Embeds up to `limit` waiting jobs (newest first, those that pass the user's hard filters first). */
-    runOnce(limit?: number, signal?: AbortSignal): Promise<{
-        indexed: number;
-    }>;
-    /** Embeds the profile text for Top Matched. */
-    profileVector(text: string): Promise<Float32Array>;
-}
 ```
 <!-- END GENERATED: sig:packages/store -->
 
-Search method (spike S2): filter columns in typed arrays in RAM, filter first, brute-force cosine over float32 vectors
-expanded from float16 BLOBs, FTS5 with `FROM jobs_fts CROSS JOIN jobs` for words, top 50 fetched by id. Words keep
-`C++`, `C#`, `.NET`, `401(k)`; operator words and quotes are treated as words, never as syntax errors. Most Recent sorts
-by the posted date (unknown dates last), never by first seen. Ties break by job id, so the order is stable.
-CLI (planned): `jobleft-store import-jobs <file.ndjson>` (the documented import path for known job sets),
-`jobleft-store seed --synthetic <n>`, `jobleft-store stats`, `jobleft-store vacuum`.
+Status: **Built** (lane/store). The block above is the export list; the hand-written summary below gives the signatures
+that other lanes call. Commands and outcomes: `packages/store/README.md`.
+
+| Export | Signature and meaning |
+|---|---|
+| `openDatabase` | `(path, opts?: { readOnly?, busyTimeoutMs? }) => DatabaseSync`. New file: mode 0600, `page_size 16384`, incremental auto-vacuum, then WAL. Folder 0700 |
+| `migrate` | `(db) => { from, to }`. Store schema 1; a newer file is refused with a plain `StoreError('conflict')` and left untouched |
+| `StoreError` | `Error` with `code`: `bad_request`, `not_found`, `conflict`, `needs_profile`, `not_ready`, `internal` (map with `ERROR_STATUS`) |
+| `JobStore` | `new JobStore(db)`. `get(id)` (alias ids of merged copies work; closed jobs are returned), `search(req, ctx)`, `upsertJobs(items, { now?, source? })`, `refreshScope(scope, items, { now?, source? })` (a complete listing: missing jobs close; an empty listing closes nothing; closing over half of a scope of 10 or more is held), `closeJobs(ids, reason?, now?)`, `upsertCompanies(list, now?)`, `saveExternal(job, now?)`, `exportSaved()`, `storage(dbPath, dataDir)`, `vacuum(full?)`, `syncFromCrawler(now?)` |
+| `SearchContext` | `{ profileVector: Float32Array \| null; h1b: H1bIndex \| null; places: PlaceIndex \| null; now; fit?: FitIndex \| null; fitUnavailable?: 'needs_profile' \| 'not_ready' }` (fields after `now` are additions) |
+| `FitIndex` | `new FitIndex(db, embedder \| null, opts?: { model?, modelInfo?, priorityFilter?, now? })`. `status(): FitIndexStatus`, `runOnce(limit?, signal?)`, `runAll(signal?, onBatch?, limit?)` (one recorded run, 0 when nothing waits), `profileVector(text)`, `queue()`, `request(rids)`, `setEmbedder(e)` |
+| `TrackerStore` | `get(jobId)`, `list(view, status?)`, `patch(jobId, patch, now, opts?: { external? })`. The job must exist (else `not_found`) |
+| `FilterStore`, `ProfileStore`, `ChatStore`, `NotificationStore`, `SettingsStore` | As in the block of the foundation commit; additions: `FilterStore.get(id)`, `ProfileStore.clear()` |
+| `normalizeInput` | `(input, nowIso, defaultSource?) => { job, error }`: the lenient import shape (README "Import format") to a validated contract `Job`. Missing facts stay `null`/`[]` |
+| `profileTextOf`, `embedTextOf` | The texts fit indexing embeds (no contact details, no EEO answers) |
+| `createBgeEmbedder`, `ensureModel`, `checkModel`, `MODEL_*` | bge-small-en-v1.5 fp32 on ONNX Runtime CPU (never CoreML, never the int8 model), pinned revision and sha256 per file; `ensureModel` resumes a cut download and deletes a file that fails its checksum |
+| `SynthGenerator` | Deterministic synthetic jobs and company facts (realistic text lengths) |
+
+Rules the store keeps (store outcomes O1 to O15): words come from FTS5 (contentless, porter, `remove_diacritics 2`;
+`C++`, `C#`, `.NET`, `Node.js`, `401(k)` are rewritten to plain tokens on both sides; quotes and operator words are
+plain words; a query with nothing searchable returns the normal list). Filters run over typed arrays in RAM; an unknown
+fact fails a filter unless `includeUnknown` names it; exclude filters win. Sorts: `recommended` (word tiers, then posted
+day, then how many facts the posting states), `most_recent` (posted time; unknown last), `top_matched` (cosine to the
+profile vector over every candidate; jobs without a current vector follow, marked `fitScore: null`). Ties break by row
+number, so the order is stable. Totals count exactly the rows paging reaches; the first page is a top-k pick and later
+pages are slices of a kept order (the cursor also carries the last sort key, so paging continues after a restart).
+Closed and hidden jobs never appear or count. Closed jobs that nobody tracks are removed; tracked ones stay (Closed view).
+Dedupe: same id, same canonical link (tracking parameters removed, `gh_jid` kept) or same Greenhouse/Lever/Ashby posting
+id = one row; same company key, title, places and text from another site = one row unless the posting ids differ or both
+links are different pages of one site. Fit indexing embeds a job only when its embed text changes (hash per vector).
+
+Integration notes for the server lane: `new StoreService(home)` (`packages/store/src/service.ts`) wires everything the
+store owns (database, migrations, JobStore, FitIndex with the worker-thread embedder, the person's records, the model
+download). After each crawl run, call `jobs.syncFromCrawler()` (the crawler's `Store` on the same file; its FTS can be
+turned off with `{ fts: false }`). The embedder runs in a worker thread because ONNX Runtime's `run()` blocks its
+thread. Overlap: `@jobleft/ai-engine` plans `createLocalEmbedder`; the store ships its own (lane spec) and `FitIndex`
+accepts any `Embedder` whose `model` is `bge-small-en-v1.5`, so either can be passed.
+
+CLI `jobleft-store` (`node packages/store/src/cli.ts <command>`): `init`, `import-jobs <file.ndjson> [--complete]`,
+`seed --synthetic <n>`, `gen --synthetic <n> --out <file>`, `close`, `sync-crawler`, `search`, `get`, `profile`,
+`tracker`, `filters`, `index`, `status`, `stats`, `model status|download|verify`, `vacuum`, `export-saved`, `serve`,
+`bench`. `serve` is a loopback test server for the store's routes of section 6 (same paths, bodies and error shapes,
+rules of 6.1); the app server lane replaces it.
 
 ### `@jobleft/static-data`
 
