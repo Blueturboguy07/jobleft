@@ -237,7 +237,7 @@ pnpm --filter @jobleft/sources-other typecheck
 
 The fixtures are made-up employers and text in the exact structure of each source's real answer. Each real answer was
 read once on 2026-09-25; only its structure (paths and types, no data) is kept in `fixtures/*/shape.json`, and the
-tests check that no fixture has a path the real answer lacks. `node scripts/make-fixtures.ts` rewrites the fixtures.
+tests check that no fixture has a path the real answer lacks. `pnpm --filter @jobleft/sources-other run fixtures` rewrites the fixtures (add `-- --captures <dir>` with fresh real answers to rewrite the shape signatures too).
 
 ## 10. Known limits
 
