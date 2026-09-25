@@ -86,6 +86,14 @@ test('publik: no app token gives a plain message; with the stand-in the balance 
     assert.equal((await plain.call('GET', '/api/v1/publik')).json.state, 'disconnected');
   } finally { await plain.stop(); cleanup(plain.home); }
 
+  // A token from the environment is never used with a non-loopback publik address (nothing can reach publikhq.com).
+  const guarded = await startTest('pubguard', { offline: true, env: { JOBLEFT_PUBLIK_APP_TOKEN: 'stand-in-app-token' } });
+  try {
+    const r = await guarded.call('POST', '/api/v1/publik/connect', { disclosureAccepted: true, disclosureVersion: 1 });
+    assert.equal(r.status, 503);
+    assert.match(r.json.error.message, /not available in this build/);
+  } finally { await guarded.stop(); cleanup(guarded.home); }
+
   const pub = await startPublik({ balanceMicros: 1_500_000 });
   const s = await startTest('pub', { env: { JOBLEFT_PUBLIK_APP_TOKEN: 'stand-in-app-token', JOBLEFT_PUBLIK_BASE_URL: `${pub.origin}/api/v1` } });
   try {

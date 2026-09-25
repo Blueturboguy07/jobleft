@@ -38,7 +38,12 @@ export class PublikService {
 
   constructor(opts: { kv: Kv; secrets: ServerSecretStore; baseUrl: string; appToken: string | null; offline: () => boolean; appVersion: string }) {
     this.kv = opts.kv; this.secrets = opts.secrets; this.baseUrl = opts.baseUrl.replace(/\/+$/, '');
-    this.appToken = opts.appToken; this.offline = opts.offline; this.appVersion = opts.appVersion;
+    this.offline = opts.offline; this.appVersion = opts.appVersion;
+    // No real publik app token exists yet (gate G-publik). Until one ships with the app, a token from the
+    // environment is used only with a loopback publik stand-in, so a test can never send anything to publikhq.com.
+    let loopback = false;
+    try { const h = new URL(this.baseUrl).hostname; loopback = h === '127.0.0.1' || h === 'localhost' || h === '[::1]'; } catch { /* not a URL */ }
+    this.appToken = opts.appToken && loopback ? opts.appToken : null;
   }
 
   private load(): State { return { ...EMPTY, ...(this.kv.get<State>('publik') ?? {}) }; }

@@ -90,7 +90,7 @@ pnpm app:down    # stops it: SIGTERM, then SIGKILL after 10 s
 | Code | Meaning |
 |---|---|
 | 0 | Stopped cleanly |
-| 1 | Could not start (for example no free port) |
+| 1 | Could not start (for example no free port), or an internal error stopped a running server: one plain line on stderr (no stack trace, no path), the run file and the lock removed, every confirmed save on disk |
 | 2 | The data folder was refused and left untouched: written by a newer build, read-only, disk full, or not a jobleft database. The reason is printed on stderr |
 | 3 | Another jobleft server already uses this data folder. The first one keeps running |
 
@@ -108,7 +108,7 @@ pnpm app:down    # stops it: SIGTERM, then SIGKILL after 10 s
 | `JOBLEFT_NOW`, `JOBLEFT_CLOCK_OFFSET` | real time | Freeze or shift the app clock (`72h`, `-30m`, `3d`) |
 | `JOBLEFT_HOST_MAP` | none | JSON map from a real job-board host to a loopback stand-in (section 9) |
 | `JOBLEFT_PUBLIK_BASE_URL` | `https://publikhq.com/api/v1` | Point it at the loopback stand-in for tests (section 9). Nothing is sent to publik unless the person connects |
-| `JOBLEFT_PUBLIK_APP_TOKEN` | none | No real publik app token exists yet, so connecting answers a plain "not available" message |
+| `JOBLEFT_PUBLIK_APP_TOKEN` | none | No real publik app token exists yet, so connecting answers a plain "not available" message. For tests, any text (for example `stand-in`) turns the connect flow on, but ONLY when `JOBLEFT_PUBLIK_BASE_URL` is a loopback address; with any other address it is ignored (section 9.4) |
 | `JOBLEFT_SECRET_STORE` | `keychain` on macOS | `memory` keeps keys in memory only (use it for tests; keys are forgotten at stop) |
 | `JOBLEFT_LOG_LEVEL` | `info` | `error`, `warn`, `info`, `debug` |
 | `JOBLEFT_QUIET` | off | `1` = print nothing at start (used by `pnpm app:up`) |
@@ -307,6 +307,24 @@ the answer is saved when it ends (a cut answer is saved with `incomplete: true`)
 called: when it fails, the stream ends with an `error` event in plain words, and nothing goes anywhere else. A key is
 saved with `PUT /api/v1/ai/key`; only its last 4 characters come back.
 
+### 9.4 The publik balance card with the stand-in
+
+```sh
+export JOBLEFT_PUBLIK_BASE_URL='http://127.0.0.1:4030/api/v1' JOBLEFT_PUBLIK_APP_TOKEN=stand-in
+node apps/server/src/main.ts      # in a fresh shell with JOBLEFT_HOME set
+curl -s -X POST -H "x-jobleft-token: $T" -H 'content-type: application/json' -d '{"disclosureAccepted":true,"disclosureVersion":1}' http://127.0.0.1:$P/api/v1/publik/connect
+# {"state":"connected","wallet":{"claimState":"anonymous","balanceMicros":2000000,...,"topUpUrl":"https://publikhq.com/claim/stand-in",...}}
+curl -s -X PUT -H "x-jobleft-token: $T" -H 'content-type: application/json' -d '{"provider":"publik"}' http://127.0.0.1:$P/api/v1/ai/settings
+curl -s -X POST -d '{"micros":0}' http://127.0.0.1:4030/__admin/balance          # empty the stand-in balance
+curl -sN -X POST -H "x-jobleft-token: $T" -H 'content-type: application/json' -d '{"requestId":"r2","messages":[{"role":"user","content":"hi"}]}' http://127.0.0.1:$P/api/v1/ai/chat
+# data: {"type":"error","error":{"code":"insufficient_balance","message":"Your publik balance is too low for this request ($0.00 left). Add money at the link below, then try again.","link":{...}}}
+curl -s -X POST -H "x-jobleft-token: $T" http://127.0.0.1:$P/api/v1/publik/disconnect   # the key is deleted
+```
+
+Money is `balanceMicros` (millionths of a dollar) and every message says "balance" in dollars. The publik key is kept
+in the secret store only: never in the database, a backup, an export or a log. Nothing is sent to publik before the
+person connects, and there is no balance check at start.
+
 ## 10. Speed with 100,000 jobs (outcome O9)
 
 ```sh
@@ -314,8 +332,9 @@ node apps/server/src/cli.ts seed-jobs --home /private/tmp/jl-speed --count 10000
 JOBLEFT_HOME=/private/tmp/jl-speed node apps/server/src/main.ts
 ```
 
-`seed-jobs` adds SYNTHETIC postings (company "Synthetic Employer N") for speed tests only. Measured on an Apple
-M-series Mac: first data answer 0.2 to 1.5 s after launch (the first start after seeding builds a search index once);
+`seed-jobs` adds SYNTHETIC postings (company "Synthetic Employer N") for speed tests only (about 11 s, 113 MB).
+Measured on an Apple M-series Mac: first data answer 0.2 to 1.5 s after launch (0.84, 0.23, 0.23, 0.23, 0.23 s in
+five launches on 2026-09-25) (the first start after seeding builds a search index once);
 `GET /api/v1/jobs` about 2 to 10 ms; a word search about 15 to 60 ms; a filtered search about 50 to 180 ms; reads
 during a crawl of 4 boards with 5,000 postings each: worst 67 ms.
 
