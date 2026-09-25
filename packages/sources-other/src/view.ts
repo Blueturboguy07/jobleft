@@ -2,8 +2,11 @@
 // O10). The store lane builds the app's Job records; this module is the reference for how feed facts map, and it
 // backs the lane's CLI (`jobs`, `export`) and the source counts (`SourceInfo.status.openJobs`).
 //
-// A "shown" job is: open (jobs.closed_at IS NULL) and not a repeat of another OPEN row (duplicate_of pointing at an
-// open row). The same rule gives the per-source counts, so a filter by source agrees with the source list (O14).
+// A "shown" job is an open row (jobs.closed_at IS NULL). Two sources that list the same posting share one row (the same
+// canonical URL, tracking parameters removed), so they show once with both credits (O10). The crawler's duplicate_of
+// flag (same company and title, another URL) is NOT used to hide feed rows: two different postings with the same
+// title at the same company must stay two jobs (O10). The same rule gives the per-source counts, so a filter by
+// source agrees with the source list (O14).
 
 import type { DatabaseSync } from 'node:sqlite';
 import {
@@ -35,8 +38,8 @@ const ATS_NAMES: Record<string, string> = {
   greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workable: 'Workable', recruitee: 'Recruitee', personio: 'Personio',
 };
 
-/** SQL condition for rows the job list shows (open, and not a repeat of another open row). Alias: j. */
-export const SHOWN_SQL = `j.closed_at IS NULL AND (j.duplicate_of IS NULL OR NOT EXISTS (SELECT 1 FROM jobs d WHERE d.id = j.duplicate_of AND d.closed_at IS NULL))`;
+/** SQL condition for rows the job list shows. Alias: j. */
+export const SHOWN_SQL = `j.closed_at IS NULL`;
 
 function parseJson<T>(s: string | null, fallback: T): T {
   if (!s) return fallback;

@@ -348,7 +348,10 @@ export function parseJsonBody(body: string, host: string): unknown {
     return JSON.parse(body);
   } catch (e) {
     const msg = String((e as Error).message);
-    if (/end of (json )?input|unterminated|unexpected end/i.test(msg)) {
+    // The parser stopped at the very end of the body: the answer was cut off, not damaged in the middle.
+    const at = /position (\d+)/.exec(msg);
+    const atEnd = at !== null && Number(at[1]) >= body.trimEnd().length;
+    if (atEnd || /end of (json )?input|unexpected end/i.test(msg)) {
       throw new FeedError('cut_off', `the answer from ${host} was cut off before it ended`);
     }
     throw new FeedError('not_json', `${host} answered with data that is not valid JSON`);
