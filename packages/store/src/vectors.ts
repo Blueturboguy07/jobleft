@@ -2,12 +2,20 @@
 // that pass the filters. Vectors of one model only: another model's vectors are never loaded into the same ranking.
 // A vector counts only while it is "fresh": made from the job's current text (same embed hash). A job whose text
 // changed waits for a new vector and is shown as "not scored yet" meanwhile, never with its old score.
+//
+// Fit score = cos(profile, job) - CENTER_WEIGHT * cos(average job, job). bge vectors of job postings all lean the same
+// way (shared boilerplate: "communication skills", benefits, equal opportunity), so a job whose text is mostly
+// boilerplate is close to every profile. Taking off part of each job's closeness to the average job (hubness
+// reduction by centering) ranks the job whose duties match above the generic one. The average is kept as a running
+// float64 sum over the current vectors, so it costs O(dims) per vector change.
 
 import type { DatabaseSync } from 'node:sqlite';
 import { currentRev, q } from './db.ts';
 import { unpackHalfInto } from './f16.ts';
 
 const CHUNK_ROWS = 16_384;
+/** How much of the job's closeness to the average job comes off its fit score (0 = plain cosine). */
+export const CENTER_WEIGHT = 0.5;
 
 export class VectorIndex {
   readonly dims: number;
@@ -26,6 +34,12 @@ export class VectorIndex {
   private scores = new Float32Array(0);
   /** 1 = scores[rid] holds the score for the current profile. */
   private have = new Uint8Array(0);
+  /** Running sum and count of the current (fresh) vectors: their average is the centering vector. */
+  private sum: Float64Array;
+  private count = 0;
+  /** The scoring vector for the last profile (profile minus the weighted average), and what it was made from. */
+  private queryKey = '';
+  private query: Float32Array | null = null;
 
   private readonly db: DatabaseSync;
   readonly model: string;
@@ -34,6 +48,37 @@ export class VectorIndex {
     this.db = db;
     this.model = model;
     this.dims = dims;
+    this.sum = new Float64Array(dims);
+  }
+
+  /** Adds (sign 1) or removes (sign -1) the row's vector from the running sum, when it is a current vector. */
+  private account(rid: number, sign: 1 | -1): void {
+    if (rid >= this.fresh.length || this.fresh[rid] !== 1) return;
+    const v = this.vectorOf(rid);
+    if (!v) return;
+    for (let i = 0; i < this.dims; i++) this.sum[i]! += sign * v[i]!;
+    this.count += sign;
+    if (this.count === 0) this.sum.fill(0);
+  }
+
+  /** The average current vector (rounded to float32, so the same data gives the same scores after a restart). */
+  centroid(): Float32Array {
+    const m = new Float32Array(this.dims);
+    if (this.count <= 0) return m;
+    for (let i = 0; i < this.dims; i++) m[i] = Math.fround(this.sum[i]! / this.count);
+    return m;
+  }
+
+  /** The vector a profile is scored with: profile - CENTER_WEIGHT * average job (cached per profile and average). */
+  private queryFor(profile: Float32Array): Float32Array {
+    const mean = this.centroid();
+    const key = `${fingerprint(profile)}|${fingerprint(mean)}`;
+    if (key === this.queryKey && this.query) return this.query;
+    const qv = new Float32Array(this.dims);
+    for (let i = 0; i < this.dims; i++) qv[i] = Math.fround(profile[i]! - CENTER_WEIGHT * mean[i]!);
+    this.queryKey = key;
+    this.query = qv;
+    return qv;
   }
 
   private ensureCap(rid: number): void {
@@ -83,12 +128,15 @@ export class VectorIndex {
     this.ensureCap(rid);
     let s = this.slot[rid]!;
     if (s < 0) { s = this.allocSlot(rid); this.slot[rid] = s; }
+    this.account(rid, -1);
+    this.fresh[rid] = 0;
     const c = this.chunks[(s / CHUNK_ROWS) | 0]!;
     const off = (s % CHUNK_ROWS) * this.dims;
     if (bytes.byteLength !== this.dims * 2) { this.drop(rid); return; }
     if ((bytes.byteOffset & 1) === 0) c.set(new Float16Array(bytes.buffer, bytes.byteOffset, this.dims), off);
     else if (!unpackHalfInto(bytes, c, off, this.dims)) { this.drop(rid); return; }
     this.fresh[rid] = fresh ? 1 : 0;
+    this.account(rid, 1);
     this.dirty.add(rid);
   }
 
@@ -97,14 +145,17 @@ export class VectorIndex {
     this.ensureCap(rid);
     let s = this.slot[rid]!;
     if (s < 0) { s = this.allocSlot(rid); this.slot[rid] = s; }
+    this.account(rid, -1);
     const c = this.chunks[(s / CHUNK_ROWS) | 0]!;
     c.set(v.subarray(0, this.dims), (s % CHUNK_ROWS) * this.dims);
     this.fresh[rid] = fresh ? 1 : 0;
+    this.account(rid, 1);
     this.dirty.add(rid);
   }
 
   private drop(rid: number): void {
     if (rid >= this.slot.length) return;
+    this.account(rid, -1);
     const s = this.slot[rid]!;
     if (s >= 0) { this.freeSlots.push(s); this.ridOfSlot[s] = -1; }
     this.slot[rid] = -1;
@@ -146,7 +197,7 @@ export class VectorIndex {
       const rid = Number(r[0]);
       this.ensureCap(rid);
       const f = Number(r[1]) === 1 ? 1 : 0;
-      if (this.fresh[rid] !== f) { this.fresh[rid] = f; this.dirty.add(rid); }
+      if (this.fresh[rid] !== f) { this.account(rid, -1); this.fresh[rid] = f; this.account(rid, 1); this.dirty.add(rid); }
     }
     for (const r of q(this.db, 'SELECT rid FROM job_tombstones WHERE rev > ?').all(this.lastRev) as Array<{ rid: number }>) {
       const rid = Number(r.rid);
@@ -162,7 +213,9 @@ export class VectorIndex {
    * demand (scoreOne) and kept until the profile or the row's vector changes, so a narrow filter scores few rows.
    */
   begin(profile: Float32Array): Float32Array {
-    const key = fingerprint(profile);
+    this.queryFor(profile);
+    // The key covers the average too: a changed average changes every score.
+    const key = this.queryKey;
     if (key !== this.scoreKey) {
       this.have.fill(0);
       this.scores.fill(NaN);
@@ -175,11 +228,11 @@ export class VectorIndex {
     return this.scores;
   }
 
-  /** The score of one row for the profile given to begin() (NaN when the row has no current vector). */
+  /** The score of one row for the profile given to begin() (NaN when the row has no current vector). Call begin() first. */
   scoreOne(rid: number, profile: Float32Array): number {
     if (rid >= this.have.length) return NaN;
     if (this.have[rid] === 1) return this.scores[rid]!;
-    const v = this.fresh[rid] === 1 ? this.dot(rid, profile, this.dims) : NaN;
+    const v = this.fresh[rid] === 1 ? this.dot(rid, this.query ?? this.queryFor(profile), this.dims) : NaN;
     this.scores[rid] = v;
     this.have[rid] = 1;
     return v;
@@ -188,6 +241,7 @@ export class VectorIndex {
   /** Scores every row with a current vector (one contiguous pass; spike S2: about 80 to 110 ms at 500K). */
   scoresFor(profile: Float32Array): Float32Array {
     const scores = this.begin(profile);
+    profile = this.queryFor(profile);
     const d = this.dims;
     const fresh = this.fresh;
     const have = this.have;

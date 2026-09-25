@@ -9,7 +9,7 @@ import {
 } from '@jobleft/contracts';
 import { canonicalizeUrl } from '@jobleft/crawler';
 import { companyKey as sharedCompanyKey } from '@jobleft/static-data';
-import { countryFromText, foldPlace, localCompanyKey, parsePlaceQuery, regionKey, titleTokenCount } from './text.ts';
+import { countryFromText, foldPlace, localCompanyKey, parsePlaceQuery, regionKey, skillKey, titleTokenCount } from './text.ts';
 
 // ---------------------------------------------------------------- company key (shared when the static-data lane is built)
 
@@ -404,7 +404,7 @@ export function facetsOf(j: Job): Facets {
     if (c) tags.add(`c:${c}`);
   }
   if (j.isUs === true) tags.add('c:US');
-  for (const s of j.skills) tags.add(`k:${foldPlace(s)}`);
+  for (const s of j.skills) tags.add(`k:${skillKey(s)}`);
   for (const s of j.sources) tags.add(`s:${s.sourceId.toLowerCase()}`);
   if (j.remoteScope) for (const r of j.remoteScope.regions) tags.add(`rr:${r.toUpperCase()}`);
   let payKind = 0, payLo = NaN, payHi = NaN;

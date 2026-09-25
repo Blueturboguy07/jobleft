@@ -3,7 +3,8 @@
 //
 // Why: the FTS5 tokenizer (unicode61) splits on every character that is not a letter or a digit. Left alone, "C++",
 // "C#" and "C" would all become the token "c", ".NET" would become "net", and "401(k)" would become "401" and "k".
-// We rewrite those few forms into plain tokens first ("cplusplus", "csharp", "dotnet", "401k").
+// We rewrite those few forms into plain tokens first ("cplusplus", "csharp", "dotnet", "401k"), and a one-letter
+// apostrophe prefix ("L'Oréal") also gives the joined word ("loreal").
 // Accents are folded by the tokenizer itself (remove_diacritics 2), so "Société" and "Societe" match.
 
 /** Rewrites programming-language and benefit spellings that punctuation would otherwise destroy. */
@@ -17,7 +18,11 @@ export function rewriteSpecialTokens(input: string): string {
   const hasJs = lower.includes('.js') || lower.includes(' js');
   const hasK = s.includes('(');
   const hasAmp = s.includes('&');
-  if (!hasNet && !hasPlus && !hasSharp && !hasJs && !hasK && !hasAmp) return s;
+  const hasApos = s.includes("'") || s.includes('\u2019');
+  if (!hasNet && !hasPlus && !hasSharp && !hasJs && !hasK && !hasAmp && !hasApos) return s;
+  // L'Oréal, O'Reilly, D'Angelo: one letter, an apostrophe, then a word of 3+ letters. Keep both halves and add the
+  // joined word, so "Loreal", "L'Oréal" and "L Oreal" all match ("I'll", "I'm" and "don't" are left alone).
+  if (hasApos) s = s.replace(/(^|[^\p{L}\p{N}])(\p{L})['\u2019](\p{L}{3,})(?![\p{L}\p{N}])/gu, (_m, pre: string, a: string, b: string) => `${pre}${a} ${b} ${a}${b}`);
   // asp.net / vb.net before the generic .net rule.
   if (hasNet) s = s.replace(/\b(asp|vb|ado)\.net\b/gi, (_m, a: string) => ` ${a.toLowerCase()}net dotnet `);
   if (hasNet) s = s.replace(/(^|[^\p{L}\p{N}])\.net\b/giu, '$1 dotnet ');
@@ -142,6 +147,14 @@ for (const [code, words] of COUNTRY_WORDS) for (const w of words) COUNTRY_BY_WOR
 /** Lower case, accents off, punctuation to spaces, spaces squeezed. */
 export function foldPlace(s: string | null | undefined): string {
   return (s ?? '').normalize('NFKD').replace(/\p{M}+/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
+/**
+ * The key of a skill name for the skills filter. Punctuation that names a different skill is kept apart with the
+ * same rewrite word search uses: "C++" -> "cplusplus", "C#" -> "csharp", "C" -> "c", ".NET" -> "dotnet".
+ */
+export function skillKey(s: string | null | undefined): string {
+  return foldPlace(rewriteSpecialTokens(s ?? ''));
 }
 
 /** A US state as its two-letter code ("Texas" and "TX" both give "tx"); other regions fold as they are. */

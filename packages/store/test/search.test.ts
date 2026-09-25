@@ -203,3 +203,43 @@ test('Top Matched without a profile says so and shows no list', () => {
   assert.throws(() => s.search({ sort: 'top_matched' }, CTX), (e: Error & { code?: string }) => e.code === 'needs_profile');
   assert.throws(() => s.search({ sort: 'top_matched' }, { ...CTX, fitUnavailable: 'not_ready' }), (e: Error & { code?: string }) => e.code === 'not_ready');
 });
+
+test('skills filter: C++, C#, C and .NET are four different skills, in include and exclude, in every sort', () => {
+  const s = freshStore();
+  s.upsertJobs([
+    job({ id: 'cpp', skills: ['C++', 'Linux'] }),
+    job({ id: 'cs', skills: ['C#', 'Node.js'] }),
+    job({ id: 'c', skills: ['C'] }),
+    job({ id: 'net', skills: ['.NET'] }),
+    job({ id: 'none', skills: ['Python'] }),
+  ], { now: NOW });
+  for (const sort of ['recommended', 'most_recent'] as const) {
+    const r = (filter: Record<string, unknown>) => all(s, { sort, filter }).ids.sort();
+    assert.deepEqual(r({ skills: ['C++'] }), ['cpp']);
+    assert.deepEqual(r({ skills: ['c++'] }), ['cpp']);
+    assert.deepEqual(r({ skills: ['C#'] }), ['cs']);
+    assert.deepEqual(r({ skills: ['C'] }), ['c']);
+    assert.deepEqual(r({ skills: ['.NET'] }), ['net']);
+    assert.deepEqual(r({ skills: ['Node.js'] }), ['cs']);
+    assert.deepEqual(r({ skills: ['C++', 'C#'] }), ['cpp', 'cs']);
+    assert.deepEqual(r({ excludedSkills: ['C++'] }), ['c', 'cs', 'net', 'none']);
+    assert.deepEqual(r({ excludedSkills: ['C'] }), ['cpp', 'cs', 'net', 'none']);
+  }
+});
+
+test("word search: a one-letter apostrophe prefix is also one word (L'Oréal found as Loreal)", () => {
+  const s = freshStore();
+  s.upsertJobs([
+    job({ id: 'lo', title: 'Brand Manager', company: "L'Oréal", description: 'Beauty.' }),
+    job({ id: 'or', title: 'Editor', company: "O’Reilly Media", description: 'Books.' }),
+    job({ id: 'other', title: 'Nurse', company: 'Acme Health', description: "I'll help. We're hiring." }),
+  ], { now: NOW });
+  const q = (text: string) => ids(s.search({ sort: 'recommended', q: text }, CTX).items);
+  for (const text of ['Loreal', "L'Oréal", 'L Oreal', 'loréal', "l'oreal"]) assert.deepEqual(q(text), ['lo'], text);
+  assert.deepEqual(q('OReilly'), ['or']);
+  assert.deepEqual(q("O'Reilly"), ['or']);
+  assert.deepEqual(q('Reilly'), ['or']);
+  // Contractions are left alone: no made-up words.
+  assert.deepEqual(parseQuery("I'll").terms, ['i', 'll']);
+  assert.deepEqual(q('ill'), []);
+});

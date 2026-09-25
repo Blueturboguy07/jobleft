@@ -22,7 +22,7 @@ import {
   companyKeyOf, EMP_TYPE_CODE, LEVEL_BIT, STMT_CITIZEN_YES, STMT_CLEARANCE_YES, STMT_SPONSOR_NO, STMT_SPONSOR_YES,
   WORK_MODEL_CODE,
 } from './record.ts';
-import { foldPlace, ftsString, indexText, parsePlaceQuery, parseQuery, plainTokens } from './text.ts';
+import { foldPlace, ftsString, indexText, parsePlaceQuery, parseQuery, plainTokens, skillKey } from './text.ts';
 import type { VectorIndex } from './vectors.ts';
 
 export const DEFAULT_LIMIT = 20;
@@ -158,8 +158,8 @@ export function compileFilter(f: JobFilter, deps: Pick<SearchDeps, 'db' | 'mem' 
   if (f.remoteRegions && f.remoteRegions.length > 0) {
     c.remoteMask = mem.tagMask([...f.remoteRegions.map((r) => `rr:${r.toUpperCase()}`), 'rr:WORLDWIDE']).mask;
   }
-  if (f.skills && f.skills.length > 0) c.skillMask = mem.tagMask(f.skills.map((s) => `k:${foldPlace(s)}`)).mask;
-  if (f.excludedSkills && f.excludedSkills.length > 0) c.exSkillMask = mem.tagMask(f.excludedSkills.map((s) => `k:${foldPlace(s)}`)).mask;
+  if (f.skills && f.skills.length > 0) c.skillMask = mem.tagMask(f.skills.map((s) => `k:${skillKey(s)}`)).mask;
+  if (f.excludedSkills && f.excludedSkills.length > 0) c.exSkillMask = mem.tagMask(f.excludedSkills.map((s) => `k:${skillKey(s)}`)).mask;
   if (f.sources && f.sources.length > 0) c.sourceMask = mem.tagMask(f.sources.map((s) => `s:${s.toLowerCase()}`)).mask;
   const companyTags = (list: string[]) => mem.tagMask(list.flatMap((k) => [`co:${k}`, `co:${companyKeyOf(k)}`])).mask;
   if (f.companies && f.companies.length > 0) c.companyInclude = companyTags(f.companies);
@@ -684,7 +684,8 @@ function materialize(deps: SearchDeps, rids: number[], terms: string[], scores: 
     const summary: JobSummary = { ...rest, snippet: snippetOf(description, terms) };
     const t = tByJob.get(r.id);
     const co = mem.companyTag[rid]!;
-    const s = scores ? scores[rid]! : NaN;
+    // scoreOne fills a score the cache dropped (a new vector moved the average since this search's first page).
+    const s = scores ? (deps.vec && deps.profileVector ? deps.vec.scoreOne(rid, deps.profileVector) : scores[rid]!) : NaN;
     out.push({
       job: summary,
       match: null,

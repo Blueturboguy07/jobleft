@@ -177,9 +177,12 @@ export class StoreService {
       if (!this.embedder) return { vector: null, reason: 'not_ready' };
     }
     this.lastEmbedUse = Date.now();
-    const vec = await this.fit.profileVector(text);
+    // Round through float16 now, so this session scores with exactly the vector a later session reads back from disk
+    // (otherwise every fit score moves by about 1e-4 after a restart and near ties swap).
+    const packed = packHalf(await this.fit.profileVector(text));
+    const vec = unpackHalf(packed);
     this.profileVec = { version: p.version, vec };
-    this.settings.setJson('store.profileVector', { version: p.version, model: this.fit.model, vec: Buffer.from(packHalf(vec)).toString('base64') });
+    this.settings.setJson('store.profileVector', { version: p.version, model: this.fit.model, vec: Buffer.from(packed).toString('base64') });
     return { vector: vec };
   }
 
