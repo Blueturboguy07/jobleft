@@ -2,11 +2,10 @@
 // Terms (in the feed): link back to the job's URL on Remote OK and mention Remote OK as the source.
 // Notes: docs/sources/remoteok.md.
 
-import { htmlToText } from '@jobleft/parsers';
 import type { FeedContext, FeedPosting, FeedResult, JobFeed } from '../types.ts';
 import { parseJsonBody, shapeError } from '../http.ts';
 import { fixMojibake, makePay, parseRemoteScope, placeFromText, safeHttpUrl, scopeOpenToUs } from '../text.ts';
-import { DAY, HOUR, countriesOf, creditFor, emptyFacts, ev, isoFrom, obj, rawJob, rawPayOf, result, str } from './common.ts';
+import { HOUR, countriesOf, creditFor, emptyFacts, ev, isoFrom, obj, rawJob, rawPayOf, result, str } from './common.ts';
 
 export const REMOTEOK_URL = 'https://remoteok.com/api';
 export const REMOTEOK_CREDIT = creditFor('Found on Remote OK', 'https://remoteok.com/');
@@ -104,9 +103,3 @@ export const remoteOk: JobFeed = {
     return parseRemoteOk(parseJsonBody(body, 'remoteok.com'), ctx.now);
   },
 };
-
-/** Not used in code paths; documents the 24-hour window the limits apply to. */
-export const REMOTEOK_WINDOW_MS = DAY;
-
-/** Plain text of a Remote OK description (for tests and previews). */
-export function remoteOkText(html: string): string { return htmlToText(fixMojibake(html)); }

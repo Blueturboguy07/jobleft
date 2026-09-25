@@ -9,6 +9,10 @@
 //   refresh [id...] [--reason manual|schedule|launch] [--json]
 //                                         refresh now (manual) or as the scheduler would; each source obeys its limits
 //   due [--json]                          what the scheduler would run now (runs them)
+//   simulate [--hours 24] [--step 15m] [--press-every 0]
+//                                         run the scheduler as a running app would, stepping the app clock (not real
+//                                         time) through the hours given; optional manual presses at each step; then
+//                                         print runs and requests per source in every 24-hour window
 //   jobs [--source id] [--status open|closed|all] [--remote] [--open-to-us] [--include-unknown-region] [--limit n] [--json]
 //   export [--out file] [--source id] [--status open|closed|all]
 //                                         NDJSON, one contract Job per line with its sources, links and credits
@@ -30,7 +34,7 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { nowMs } from '@jobleft/contracts';
+import { nowMs, parseDuration } from '@jobleft/contracts';
 import { Store, hostMapFromEnv } from '@jobleft/crawler';
 import { ALL_FEEDS } from './catalog.ts';
 import { discoverBoards } from './discover.ts';
@@ -56,7 +60,7 @@ function positional(): string[] {
   const out: string[] = [];
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i]!;
-    if (a.startsWith('--')) { if (['--reason', '--source', '--status', '--limit', '--out', '--dir', '--port'].includes(a)) i++; continue; }
+    if (a.startsWith('--')) { if (['--reason', '--source', '--status', '--limit', '--out', '--dir', '--port', '--hours', '--step', '--press-every'].includes(a)) i++; continue; }
     out.push(a);
   }
   return out;
@@ -116,8 +120,9 @@ async function main(): Promise<number> {
     }
     case 'enable':
     case 'disable': {
-      const ids = positional();
-      if (!ids.length) { console.error(`usage: ${cmd} <sourceId...>  (ids: ${ALL_FEEDS.map((f) => f.id).join(', ')})`); return 2; }
+      let ids = positional();
+      if (ids.length === 1 && ids[0] === 'all') ids = ALL_FEEDS.filter((f) => f.info.crawled).map((f) => f.id);
+      if (!ids.length) { console.error(`usage: ${cmd} <sourceId...> | all  (ids: ${ALL_FEEDS.map((f) => f.id).join(', ')})`); return 2; }
       const store = openStore();
       const svc = service(store);
       let code = 0;
@@ -144,6 +149,39 @@ async function main(): Promise<number> {
       } catch (e) { console.error((e as Error).message); store.close(); return 1; }
       printResults(report.results, flag('json'));
       if (!flag('json') && report.nextAllowedAt) console.log(`Nothing ran. The next refresh is allowed at ${report.nextAllowedAt}.`);
+      store.close();
+      return 0;
+    }
+    case 'simulate': {
+      const store = openStore();
+      const hours = Number(opt('hours') ?? '24');
+      const step = parseDuration(opt('step') ?? '15m');
+      const pressEvery = Number(opt('press-every') ?? '0');
+      if (!(hours > 0) || !(step >= 60_000)) { console.error('--hours must be positive and --step at least 1m'); return 2; }
+      const start = nowMs();
+      let t = start;
+      const svc = new SourceService({
+        store, secrets: envSecretStore(), hostMap: hostMapFromEnv(), offline: process.env.JOBLEFT_OFFLINE === '1',
+        now: () => t, timeoutMs: Number(process.env.JOBLEFT_SOURCE_TIMEOUT_MS ?? '15000') || 15000,
+      });
+      let steps = 0;
+      for (t = start; t <= start + hours * 3_600_000; t += step) {
+        const due = await svc.runDue(steps === 0 ? 'launch' : 'schedule');
+        for (const r of due.results) if (r.outcome !== 'skipped') console.log(`${new Date(t).toISOString()} scheduled ${pad(r.sourceId, 26)} ${r.outcome} requests ${r.requests}`);
+        if (pressEvery > 0 && steps % pressEvery === 0) {
+          const m = await svc.refresh({ reason: 'manual' });
+          for (const r of m.results) if (r.outcome !== 'skipped') console.log(`${new Date(t).toISOString()} manual    ${pad(r.sourceId, 26)} ${r.outcome} requests ${r.requests}`);
+        }
+        steps++;
+      }
+      console.log(`\nSimulated ${hours} hours in ${steps} steps of ${Math.round(step / 60_000)} minutes (app clock ${new Date(start).toISOString()} to ${new Date(t - step).toISOString()}).`);
+      console.log(`${pad('SOURCE', 26)}${pad('LIMIT', 30)}MOST RUNS / REQUESTS IN ANY 24 HOURS`);
+      for (const f of ALL_FEEDS.filter((x) => x.info.crawled)) {
+        const runs = (store.db.prepare('SELECT started_at_ms AS t FROM source_runs WHERE source_id = ? AND started_at_ms >= ? ORDER BY started_at_ms').all(f.id, start) as Array<{ t: number }>).map((r) => Number(r.t));
+        const reqs = (store.db.prepare('SELECT at_ms AS t FROM source_requests WHERE source_id = ? AND at_ms >= ? ORDER BY at_ms').all(f.id, start) as Array<{ t: number }>).map((r) => Number(r.t));
+        const most = (xs: number[]) => { let m = 0, j = 0; for (let i = 0; i < xs.length; i++) { while (xs[i]! - xs[j]! >= 86_400_000) j++; m = Math.max(m, i - j + 1); } return m; };
+        console.log(`${pad(f.id, 26)}${pad(`${f.limits.maxPerDay ?? '-'} runs, ${f.requestLimits?.perDay ?? '-'} requests`, 30)}${most(runs)} runs / ${most(reqs)} requests`);
+      }
       store.close();
       return 0;
     }
@@ -217,7 +255,7 @@ async function main(): Promise<number> {
       return 0;
     }
     default:
-      console.log('usage: node packages/sources-other/src/cli.ts <list|enable|disable|refresh|due|jobs|export|runs|discover|standin|standin-set> [options]');
+      console.log('usage: node packages/sources-other/src/cli.ts <list|enable|disable|refresh|due|simulate|jobs|export|runs|discover|standin|standin-set> [options]');
       console.log('See packages/sources-other/README.md.');
       return cmd === 'help' || cmd === '--help' ? 0 : 2;
   }
