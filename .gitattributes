@@ -1,0 +1,9 @@
+# Keep LF everywhere so fixtures and tests behave the same on macOS and Windows CI.
+* text=auto eol=lf
+*.png binary
+*.icns binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.onnx binary
+*.db binary

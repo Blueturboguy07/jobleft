@@ -1,0 +1,24 @@
+{
+  // Shared compiler settings for every package and app.
+  // Node 24 runs the .ts files directly with type stripping, so tsc only checks (noEmit).
+  // Only erasable syntax is allowed: no enums, no namespaces, no parameter properties.
+  "compilerOptions": {
+    "target": "es2024",
+    "lib": ["es2024"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "moduleDetection": "force",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "types": ["node"]
+  }
+}

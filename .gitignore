@@ -1,0 +1,22 @@
+vendor/
+node_modules/
+target/
+*.log
+.env*
+spikes/**/pgdata/
+spikes/**/results/
+spikes/**/home/
+spikes/**/bin/
+spikes/**/gomod/
+*.db
+*.db-shm
+*.db-wal
+
+# Workspace build output and caches (regenerable; delete when done, disk is tight)
+.cache/
+dist/
+*.tsbuildinfo
+coverage/
+# Development app home (JOBLEFT_HOME for `pnpm app:up`): local data, never committed
+.jobleft-dev/
+.DS_Store

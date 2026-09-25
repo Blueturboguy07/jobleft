@@ -1,0 +1,16 @@
+# jobleft workspace. Every package is ESM TypeScript that Node 24 runs directly (type stripping).
+packages:
+  - packages/*
+  - apps/*
+
+# Rule 5 (third-party code is untrusted): no dependency install script runs by default.
+# To allow one, read the script first, add the package name to allowBuilds below,
+# and record why in THIRD_PARTY_NOTICES.md ("Install scripts that run").
+ignoreScripts: true
+allowBuilds: {}
+strictDepBuilds: false
+
+engineStrict: true
+saveExact: true
+# Workspace packages link to each other (workspace:*), never to a registry copy.
+linkWorkspacePackages: true

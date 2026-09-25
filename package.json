@@ -1,0 +1,23 @@
+{
+  "name": "jobleft",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "jobleft: a local-first desktop job-search app. Workspace root. The project licence is not decided yet, so every package is UNLICENSED.",
+  "type": "module",
+  "packageManager": "pnpm@12.4.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "check": "pnpm typecheck && pnpm test",
+    "app:up": "node scripts/app-up.ts",
+    "app:down": "node scripts/app-down.ts"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.6",
+    "typescript": "7.0.2"
+  }
+}
