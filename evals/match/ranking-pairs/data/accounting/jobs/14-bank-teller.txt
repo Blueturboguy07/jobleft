@@ -1,0 +1,8 @@
+Title: Bank Teller
+Company: First Capital Bank
+Location: Austin, TX
+
+Requirements
+- 6 months of cash handling experience
+- Customer service
+- Balance a cash drawer daily

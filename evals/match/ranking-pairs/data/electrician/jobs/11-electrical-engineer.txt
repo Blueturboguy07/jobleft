@@ -1,0 +1,11 @@
+Title: Electrical Engineer
+Company: Woodgrove Engineering
+Location: Austin, TX
+
+Design power distribution for commercial buildings.
+
+Requirements
+- Bachelor's degree in Electrical Engineering required
+- PE license preferred
+- AutoCAD and Revit
+- 3+ years of electrical design experience

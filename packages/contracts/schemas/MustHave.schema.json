@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:MustHave",
+  "title": "MustHave",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "sponsorship",
+        "work_authorization",
+        "citizenship",
+        "clearance",
+        "licence",
+        "degree",
+        "years"
+      ]
+    },
+    "requirement": {
+      "type": "string",
+      "minLength": 1
+    },
+    "importance": {
+      "type": "string",
+      "enum": [
+        "required",
+        "preferred",
+        "obtainable"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "met",
+        "unmet",
+        "not_in_profile",
+        "in_progress",
+        "info"
+      ]
+    },
+    "quote": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "kind",
+    "requirement",
+    "importance",
+    "state",
+    "quote",
+    "message"
+  ]
+}

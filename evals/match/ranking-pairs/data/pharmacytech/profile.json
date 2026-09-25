@@ -1,0 +1,69 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "work": [
+    {
+      "company": "Walgreens-Style Pharmacy (fixture)",
+      "title": "Pharmacy Technician",
+      "startDate": "2021-02",
+      "endDate": "present",
+      "bullets": [
+        "Fill 250 prescriptions a day, process insurance claims and prior authorizations, count controlled substances.",
+        "Run the register and help patients at pickup."
+      ]
+    },
+    {
+      "company": "Burger Barn",
+      "title": "Cashier",
+      "startDate": "2019-06",
+      "endDate": "2021-01",
+      "bullets": [
+        "Cash handling and customer service."
+      ]
+    }
+  ],
+  "skills": [
+    "Prescription processing",
+    "Insurance claims",
+    "Inventory management",
+    "Customer service",
+    "Cash handling",
+    "Medical terminology"
+  ],
+  "certifications": [
+    "CPhT (PTCB)",
+    "Texas Pharmacy Technician Registration"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Pharmacy Technician"
+    ],
+    "employmentTypes": [
+      "full_time",
+      "part_time"
+    ],
+    "workModels": [
+      "onsite"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "radiusMiles": 25
+      }
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

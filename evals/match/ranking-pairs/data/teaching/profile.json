@@ -1,0 +1,89 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "summary": "Elementary teacher focused on literacy and differentiated instruction.",
+  "work": [
+    {
+      "company": "Austin ISD",
+      "title": "5th Grade Teacher",
+      "startDate": "2019-08",
+      "endDate": "present",
+      "bullets": [
+        "Plan and teach ELA and social studies lessons for 24 students.",
+        "Differentiate instruction for English learners and students with IEPs.",
+        "Use Google Classroom and formative assessment data to guide small groups."
+      ]
+    },
+    {
+      "company": "Austin ISD",
+      "title": "Student Teacher",
+      "startDate": "2019-01",
+      "endDate": "2019-05",
+      "bullets": [
+        "Co-taught 3rd grade reading and math."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "Sample State University",
+      "degree": "B.S.",
+      "major": "Elementary Education",
+      "startDate": "2015-08",
+      "endDate": "2019-05"
+    }
+  ],
+  "skills": [
+    "Lesson planning",
+    "Classroom management",
+    "Differentiated instruction",
+    "Literacy instruction",
+    "Google Classroom",
+    "Student assessment",
+    "IEPs",
+    "ESL instruction",
+    "Parent communication"
+  ],
+  "certifications": [
+    "Texas Teaching Certificate, Core Subjects EC-6",
+    "ESL Supplemental certification"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Teacher"
+    ],
+    "targetTitles": [
+      "Elementary Teacher"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "onsite"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "placeId": null,
+        "radiusMiles": 30
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

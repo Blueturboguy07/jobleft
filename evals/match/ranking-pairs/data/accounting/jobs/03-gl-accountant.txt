@@ -1,0 +1,11 @@
+Title: General Ledger Accountant
+Company: Northwind Logistics
+Location: Austin, TX
+
+Northwind Logistics runs distribution centers across the South.
+
+Requirements
+- 2+ years of general ledger accounting
+- Month-end close, journal entries and account reconciliations
+- Fixed asset accounting
+- Proficient in Excel

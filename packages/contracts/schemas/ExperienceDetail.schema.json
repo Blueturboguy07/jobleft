@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:ExperienceDetail",
+  "title": "ExperienceDetail",
+  "type": "object",
+  "properties": {
+    "totalMonths": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "text": {
+      "type": "string"
+    },
+    "rolesCounted": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "months": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "title",
+          "company",
+          "from",
+          "to",
+          "months"
+        ]
+      }
+    },
+    "rolesNotCounted": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "company",
+          "why"
+        ]
+      }
+    },
+    "relevantMonths": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "jobYears": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "min": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "max": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "importance": {
+              "type": "string"
+            },
+            "quote": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "min",
+            "max",
+            "importance",
+            "quote"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "jobLevel": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "totalMonths",
+    "text",
+    "rolesCounted",
+    "rolesNotCounted",
+    "relevantMonths",
+    "jobYears",
+    "jobLevel"
+  ]
+}

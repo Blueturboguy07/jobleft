@@ -1,0 +1,14 @@
+{
+  "01-lcsw-outpatient.txt": "strong",
+  "02-therapist.txt": "strong",
+  "03-clinical-social-worker-hospital.txt": "strong",
+  "04-case-manager.txt": "possible",
+  "05-school-counselor.txt": "possible",
+  "06-clinical-director.txt": "poor",
+  "07-psychiatrist.txt": "poor",
+  "08-software-engineer.txt": "poor",
+  "09-accountant.txt": "poor",
+  "10-rn-psych.txt": "possible",
+  "11-bcba.txt": "possible",
+  "12-retail-manager.txt": "poor"
+}

@@ -57,9 +57,24 @@ ideas only:
 | `apps/server/jobsync/` (whole folder) | The source tree at `527333e` | A fork copy with the four spike S3 patches applied (`spikes/s3-shell/patches/01` to `04`), and its pages, API routes, end-to-end tests and deploy files removed. It is not run or served; it is the port source. Details: `apps/server/jobsync/JOBLEFT-FORK.md` |
 | `apps/server/src/interim/ai.ts` | `src/lib/ai/custom-endpoint.ts`, `src/lib/ai/provider-registry.server.ts`, `src/lib/ai/ollama-capabilities.ts` (as changed by spike patches 03 and 04) | Logic re-written in plain TypeScript: an OpenAI-compatible provider is a base URL plus an optional key over Chat Completions; its check asks `GET <base>/models` and treats 404 as usable; Ollama gets `think: true` only for models whose `/api/show` lists "thinking" |
 
+### 1.5 Designs studied closely by the match lane (no code or data copied)
+
+The match engine (`packages/match`) is written new. These MIT-licensed modules were read as references only; no file,
+function, list or text was copied or ported.
+
+| Source (read-only) | Licence | What was studied | Where the idea shows up in jobleft |
+|---|---|---|---|
+| freehire `internal/candidate/jobmatch/jobmatch.go` (commit `e58b1af6`, `vendor/freehire`) | MIT | Skill coverage with exact and "adjacent" matches, an adjacent match counting half | `packages/match/src/score.ts` (Skills part: a related skill counts half and still shows as missing) |
+| freehire `internal/candidate/hardconstraint/hardconstraint.go`, `degrees.go` | MIT | Blockers per category with a score ceiling; judge a category only when both sides carry data | `packages/match/src/score.ts` (caps; "not in your profile" instead of a guessed answer) |
+| freehire `internal/dict/skilladjacency`, `internal/dict/skilltag` (comments on ambiguous words) | MIT | A conservative list of substitutable skills; words such as "slack", "react", "epic", "assembly" that are also ordinary words | `packages/match/data/skills.tsv` (case and context rules; related skills) |
+| career-ops `jd-skill-gap.mjs`, reactive-resume `jd/match.ts` (as summarised in the project's research audit 03) | MIT | Requirement-section detection by headings; weighting required over preferred terms; stuffing counted once | `packages/match/src/text.ts`, `src/job.ts` |
+
+The starting weights of the overall percent (0.24 / 0.29 / 0.08 / +36) come from the project's own observation notes
+(the logged-in UI spec, section MATCH SCORE), not from any code or dataset.
+
 ## 2. Data shipped with the app
 
-Entries 2.1 to 2.5 are from the static-data lane (2026-09-25). The board directory and the skill dictionary are not built yet.
+Entries 2.1 to 2.5 are from the static-data lane, 2.6 from the ai-engine lane and 2.7 from the match lane (2026-09-25). The board directory and the skill dictionary are not built yet.
 
 ### 2.1 H-1B sponsor table (US Department of Labor)
 
@@ -93,7 +108,7 @@ Entries 2.1 to 2.5 are from the static-data lane (2026-09-25). The board directo
 - `packages/static-data/test/fixtures/release-test-key.pem`: an Ed25519 TEST key made for this repository; jobleft trusts it only for release manifests served from 127.0.0.1 or localhost.
 - Company facts read at run time (Wikidata CC0, SEC public domain, GLEIF CC0) name their source and link on every fact.
 
-### 2.1 The fit model (downloaded at first use, not in the repository)
+### 2.6 The fit model (downloaded at first use, not in the repository)
 
 - Model: `BAAI/bge-small-en-v1.5`, files `onnx/model.onnx` (133,093,490 bytes, sha256 `828e1496...0cf35`) and
   `vocab.txt` (231,508 bytes, sha256 `07eced37...38a3`), from `https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main`
@@ -101,6 +116,16 @@ Entries 2.1 to 2.5 are from the static-data lane (2026-09-25). The board directo
   and were measured on the copies spike S2 downloaded on 2026-09-24. Nothing of the model is committed.
 - Runtime: `onnxruntime-node` (MIT) is loaded at run time when it is installed. It is not a dependency of any package
   yet (287 MB); the app build decides. Its install script only fetches CUDA files on Linux (spike S2), so it is not needed.
+
+### 2.7 Match dictionaries (first party)
+
+- Files: `packages/match/data/skills.tsv` (about 550 skills with aliases, contexts and related skills),
+  `credentials.tsv` (90 licences and certifications), `occupations.tsv` (46 kinds of work, about 1,500 job-title
+  phrases, how close two kinds are), `industries.tsv` (30 industries with posting and employer-name phrases).
+- Source: written new for jobleft by the match lane on 2026-09-25 from general knowledge of job titles, tools, trade
+  skills and licences. No third-party list, taxonomy or dataset (O*NET, ESCO, Lightcast, freehire, or any other) was
+  copied or transformed. Each file states this in its header.
+- Licence: the jobleft project's own licence (not decided yet; see the root `package.json`).
 
 ## 3. Development tools (not shipped in the app)
 

@@ -1,0 +1,5 @@
+Title: Software Engineer
+Company: Toast-Like Restaurant Software
+Location: Austin, TX
+
+Build point of sale software for restaurants. 3+ years of TypeScript and React.

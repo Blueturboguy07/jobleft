@@ -1,0 +1,84 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "work": [
+    {
+      "company": "St. David's Medical Center",
+      "title": "Registered Nurse, ICU",
+      "startDate": "2021-03",
+      "endDate": "present",
+      "bullets": [
+        "Cared for 2-3 critically ill patients per shift; titrated IV drips; charted in Epic."
+      ]
+    },
+    {
+      "company": "Hill Country Nursing Center",
+      "title": "Certified Nursing Assistant",
+      "startDate": "2017-06",
+      "endDate": "2020-12",
+      "bullets": [
+        "Vital signs and activities of daily living for 12 residents."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "Sample State University",
+      "degree": "BSN",
+      "major": "Nursing",
+      "startDate": "2016-08",
+      "endDate": "2020-12"
+    }
+  ],
+  "skills": [
+    "Patient care",
+    "Critical care",
+    "IV therapy",
+    "Telemetry",
+    "Medication administration",
+    "Epic",
+    "Patient assessment"
+  ],
+  "certifications": [
+    "Registered Nurse (RN) license, Texas",
+    "BLS",
+    "ACLS"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Registered Nurse"
+    ],
+    "targetTitles": [
+      "ICU Nurse"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "onsite"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "radiusMiles": 30
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

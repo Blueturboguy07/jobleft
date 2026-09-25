@@ -1,0 +1,10 @@
+Title: Software Engineer
+Company: Fourth Coffee Defense
+Location: Austin, TX
+
+Fourth Coffee Defense builds mission software for the Department of Defense.
+
+Requirements
+- Active TS/SCI clearance with polygraph required
+- 3+ years of Python or Java development
+- US citizenship required

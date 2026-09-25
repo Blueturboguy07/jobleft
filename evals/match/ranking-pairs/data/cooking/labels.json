@@ -1,0 +1,14 @@
+{
+  "01-line-cook.txt": "strong",
+  "02-grill-cook.txt": "strong",
+  "03-cook-hotel.txt": "strong",
+  "04-prep-cook.txt": "possible",
+  "05-sous-chef.txt": "possible",
+  "06-executive-chef.txt": "poor",
+  "07-server.txt": "possible",
+  "08-software-engineer.txt": "poor",
+  "09-nurse.txt": "poor",
+  "10-accountant.txt": "poor",
+  "11-cook-el-paso.txt": "poor",
+  "12-food-scientist.txt": "poor"
+}

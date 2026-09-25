@@ -1,0 +1,9 @@
+Title: Financial Analyst
+Company: Tailspin Pay
+Location: Austin, TX
+
+Requirements
+- 2+ years in FP&A or financial analysis
+- Budgeting and forecasting, variance analysis
+- Financial modeling in Excel
+- SQL a plus

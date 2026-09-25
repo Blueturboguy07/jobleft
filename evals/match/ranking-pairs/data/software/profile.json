@@ -1,0 +1,90 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "summary": "Backend-leaning software engineer who builds APIs and data services.",
+  "work": [
+    {
+      "company": "Northwind Cloud Software",
+      "title": "Software Engineer",
+      "startDate": "2022-06",
+      "endDate": "present",
+      "bullets": [
+        "Built REST APIs in Python and TypeScript (Node.js) for a B2B SaaS platform.",
+        "Moved services to Docker and Kubernetes on AWS.",
+        "Tuned PostgreSQL queries and cut p95 latency by 40%."
+      ]
+    },
+    {
+      "company": "Fabrikam Bank",
+      "title": "Junior Software Engineer",
+      "startDate": "2020-06",
+      "endDate": "2022-05",
+      "bullets": [
+        "Maintained internal React dashboards and Java batch jobs for the payments team."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "Sample State University",
+      "degree": "B.S.",
+      "major": "Computer Science",
+      "startDate": "2016-08",
+      "endDate": "2020-05"
+    }
+  ],
+  "skills": [
+    "Python",
+    "TypeScript",
+    "JavaScript",
+    "React",
+    "Node.js",
+    "PostgreSQL",
+    "AWS",
+    "Docker",
+    "Kubernetes",
+    "Git",
+    "REST APIs",
+    "SQL"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Software Engineer"
+    ],
+    "targetTitles": [
+      "Backend Engineer"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "onsite",
+      "hybrid",
+      "remote"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "placeId": null,
+        "radiusMiles": 25
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

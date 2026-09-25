@@ -1,0 +1,9 @@
+Title: Inside Sales Representative
+Company: Contoso Analytics
+Location: Austin, TX
+
+Requirements
+- 1+ year of B2B sales experience
+- Cold calling and prospecting
+- Salesforce
+- Meet monthly quota

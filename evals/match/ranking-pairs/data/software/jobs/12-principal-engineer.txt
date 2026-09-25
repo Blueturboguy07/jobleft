@@ -1,0 +1,9 @@
+Title: Principal Software Engineer
+Company: Woodgrove Systems
+Location: Remote - US
+
+Requirements
+- 15+ years of software engineering experience
+- Recognized technical leader across multiple organizations
+- Deep expertise in C++ and distributed storage systems
+- Published work or patents in storage systems

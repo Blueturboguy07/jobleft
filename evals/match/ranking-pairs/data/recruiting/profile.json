@@ -1,0 +1,82 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "work": [
+    {
+      "company": "Tailspin Staffing Partners",
+      "title": "Technical Recruiter",
+      "startDate": "2022-08",
+      "endDate": "present",
+      "bullets": [
+        "Full-cycle recruiting for engineering roles: sourcing, screening, interviews and offers.",
+        "Boolean search on LinkedIn Recruiter; Greenhouse ATS.",
+        "Filled 45 roles in 2025 with an average time-to-fill of 38 days."
+      ]
+    },
+    {
+      "company": "Contoso Health Partners",
+      "title": "HR Coordinator",
+      "startDate": "2020-06",
+      "endDate": "2022-07",
+      "bullets": [
+        "Scheduled interviews, ran new hire onboarding, kept HRIS records in Workday."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "Sample State University",
+      "degree": "B.A.",
+      "major": "Psychology"
+    }
+  ],
+  "skills": [
+    "Recruiting",
+    "Sourcing",
+    "Applicant tracking systems",
+    "Onboarding",
+    "HRIS",
+    "Interviewing"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Recruiter"
+    ],
+    "targetTitles": [
+      "Recruiter",
+      "Talent Acquisition Partner"
+    ],
+    "employmentTypes": [
+      "full_time",
+      "contract"
+    ],
+    "workModels": [
+      "remote",
+      "hybrid"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "placeId": null,
+        "radiusMiles": 25
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "work": [
+    {
+      "company": "Austin Community Mental Health Services",
+      "title": "Licensed Clinical Social Worker",
+      "startDate": "2021-09",
+      "endDate": "present",
+      "bullets": [
+        "Provide individual and group therapy to adults with depression, anxiety and trauma using CBT and DBT skills.",
+        "Complete psychosocial assessments and treatment plans; document in the EHR.",
+        "Crisis intervention and safety planning."
+      ]
+    },
+    {
+      "company": "Hill Country Family Services",
+      "title": "Case Manager",
+      "startDate": "2019-06",
+      "endDate": "2021-08",
+      "bullets": [
+        "Managed a caseload of 30 families, connected them to housing and benefits."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "Sample State University",
+      "degree": "MSW",
+      "major": "Social Work"
+    }
+  ],
+  "skills": [
+    "Cognitive behavioral therapy",
+    "Dialectical behavior therapy",
+    "Psychosocial assessment",
+    "Treatment planning",
+    "Crisis intervention",
+    "Case management",
+    "Trauma-informed care",
+    "Motivational interviewing"
+  ],
+  "certifications": [
+    "LCSW (Texas)"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Social Worker",
+      "Therapist"
+    ],
+    "targetTitles": [
+      "Therapist",
+      "Clinical Social Worker"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "onsite",
+      "hybrid",
+      "remote"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "placeId": null,
+        "radiusMiles": 25
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

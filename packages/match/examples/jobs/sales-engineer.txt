@@ -1,0 +1,11 @@
+Title: Sales Engineer
+Company: Litware Inc
+Location: Austin, TX
+
+Litware builds developer tools. Our sales engineers partner with account executives to win new customers.
+
+Requirements
+- 3+ years in a pre-sales or sales engineering role
+- Experience supporting quota-carrying account executives
+- Salesforce and CRM experience
+- Familiarity with APIs, TypeScript and AWS is a plus

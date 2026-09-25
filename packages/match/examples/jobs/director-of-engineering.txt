@@ -1,0 +1,9 @@
+Title: Director of Engineering
+Company: Tailspin Pay
+Location: Austin, TX
+
+Lead four engineering teams (30 engineers) and their managers.
+
+Requirements
+- 12+ years of software engineering experience, including 5+ years managing managers
+- TypeScript, AWS, Kubernetes

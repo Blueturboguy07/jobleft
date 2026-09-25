@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:JobFactView",
+  "title": "JobFactView",
+  "type": "object",
+  "properties": {
+    "value": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "quote": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 500
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "value",
+    "text",
+    "quote"
+  ]
+}

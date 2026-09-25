@@ -1065,7 +1065,8 @@
                             "level",
                             "industry",
                             "location",
-                            "network"
+                            "network",
+                            "post_says_no_sponsorship"
                           ]
                         },
                         "label": {
@@ -1085,6 +1086,23 @@
                       "title": "WhyFitChip"
                     },
                     "maxItems": 2
+                  },
+                  "complete": {
+                    "type": "boolean"
+                  },
+                  "blockerCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "warning": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [

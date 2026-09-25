@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:SkillCheck",
+  "title": "SkillCheck",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "importance": {
+      "type": "string",
+      "enum": [
+        "required",
+        "preferred",
+        "mentioned"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "met",
+        "related",
+        "implied",
+        "missing"
+      ]
+    },
+    "quote": {
+      "type": "string"
+    },
+    "heldFrom": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "via": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "name",
+    "importance",
+    "state",
+    "quote",
+    "heldFrom",
+    "via"
+  ]
+}

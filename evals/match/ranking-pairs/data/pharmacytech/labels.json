@@ -1,0 +1,12 @@
+{
+  "01-pharmacy-tech-retail.txt": "strong",
+  "02-hospital-pharmacy-tech.txt": "strong",
+  "03-cpht-mail-order.txt": "strong",
+  "04-pharmacy-tech-trainee.txt": "poor",
+  "05-pharmacist.txt": "poor",
+  "06-medical-assistant.txt": "possible",
+  "07-insurance-verification.txt": "possible",
+  "08-store-manager.txt": "poor",
+  "09-nurse.txt": "poor",
+  "10-warehouse.txt": "poor"
+}

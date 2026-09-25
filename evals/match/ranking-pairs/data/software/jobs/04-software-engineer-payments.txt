@@ -1,0 +1,15 @@
+Title: Software Engineer, Payments
+Company: Tailspin Pay
+Location: Austin, TX
+
+Tailspin Pay is a fintech platform that moves money for small businesses.
+
+About the role
+You will build the APIs that power card payments and payouts.
+
+You have
+- 3+ years building production backend systems
+- Python or TypeScript
+- PostgreSQL
+- Experience with AWS
+- Bonus: payments or banking experience

@@ -1,0 +1,87 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "summary": "B2B SaaS account executive who closes mid-market deals.",
+  "work": [
+    {
+      "company": "Litware Inc",
+      "title": "Account Executive, Mid-Market",
+      "startDate": "2022-01",
+      "endDate": "present",
+      "bullets": [
+        "Closed $1.4M in new ARR in 2025 (118% of quota).",
+        "Ran discovery, product demos and negotiations for 50-500 employee companies.",
+        "Managed pipeline in Salesforce and prospected with LinkedIn Sales Navigator."
+      ]
+    },
+    {
+      "company": "Litware Inc",
+      "title": "Sales Development Representative",
+      "startDate": "2020-02",
+      "endDate": "2021-12",
+      "bullets": [
+        "Booked meetings through cold calling and outbound email."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "Sample State University",
+      "degree": "B.A.",
+      "major": "Communications"
+    }
+  ],
+  "skills": [
+    "B2B sales",
+    "SaaS sales",
+    "Salesforce",
+    "Prospecting",
+    "Cold calling",
+    "Pipeline management",
+    "Negotiation",
+    "Product demos",
+    "Quota attainment",
+    "LinkedIn Sales Navigator"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Account Executive"
+    ],
+    "targetTitles": [
+      "Account Executive",
+      "Senior Account Executive"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "remote",
+      "hybrid",
+      "onsite"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "placeId": null,
+        "radiusMiles": 25
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

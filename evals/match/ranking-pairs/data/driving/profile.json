@@ -1,0 +1,75 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "work": [
+    {
+      "company": "Lone Star Freight",
+      "title": "CDL-A Truck Driver",
+      "startDate": "2019-05",
+      "endDate": "present",
+      "bullets": [
+        "Regional dry van routes across Texas and Oklahoma, 2,500 miles a week.",
+        "Pre-trip and post-trip inspections, ELD logs, zero preventable accidents."
+      ]
+    },
+    {
+      "company": "Pizza Place",
+      "title": "Delivery Driver",
+      "startDate": "2016-01",
+      "endDate": "2019-04",
+      "bullets": [
+        "Delivered orders and handled cash."
+      ]
+    }
+  ],
+  "skills": [
+    "Pre-trip inspections",
+    "DOT regulations",
+    "Safe driving",
+    "Loading and unloading",
+    "Route planning"
+  ],
+  "certifications": [
+    "CDL Class A",
+    "Hazmat endorsement",
+    "DOT medical card"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Truck Driver"
+    ],
+    "targetTitles": [
+      "CDL-A Driver"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "onsite"
+    ],
+    "places": [
+      {
+        "text": "Texas",
+        "placeId": null,
+        "radiusMiles": null
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

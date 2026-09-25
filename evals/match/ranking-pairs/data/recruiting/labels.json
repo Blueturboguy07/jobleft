@@ -1,0 +1,14 @@
+{
+  "01-talent-acquisition-partner.txt": "strong",
+  "02-technical-recruiter.txt": "strong",
+  "03-corporate-recruiter.txt": "strong",
+  "04-hr-generalist.txt": "possible",
+  "05-recruiting-coordinator.txt": "possible",
+  "06-head-of-talent.txt": "poor",
+  "07-payroll-specialist.txt": "poor",
+  "08-software-engineer.txt": "poor",
+  "09-nurse.txt": "poor",
+  "10-warehouse.txt": "poor",
+  "11-sales-ae.txt": "possible",
+  "12-recruiter-onsite-nyc.txt": "poor"
+}
