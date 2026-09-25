@@ -308,6 +308,7 @@ curl -s -H "x-jobleft-token: $T" "http://127.0.0.1:$P/api/v1/jobs?limit=20"
 | Seeing a close now | With `JOBLEFT_DEV=1`: remove the job from `boards.json`, move the clock with `curl -X POST -H "x-jobleft-token: $T" -H 'content-type: application/json' -d '{"offset":"72h"}' http://127.0.0.1:$P/api/v1/dev/clock`, and crawl again. `-d '{}'` resets the clock |
 | Speed | The crawl runs in a worker thread. Reads answer in milliseconds while it runs |
 | Scheduler | A catch-up run 5 s after start (never before the server answers), then every `crawl.intervalHours` (settings) |
+| Crawl off | A crawl asks only the boards you added. A new data folder has no boards, so the crawl is off until you add one (`crawl/run` answers `"started":false`, "There are no boards to refresh yet", and the server opens no outbound connection). To turn it off again: `PATCH /api/v1/boards/<boardId>` with `{"disabled":true}` for each board, or start with `JOBLEFT_OFFLINE=1` (no outbound request at all) |
 
 ### 9.3 Chat with the stand-in AI
 
