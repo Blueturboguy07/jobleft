@@ -1,6 +1,6 @@
 # jobleft interfaces
 
-Version: contracts 1.1.0 (1.0.0 plus the match lane's optional fields, section 8), local API v1, extension protocol v1. Written by the foundation commit, 2026-09-25.
+Version: contracts 1.1.0 (1.0.0 plus the match lane's optional fields, section 8, and the network lane's additive network records, fields and routes), local API v1, extension protocol v1. Written by the foundation commit, 2026-09-25.
 
 This document is the contract between the lanes. Lanes build in parallel from it. It tells each lane what it
 owns, what it exports, what it may import, which tables and routes it serves, and which environment variables,
@@ -89,6 +89,8 @@ logs outside it). Secrets live in the OS secret store, never in a plain-text fil
 | `backups/` | Backup files the person asks for | server |
 | `logs/` | Logs with no personal data, no keys, no tokens, no resume or chat text | server |
 | `tmp/` | Temporary files; emptied at start and after each step | every Node package |
+| `network-dev/standin.json` | Stand-in jobs, likes, persona profile and AI address for the network lane's own CLI and dev server only (never a connection's data); gone once apps/server wires the real ones | network (dev tool) |
+| `run/network-dev.json`, `logs/network-dev.log` | The network dev server's `{ pid, port, token, startedAt }` (0600, removed on exit) and its log (method, route name, status, time; no data) | network (dev tool) |
 | `run/server.json` | `{ pid, port, token, version, startedAt }`, mode 0600; removed on clean exit | server |
 | `run/server.lock` | Single-instance lock (one server per data folder): `{ pid, procStart, lockedAt, nonce }`. A lock whose process is gone, or whose pid now belongs to another program (start time differs), is stale and is taken over | server |
 | `run/restore-journal.json` | Present only while a restore swaps folders; at start the server finishes or undoes an interrupted restore before it empties `tmp/` | server |
@@ -123,7 +125,7 @@ message and left untouched.
 | `company_facts`, `company_fact_labels` | static-data | Built. Facts per company key with source and date, freshness, last error and paid cost; cached Wikidata labels of people and places |
 | `source_state` | sources-other | Planned. On or off, last run, daily request counts per source (limits survive restarts) |
 | `resumes`, `tailor_proposals`, `cover_letters` | resume | Planned |
-| `network_contacts` | network | Planned |
+| `network_contacts`, `network_meta` | network | Built. `network_contacts`: one row per connection plus the person's tracking (stage, note, follow-up, plan, reminded date, "in latest file"). `network_meta`: key-value facts of the tool (company-key fingerprint, last import counts, approved AI destinations); never a name, email or note. The network service sets `PRAGMA secure_delete = ON` on the connection it is given and ends each delete with `wal_checkpoint(TRUNCATE)`, so deleted text leaves no copy in the database or `-wal` file |
 | `practice_sessions`, `practice_items` | ai-engine | Planned |
 | `pairings` | server | Built. Extension id, sha256 of the pairing token (hex), browser, extension version, paired and last-seen times |
 | `srv_kv`, `srv_notifications` | server | Built. The server's key-value JSON (app settings, key-free AI and publik state, the folder's creation time) and the notifications the shell shows |
@@ -150,6 +152,8 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_OFFLINE` | server | off | `1` = no outbound request at all (crawl and AI answer `offline`) |
 | `JOBLEFT_NOW` | every Node package through `nowMs()` | real time | Freeze the clock (RFC 3339). Time-skip for tests |
 | `JOBLEFT_CLOCK_OFFSET` | same | `0` | Run the clock ahead or behind: `72h`, `-30m`, `3d`, `90s`, `1500ms` |
+| `JOBLEFT_TZ` | network | the system time zone (or `TZ`) | The person's time zone for "today" (follow-up dates and reminders), e.g. `America/Chicago` |
+| `JOBLEFT_NO_OS_NOTIFY` | network dev tool | off | `1` = the network dev server and CLI show no macOS notification (tests) |
 | `JOBLEFT_HOST_MAP` | crawler `hostMapFromEnv()` (Built) | none | JSON map from a real ATS host to a LOOPBACK mock origin, for example `{"boards-api.greenhouse.io":"http://127.0.0.1:4010"}` |
 | `JOBLEFT_PUBLIK_BASE_URL` | ai-engine, sources-other | `https://publikhq.com/api/v1` | Lanes and tests MUST point this at a local stand-in. No lane calls publikhq.com |
 | `JOBLEFT_PUBLIK_APP_TOKEN` | ai-engine | none | The publik app token. None exists yet (gate G-publik); without it, connect answers a plain error. The server's interim publik client uses it only when `JOBLEFT_PUBLIK_BASE_URL` is a loopback address (tests), and ignores it otherwise |
@@ -343,13 +347,18 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `listDatasets` | GET | `/api/v1/data-sources` | launch | static-data | — | — | `DatasetInfo[]` | Shipped datasets with date, licence and attribution |
 | `updateDatasets` | POST | `/api/v1/data-sources/update` | launch | static-data | — | — | `DatasetInfo[]` | Fetch newer dataset releases; a bad release keeps the old data |
 | `importNetwork` | POST | `/api/v1/network/import` | launch | network | — | raw: text/csv, text/plain | `NetworkImportSummary` | Import Connections.csv (raw text body) |
-| `listContacts` | GET | `/api/v1/network/contacts` | launch | network | `{ companyKey?, stage?, q?, due?, inPlan? }` | — | `NetworkContact[]` | Contacts, filtered |
+| `listContacts` | GET | `/api/v1/network/contacts` | launch | network | `{ companyKey?, stage?, q?, due?, inPlan?, noCompany?, limit?, offset? }` | — | `NetworkContact[]` | Contacts, filtered |
 | `networkCoverage` | GET | `/api/v1/network/coverage` | launch | network | — | — | `CompanyCoverage[]` | Target companies with and without connections |
 | `rankContacts` | GET | `/api/v1/network/rank` | launch | network | `{ companyKey, jobId? }` | — | `ContactRank[]` | Who to message first at a company, with reasons |
 | `updateContact` | PATCH | `/api/v1/network/contacts/:contactId` | launch | network | — | `{ stage?, note?, followUpOn?, inPlan? }` | `NetworkContact` | Stage, note, follow-up date, plan |
 | `deleteContact` | DELETE | `/api/v1/network/contacts/:contactId` | launch | network | — | — | `Ok` | Delete one contact and everything about it |
-| `deleteNetwork` | DELETE | `/api/v1/network` | launch | network | — | — | `{ ok, deleted }` | Delete all network data (the user's own file is untouched) |
-| `draftOutreach` | POST | `/api/v1/network/contacts/:contactId/draft` | launch | network | — | `{ variant, jobId? }` | `OutreachDraft` | Draft a short message (sends only this contact, this job and a short summary) |
+| `deleteNetwork` | DELETE | `/api/v1/network` | launch | network | — | — | `{ ok, deleted, logCleared? }` | Delete all network data (the user's own file is untouched) |
+| `draftOutreach` | POST | `/api/v1/network/contacts/:contactId/draft` | launch | network | — | `{ variant, jobId?, template?, confirmRemote? }` | `OutreachDraft` | Draft a short message (sends only this contact, this job and a short summary) |
+| `previewDraft` | POST | `/api/v1/network/contacts/:contactId/draft/preview` | launch | network | — | `{ variant, jobId? }` | `DraftPreview` | What a draft would send and to whom (nothing is sent) |
+| `networkCompanies` | GET | `/api/v1/network/companies` | launch | network | — | — | `NetworkCompanyGroup[]` | Companies in the network with counts; blank and placeholder companies grouped apart |
+| `explainCompanyMatch` | GET | `/api/v1/network/match` | launch | network | `{ companyKey, companyName? }` | — | `CompanyMatchExplanation` | How a company count was made: names counted and near names not counted, with reasons |
+| `networkPlan` | GET | `/api/v1/network/plan` | launch | network | — | — | `CoffeeChatPlanEntry[]` | The coffee-chat plan by company, in rank order, with a next step each |
+| `planTopContacts` | POST | `/api/v1/network/plan` | launch | network | — | `{ companyKey, count, jobId? }` | `NetworkContact[]` | Put the top N people at a company into the coffee-chat plan |
 | `getAiSettings` | GET | `/api/v1/ai/settings` | launch | ai-engine | — | — | `AiSettings` | Provider settings (never the key) |
 | `putAiSettings` | PUT | `/api/v1/ai/settings` | launch | ai-engine | — | `AiSettingsUpdate` | `{ settings, check }` | Choose a provider; runs the setup check |
 | `setAiKey` | PUT | `/api/v1/ai/key` | launch | ai-engine | — | `{ key }` | `AiSettings` | Save the key of the current provider (secret store; only the last 4 characters come back) |
@@ -416,7 +425,7 @@ protocol. One builder gives each contract its JSON Schema, its TypeScript type a
 |---|---|
 | Builder | `str`, `num`, `int`, `bool`, `enm`, `lit`, `arr`, `obj(required, optional)`, `rec`, `nullable`, `union`, `anyValue`, `named`; types `Schema<T>`, `Infer<S>`, `JsonSchema` |
 | Validation | `validate(schema, value) -> { ok, value } or { ok: false, issues[] }`, `isValid`, `parse` (throws `ContractError`) |
-| Records | `Job`, `JobSummary`, `Pay`, `Place`, `RemoteScope`, `SourceAttribution`, `Company`, `H1bSummary`, `Profile`, `ProfileInput`, `Resume`, `ResumeDocument`, `ImportReport`, `AtsReport`, `KeywordGapReport`, `TailorProposal`, `TruthViolation`, `CoverLetter`, `MatchResult`, `MatchSummary`, `TrackerEntry`, `TrackerPatch`, `NetworkContact`, `NetworkImportSummary`, `ContactRank`, `CompanyCoverage`, `OutreachDraft`, `PublikWallet`, `PublikConnection`, `AiSettings`, `ProviderCheck`, `ChatRequest`, `ChatStreamEvent`, `ActionProposal`, `ChatThread`, `PracticeSession`, `PracticeItem`, `JobFilter`, `JobSearchRequest`, `JobSearchResponse`, `JobListItem`, `SavedFilter`, `BoardEntry`, `BoardResolveResponse`, `SourceInfo`, `CrawlProgress`, `CrawlBoardReport`, `FitIndexStatus`, `DatasetInfo`, `H1bLookup`, `PlaceLookup`, `StorageInfo`, `Notification`, extension messages. Each has a `<Name>Schema` |
+| Records | `Job`, `JobSummary`, `Pay`, `Place`, `RemoteScope`, `SourceAttribution`, `Company`, `H1bSummary`, `Profile`, `ProfileInput`, `Resume`, `ResumeDocument`, `ImportReport`, `AtsReport`, `KeywordGapReport`, `TailorProposal`, `TruthViolation`, `CoverLetter`, `MatchResult`, `MatchSummary`, `TrackerEntry`, `TrackerPatch`, `NetworkContact`, `NetworkImportSummary`, `ContactRank`, `CompanyCoverage`, `OutreachDraft`, `NetworkCompanyGroup`, `CompanyMatchExplanation`, `CoffeeChatPlanEntry`, `DraftPreview`, `PublikWallet`, `PublikConnection`, `AiSettings`, `ProviderCheck`, `ChatRequest`, `ChatStreamEvent`, `ActionProposal`, `ChatThread`, `PracticeSession`, `PracticeItem`, `JobFilter`, `JobSearchRequest`, `JobSearchResponse`, `JobListItem`, `SavedFilter`, `BoardEntry`, `BoardResolveResponse`, `SourceInfo`, `CrawlProgress`, `CrawlBoardReport`, `FitIndexStatus`, `DatasetInfo`, `H1bLookup`, `PlaceLookup`, `StorageInfo`, `Notification`, extension messages. Each has a `<Name>Schema` |
 | Helpers | `bandFor(percent)` (STRONG 85+, GOOD 70 to 84, FAIR below 70), `summarizeMatch`, `experienceLevelOf(level)`, `formatDollars(micros)` (floors; "<$0.01" for a positive balance under a cent), `nowMs()` and `nowIso()` (time-skip), `parseDuration` |
 | Local API | `LOCAL_API`, `RouteName`, `RouteBody<K>`, `RouteQuery<K>`, `RouteResponse<K>`, `matchRoute(method, path)`, `buildPath(path, params)`, `createLocalApiClient(opts)`, `LocalApiError`, headers (`LAUNCH_TOKEN_HEADER` = `x-jobleft-token`, `PAIRING_TOKEN_HEADER` = `x-jobleft-pairing`, `FILE_NAME_HEADER`), `DEFAULT_PORT` = 47821, `PORT_SPAN` = 10, `ERROR_CODES`, `ERROR_STATUS`, `ApiErrorSchema` |
 | Interfaces | `Embedder` (`model`, `dims`, `embed(texts)`), `SecretStore` (`get`, `set`, `delete`), `SECRET_NAMES` |
@@ -1208,16 +1217,20 @@ For other lanes:
 
 ### `@jobleft/network`
 
-Status: **Stub**. Purpose: the Network tool on the person's own `Connections.csv`. Owns: table `network_contacts`;
-routes `importNetwork`, `listContacts`, `networkCoverage`, `rankContacts`, `updateContact`, `deleteContact`,
-`deleteNetwork`, `draftOutreach`.
+Status: **Built** (52 tests; probe `evals/network/csv-fixtures`). Purpose: the Network tool on the person's own
+`Connections.csv`. Owns: tables `network_contacts` and `network_meta`; routes `importNetwork`, `listContacts`,
+`networkCoverage`, `rankContacts`, `updateContact`, `deleteContact`, `deleteNetwork`, `draftOutreach`, and (added by
+the network lane, additive) `previewDraft`, `networkCompanies`, `explainCompanyMatch`, `networkPlan`,
+`planTopContacts`. Commands and what a person sees: `packages/network/README.md`.
 
 <!-- BEGIN GENERATED: sig:packages/network -->
 ```ts
 import type { DatabaseSync } from 'node:sqlite';
 import type { CompanyCoverage, ContactRank, Job, NetworkContact, NetworkImportSummary, OutreachDraft, OutreachStage } from '@jobleft/contracts';
 import type { AiClient } from '@jobleft/ai-engine';
+import { NetworkService as Service, type CompanyGroup, type MatchExplanation, type PlanEntry } from './service.ts';
 export interface ParsedConnection {
+    /** The file line (1-based) where the row starts. */
     line: number;
     firstName: string;
     lastName: string;
@@ -1225,7 +1238,9 @@ export interface ParsedConnection {
     email: string | null;
     company: string | null;
     position: string | null;
+    /** YYYY-MM-DD, or null when blank or not readable without guessing. */
     connectedOn: string | null;
+    /** The name may be garbled by the export. It is kept exactly as in the file. */
     maybeGarbled: boolean;
 }
 /**
@@ -1260,19 +1275,30 @@ export interface NetworkServiceOptions {
     /** @jobleft/static-data companyKey (the same key jobs use). */
     companyKey: (name: string) => string;
     now?: () => number;
+    /** The person's time zone for "today" (default: the system zone, or JOBLEFT_TZ). */
+    timeZone?: string;
 }
-/** Owns the table `network_contacts`. Deletes are real (rows, drafts, notes; nothing left behind). */
-export declare class NetworkService {
+/** Owns the tables `network_contacts` and `network_meta`. Deletes are real (rows, notes, dates; nothing left behind). */
+export declare class NetworkService extends Service {
     constructor(opts: NetworkServiceOptions);
     /** Imports the file text. Keeps stages and notes of people already there; never drops a person silently. */
-    import(csvText: string): NetworkImportSummary;
-    list(q: {
+    import(csvText: string): NetworkImportSummary & {
+        total: number;
+        inFile: number;
+    };
+    list(q?: {
         companyKey?: string;
+        noCompany?: boolean;
         stage?: OutreachStage;
         q?: string;
         due?: boolean;
         inPlan?: boolean;
-    }): NetworkContact[];
+        limit?: number;
+        offset?: number;
+    }): Array<NetworkContact & {
+        inLatestFile: boolean;
+        followUpDue: boolean;
+    }>;
     /** How many connections work at a company (null when none, so cards show nothing). */
     countFor(companyKey: string): number | null;
     coverage(targetCompanies: Array<{
@@ -1285,17 +1311,73 @@ export declare class NetworkService {
         note?: string | null;
         followUpOn?: string | null;
         inPlan?: boolean;
-    }): NetworkContact;
+    }): NetworkContact & {
+        inLatestFile: boolean;
+        followUpDue: boolean;
+    };
     delete(id: string): boolean;
     deleteAll(): number;
     /** Contacts whose follow-up date is today or past (for reminders). */
-    due(today: string): NetworkContact[];
+    due(today?: string): Array<NetworkContact & {
+        inLatestFile: boolean;
+        followUpDue: boolean;
+    }>;
+    /** One contact, or null. */
+    get(id: string): (NetworkContact & {
+        inLatestFile: boolean;
+        followUpDue: boolean;
+    }) | null;
+    /** countFor for a whole feed page from one cached map (no query per card). */
+    countsFor(keys: Iterable<string>): Map<string, number | null>;
+    /** Companies in the network with the names as written; blank ("unknown") and placeholder companies grouped apart. */
+    companies(): CompanyGroup[];
+    /** How a count was made: names counted and why; near names NOT counted and why. */
+    explain(companyKey: string, companyName?: string | null): MatchExplanation;
+    /** Puts the top `count` people at a company (ranked for the job, when given) into the coffee-chat plan. */
+    addTopToPlan(companyKey: string, count: number, job: Job | null): Array<NetworkContact & {
+        inLatestFile: boolean;
+        followUpDue: boolean;
+    }>;
+    /** The coffee-chat plan by company, in rank order, with a next step for each person. */
+    plan(): PlanEntry[];
+    /** Due follow-ups not yet reminded for their date; marks them. The text holds a count, never a name. */
+    takeReminders(today?: string): {
+        count: number;
+        contactIds: string[];
+        text: {
+            title: string;
+            body: string;
+        } | null;
+    };
+    /** Today's date (YYYY-MM-DD) in the person's time zone. */
+    today(): string;
 }
+export { decodeCsvBytes, looksGarbled, parseConnectedOn, localDate, localTimeZone } from './text.ts';
+export { urlIdentity } from './csv.ts';
+export { resolveCompanyKey, interimCompanyKey, isPlaceholderCompany, keysForCompany, howMatched, whyNotCounted, type CompanyKeyFn, } from './company.ts';
+export { readTitle, type Seniority, type Field, type TitleFacts } from './titles.ts';
+export { scoreContact, RANK_POINTS } from './rank.ts';
+export { profileSummary, draftFacts, draftMessages, checkDraft, redactContactDetails, cleanDraftText, templateDraft, draftFromTemplate, SHORT_CHAR_LIMIT, LONG_CHAR_LIMIT, type DraftFacts, type DraftVariant, } from './draft.ts';
+export { NetworkError, type NetworkContactView, type CompanyGroup, type MatchExplanation, type PlanEntry, type ListQuery } from './service.ts';
+export { migrateNetwork, openNetworkDatabase, NETWORK_SCHEMA_VERSION } from './db.ts';
+export { handleNetworkRoute, NetworkApiError, NETWORK_ROUTES, aiErrorToApi, type NetworkRouteName, type NetworkRouteDeps, type NetworkRouteInput, type AiDestination, } from './routes.ts';
 ```
 <!-- END GENERATED: sig:packages/network -->
 
 Rules: no request to LinkedIn or any people-lookup service, ever; nothing is sent for the person; a draft request
 carries only one contact's name, title and company, one job and a short profile summary; delete is real.
+
+| Topic | Contract |
+|---|---|
+| Wiring (apps/server) | `new NetworkService({ db, companyKey })` on the store's connection, with `companyKey` from `@jobleft/static-data`. Each network route: `handleNetworkRoute(name, { params, query, body }, deps)` after the section 6.1 checks; `NetworkApiError.code` is an `ERROR_CODES` value (`details` and `link` go into the error body). `deps` (`NetworkRouteDeps`): `service`, `job(id)` (JobStore.get), `profileSummary()` (`profileSummary(profile)`), `ai()` (`AiEngine.client()`), `aiDestination()` (`{ provider, label, remote }`: `remote` is false only for a model on this computer), `targets()` (companies of liked, applied and tracked jobs), `offline` |
+| Counts on job cards | `networkCount = service.countFor(job.companyKey)` (null = show nothing); a feed page uses `countsFor(keys)` (one cached map). The list behind a count is `listContacts?companyKey=<same key>`: always the same people |
+| Matching | A contact counts at a company only when the keys are equal (`companyKey`: case, accents, punctuation, "&", a leading "The" and legal suffixes ignored; ordinary words never dropped). Also: a trailing short form in brackets ("Amazon Web Services (AWS)") matches with and without it. Blank and placeholder companies ("Self-employed", "Stealth Startup", "N/A") have no key and match no job. `explain()` lists near names that are NOT counted, with the reason |
+| Identity across imports | The profile link (lower case, no query, no trailing slash); rows with no link, or whose old link is gone from the new file, match by name and Connected On. Stages, notes, dates and plan survive a re-import; people missing from a newer file are kept, flagged `inLatestFile: false`, and counted in `missingFromFile` |
+| Ranking points | `RANK_POINTS`: recruiter 30, same field as the job 20, manager-level in that field +10, seniority 1 to 8, connected within a year 10 (3 years 6, 7 years 3), email in the file 5, not in the latest file -5. Ties: last name, first name, id. Every reason quotes the title or the date from the file |
+| Drafts | `draftOutreach` sends only `draftMessages(draftFacts(...))`; `checkDraft` flags a wrong greeting, shared-past, school, talk and referral claims, numbers, names, schools, companies or titles that are not in the inputs, placeholders, emails, links and length (short limit 300, long 1200). A draft with warnings has `ready: false`. A remote provider (`aiDestination().remote`) answers 409 `conflict` with `details.needsConfirmation` until the person confirms once per destination (`confirmRemote: true`). `template: true` builds a plain draft from the inputs with no AI. No draft is stored |
+| Reminders | `takeReminders(today)` returns due follow-ups not yet reminded for their date and marks them; the server turns the count into one `Notification` (kind `follow_up`, no names: notification centres keep copies outside the data folder). "Today" is the person's own calendar date (`JOBLEFT_TZ`, else the system zone) through `nowMs()` |
+| CLI | `node packages/network/src/cli.ts <command>` (`jobleft-network`): `import`, `status`, `list`, `show`, `companies`, `count`, `explain`, `rank`, `coverage`, `plan`, `stage`, `note`, `follow-up`, `due`, `remind`, `ai`, `preview`, `draft`, `delete`, `delete-all`, `jobs`, `profile`, `serve`, `mock-ai`, `fixture`, `bench` |
+| Dev server | `serve` runs the network routes plus stand-in routes under `/api/v1/network-dev/` (jobs and likes, profile, AI address, status, reminder check) and the Network screens, with the section 6.1 rules, on 127.0.0.1:47841 to 47850. Its AI client is interim (`src/dev/ai-bridge.ts`, OpenAI-style, loopback addresses only) until apps/server passes `AiEngine.client()`. Until `@jobleft/static-data` is built in the same checkout, `resolveCompanyKey()` uses an interim key written to the rules above; the service rebuilds stored keys when the key function changes |
 
 ### `@jobleft/server` (apps/server)
 

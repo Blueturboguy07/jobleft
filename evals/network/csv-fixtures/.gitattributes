@@ -1,0 +1,2 @@
+# Keep the fixtures byte for byte (one of them tests Windows line endings and a byte-order mark).
+*.csv -text

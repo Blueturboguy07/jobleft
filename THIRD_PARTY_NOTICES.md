@@ -72,6 +72,15 @@ function, list or text was copied or ported.
 The starting weights of the overall percent (0.24 / 0.29 / 0.08 / +36) come from the project's own observation notes
 (the logged-in UI spec, section MATCH SCORE), not from any code or dataset.
 
+### 1.6 Network lane (`packages/network`): no third-party code
+
+- No third-party code or data was copied. The package adds no dependency.
+- One public-domain algorithm was re-typed from its published description: mulberry32, a 32-bit pseudo-random
+  generator (Tommy Ettinger, released to the public domain). File: `packages/network/src/dev/fixture.ts`
+  (`prng`). Use: made-up test fixtures only; it is not part of the Network tool's logic.
+- The connections-file layout (3 note lines, then `First Name, Last Name, URL, Email Address, Company, Position,
+  Connected On`) is a file format, recorded from plan section 7. The fixtures hold made-up people only.
+
 ## 2. Data shipped with the app
 
 Entries 2.1 to 2.5 are from the static-data lane, 2.6 from the ai-engine lane and 2.7 from the match lane (2026-09-25). The board directory and the skill dictionary are not built yet.

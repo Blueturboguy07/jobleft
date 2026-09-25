@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:DraftPreview",
+  "title": "DraftPreview",
+  "type": "object",
+  "properties": {
+    "destination": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "remote": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "provider",
+            "label",
+            "remote"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "needsConfirmation": {
+      "type": "boolean"
+    },
+    "sends": {
+      "type": "object",
+      "properties": {
+        "contact": {
+          "type": "object",
+          "properties": {
+            "firstName": {
+              "type": "string"
+            },
+            "lastName": {
+              "type": "string"
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "company": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "firstName",
+            "lastName",
+            "title",
+            "company"
+          ]
+        },
+        "job": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "company": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title",
+                "company"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "aboutMe": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "contact",
+        "job",
+        "aboutMe"
+      ]
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "assistant"
+            ]
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ]
+      }
+    },
+    "charLimit": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "destination",
+    "needsConfirmation",
+    "sends",
+    "messages",
+    "charLimit"
+  ]
+}

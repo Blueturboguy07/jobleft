@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:CompanyMatchExplanation",
+  "title": "CompanyMatchExplanation",
+  "type": "object",
+  "properties": {
+    "companyKey": {
+      "type": "string"
+    },
+    "companyName": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "matched": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "how": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "count",
+          "how"
+        ]
+      }
+    },
+    "notCounted": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "count",
+          "why"
+        ]
+      }
+    }
+  },
+  "required": [
+    "companyKey",
+    "companyName",
+    "count",
+    "matched",
+    "notCounted"
+  ]
+}

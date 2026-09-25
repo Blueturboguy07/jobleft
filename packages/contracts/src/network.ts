@@ -31,6 +31,11 @@ export const NetworkContactSchema = named(obj({
   inPlan: bool(),
   importedAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
+}, {
+  /** false = not in the most recent file the user imported (kept, with notes, from an earlier import). */
+  inLatestFile: bool(),
+  /** true = the follow-up date is today or past (in the user's time zone). */
+  followUpDue: bool(),
 }), 'NetworkContact', 'One of the user\'s own connections');
 
 export const NetworkImportSummarySchema = named(obj({
@@ -43,6 +48,11 @@ export const NetworkImportSummarySchema = named(obj({
   /** true = the file is not a connections export; nothing was imported. */
   notAConnectionsFile: bool(),
   warnings: arr(str()),
+}, {
+  /** Contacts kept after this import (all imports together). */
+  total: int({ minimum: 0 }),
+  /** People read from this file (rows kept, duplicates and broken rows not counted). */
+  inFile: int({ minimum: 0 }),
 }), 'NetworkImportSummary');
 
 export const ContactRankSchema = named(obj({
@@ -74,9 +84,70 @@ export const OutreachDraftSchema = named(obj({
   costMicros: nullable(MicrosSchema),
 }), 'OutreachDraft');
 
+/** One company in the user's network: the key, the names as written in the file, and how many people. */
+export const NetworkCompanyGroupSchema = named(obj({
+  /** null for the "unknown company" group (blank company) and the "no specific company" group (Self-employed, Stealth...). */
+  companyKey: nullable(str()),
+  kind: enm(['company', 'unknown', 'placeholder']),
+  /** The names as written in the file, most people first. */
+  names: arr(obj({ name: str(), count: int({ minimum: 1 }) })),
+  count: int({ minimum: 0 }),
+}), 'NetworkCompanyGroup');
+
+/** How "You know N people at <Company>" was counted: the names counted and why, and near names NOT counted and why. */
+export const CompanyMatchExplanationSchema = named(obj({
+  companyKey: str(),
+  companyName: nullable(str()),
+  count: int({ minimum: 0 }),
+  matched: arr(obj({ name: str(), count: int({ minimum: 1 }), how: str() })),
+  notCounted: arr(obj({ name: str(), count: int({ minimum: 1 }), why: str() })),
+}), 'CompanyMatchExplanation');
+
+/** One company of the coffee-chat plan: the people in the plan, in rank order, with a next step for each. */
+export const CoffeeChatPlanEntrySchema = named(obj({
+  companyKey: nullable(str()),
+  companyName: str(),
+  contacts: arr(obj({
+    contactId: IdSchema,
+    firstName: str(),
+    lastName: str(),
+    position: nullable(str()),
+    stage: OutreachStageSchema,
+    nextStep: str(),
+    reasons: arr(obj({ code: str(), text: str() })),
+  })),
+}), 'CoffeeChatPlanEntry');
+
+/** What a draft request would send, and where, before anything is sent (network O8). */
+export const DraftPreviewSchema = named(obj({
+  /** null = no AI provider is set up (the template still works). */
+  destination: nullable(obj({
+    provider: str(),
+    /** A plain name of the receiver, e.g. "the model on this computer at 127.0.0.1:11434" or "publik". */
+    label: str(),
+    /** true = the text leaves this computer. */
+    remote: bool(),
+  })),
+  /** true = the user must confirm once before the first draft to this destination. */
+  needsConfirmation: bool(),
+  /** The facts, exactly: one contact's name, title and company, one job, a short summary of the user. */
+  sends: obj({
+    contact: obj({ firstName: str(), lastName: str(), title: nullable(str()), company: nullable(str()) }),
+    job: nullable(obj({ title: str(), company: str() })),
+    aboutMe: str(),
+  }),
+  /** The exact messages the provider receives. */
+  messages: arr(obj({ role: enm(['system', 'user', 'assistant']), content: str() })),
+  charLimit: int({ minimum: 1 }),
+}), 'DraftPreview');
+
 export type OutreachStage = Infer<typeof OutreachStageSchema>;
 export type NetworkContact = Infer<typeof NetworkContactSchema>;
 export type NetworkImportSummary = Infer<typeof NetworkImportSummarySchema>;
 export type ContactRank = Infer<typeof ContactRankSchema>;
 export type CompanyCoverage = Infer<typeof CompanyCoverageSchema>;
 export type OutreachDraft = Infer<typeof OutreachDraftSchema>;
+export type NetworkCompanyGroup = Infer<typeof NetworkCompanyGroupSchema>;
+export type CompanyMatchExplanation = Infer<typeof CompanyMatchExplanationSchema>;
+export type CoffeeChatPlanEntry = Infer<typeof CoffeeChatPlanEntrySchema>;
+export type DraftPreview = Infer<typeof DraftPreviewSchema>;
