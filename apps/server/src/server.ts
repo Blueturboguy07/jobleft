@@ -326,6 +326,11 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     if (spec.query) {
       const v = validate(spec.query, q);
       if (!v.ok) { sendError(req, res, new ApiFailure('bad_request', 'The query does not match what this request expects.', { details: { issues: v.issues } })); return; }
+      // Paged lists take limit 1 to 100 (INTERFACES 6.3), the same rule as a search body.
+      if (q.limit !== undefined && !(Number(q.limit) >= 1 && Number(q.limit) <= 100)) {
+        sendError(req, res, new ApiFailure('bad_request', 'The query does not match what this request expects.', { details: { issues: [{ path: '/limit', message: 'must be 1 to 100' }] } }));
+        return;
+      }
     }
 
     const gone = new AbortController();
