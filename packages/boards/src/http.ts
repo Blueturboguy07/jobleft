@@ -157,6 +157,7 @@ export function createBoardHttp(opts: BoardHttpOptions): HttpClient {
   const base = opts.fetchImpl ?? fetch;
   const log = new RedirectLog();
   const robots = new Map<string, { status: number | null; error: string | null }>();
+  const maxBody = opts.maxBodyBytes ?? 32 * 1024 * 1024;
   const reverse = new Map<string, string>();
   for (const [real, origin] of Object.entries(opts.hostMap ?? {})) { try { reverse.set(new URL(origin).host, real.toLowerCase()); } catch { /* checked by the client */ } }
   const wrapped: typeof fetch = async (input, init) => {
@@ -189,6 +190,19 @@ export function createBoardHttp(opts: BoardHttpOptions): HttpClient {
       }
     }
     opts.onRequest?.({ host: url.host, status: res.status, url: url.href });
+    // Stop reading a reply that grows past the cap, even when it states no length (a 500 MB page never fills memory).
+    if (res.body) {
+      let seen = 0;
+      const limit = maxBody;
+      const capped = res.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, ctl) {
+          seen += chunk.byteLength;
+          if (seen > limit) ctl.error(new Error(`reply larger than ${limit} bytes; not read`));
+          else ctl.enqueue(chunk);
+        },
+      }));
+      return new Response(capped, { status: res.status, statusText: res.statusText, headers: res.headers });
+    }
     return res;
   };
   const http = new HttpClient({
@@ -197,7 +211,7 @@ export function createBoardHttp(opts: BoardHttpOptions): HttpClient {
     hostMap: opts.hostMap ?? {},
     timeoutMs: opts.timeoutMs ?? 15_000,
     maxRequests: opts.maxRequests ?? 20_000,
-    maxBodyBytes: opts.maxBodyBytes ?? 32 * 1024 * 1024,
+    maxBodyBytes: maxBody,
     retries: opts.retries ?? 1,
     retryDelayMs: opts.retryDelayMs ?? 500,
   });

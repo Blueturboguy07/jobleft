@@ -10,14 +10,14 @@ test('two clients with separate pacers on one database still space requests to a
   const mock = await startMockHosts({ boards: { 'greenhouse:acme': { name: 'Acme', jobs: 1 } } });
   const dir = mkdtempSync(join('/private/tmp', 'jl-boards-pacer-'));
   const db = join(dir, 'p.db');
-  const p1 = new SqlitePacer(db, 250), p2 = new SqlitePacer(db, 250);
+  const p1 = new SqlitePacer(db, 300), p2 = new SqlitePacer(db, 300);
   try {
     const a = createBoardHttp({ pacer: p1, hostMap: mock.hostMap });
     const b = createBoardHttp({ pacer: p2, hostMap: mock.hostMap });
     const url = 'https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true';
     await Promise.all([...Array(4)].flatMap(() => [a.getJson(url), b.getJson(url)]));
     const times = mock.log.filter((e) => e.host === 'boards-api.greenhouse.io').map((e) => e.at).sort((x, y) => x - y);
-    for (let i = 1; i < times.length; i++) assert.ok(times[i]! - times[i - 1]! >= 240, `gap ${times[i]! - times[i - 1]!} ms`);
+    for (let i = 1; i < times.length; i++) assert.ok(times[i]! - times[i - 1]! >= 250, `gap ${times[i]! - times[i - 1]!} ms`);
     for (const e of mock.log) assert.equal(e.headers['user-agent'], USER_AGENT);
   } finally { p1.close(); p2.close(); await mock.close(); rmSync(dir, { recursive: true, force: true }); }
 });
@@ -41,4 +41,22 @@ test('a host that answers 429 with Retry-After gets no request before that time;
     await assert.rejects(http.getText('https://careers.mock.example/private/jobs.html'), /robots/);
     assert.equal(mock.log.filter((e) => e.path.startsWith('/private')).length, 0, 'the blocked path got no request');
   } finally { pacer.close(); await mock.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('a reply larger than the cap is refused without reading it all', async () => {
+  const { createServer } = await import('node:http');
+  const server = createServer((req, res) => {
+    if (req.url === '/robots.txt') { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { 'content-type': 'text/html' }); // no content-length: a stream
+    let n = 0;
+    const tick = () => { if (n++ > 400 || res.destroyed) { res.end(); return; } res.write('x'.repeat(64 * 1024), tick); };
+    tick();
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+  const { BusyPacer } = await import('../src/index.ts');
+  try {
+    const port = (server.address() as import('node:net').AddressInfo).port;
+    const http = createBoardHttp({ pacer: new BusyPacer(0), maxBodyBytes: 1024 * 1024, retries: 0 });
+    await assert.rejects(http.getText(`http://127.0.0.1:${port}/big.html`, 'text/html'));
+  } finally { server.closeAllConnections(); await new Promise<void>((r) => server.close(() => r())); }
 });
