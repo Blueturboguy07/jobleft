@@ -142,6 +142,8 @@ export interface BoardHttpOptions {
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
   maxRequests?: number;
+  /** Largest reply read (default 32 MiB; a bigger board list or page is refused, never read into memory whole). */
+  maxBodyBytes?: number;
   retries?: number;
   retryDelayMs?: number;
   /** JOBLEFT_OFFLINE: when this returns true, no request is sent. */
@@ -195,6 +197,7 @@ export function createBoardHttp(opts: BoardHttpOptions): HttpClient {
     hostMap: opts.hostMap ?? {},
     timeoutMs: opts.timeoutMs ?? 15_000,
     maxRequests: opts.maxRequests ?? 20_000,
+    maxBodyBytes: opts.maxBodyBytes ?? 32 * 1024 * 1024,
     retries: opts.retries ?? 1,
     retryDelayMs: opts.retryDelayMs ?? 500,
   });
