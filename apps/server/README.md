@@ -45,6 +45,8 @@ export JOBLEFT_HOME=/private/tmp/jl-eval
 node apps/server/src/main.ts                     # or: node apps/server/src/main.ts --home /private/tmp/jl-eval
 ```
 
+To start from a fresh install, remove the scratch folder first (`rm -rf /private/tmp/jl-eval`); if a server from an
+earlier test still uses it, the new one exits with code 3 and prints that server's address.
 Always set a scratch folder (`JOBLEFT_HOME` or `--home`). With neither, the server uses the real folder
 `~/Library/Application Support/jobleft`. `--help` and `--version` print and exit without starting; any other argument
 prints the usage and exits 1 without touching any folder. `--port <n>` is the port to try first (as `JOBLEFT_PORT`).
