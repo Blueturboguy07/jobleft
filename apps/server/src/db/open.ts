@@ -49,21 +49,24 @@ function notJobleft(): DataFolderError {
   return new DataFolderError('not_jobleft', 'The database file in the data folder is not a jobleft database, so jobleft left it untouched. Choose another data folder, or restore a backup.');
 }
 
+/**
+ * Opens a database file to read it without writing anything, not even -wal and -shm files: SQLite's `immutable`
+ * flag, unless a crash left committed pages in the WAL (then a plain read-only open, which sees them).
+ */
+export function openReadOnly(dbPath: string): DatabaseSync {
+  const wal = `${dbPath}-wal`;
+  if (existsSync(wal) && statSync(wal).size > 0) return new DatabaseSync(dbPath, { readOnly: true });
+  const u = pathToFileURL(dbPath);
+  u.searchParams.set('immutable', '1');
+  return new DatabaseSync(u, { readOnly: true });
+}
+
 /** Reads the schema versions without writing anything. null when there is no file yet. */
 export function inspectVersions(dbPath: string): Versions | null {
   if (!existsSync(dbPath)) return null;
-  const wal = `${dbPath}-wal`;
-  const walHasData = existsSync(wal) && statSync(wal).size > 0;
   let db: DatabaseSync;
   try {
-    if (walHasData) {
-      // A crash left committed pages in the WAL: `immutable` would not see them. A plain read-only open does.
-      db = new DatabaseSync(dbPath, { readOnly: true });
-    } else {
-      const u = pathToFileURL(dbPath);
-      u.searchParams.set('immutable', '1');
-      db = new DatabaseSync(u, { readOnly: true });
-    }
+    db = openReadOnly(dbPath);
   } catch {
     throw notJobleft();
   }

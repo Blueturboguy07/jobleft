@@ -174,6 +174,17 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       sendError(req, res, new ApiFailure('forbidden_host', 'This address is not allowed. Use http://127.0.0.1 with the app\'s port.'));
       return;
     }
+    // Dot segments ("..", "%2e%2e") and backslashes are refused before the URL is normalised, so a path can never
+    // climb out of /api/ or out of the UI folder.
+    const rawPath = (req.url ?? '/').split('?')[0]!;
+    for (const seg of rawPath.split('/')) {
+      let d: string;
+      try { d = decodeURIComponent(seg); } catch { sendError(req, res, new ApiFailure('bad_request', 'The address is not valid.')); return; }
+      if (d === '.' || d === '..' || d.includes('\\') || /(^|\/)\.\.(\/|$)/.test(d)) {
+        sendError(req, res, new ApiFailure('not_found', 'There is nothing here.'));
+        return;
+      }
+    }
     let url: URL;
     try { url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`); } catch { sendError(req, res, new ApiFailure('bad_request', 'The address is not valid.')); return; }
     if (url.host !== `127.0.0.1:${port}`) { sendError(req, res, new ApiFailure('forbidden_host', 'This address is not allowed.')); return; }
