@@ -40,9 +40,10 @@ Your boards
   jobs <boardId> [--all] [--json]         the jobs a board's refreshes stored (open; --all adds closed)
 
 Refresh
-  refresh [--boards <id,id>] [--due-hours <h>] [--live] [--json]
+  refresh [--boards <id,id> | --followed] [--due-hours <h>] [--live] [--json]
                                           one refresh now: every board that is not hidden, disabled or
-                                          waiting for its next check date (or only the listed boards);
+                                          waiting for its next check date (or only the listed boards, or
+                                          only your followed and added boards);
                                           more than 25 boards on live hosts needs --live
   status [--json]                         the last run
   report [--failed] [--json]              the last run, board by board, with reasons
@@ -68,7 +69,7 @@ JOBLEFT_BOARD_DIRECTORY, JOBLEFT_REFRESH_HOURS, JOBLEFT_PAID_FETCH_URL, JOBLEFT_
 `;
 
 interface Args { _: string[]; [k: string]: string | boolean | string[] }
-const FLAGS = new Set(['json', 'yes', 'accept-paid', 'retry', 'failed', 'all', 'unverified', 'dry-run', 'live', 'schedule']);
+const FLAGS = new Set(['json', 'yes', 'accept-paid', 'retry', 'failed', 'all', 'unverified', 'dry-run', 'live', 'schedule', 'followed']);
 
 function parseArgs(argv: string[]): Args {
   const out: Args = { _: [] };
@@ -259,7 +260,9 @@ async function main(): Promise<void> {
 
     case 'refresh': return withApp(async (app) => {
       if (app.offline) fail('offline: JOBLEFT_OFFLINE is set, so no refresh runs (nothing was sent).', 8);
-      const ids = str(a, 'boards')?.split(',').map((s) => s.trim()).filter(Boolean);
+      let ids = str(a, 'boards')?.split(',').map((s) => s.trim()).filter(Boolean);
+      if (a.followed === true) ids = app.service.entries().filter((e) => (e.followed || e.origin === 'user') && !e.hidden && !e.disabled).map((e) => e.id);
+      if (ids && ids.length === 0) fail('No board to refresh (none followed or added).', 2);
       const dueHours = num(a, 'due-hours');
       const live = liveBoardCount(app, ids);
       if (live > 25 && a.live !== true) {

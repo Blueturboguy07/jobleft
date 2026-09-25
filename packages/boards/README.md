@@ -137,6 +137,7 @@ added keeps the name it had when you added it.
 
 ```sh
 jb refresh                     # one refresh now: every board not hidden, disabled or waiting for its next check
+                               # (--followed: only your followed and added boards; --boards <id,id>: only those)
 jb list                        # state per board: live with its open-job count, warning, unreachable, blocked
 jb show greenhouse:deadco      # warning: The board answered "not found" (HTTP 404). (one failure: asked again)
 jb refresh
