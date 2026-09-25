@@ -28,6 +28,11 @@ export interface CompanyAliases {
 export interface AliasIndex extends CompanyAliases {
   /** The entry whose names include this key, or null. */
   entryForKey(key: string): (AliasEntry & { filerKeys: string[] }) | null;
+  /**
+   * One key per company for kept facts: the key of the entry's first name when the key is one of its names, or the
+   * filer key of exactly one entry ("notionlabs" -> "notion"); otherwise the key itself.
+   */
+  canonicalKey(key: string): string;
   readonly table: AliasTable;
 }
 
@@ -54,9 +59,15 @@ export function buildAliasIndex(table: AliasTable): AliasIndex {
     }
     for (const k of filerKeys) g.add(k);
   }
+  const byFiler = new Map<string, Array<AliasEntry & { filerKeys: string[] }>>();
+  for (const e of new Set(byKey.values())) for (const fk of e.filerKeys) byFiler.set(fk, [...(byFiler.get(fk) ?? []), e]);
   return {
     table,
     entryForKey: (key) => byKey.get(key) ?? null,
+    canonicalKey(key: string): string {
+      const e = byKey.get(key) ?? (byFiler.get(key)?.length === 1 ? byFiler.get(key)![0]! : null);
+      return e ? companyKey(e.names[0]!) || key : key;
+    },
     keysFor(name: string): string[] {
       const k = companyKey(name);
       if (!k) return [];

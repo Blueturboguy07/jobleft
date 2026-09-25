@@ -148,9 +148,15 @@ export class CompanyFacts {
     migrateCompanyFacts(this.#db);
   }
 
+  /** One key per company: names of one reviewed alias entry share their kept facts. */
+  #canon(key: string): string {
+    const a = this.#aliases as Partial<AliasIndex>;
+    return a.canonicalKey ? a.canonicalKey(key) : key;
+  }
+
   /** Tells the service how a company is written (for example the job's company name). Returns its key. */
   note(name: string): string {
-    const key = companyKey(name);
+    const key = this.#canon(companyKey(name));
     if (key && !this.#names.has(key)) this.#names.set(key, name.trim());
     return key;
   }
@@ -162,10 +168,10 @@ export class CompanyFacts {
   #iso(ms?: number): string { return new Date(ms ?? this.#now()).toISOString(); }
 
   #nameFor(key: string, row?: Row): string {
-    if (this.#names.has(key)) return this.#names.get(key)!;
-    if (row?.name) return row.name;
     const alias = (this.#aliases as Partial<AliasIndex>).entryForKey?.(key);
     if (alias) return alias.names[0]!;
+    if (this.#names.has(key)) return this.#names.get(key)!;
+    if (row?.name) return row.name;
     const h = this.#h1b.lookup(key);
     if (h.summary) return splitDba(h.summary.filerEntities[0]!).legal;
     return key;
@@ -177,7 +183,7 @@ export class CompanyFacts {
 
   /** The kept company, or a company with no facts (never invented ones). Sends no request. */
   get(key: string): CompanyDetail {
-    const k = companyKey(key) || key;
+    const k = this.#canon(companyKey(key) || key);
     const row = this.#row(k);
     const name = this.#nameFor(k, row);
     const h1b = this.#h1bFor(name);
@@ -212,7 +218,7 @@ export class CompanyFacts {
 
   /** Reads facts again when they are missing or expired (or with force). A failed refresh keeps the old facts. */
   refresh(key: string, opts: { allowPaid: boolean; maxPriceMicros?: number; force?: boolean; name?: string }): Promise<CompanyDetail> {
-    const k = companyKey(opts.name ?? key) || companyKey(key) || key;
+    const k = this.#canon(companyKey(opts.name ?? key) || companyKey(key) || key);
     if (opts.name) this.note(opts.name);
     const running = this.#inflight.get(k);
     if (running) return running;

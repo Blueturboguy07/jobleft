@@ -82,3 +82,4 @@ export function listDatasets(opts: StaticDataOptions): DatasetInfo[] {
 export async function updateDatasets(opts: StaticDataOptions & { releaseManifestUrl: string; fetchImpl?: typeof fetch }): Promise<DatasetInfo[]> {
   return update(opts);
 }
+export { createStaticDataRoutes, type StaticDataRoutes, type StaticDataRouteOptions } from './routes.ts';
