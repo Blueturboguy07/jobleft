@@ -122,3 +122,19 @@ test('a job removed from a working board closes after two refreshes a day apart;
     assert.equal(r.store.count("board = 'acme' AND closed_at IS NULL"), 19);
   } finally { await r.close(); }
 });
+
+test('a board that answers 429 waits at least its Retry-After, and the host gets no request before that', async () => {
+  const r = await rig({ boards: { 'greenhouse:busy': { name: 'Busy', jobs: 2, script: ['429:3', 'ok'] }, 'greenhouse:calm': { name: 'Calm', jobs: 1 } } },
+    { directory: [row('greenhouse', 'busy', 'Busy'), row('greenhouse', 'calm', 'Calm')] });
+  try {
+    await r.scheduler.runOnce();
+    const e = r.service.get('greenhouse:busy')!;
+    assert.equal(e.state, 'blocked');
+    assert.ok(Date.parse(e.nextCheckAt!) - r.clock.now >= 15 * 60_000, 'at least 15 minutes, and at least the Retry-After');
+    const t = r.mock.log.filter((x) => x.host === 'boards-api.greenhouse.io' && x.path.startsWith('/v1/')).map((x) => x.at);
+    const i429 = r.mock.log.findIndex((x) => x.path.startsWith('/v1/boards/busy'));
+    const after = r.mock.log.slice(i429 + 1).filter((x) => x.host === 'boards-api.greenhouse.io');
+    for (const x of after) assert.ok(x.at - r.mock.log[i429]!.at >= 2900, `next request to the host after ${x.at - r.mock.log[i429]!.at} ms`);
+    assert.ok(t.length >= 1);
+  } finally { await r.close(); }
+});

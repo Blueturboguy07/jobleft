@@ -155,6 +155,8 @@ export function createBoardHttp(opts: BoardHttpOptions): HttpClient {
   const base = opts.fetchImpl ?? fetch;
   const log = new RedirectLog();
   const robots = new Map<string, { status: number | null; error: string | null }>();
+  const reverse = new Map<string, string>();
+  for (const [real, origin] of Object.entries(opts.hostMap ?? {})) { try { reverse.set(new URL(origin).host, real.toLowerCase()); } catch { /* checked by the client */ } }
   const wrapped: typeof fetch = async (input, init) => {
     if (opts.offline?.()) throw new OfflineError();
     const url = new URL(String(input instanceof Request ? input.url : input));
@@ -177,7 +179,12 @@ export function createBoardHttp(opts: BoardHttpOptions): HttpClient {
     }
     if (res.status === 429 || res.status === 503) {
       const wait = retryAfterMs(res.headers.get('retry-after'), Date.now());
-      if (wait !== null) opts.pacer.markBusy(url.host, Date.now() + wait);
+      if (wait !== null) {
+        opts.pacer.markBusy(url.host, Date.now() + wait);
+        // Under a host map, remember it for the real host name too (the scheduler plans by real host names).
+        const real = reverse.get(url.host);
+        if (real) opts.pacer.markBusy(real, Date.now() + wait);
+      }
     }
     opts.onRequest?.({ host: url.host, status: res.status, url: url.href });
     return res;

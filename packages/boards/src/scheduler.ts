@@ -52,7 +52,12 @@ export function outcomeOf(r: BoardResult): { outcome: CheckOutcome | null; statu
   let status: CrawlBoardReport['status'] = r.status === 'blocked' ? 'blocked' : 'failed';
   if (/^no adapter/.test(err)) return { outcome: null, status: 'no_adapter', reason: `jobleft cannot read ${r.ats} boards yet.` };
   if (name === 'NotFoundError') { failure = 'not_found'; message = `The board answered "not found" (${/HTTP \d+/.exec(err)?.[0] ?? 'HTTP 404'}).`; }
-  else if (name === 'BlockedError') { failure = 'blocked'; message = /HTTP 429/.test(err) ? 'The host asked jobleft to slow down (HTTP 429).' : `The host refused the request (${/HTTP \d+/.exec(err)?.[0] ?? 'HTTP 403'}).`; }
+  else if (name === 'BlockedError') {
+    failure = 'blocked';
+    const is429 = /HTTP 429/.test(err);
+    message = is429 ? 'The host asked jobleft to slow down (HTTP 429).' : `The host refused the request (${/HTTP \d+/.exec(err)?.[0] ?? 'HTTP 403'}).`;
+    return { outcome: { ok: false, failure, message, httpStatus: is429 ? 429 : 403 }, status: 'blocked', reason: message };
+  }
   else if (name === 'RobotsError') { failure = 'robots'; status = 'robots'; message = "The host's robots.txt does not allow jobleft to read this board."; }
   else if (name === 'DeniedHostError' || name === 'ForbiddenHostError') { failure = 'forbidden'; status = 'forbidden'; message = 'The host is on the never-crawl list; nothing was sent.'; }
   else if (name === 'HostBusyError') { failure = 'busy'; status = 'blocked'; message = 'The host asked jobleft to wait before asking again.'; }
@@ -209,6 +214,10 @@ export class CrawlScheduler {
           onBoard: (r) => {
             const id = boardId(r.ats, r.board, batch.find((b) => b.ats === r.ats && b.board === r.board)?.region ?? null);
             const o = outcomeOf(r);
+            if (o.outcome && !o.outcome.ok && pacer && (o.outcome.httpStatus === 429 || o.outcome.failure === 'busy')) {
+              const host = this.o.sources[r.ats]?.host?.({ ats: r.ats, board: r.board, company: r.company }) ?? hostFor(r.ats, batch.find((b) => b.ats === r.ats && b.board === r.board)?.region);
+              o.outcome.retryAfterMs = Math.max(0, pacer.busyUntil(host) - Date.now());
+            }
             if (o.outcome) {
               let open = 0;
               try { open = this.o.crawlStore.countUnseenForBoard(r.ats, r.board, iso(this.now())).open; } catch { /* no jobs table yet */ }

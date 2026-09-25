@@ -72,7 +72,7 @@ const RETRY = new WeakSet<Answer>();
 /** What one check of a board (a refresh or a confirmed paste) saw. */
 export type CheckOutcome =
   | { ok: true; listed: number }
-  | { ok: false; failure: CheckFailure; message: string; retryAfterMs?: number | null };
+  | { ok: false; failure: CheckFailure; message: string; retryAfterMs?: number | null; httpStatus?: number | null };
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -358,9 +358,14 @@ export class BoardService {
     let state: BoardState;
     let next: number | null = null;
     if (o.failure === 'robots') { state = 'blocked'; next = now + DAY; }
-    else if (o.failure === 'blocked' || o.failure === 'busy') {
+    else if (o.failure === 'busy' || (o.failure === 'blocked' && o.httpStatus === 429)) {
+      // "Slow down": wait at least the time the host asked for (Retry-After), and never less than 15 minutes.
       state = 'blocked';
-      next = now + Math.max(o.retryAfterMs ?? 0, Math.min(6 * HOUR * 2 ** Math.max(0, f - 1), 7 * DAY));
+      next = now + Math.max(o.retryAfterMs ?? 0, 15 * 60_000);
+    } else if (o.failure === 'blocked') {
+      // "Forbidden": ask again after 6 hours, doubling, at most 7 days.
+      state = 'blocked';
+      next = now + Math.min(6 * HOUR * 2 ** Math.max(0, f - 1), 7 * DAY);
     } else if (f >= UNREACHABLE_AFTER) { state = 'unreachable'; next = now + backoffMs(f); }
     else state = 'failing';
     this.db.prepare(`INSERT INTO board_checks (id, state, consecutive_failures, last_check_at, last_success_at, next_check_at, open_jobs, last_error, last_outcome)
