@@ -9,13 +9,13 @@
 import { createHash } from 'node:crypto';
 import { createReadStream, mkdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { gzipSync } from 'node:zlib';
 import { COMPANY_KEY_VERSION } from '../company-key.ts';
 import { DOL_PERFORMANCE_PAGE, OFFICIAL_LCA_FILES, fiscalQuarterFromName, fiscalQuarterOf, fiscalQuarterRange, fiscalYearOf, type LcaFileSpec } from './lca-files.ts';
 import { normalizeTitle, socMajorOf, TITLE_MIN_FILINGS, type TitleRow } from './role-family.ts';
 import { excelDate, readSheetRows } from './xlsx.ts';
+import { encodeLines } from '../datasets/lines.ts';
 
-export const H1B_FORMAT = 'jobleft-h1b/1';
+export const H1B_FORMAT = 'jobleft-h1b/2';
 export const H1B_DATASET_ID = 'h1b-lca';
 
 export interface H1bFileMeta {
@@ -71,6 +71,15 @@ export interface H1bTable {
   meta: H1bTableMeta;
   entities: EntityRow[];
   titles: TitleRow[];
+}
+
+/** The file header line: format, metadata and how many entity and title lines follow. */
+export interface H1bHeader { format: typeof H1B_FORMAT; meta: H1bTableMeta; counts: { entities: number; titles: number } }
+
+/** gzip of JSON lines: the header, then one line per filer entity, then one line per title row. */
+export function serializeH1bTable(t: H1bTable): Buffer {
+  const header: H1bHeader = { format: H1B_FORMAT, meta: t.meta, counts: { entities: t.entities.length, titles: t.titles.length } };
+  return encodeLines(header, (function* () { yield* t.entities; yield* t.titles; })());
 }
 
 interface Agg {
@@ -348,7 +357,7 @@ export async function buildH1bTable(opts: BuildH1bOptions): Promise<BuildH1bResu
   const table: H1bTable = { format: H1B_FORMAT, meta, entities, titles: titleRows };
   mkdirSync(opts.outDir, { recursive: true });
   const outPath = join(opts.outDir, `${H1B_DATASET_ID}.json.gz`);
-  const gz = gzipSync(Buffer.from(JSON.stringify(table)), { level: 9 });
+  const gz = serializeH1bTable(table);
   const tmp = `${outPath}.tmp-${process.pid}`;
   writeFileSync(tmp, gz);
   renameSync(tmp, outPath);

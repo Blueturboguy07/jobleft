@@ -149,7 +149,7 @@
   "titles": 8803,
   "output": {
     "path": "/Users/mannbellani/jobleft-wt/static-data/packages/static-data/dist/h1b-lca.json.gz",
-    "bytes": 3640502,
-    "sha256": "534a70cab7a3ee496335b268598ad622137e3d2cf28d2b0958c1f339c00b5ec2"
+    "bytes": 3640448,
+    "sha256": "69255ecbc512207c318acbc91eb25269d8cece4694c2685054e9dd84e9a06035"
   }
 }

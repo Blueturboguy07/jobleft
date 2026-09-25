@@ -17,8 +17,8 @@ import { createHash, createPrivateKey, sign } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { join } from 'node:path';
-import { gunzipSync, gzipSync } from 'node:zlib';
-import { H1B_DATASET_ID, type H1bTable } from '../h1b/build.ts';
+import { H1B_DATASET_ID, serializeH1bTable, type H1bTable } from '../h1b/build.ts';
+import { parseH1bTable } from '../h1b/index.ts';
 import { PACKAGE_DIR } from '../paths.ts';
 import { MANIFEST_FORMAT, RELEASE_FORMAT, type ManifestEntry } from './release.ts';
 import { readBundledIndex, type StaticDataOptions } from './store.ts';
@@ -32,7 +32,7 @@ function loadShippedTable(opts: StaticDataOptions): { table: H1bTable; sequence:
   const rec = readBundledIndex(opts).datasets.find((d) => d.id === H1B_DATASET_ID);
   if (!rec) throw new Error('no shipped H-1B table to base a test release on (build it first)');
   const dir = opts.bundledDir ?? join(PACKAGE_DIR, 'dist');
-  const table = JSON.parse(gunzipSync(readFileSync(join(dir, rec.file))).toString('utf8')) as H1bTable;
+  const table = parseH1bTable(readFileSync(join(dir, rec.file)));
   return { table, sequence: rec.sequence, version: rec.version };
 }
 
@@ -63,7 +63,7 @@ export function syntheticRelease(base: H1bTable, sequence: number, version: stri
     t.meta.window = { from: t.meta.window.from, to: '2026-09-30' };
     for (const fy of t.meta.fiscalYears) if (fy.year === 2026) { fy.to = '2026-09-30'; fy.partial = false; }
   }
-  return gzipSync(Buffer.from(JSON.stringify(t)), { level: 6 });
+  return serializeH1bTable(t);
 }
 
 function envelope(entries: ManifestEntry[], keyPem: string, tamperAfterSigning: boolean): string {

@@ -3,11 +3,12 @@
 // clearly dominates. Otherwise the answer lists the candidates as "ambiguous" and resolves nothing. Text that names
 // a work model or a country ("Remote - US", "United States") is marked notACity. Unresolved text is left as written.
 
-import { gunzipSync } from 'node:zlib';
+import { lines } from '../datasets/lines.ts';
 import type { DatasetInfo, Place, PlaceLookup } from '@jobleft/contracts';
 import { activeStamp, loadDataset, writeStateFor, type DatasetRecord, type StaticDataOptions } from '../datasets/store.ts';
-import { PLACES_DATASET_ID, PLACES_FORMAT, type PlaceRow, type PlacesMeta, type PlacesTable } from './build.ts';
+import { PLACES_DATASET_ID, PLACES_FORMAT, type PlaceRow, type PlacesHeader, type PlacesMeta, type PlacesTable } from './build.ts';
 import { normPlace } from './normalize.ts';
+import { PlaceStore } from './compact.ts';
 import { COUNTRY_ALIASES, STATE_COUNTRY_CLASHES, US_STATE_ABBREVIATIONS } from './regions.ts';
 
 export type WorkModel = 'remote' | 'hybrid' | 'onsite';
@@ -31,8 +32,7 @@ export interface PlaceIndex {
 interface Prepared {
   meta: PlacesMeta;
   record: DatasetRecord;
-  places: PlaceRow[];
-  byId: Map<string, number>;
+  s: PlaceStore;
   byName: Map<string, number[]>;
   aliases: Map<string, string>;
   countryByText: Map<string, string>;
@@ -46,26 +46,60 @@ interface Prepared {
 const CELL = 0.5;
 const cellKey = (lat: number, lon: number) => `${Math.floor(lat / CELL)}:${Math.floor(lon / CELL)}`;
 
-export function parsePlacesTable(bytes: Buffer): PlacesTable {
-  const t = JSON.parse(gunzipSync(bytes).toString('utf8')) as PlacesTable;
-  if (t.format !== PLACES_FORMAT || !Array.isArray(t.places) || t.places.length === 0) throw new Error('not a jobleft place table');
-  if (t.meta?.id !== PLACES_DATASET_ID) throw new Error('the place table has the wrong id');
-  return t;
+function checkPlacesHeader(h: PlacesHeader): PlacesHeader {
+  if (!h || h.format !== PLACES_FORMAT || !h.meta || !(h.counts?.places > 0)) throw new Error('not a jobleft place table');
+  if (h.meta.id !== PLACES_DATASET_ID) throw new Error('the place table has the wrong id');
+  return h;
 }
 
-function prepare(t: PlacesTable, record: DatasetRecord): Prepared {
-  const byId = new Map<string, number>();
+/** Reads every line of a place table file and checks the row count (for release checks). */
+export function validatePlacesFile(bytes: Buffer): PlacesHeader {
+  let header: PlacesHeader | null = null;
+  let rows = 0;
+  for (const line of lines(bytes)) {
+    const v = JSON.parse(line) as unknown;
+    if (!header) { header = checkPlacesHeader(v as PlacesHeader); continue; }
+    if (!Array.isArray(v)) throw new Error('the place table has a damaged row');
+    rows += 1;
+  }
+  if (!header || rows !== header.counts.places) throw new Error('the place table is cut short');
+  return header;
+}
+
+/** The whole table as objects (for tools and tests). */
+export function parsePlacesTable(bytes: Buffer): PlacesTable {
+  let header: PlacesHeader | null = null;
+  const places: PlaceRow[] = [];
+  for (const line of lines(bytes)) {
+    if (!header) { header = checkPlacesHeader(JSON.parse(line) as PlacesHeader); continue; }
+    places.push(JSON.parse(line) as PlaceRow);
+  }
+  if (!header || places.length !== header.counts.places) throw new Error('the place table is cut short');
+  return { format: PLACES_FORMAT, meta: header.meta, countries: header.countries, regions: header.regions, aliases: header.aliases, places };
+}
+
+function prepare(bytes: Buffer, record: DatasetRecord): Prepared {
   const byName = new Map<string, number[]>();
   const grid = new Map<string, number[]>();
-  t.places.forEach((p, i) => {
-    byId.set(p[0], i);
+  const otherRegions: Array<[string, string]> = [];
+  let header: PlacesHeader | null = null;
+  let store: PlaceStore | null = null;
+  let i = 0;
+  for (const line of lines(bytes)) {
+    if (!header) { header = checkPlacesHeader(JSON.parse(line) as PlacesHeader); store = new PlaceStore(header.counts.places); continue; }
+    const p = JSON.parse(line) as PlaceRow;
+    store!.add(i, p);
     const n = normPlace(p[1]);
     const a = byName.get(n);
     if (a) a.push(i); else byName.set(n, [i]);
     const g = cellKey(p[4], p[5]);
     const ga = grid.get(g);
     if (ga) ga.push(i); else grid.set(g, [i]);
-  });
+    if (p[2] !== 'US' && p[2] !== 'CA' && p[3]) otherRegions.push([p[2], p[3]]);
+    i += 1;
+  }
+  if (!header || !store || i !== header.counts.places) throw new Error('the place table is cut short');
+  const t = { meta: header.meta, countries: header.countries, regions: header.regions, aliases: header.aliases };
   const countryByText = new Map<string, string>();
   const countryName = new Map<string, string>();
   for (const [cc, name] of t.countries) { countryByText.set(normPlace(name), cc); countryName.set(cc, name); }
@@ -83,14 +117,14 @@ function prepare(t: PlacesTable, record: DatasetRecord): Prepared {
   const us = regionByText.get('US')!;
   for (const [k, code] of Object.entries(US_STATE_ABBREVIATIONS)) us.set(normPlace(k), code);
   // Region names of other countries, as the place rows carry them ("Karnataka", "England").
-  for (const p of t.places) {
-    if (p[2] === 'US' || p[2] === 'CA' || !p[3]) continue;
-    let m = regionByText.get(p[2]);
-    if (!m) { m = new Map(); regionByText.set(p[2], m); }
-    m.set(normPlace(p[3]), p[3]);
+  for (const [cc, region] of otherRegions) {
+    let m = regionByText.get(cc);
+    if (!m) { m = new Map(); regionByText.set(cc, m); }
+    m.set(normPlace(region), region);
   }
   const aliases = new Map(t.aliases);
-  return { meta: t.meta, record, places: t.places, byId, byName, aliases, countryByText, countryName, regionByText, regionName, grid };
+  const s = store.finish();
+  return { meta: t.meta, record, s, byName, aliases, countryByText, countryName, regionByText, regionName, grid };
 }
 
 function milesBetween(aLat: number, aLon: number, bLat: number, bLon: number): number {
@@ -128,10 +162,10 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
     const s = activeStamp(opts);
     if (s === stamp && (prepared || error)) return;
     stamp = s;
-    let table: PlacesTable | null = null;
-    const loaded = loadDataset(opts, PLACES_DATASET_ID, (bytes) => { table = parsePlacesTable(bytes); });
-    if (loaded && table) {
-      prepared = prepare(table, loaded.record);
+    let ready: Prepared | null = null;
+    const loaded = loadDataset(opts, PLACES_DATASET_ID, (bytes, rec) => { ready = prepare(bytes, rec); });
+    if (loaded && ready) {
+      prepared = ready;
       error = loaded.warning;
       if (loaded.warning) writeStateFor(opts, PLACES_DATASET_ID, { lastError: loaded.warning, lastErrorAt: new Date().toISOString() });
     } else {
@@ -141,8 +175,8 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
   };
 
   const toPlace = (p: Prepared, i: number, text: string): Place => {
-    const r = p.places[i]!;
-    return { text, city: r[1], region: r[3], country: r[2], placeId: r[0], lat: r[4], lon: r[5] };
+    const s = p.s;
+    return { text, city: s.name(i), region: s.region(i), country: s.cc(i), placeId: s.id(i), lat: s.lat(i), lon: s.lon(i) };
   };
   const regionPlace = (cc: string, code: string, text: string): Place => ({ text, city: null, region: code, country: cc, placeId: `region:${cc}-${code}` });
   const countryPlace = (cc: string, text: string): Place => ({ text, city: null, region: null, country: cc, placeId: `country:${cc}` });
@@ -150,12 +184,13 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
   /** The best place among candidates in one area: city rank first, then population. Null when two tie. */
   const best = (p: Prepared, idx: number[]): { pick: number | null; others: number[] } => {
     if (idx.length === 0) return { pick: null, others: [] };
-    const sorted = [...idx].sort((a, b) => p.places[a]![7] - p.places[b]![7] || (p.places[b]![6] ?? 0) - (p.places[a]![6] ?? 0));
-    const top = p.places[sorted[0]!]!;
-    const second = sorted[1] !== undefined ? p.places[sorted[1]]! : null;
-    if (!second || second[7] > top[7]) return { pick: sorted[0]!, others: sorted.slice(1) };
-    const tp = top[6] ?? 0;
-    const sp = second[6] ?? 0;
+    const s = p.s;
+    const sorted = [...idx].sort((a, b) => s.rank(a) - s.rank(b) || (s.pop(b) ?? 0) - (s.pop(a) ?? 0));
+    const top = sorted[0]!;
+    const second = sorted[1];
+    if (second === undefined || s.rank(second) > s.rank(top)) return { pick: top, others: sorted.slice(1) };
+    const tp = s.pop(top) ?? 0;
+    const sp = s.pop(second) ?? 0;
     if (tp > 0 && tp >= 5 * sp) return { pick: sorted[0]!, others: sorted.slice(1) };
     return { pick: null, others: sorted };
   };
@@ -165,8 +200,7 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
     // Collapse each state or country to its best place.
     const groups = new Map<string, number[]>();
     for (const i of idx) {
-      const r = p.places[i]!;
-      const k = `${r[2]}|${r[3] ?? ''}`;
+      const k = `${p.s.cc(i)}|${p.s.region(i) ?? ''}`;
       const a = groups.get(k) ?? [];
       a.push(i);
       groups.set(k, a);
@@ -177,14 +211,14 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
       reps.push(b.pick ?? b.others[0]!);
     }
     if (reps.length === 1) return { pick: reps[0]!, ambiguous: [] };
-    const pop = (i: number) => p.places[i]![6] ?? 0;
-    reps.sort((a, b) => pop(b) - pop(a) || p.places[a]![7] - p.places[b]![7]);
+    const pop = (i: number) => p.s.pop(i) ?? 0;
+    reps.sort((a, b) => pop(b) - pop(a) || p.s.rank(a) - p.s.rank(b));
     const t1 = reps[0]!;
     const t2 = reps[1]!;
-    const others = (pick: number) => reps.filter((i) => i !== pick && (p.places[i]![7] <= 2 || pop(i) >= 50_000)).slice(0, 5);
+    const others = (pick: number) => reps.filter((i) => i !== pick && (p.s.rank(i) <= 2 || pop(i) >= 50_000)).slice(0, 5);
     if (pop(t1) >= 100_000 && pop(t1) >= 20 * Math.max(pop(t2), 1)) return { pick: t1, ambiguous: others(t1) };
-    const us = reps.filter((i) => p.places[i]![2] === 'US');
-    const nonUsMax = Math.max(0, ...reps.filter((i) => p.places[i]![2] !== 'US').map(pop));
+    const us = reps.filter((i) => p.s.cc(i) === 'US');
+    const nonUsMax = Math.max(0, ...reps.filter((i) => p.s.cc(i) !== 'US').map(pop));
     if (us.length > 0) {
       const u1 = us[0]!;
       const restUs = us.slice(1).map(pop);
@@ -193,10 +227,10 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
     }
     // No population at all: one incorporated city among small places.
     if (reps.every((i) => pop(i) === 0)) {
-      const cities = reps.filter((i) => p.places[i]![7] === 1);
+      const cities = reps.filter((i) => p.s.rank(i) === 1);
       if (cities.length === 1) return { pick: cities[0]!, ambiguous: others(cities[0]!) };
     }
-    return { pick: null, ambiguous: reps.filter((i) => p.places[i]![7] <= 3 || pop(i) > 0).slice(0, 6) };
+    return { pick: null, ambiguous: reps.filter((i) => p.s.rank(i) <= 3 || pop(i) > 0).slice(0, 6) };
   };
 
   const countryOf = (p: Prepared, token: string, original: string): string | null => {
@@ -236,12 +270,13 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
     // Whole-text alias ("SF", "NYC", "Washington DC").
     const whole = normPlace(tokens.join(' '));
     const aliasId = p.aliases.get(whole);
-    if (aliasId !== undefined && p.byId.has(aliasId)) {
-      out.places.push(toPlace(p, p.byId.get(aliasId)!, text));
+    const aliasRow = aliasId !== undefined ? p.s.indexOf(aliasId) : undefined;
+    if (aliasRow !== undefined) {
+      out.places.push(toPlace(p, aliasRow, text));
       const asRegion = regionOf(p, 'US', tokens.join(' '));
-      if (asRegion && tokens.length === 1 && /^[A-Z]{2}$/.test(tokens[0]!) && asRegion !== p.places[p.byId.get(aliasId)!]![3]) out.ambiguous.push(regionPlace('US', asRegion, text));
+      if (asRegion && tokens.length === 1 && /^[A-Z]{2}$/.test(tokens[0]!) && asRegion !== p.s.region(aliasRow)) out.ambiguous.push(regionPlace('US', asRegion, text));
       if (whole === 'new york') out.ambiguous.push(regionPlace('US', 'NY', text));
-      if (workModel === 'remote') out.remoteRegions = [p.places[p.byId.get(aliasId)!]![2]];
+      if (workModel === 'remote') out.remoteRegions = [p.s.cc(aliasRow)];
       return out;
     }
 
@@ -301,8 +336,8 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
         const cc = countryOf(p, it.cityTokens[0]!, it.cityTokens[0]!);
         if (reg || cc) { cityless.push({ cityTokens: [], cc: reg ? null : cc, region: null }); continue; }
       }
-      if (it.cc) idx = idx.filter((i) => p.places[i]![2] === it.cc);
-      if (it.region) idx = idx.filter((i) => p.places[i]![3] === it.region);
+      if (it.cc) idx = idx.filter((i) => p.s.cc(i) === it.cc);
+      if (it.region) idx = idx.filter((i) => p.s.region(i) === it.region);
       if (it.cc || it.region) anySpecified = true;
       cityCands.push(...idx);
     }
@@ -316,7 +351,7 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
         const isCa = !regionOf(p, 'US', t) && !!regionOf(p, 'CA', t);
         const regionPl = stateCode ? regionPlace(isCa ? 'CA' : 'US', stateCode, text) : null;
         const countryPl = cc ? countryPlace(cc, text) : null;
-        const bigCities = [...new Set(cityCands)].filter((i) => (p.places[i]![6] ?? 0) >= 500_000);
+        const bigCities = [...new Set(cityCands)].filter((i) => (p.s.pop(i) ?? 0) >= 500_000);
         const alts: Place[] = [...bigCities.map((i) => toPlace(p, i, text))];
         if (regionPl && countryPl && regionPl.country !== countryPl.country) alts.push(countryPl);
         if (alts.length > 0) {
@@ -338,7 +373,7 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
       let amb: number[];
       if (anySpecified) {
         // Group by area; several areas (from two interpretations) are resolved only when one area wins clearly.
-        const areas = new Set(uniq.map((i) => `${p.places[i]![2]}|${p.places[i]![3] ?? ''}`));
+        const areas = new Set(uniq.map((i) => `${p.s.cc(i)}|${p.s.region(i) ?? ''}`));
         if (areas.size === 1) {
           const b = best(p, uniq);
           pick = b.pick;
@@ -355,7 +390,7 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
       }
       if (pick !== null) out.places.push(toPlace(p, pick, text));
       out.ambiguous.push(...amb.filter((i) => i !== pick).map((i) => toPlace(p, i, text)));
-      if (workModel === 'remote') out.remoteRegions = pick !== null ? [p.places[pick]![2]] : [];
+      if (workModel === 'remote') out.remoteRegions = pick !== null ? [p.s.cc(pick)] : [];
       if (pick === null && amb.length === 0) out.unresolved = text;
       return out;
     }
@@ -423,10 +458,8 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
       refresh();
       const coords = (pl: Place): [number, number] | null => {
         if (typeof pl.lat === 'number' && typeof pl.lon === 'number') return [pl.lat, pl.lon];
-        if (prepared && pl.placeId && prepared.byId.has(pl.placeId)) {
-          const r = prepared.places[prepared.byId.get(pl.placeId)!]!;
-          return [r[4], r[5]];
-        }
+        const row = prepared && pl.placeId ? prepared.s.indexOf(pl.placeId) : undefined;
+        if (prepared && row !== undefined) return [prepared.s.lat(row), prepared.s.lon(row)];
         return null;
       };
       const ca = coords(a);
@@ -437,15 +470,17 @@ export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
     within(placeId: string, radiusMiles: number): Set<string> {
       refresh();
       const out = new Set<string>();
-      if (!prepared || !prepared.byId.has(placeId) || !(radiusMiles >= 0)) return out;
-      const c = prepared.places[prepared.byId.get(placeId)!]!;
+      const ci = prepared ? prepared.s.indexOf(placeId) : undefined;
+      if (!prepared || ci === undefined || !(radiusMiles >= 0)) return out;
+      const s = prepared.s;
+      const cLat = s.lat(ci);
+      const cLon = s.lon(ci);
       const dLat = radiusMiles / 69 + CELL;
-      const dLon = radiusMiles / (69 * Math.max(0.05, Math.cos((c[4] * Math.PI) / 180))) + CELL;
-      for (let la = Math.floor((c[4] - dLat) / CELL); la <= Math.floor((c[4] + dLat) / CELL); la++) {
-        for (let lo = Math.floor((c[5] - dLon) / CELL); lo <= Math.floor((c[5] + dLon) / CELL); lo++) {
+      const dLon = radiusMiles / (69 * Math.max(0.05, Math.cos((cLat * Math.PI) / 180))) + CELL;
+      for (let la = Math.floor((cLat - dLat) / CELL); la <= Math.floor((cLat + dLat) / CELL); la++) {
+        for (let lo = Math.floor((cLon - dLon) / CELL); lo <= Math.floor((cLon + dLon) / CELL); lo++) {
           for (const i of prepared.grid.get(`${la}:${lo}`) ?? []) {
-            const r = prepared.places[i]!;
-            if (milesBetween(c[4], c[5], r[4], r[5]) <= radiusMiles) out.add(r[0]);
+            if (milesBetween(cLat, cLon, s.lat(i), s.lon(i)) <= radiusMiles) out.add(s.id(i));
           }
         }
       }

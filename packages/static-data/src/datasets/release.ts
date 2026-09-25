@@ -19,9 +19,9 @@ import { join } from 'node:path';
 import type { DatasetInfo } from '@jobleft/contracts';
 import { DATA_DIR } from '../paths.ts';
 import { isLoopbackHost, USER_AGENT } from '../net/polite-fetch.ts';
-import { parseH1bTable } from '../h1b/index.ts';
+import { validateH1bFile } from '../h1b/index.ts';
 import { H1B_DATASET_ID } from '../h1b/build.ts';
-import { parsePlacesTable } from '../places/index.ts';
+import { validatePlacesFile } from '../places/index.ts';
 import { PLACES_DATASET_ID } from '../places/build.ts';
 import {
   bumpDatasetGeneration, readActive, readBundledIndex, writeActive, writeFileAtomic, writeStateFor,
@@ -43,13 +43,13 @@ export interface UpdateOutcome { id: string; action: 'installed' | 'current' | '
 /** What each releasable dataset must look like after download. */
 const VALIDATORS: Record<string, (bytes: Buffer, e: ManifestEntry) => void> = {
   [H1B_DATASET_ID]: (bytes, e) => {
-    const t = parseH1bTable(bytes);
-    if (t.meta.version !== e.version || t.meta.sequence !== e.sequence) throw new Error('the file says it is a different release than the manifest');
-    if (e.dataThrough && t.meta.dataThrough !== e.dataThrough) throw new Error('the file has a different data date than the manifest');
+    const h = validateH1bFile(bytes);
+    if (h.meta.version !== e.version || h.meta.sequence !== e.sequence) throw new Error('the file says it is a different release than the manifest');
+    if (e.dataThrough && h.meta.dataThrough !== e.dataThrough) throw new Error('the file has a different data date than the manifest');
   },
   [PLACES_DATASET_ID]: (bytes, e) => {
-    const t = parsePlacesTable(bytes);
-    if (t.meta.version !== e.version || t.meta.sequence !== e.sequence) throw new Error('the file says it is a different release than the manifest');
+    const h = validatePlacesFile(bytes);
+    if (h.meta.version !== e.version || h.meta.sequence !== e.sequence) throw new Error('the file says it is a different release than the manifest');
   },
 };
 

@@ -10,7 +10,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { gzipSync } from 'node:zlib';
+import { encodeLines } from '../datasets/lines.ts';
 import { entryChunks, readZipDirectory } from '../h1b/xlsx.ts';
 import { readDbf } from './dbf.ts';
 import { CA_PROVINCES, US_STATES } from './regions.ts';
@@ -19,7 +19,7 @@ import { DATA_DIR } from '../paths.ts';
 import { writeFileAtomic } from '../datasets/store.ts';
 import { buildTime } from '../h1b/build.ts';
 
-export const PLACES_FORMAT = 'jobleft-places/1';
+export const PLACES_FORMAT = 'jobleft-places/2';
 export const PLACES_DATASET_ID = 'places';
 
 /** [id, name, country, region, lat, lon, population|null, rank] ; rank 1 = city, 2 = CDP, 3..5 = smaller places. */
@@ -37,6 +37,15 @@ export interface PlacesMeta {
   attribution: string;
   sourceUrl: string;
   test?: boolean;
+}
+
+/** The file header line: everything but the place rows, and how many rows follow. */
+export interface PlacesHeader { format: typeof PLACES_FORMAT; meta: PlacesMeta; countries: PlacesTable['countries']; regions: PlacesTable['regions']; aliases: PlacesTable['aliases']; counts: { places: number } }
+
+/** gzip of JSON lines: the header, then one line per place. */
+export function serializePlacesTable(t: PlacesTable): Buffer {
+  const header: PlacesHeader = { format: PLACES_FORMAT, meta: t.meta, countries: t.countries, regions: t.regions, aliases: t.aliases, counts: { places: t.places.length } };
+  return encodeLines(header, t.places);
 }
 
 export interface PlacesTable {
@@ -238,7 +247,7 @@ export async function buildPlacesTable(opts: BuildPlacesOptions): Promise<{ path
     aliases,
   };
   mkdirSync(opts.outDir, { recursive: true });
-  const gz = gzipSync(Buffer.from(JSON.stringify(table)), { level: 9 });
+  const gz = serializePlacesTable(table);
   const outPath = join(opts.outDir, 'places.json.gz');
   writeFileAtomic(outPath, gz);
   return { path: outPath, bytes: gz.length, sha256: createHash('sha256').update(gz).digest('hex'), meta, report };

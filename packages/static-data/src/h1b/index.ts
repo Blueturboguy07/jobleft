@@ -13,8 +13,10 @@ import type { DatasetInfo, H1bLookup, H1bSummary } from '@jobleft/contracts';
 import { LEGAL_SUFFIXES, companyKey, isJunkTradeName, nameTokens, splitDba } from '../company-key.ts';
 import { loadAliasIndex, type AliasIndex } from '../aliases.ts';
 import { activeStamp, loadDataset, writeStateFor, type DatasetRecord, type StaticDataOptions } from '../datasets/store.ts';
-import { H1B_DATASET_ID, H1B_FORMAT, type EntityRow, type H1bTable, type H1bTableMeta } from './build.ts';
+import { H1B_DATASET_ID, H1B_FORMAT, type EntityRow, type H1bHeader, type H1bTable, type H1bTableMeta } from './build.ts';
+import { headerOf, lines } from '../datasets/lines.ts';
 import { roleFamilyOf, type TitleRow } from './role-family.ts';
+import { EntityStore } from './compact.ts';
 
 /** "likely" needs at least this many certified filings in the window... */
 export const LIKELY_MIN_FILINGS = 10;
@@ -75,7 +77,7 @@ export interface H1bIndex {
 
 interface Prepared {
   meta: H1bTableMeta;
-  entities: EntityRow[];
+  e: EntityStore;
   legal: Map<string, number[]>;
   trade: Map<string, number[]>;
   titles: Map<string, TitleRow>;
@@ -91,12 +93,45 @@ function push(m: Map<string, number[]>, k: string, i: number): void {
   if (a) { if (a[a.length - 1] !== i) a.push(i); } else m.set(k, [i]);
 }
 
+function checkHeader(h: H1bHeader): H1bHeader {
+  if (!h || h.format !== H1B_FORMAT || !h.meta || !h.counts) throw new Error('not a jobleft H-1B table');
+  if (h.meta.id !== H1B_DATASET_ID) throw new Error(`the table is "${h.meta.id}", not ${H1B_DATASET_ID}`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(h.meta.dataThrough)) throw new Error('the table has no data date');
+  if (!(h.counts.entities > 0)) throw new Error('the table has no filers');
+  return h;
+}
+
+/** The header of an H-1B table file (format, metadata, row counts). */
+export function parseH1bHeader(bytes: Buffer): H1bHeader {
+  return checkHeader(headerOf<H1bHeader>(bytes));
+}
+
+/** Reads every line of an H-1B table file and checks the row counts, keeping nothing (for release checks). */
+export function validateH1bFile(bytes: Buffer): H1bHeader {
+  let header: H1bHeader | null = null;
+  let rows = 0;
+  for (const line of lines(bytes)) {
+    const v = JSON.parse(line) as unknown;
+    if (!header) { header = checkHeader(v as H1bHeader); continue; }
+    if (!Array.isArray(v)) throw new Error('the H-1B table has a damaged row');
+    rows += 1;
+  }
+  if (!header || rows !== header.counts.entities + header.counts.titles) throw new Error('the H-1B table is cut short');
+  return header;
+}
+
+/** The whole table as objects (for tools and tests; the index itself reads rows one at a time). */
 export function parseH1bTable(bytes: Buffer): H1bTable {
-  const t = JSON.parse(gunzipSync(bytes).toString('utf8')) as H1bTable;
-  if (t.format !== H1B_FORMAT || !t.meta || !Array.isArray(t.entities)) throw new Error('not a jobleft H-1B table');
-  if (t.meta.id !== H1B_DATASET_ID) throw new Error(`the table is "${t.meta.id}", not ${H1B_DATASET_ID}`);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(t.meta.dataThrough)) throw new Error('the table has no data date');
-  return t;
+  let header: H1bHeader | null = null;
+  const entities: EntityRow[] = [];
+  const titles: TitleRow[] = [];
+  for (const line of lines(bytes)) {
+    if (!header) { header = checkHeader(JSON.parse(line) as H1bHeader); continue; }
+    if (entities.length < header.counts.entities) entities.push(JSON.parse(line) as EntityRow);
+    else titles.push(JSON.parse(line) as TitleRow);
+  }
+  if (!header || entities.length !== header.counts.entities || titles.length !== header.counts.titles) throw new Error('the H-1B table is cut short');
+  return { format: H1B_FORMAT, meta: header.meta, entities, titles };
 }
 
 function quarterEnd(q: string): string {
@@ -108,20 +143,39 @@ function quarterEnd(q: string): string {
   return `${year}-${String(endMonth).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
 }
 
-function prepare(t: H1bTable, record: DatasetRecord, origin: 'bundled' | 'installed'): Prepared {
+function prepare(bytes: Buffer, record: DatasetRecord, origin: 'bundled' | 'installed'): Prepared {
   const legal = new Map<string, number[]>();
   const trade = new Map<string, number[]>();
-  t.entities.forEach((e, i) => {
-    const { legal: l, others } = splitDba(e[0]);
-    const lk = companyKey(l);
-    if (lk) push(legal, lk, i);
-    for (const tn of [...others, ...e[12]]) {
-      if (isJunkTradeName(tn)) continue;
-      const tk = companyKey(tn);
-      if (tk && tk !== lk) push(trade, tk, i);
+  const titleMap = new Map<string, TitleRow>();
+  let header: H1bHeader | null = null;
+  let store: EntityStore | null = null;
+  let i = 0;
+  for (const line of lines(bytes)) {
+    if (!header) {
+      header = checkHeader(JSON.parse(line) as H1bHeader);
+      store = new EntityStore(header.counts.entities, header.meta.files.length, header.meta.quarters.length);
+      continue;
     }
-  });
-  const titles = new Map<string, TitleRow>(t.titles.map((r) => [r[0], r]));
+    if (i < header.counts.entities) {
+      const e = JSON.parse(line) as EntityRow;
+      store!.add(i, e);
+      const { legal: l, others } = splitDba(e[0]);
+      const lk = companyKey(l);
+      if (lk) push(legal, lk, i);
+      for (const tn of [...others, ...e[12]]) {
+        if (isJunkTradeName(tn)) continue;
+        const tk = companyKey(tn);
+        if (tk && tk !== lk) push(trade, tk, i);
+      }
+      i += 1;
+    } else {
+      const r = JSON.parse(line) as TitleRow;
+      titleMap.set(r[0], r);
+    }
+  }
+  if (!header || !store || i !== header.counts.entities || titleMap.size > header.counts.titles) throw new Error('the H-1B table is cut short');
+  const t = { meta: header.meta };
+  const titles = titleMap;
   // The newest 12 months: quarters that end after dataThrough minus one year.
   const through = t.meta.dataThrough;
   const yearBefore = `${Number(through.slice(0, 4)) - 1}${through.slice(4)}`;
@@ -141,7 +195,8 @@ function prepare(t: H1bTable, record: DatasetRecord, origin: 'bundled' | 'instal
     a.push(i);
     fyQuarters.set(fy, a);
   });
-  return { meta: t.meta, entities: t.entities, legal, trade, titles, record, origin, recentQuarterIdx, recentWindow: { from: fromDate, to: through }, fyQuarters };
+  const e = store.finish();
+  return { meta: t.meta, e, legal, trade, titles, record, origin, recentQuarterIdx, recentWindow: { from: fromDate, to: through }, fyQuarters };
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -161,13 +216,13 @@ function resolveKey(p: Prepared, idx: number[] | undefined): Resolved {
   if (!idx || idx.length === 0) return { kept: [], excluded: [], ambiguous: false };
   const byFein = new Map<string, number[]>();
   for (const i of idx) {
-    const f = p.entities[i]![1];
+    const f = p.e.fein(i);
     const k = isPlaceholder(f) ? '?' : f!;
     const a = byFein.get(k) ?? [];
     a.push(i);
     byFein.set(k, a);
   }
-  const total = (is: number[]) => is.reduce((s, i) => s + p.entities[i]![5], 0);
+  const total = (is: number[]) => is.reduce((s, i) => s + p.e.certified(i), 0);
   let dom: string | null = null;
   let domN = -1;
   for (const [f, is] of byFein) {
@@ -176,21 +231,21 @@ function resolveKey(p: Prepared, idx: number[] | undefined): Resolved {
     if (n > domN) { dom = f; domN = n; }
   }
   if (dom === null) return { kept: [...idx], excluded: [], ambiguous: false };
-  const domStates = new Set(byFein.get(dom)!.map((i) => p.entities[i]![3]).filter((s): s is string => !!s));
+  const domStates = new Set(byFein.get(dom)!.map((i) => p.e.state(i)).filter((s): s is string => !!s));
   const kept: number[] = [...byFein.get(dom)!];
   const excluded: number[] = [];
   for (const [f, is] of byFein) {
     if (f === dom) continue;
     for (const i of is) {
-      const st = p.entities[i]![3];
+      const st = p.e.state(i);
       if (st && domStates.has(st)) kept.push(i); else excluded.push(i);
     }
   }
   // Excluded filers of one other FEIN that are a sizeable share make the name ambiguous.
   const exclByFein = new Map<string, number>();
   for (const i of excluded) {
-    const f = p.entities[i]![1] ?? '?';
-    exclByFein.set(f, (exclByFein.get(f) ?? 0) + p.entities[i]![5]);
+    const f = p.e.fein(i) ?? '?';
+    exclByFein.set(f, (exclByFein.get(f) ?? 0) + p.e.certified(i));
   }
   const keptN = total(kept);
   let ambiguous = false;
@@ -199,10 +254,10 @@ function resolveKey(p: Prepared, idx: number[] | undefined): Resolved {
 }
 
 function entityDetail(p: Prepared, i: number): H1bEntityDetail {
-  const e = p.entities[i]!;
+  const e = p.e;
   return {
-    name: e[0], fein: e[1], city: e[2], state: e[3], certifiedFilings: e[5],
-    byFile: p.meta.files.map((f, fi) => ({ file: f.name, count: e[6][fi] ?? 0 })).filter((x) => x.count > 0),
+    name: e.name(i), fein: e.fein(i), city: e.city(i), state: e.state(i), certifiedFilings: e.certified(i),
+    byFile: p.meta.files.map((f, fi) => ({ file: f.name, count: e.perFile(i, fi) })).filter((x) => x.count > 0),
   };
 }
 
@@ -233,13 +288,13 @@ export function summarize(p: Prepared, kept: number[], excluded: number[], match
   let newHire = 0;
   let clientSite = 0;
   for (const i of uniq) {
-    const e = p.entities[i]!;
-    certified += e[5];
-    e[7].forEach((n, qi) => { quarters[qi] = (quarters[qi] ?? 0) + n; });
-    e[6].forEach((n, fi) => { perFile[fi] = (perFile[fi] ?? 0) + n; });
-    newHire += e[8];
-    clientSite += e[9];
-    for (const [k, n] of Object.entries(e[11])) soc.set(k, (soc.get(k) ?? 0) + n);
+    const e = p.e;
+    certified += e.certified(i);
+    for (let qi = 0; qi < quarters.length; qi++) quarters[qi] = (quarters[qi] ?? 0) + e.perQuarter(i, qi);
+    for (let fi = 0; fi < perFile.length; fi++) perFile[fi] = (perFile[fi] ?? 0) + e.perFile(i, fi);
+    newHire += e.newHire(i);
+    clientSite += e.clientSite(i);
+    for (const [k, n] of e.soc(i)) soc.set(k, (soc.get(k) ?? 0) + n);
   }
   const recent = p.recentQuarterIdx.reduce((s, qi) => s + (quarters[qi] ?? 0), 0);
   const byYear = p.meta.fiscalYears.map((fy) => ({
@@ -291,7 +346,7 @@ export function summarize(p: Prepared, kept: number[], excluded: number[], match
     sourceUrl: p.meta.sourceUrl,
     counting: p.meta.counting,
     statusRule: STATUS_RULE,
-    naics: uniq.map((i) => p.entities[i]!).sort((a, b) => b[5] - a[5])[0]?.[4] ?? null,
+    naics: [...uniq].sort((a, b) => p.e.certified(b) - p.e.certified(a)).map((i) => p.e.naics(i))[0] ?? null,
   };
 }
 
@@ -310,14 +365,14 @@ export function loadH1bIndex(opts: StaticDataOptions & { aliases?: AliasIndex })
     const s = activeStamp(opts);
     if (s === stamp && (prepared || error)) return;
     stamp = s;
-    let table: H1bTable | null = null;
+    let ready: Prepared | null = null;
     const loaded = loadDataset(opts, H1B_DATASET_ID, (bytes, rec) => {
-      const t = parseH1bTable(bytes);
-      if (t.meta.version !== rec.version || t.meta.sequence !== rec.sequence) throw new Error('the table does not match its release record');
-      table = t;
+      const p = prepare(bytes, rec, 'bundled');
+      if (p.meta.version !== rec.version || p.meta.sequence !== rec.sequence) throw new Error('the table does not match its release record');
+      ready = p;
     });
-    if (loaded && table) {
-      prepared = prepare(table, loaded.record, loaded.origin);
+    if (loaded && ready) {
+      prepared = { ...(ready as Prepared), origin: loaded.origin };
       error = loaded.warning;
       if (loaded.warning) writeStateFor(opts, H1B_DATASET_ID, { lastError: loaded.warning, lastErrorAt: new Date().toISOString() });
     } else {
