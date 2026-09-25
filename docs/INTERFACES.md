@@ -112,7 +112,7 @@ message and left untouched.
 | `job_sources` | crawler | Planned. Every source that listed a posting (the same posting from two places keeps both credits) |
 | `schema_migrations`, `job_vectors`, `job_skills`, `tracker`, `tracker_notes`, `tracker_reminders`, `saved_filters`, `profile`, `chats`, `notifications`, `settings` | store | Planned. `job_vectors`: float16 BLOB per (job id, content hash, model). `settings` is key-value JSON (other packages' small settings go here through `SettingsStore`) |
 | `board_prefs`, `crawl_runs`, `crawl_board_reports` | boards | Planned. User boards and choices (follow, hide, disable); crawl run history for the report |
-| `company_facts` | static-data | Planned. Facts per company key with source and date |
+| `company_facts`, `company_fact_labels` | static-data | Built. Facts per company key with source and date, freshness, last error and paid cost; cached Wikidata labels of people and places |
 | `source_state` | sources-other | Planned. On or off, last run, daily request counts per source (limits survive restarts) |
 | `resumes`, `tailor_proposals`, `cover_letters` | resume | Planned |
 | `network_contacts` | network | Planned |
@@ -799,48 +799,52 @@ CLI (planned): `jobleft-store import-jobs <file.ndjson>` (the documented import 
 
 ### `@jobleft/static-data`
 
-Status: **Stub**. Purpose: the shipped datasets and lookups, `companyKey`, and company facts. Owns: table
-`company_facts`; routes `h1bLookup`, `placeLookup`, `getCompany`, `refreshCompany`, `listDatasets`, `updateDatasets`;
-data files in `packages/static-data/data/` (each with a header naming source, date and licence, and an entry in
-`THIRD_PARTY_NOTICES.md`).
+Status: **Built** (lane static-data, 28 tests; `loadSkills` and `loadDirectoryRows` are still stubs, outside this
+lane). Purpose: the shipped datasets and lookups, `companyKey`, company facts and signed dataset releases. Owns: tables
+`company_facts` and `company_fact_labels` (migrations recorded in `schema_migrations` as owner `static-data`); routes
+`h1bLookup`, `placeLookup`, `getCompany`, `refreshCompany`, `listDatasets`, `updateDatasets`. Built datasets ship in
+`packages/static-data/dist/` (`datasets.json` names each file with its sha256, version, sequence, data date, licence
+and attribution); hand-reviewed inputs are in `packages/static-data/data/` (`company-aliases.json`,
+`company-identifiers.json`, `place-aliases.json`, `release-keys.json`). Package README: exact commands and outputs.
+
+| Export | Signature | Notes |
+|---|---|---|
+| `companyKey` | `(name: string) => string` | Case, accents, punctuation, "&"/"+" vs "and", a leading "the" and legal suffixes removed; ordinary words kept |
+| `loadAliases` | `(opts) => CompanyAliases` | `keysFor(name)`; the index also has `entryForKey(key)` and `canonicalKey(key)` |
+| `loadH1bIndex` | `(opts) => H1bIndex` | `lookup(name, { jobTitle? }) => H1bLookupDetail` (status `found` or `unknown`, never "no"; `reason` when unknown), `dataset()`. Reloads when a newer release is installed |
+| `loadPlaceIndex` | `(opts) => PlaceIndex` | `resolve(text) => PlaceLookupDetail` (adds `workModel`, `remoteScope`, `unresolved`), `distanceMiles(a, b)`, `within(placeId, miles)`, `dataset()`. Place ids: `gnis:<id>`, `ne:<id>`, `geonames:<id>`, `region:US-TX`, `country:CA` |
+| `h1bTagFor`, `passesH1bFilter` | `(statements, summary) => { tag, reason, label }`, `(tag) => boolean` | The one rule for the card tag and the H-1B filter (the post's words win; clearance and citizenship get their own words) |
+| `CompanyFacts` | `new CompanyFacts({ db, h1b, aliases, fetchText, paid, now?, freshForMs?, enricher?, identifiers? })` | `note(name)`, `get(key)` (no request), `refresh(key, { allowPaid, maxPriceMicros?, force?, name? })` (free sources only when expired; concurrent calls share one set of requests; a failure keeps old facts), `expireAll()` |
+| `createStaticDataRoutes` | `(opts: { dataDir, db, fetchText, paid?, manifestUrl?, fetchImpl? }) => StaticDataRoutes` | Handlers for the six routes; apps/server wires them |
+| `listDatasets`, `updateDatasets` | as generated below | Shipped datasets plus the live fact sources; the updater installs only signed, newer, exact files |
+
+Extra response fields (unknown keys are allowed by the contracts, so the routes return them as they are):
+`H1bSummaryDetail` adds `label`, `matchedBy` (`alias`, `name`, `trade_name`), `aliasBasis`, `recentFilings`,
+`recentWindow`, `newHireFilings`, `clientSiteShare`, `entities` (each filer with FEIN and per-file counts),
+`excludedEntities`, `files`, `sourceUrl`, `counting`, `statusRule`, `naics`. `CompanyDetail` adds `factsStatus`
+(fetched, last error, per-source status) and `paidLookup` (last cost as "$0.01 from your balance").
 
 <!-- BEGIN GENERATED: sig:packages/static-data -->
 ```ts
-import type { DatabaseSync } from 'node:sqlite';
-import type { Company, CrawlAtsId, DatasetInfo, H1bLookup, Place, PlaceLookup } from '@jobleft/contracts';
-/** Where datasets live. Shipped copies sit in `bundledDir`; updated releases are written to `dataDir`. */
-export interface StaticDataOptions {
-    /** $JOBLEFT_HOME/datasets (updated releases, verified before use). */
-    dataDir: string;
-    /** Defaults to this package's data/ folder (the copies that ship with the app). */
-    bundledDir?: string;
-}
-/**
- * The company match key. Lower case; accents removed; "&" and "+" become "and"; a leading "the" and legal suffixes
- * (inc, llc, l.l.c., corp, corporation, co, ltd, llp, plc, pbc, gmbh) are removed; punctuation and spaces are removed.
- * It NEVER removes ordinary words such as "technologies", "group", "services" or "holdings" (static-data O5).
- * Examples: "Stripe, Inc." -> "stripe"; "The Home Depot" -> "homedepot"; "Ramp Business Corporation" -> "rampbusiness".
- */
-export declare function companyKey(name: string): string;
-/** Brand to legal filer names that are known to be the same company (a reviewed alias table, never a guess). */
-export interface CompanyAliases {
-    /** The keys of every name known for this company, including the input's own key. */
-    keysFor(name: string): string[];
-}
-export interface H1bIndex {
-    /** found with a summary, or unknown. Never a "no" (static-data O2). */
-    lookup(companyName: string): H1bLookup;
-    dataset(): DatasetInfo;
-}
-export interface PlaceIndex {
-    /** Resolves "Austin, TX", "SF", "Remote - US", "New York, NY; Austin, TX". Unresolved text stays as written. */
-    resolve(text: string): PlaceLookup;
-    /** Great-circle distance in miles, or null when either place has no coordinates. */
-    distanceMiles(a: Place, b: Place): number | null;
-    /** Place ids within the radius of a place id (for the "within 25 miles" filter). */
-    within(placeId: string, radiusMiles: number): Set<string>;
-    dataset(): DatasetInfo;
-}
+import type { CrawlAtsId, DatasetInfo } from '@jobleft/contracts';
+import { type CompanyAliases } from './aliases.ts';
+import type { StaticDataOptions } from './datasets/store.ts';
+import { type H1bIndex } from './h1b/index.ts';
+import { type PlaceIndex } from './places/index.ts';
+export type { StaticDataOptions } from './datasets/store.ts';
+export { companyKey, splitDba, nameTokens, COMPANY_KEY_VERSION, LEGAL_SUFFIXES } from './company-key.ts';
+export type { CompanyAliases, AliasIndex, AliasEntry } from './aliases.ts';
+export type { H1bIndex, H1bLookupDetail, H1bSummaryDetail, H1bEntityDetail } from './h1b/index.ts';
+export { LIKELY_MIN_FILINGS, LIKELY_MIN_RECENT, LIKELY_MIN_NEW_HIRE } from './h1b/index.ts';
+export type { PlaceIndex, PlaceLookupDetail, WorkModel } from './places/index.ts';
+export { normPlace } from './places/normalize.ts';
+export { h1bTagFor, passesH1bFilter, type H1bTag, type H1bTagResult } from './h1b/tag.ts';
+export { roleFamilyOf, normalizeTitle, SOC_MAJOR_GROUPS, type RoleFamily } from './h1b/role-family.ts';
+export { CompanyFacts, migrateCompanyFacts, DEFAULT_FRESH_MS, type CompanyFactsOptions, type CompanyDetail, type PaidSearch, type SourceStatus } from './facts/company-facts.ts';
+export { ruleEnricher, checkProposed, type PaidEnricher, type ProposedFact, type SearchResult, type EnrichTarget } from './facts/enrich.ts';
+export { installReleases, verifyEnvelope, loadReleaseKeys, type UpdateOutcome, type ReleaseKey } from './datasets/release.ts';
+export { LIVE_FACT_SOURCES } from './datasets/list.ts';
+export { PoliteFetch, USER_AGENT } from './net/polite-fetch.ts';
 export interface SkillDictionary {
     /** The canonical name for a term ("k8s" -> "Kubernetes", "JS" -> "JavaScript"), or null when unknown. */
     canonical(term: string): string | null;
@@ -857,62 +861,39 @@ export interface DirectoryRow {
     /** Where the row came from (for THIRD_PARTY_NOTICES and the directory header). */
     source: string;
 }
+/** The reviewed brand-to-filer alias table (data/company-aliases.json). */
 export declare function loadAliases(opts: StaticDataOptions): CompanyAliases;
+/** The H-1B sponsor index. Works offline; reloads when a newer verified release is installed. */
 export declare function loadH1bIndex(opts: StaticDataOptions): H1bIndex;
+/** The place index. Works offline; reloads when a newer verified release is installed. */
 export declare function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex;
 export declare function loadSkills(opts: StaticDataOptions): SkillDictionary;
 export declare function loadDirectoryRows(opts: StaticDataOptions): DirectoryRow[];
-/** Every dataset with its date, licence and attribution (GET /api/v1/data-sources). */
+/** Every dataset with its date, licence and attribution (GET /api/v1/data-sources), plus the live fact sources. */
 export declare function listDatasets(opts: StaticDataOptions): DatasetInfo[];
-/** Downloads, verifies (size and sha256 from the release manifest) and swaps in newer releases. A bad release changes nothing. */
+/** Downloads, verifies (signature, size and sha256 from the signed release manifest) and swaps in newer releases. A bad release changes nothing. */
 export declare function updateDatasets(opts: StaticDataOptions & {
     releaseManifestUrl: string;
     fetchImpl?: typeof fetch;
 }): Promise<DatasetInfo[]>;
-/** A paid lookup the facts service may use only when the person allowed it (see @jobleft/sources-other). */
-export interface PaidSearch {
-    priceMicros(kind: 'search' | 'page'): number;
-    search(query: string, opts: {
-        maxPriceMicros: number;
-        signal?: AbortSignal;
-    }): Promise<Array<{
-        title: string;
-        url: string;
-        snippet: string;
-    }>>;
-}
-export interface CompanyFactsOptions {
-    db: DatabaseSync;
-    h1b: H1bIndex;
-    aliases: CompanyAliases;
-    /** Free public sources (Wikidata, SEC, GLEIF) through the polite HTTP client. */
-    fetchText: (url: string) => Promise<string>;
-    /** null = paid lookups are off. */
-    paid: PaidSearch | null;
-    now?: () => number;
-    /** Kept facts expire after this long (default 30 days). */
-    freshForMs?: number;
-}
-/** Company facts, kept per company key in the `company_facts` table (owned by this package). */
-export declare class CompanyFacts {
-    constructor(opts: CompanyFactsOptions);
-    /** The kept company, or a company with no facts (never invented ones). */
-    get(key: string): Company;
-    /** Reads facts again. A failed refresh keeps the old facts. Paid lookups only with allowPaid and within the cap. */
-    refresh(key: string, opts: {
-        allowPaid: boolean;
-        maxPriceMicros?: number;
-    }): Promise<Company>;
-    /** Marks every kept fact expired (the documented option to expire kept facts). */
-    expireAll(): number;
-}
+export { createStaticDataRoutes, type StaticDataRoutes, type StaticDataRouteOptions } from './routes.ts';
 ```
 <!-- END GENERATED: sig:packages/static-data -->
 
-Rules: H-1B counts are certified H-1B rows only, per filer entity, with the date window and the data date; a missing
+Rules: H-1B counts are certified H-1B rows only, per filer entity (exact `EMPLOYER_NAME` and FEIN), per official
+file, with the date window (2024-10-01 to 2026-06-30), US federal fiscal years and a partial-year mark; a missing
 company is `unknown`, never "no"; brand-to-filer aliases come from a reviewed table, never from a similarity score;
-place and sponsor lookups work offline; company-fact requests carry only what names the company. CLI (planned):
-`jobleft-data h1b <company>`, `jobleft-data place <text>`, `jobleft-data build-h1b --lca <files>`.
+same-name filers under another FEIN in another state are left out; place and sponsor lookups work offline;
+company-fact requests carry only what names the company (a Wikidata id, a CIK, a legal name, the company name).
+Releases: the manifest at `JOBLEFT_DATASET_MANIFEST_URL` must be signed (Ed25519) by a key in
+`data/release-keys.json` (only a loopback-only test key exists yet), newer than the data in use, and every file must
+match its size and sha256; a bad release changes nothing and sets `lastUpdateError`.
+Deviation from the plan: GeoNames forbids automated download in robots.txt, so the shipped place table uses USGS GNIS
+(US) and Natural Earth (world), both public domain; `build-places --geonames <dir>` accepts GeoNames files a person
+downloaded. CLI `jobleft-data` (`node packages/static-data/src/cli.ts`): `h1b <company> [--title]`, `place <text>`,
+`within "<center> | <place> ..." [--miles]`, `company <name> [--refresh] [--allow-paid ...]`, `datasets`,
+`update [--manifest <url>]`, `mock-release [--mode]`, `mock-facts [--scenario] [--fail]`, `count-lca --lca <file>
+--contains <text>`, `fetch-lca --out <dir>`, `build-h1b --lca <files>`, `build-places [--src] [--geonames]`.
 
 ### `@jobleft/ai-engine`
 

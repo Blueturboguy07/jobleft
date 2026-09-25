@@ -36,7 +36,39 @@ Local additions that are not in freehire (written new): the per-host pacer, the 
 
 ## 2. Data shipped with the app
 
-None yet. The static-data lane adds entries here (board directory, H-1B sponsor table from US Department of Labor LCA disclosure files, city dictionary with its attribution, skill dictionary).
+Entries 2.1 to 2.5 are from the static-data lane (2026-09-25). The board directory and the skill dictionary are not built yet.
+
+### 2.1 H-1B sponsor table (US Department of Labor)
+
+- Source: US Department of Labor, Employment and Training Administration, Office of Foreign Labor Certification, LCA Programs (H-1B, H-1B1, E-3) disclosure data, https://www.dol.gov/agencies/eta/foreign-labor/performance. Files (size and sha256 in `packages/static-data/src/h1b/lca-files.ts`): `LCA_Disclosure_Data_FY2025_Q1.xlsx` to `_Q4.xlsx` and `LCA_Disclosure_Data_FY2026_Q3.xlsx`.
+- Licence: US government work, public domain in the United States (17 U.S.C. 105). The source states no licence terms.
+- Attribution (shown in the data-sources list): "Source: US Department of Labor, Employment and Training Administration, Office of Foreign Labor Certification, LCA Programs (H-1B, H-1B1, E-3) disclosure data. jobleft counts certified H-1B rows only; DOL does not endorse jobleft."
+- jobleft files: `packages/static-data/dist/h1b-lca.json.gz` (derived counts per filer: name, FEIN, city, state, NAICS code, counts per file and quarter, SOC major groups; a job-title table), built by `jobleft-data build-h1b`. No personal data from the files (points of contact, attorneys, preparers) is kept.
+
+### 2.2 Place table (USGS GNIS and Natural Earth)
+
+- USGS Geographic Names Information System (GNIS), "Populated Places" and "Federal Codes" national text files, dated 2026-09-02, https://prd-tnm.s3.amazonaws.com/StagedProducts/GeographicNames/. Licence: US government work, public domain.
+- Natural Earth 1:10m Populated Places (simple), version 5.1.2, https://www.naturalearthdata.com/. Licence: public domain ("All versions of Natural Earth raster + vector map data found on this website are in the public domain").
+- Attribution given as a courtesy: "US places: USGS Geographic Names Information System (GNIS). World cities: Made with Natural Earth (naturalearthdata.com)."
+- jobleft file: `packages/static-data/dist/places.json.gz`, built by `jobleft-data build-places`.
+- GeoNames (CC BY 4.0) is NOT shipped: its download hosts forbid automated clients in robots.txt. When a person supplies GeoNames files (`build-places --geonames <dir>`), the table replaces Natural Earth outside the US and carries this attribution: "World cities: GeoNames (https://www.geonames.org/), licensed under CC BY 4.0."
+
+### 2.3 Reviewed name tables (jobleft's own data)
+
+- `packages/static-data/data/company-aliases.json` (199 brand-to-filer entries), `company-identifiers.json` (38 Wikidata item ids), `place-aliases.json` (27 short names). Written by the static-data lane; each alias states its basis. Company and place names are facts.
+- How the alias candidates were found (reference only, nothing copied): the company names in jobsync's MIT-licensed board lists (`vendor/jobsync/src/lib/scraper/{greenhouse,lever,ashby}/companies.json`, read-only clone) were compared with DOL filer names to list candidates for review. No list, file or code from jobsync is in the package.
+
+### 2.4 Classification and region names typed into code
+
+- 2018 Standard Occupational Classification major group titles (US Bureau of Labor Statistics, public domain): `packages/static-data/src/h1b/role-family.ts`.
+- NAICS 2-digit sector titles (US Census Bureau, public domain): `packages/static-data/src/facts/company-facts.ts`.
+- US state and territory codes (USPS), Canadian province codes, ISO 3166-1 country codes and names: `packages/static-data/src/places/regions.ts`.
+
+### 2.5 Test fixtures (not shipped in the app)
+
+- `packages/static-data/test/fixtures/facts/`: trimmed answers recorded on 2026-09-25 from Wikidata (CC0 1.0), SEC EDGAR data.sec.gov (US government, public domain) and GLEIF (CC0 1.0) for NVIDIA, Stripe and Notion Labs.
+- `packages/static-data/test/fixtures/release-test-key.pem`: an Ed25519 TEST key made for this repository; jobleft trusts it only for release manifests served from 127.0.0.1 or localhost.
+- Company facts read at run time (Wikidata CC0, SEC public domain, GLEIF CC0) name their source and link on every fact.
 
 ## 3. Development tools (not shipped in the app)
 
