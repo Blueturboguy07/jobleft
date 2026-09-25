@@ -224,7 +224,9 @@ body and query contracts (a query key sent twice answers 400); for writes, a rea
 `write_failed` before any work. Every answer carries `x-content-type-options: nosniff`, `x-frame-options: DENY`,
 `cross-origin-resource-policy: same-origin`, `referrer-policy: no-referrer`; API answers add `cache-control: no-store`.
 The UI is served with a CSP of `default-src 'self'` (inline styles allowed for Ant Design, no inline scripts,
-`connect-src 'self'`, `frame-ancestors 'none'`). Exception to rule 7: `restore` streams its upload to `tmp/` with a
+`connect-src 'self'`, `frame-ancestors 'none'`). Outside `/api/` only real files of the UI folder are served; `/` is its
+`index.html`, and any other path that is not a file answers 404 (no fallback page: the UI routes by the URL fragment).
+A query `limit` outside 1 to 100 answers 400, as it does in a search body. Exception to rule 7: `restore` streams its upload to `tmp/` with a
 4 GiB limit and first checks the free disk space against the declared length.
 
 ### 6.2 Errors
@@ -1306,9 +1308,11 @@ Entry point: `node apps/server/src/main.ts` (reads section 4; exit codes 0 stopp
 refused and untouched, 3 already running). It prints the UI address and the token unless `JOBLEFT_QUIET=1`, and stops
 cleanly within 5 s on SIGTERM, SIGINT or SIGHUP, and within 10 s after `JOBLEFT_PARENT_PID` is gone.
 
-CLI (`node apps/server/src/cli.ts`, refuses to run while a server uses the folder): `seed-jobs --home <dir> --count <n>`
-(synthetic jobs for speed tests), `fixture --home <dir> --schema 1|future` (an older or a newer data folder with the
-test persona, for upgrade tests), `counts --home <dir>` (count per kind, read-only).
+CLI (`node apps/server/src/cli.ts`): `seed-jobs --home <dir> --count <n>` (synthetic jobs for speed tests),
+`fixture --home <dir> --schema 1|future` (an older or a newer data folder with the test persona, for upgrade tests),
+`counts --home <dir>` (count per kind, read-only); these three refuse to run while a server uses the folder.
+`api-counts --home <dir>` needs the server RUNNING: it reads the count per kind through the API (token from
+`run/server.json`) and the SHA-256 of each uploaded resume file as `exportResume` serves it; it changes nothing.
 Test stand-ins: `node apps/server/scripts/mock-servers.ts --dir <dir>` (job boards from an editable JSON file, an
 OpenAI-compatible AI server, a publik stand-in; every request logged).
 
@@ -1316,7 +1320,9 @@ Wiring in this build: the crawl tables through `new Store(homeLayout(home).db)` 
 connection in a worker thread for crawls (so a board's write transaction never delays an answer), `SOURCES` from
 @jobleft/crawler. The routes of the store, resume, network, boards, sources-other and ai-engine lanes are answered by
 INTERIM stand-ins in `apps/server/src/interim/` (tables `srv_*`); the routes whose lanes have no stand-in answer
-`503 not_ready` with a plain sentence. At integration each lane's package replaces its stand-in
+`503 not_ready` with a plain sentence. Interim `exportResume`: an uploaded resume answers its own uploaded file, byte
+for byte, when `format` matches the upload's type (`pdf` for a PDF, `docx` for a Word file); a rendered export is the
+resume lane's and answers `503 not_ready` until it lands. At integration each lane's package replaces its stand-in
 (`apps/server/README.md`, section 13).
 
 Backup format (route `backup`): one zip. `manifest.json` (`format: "jobleft-backup"`, `formatVersion: 1`, app version,

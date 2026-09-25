@@ -19,8 +19,9 @@ The API itself is in `docs/INTERFACES.md`, section 6. The acceptance outcomes ar
 | `apps/server/jobsync/` | A fork of jobsync (MIT) with the four spike S3 patches. It is NOT run or served. See `jobsync/JOBLEFT-FORK.md` |
 
 Routes that need a lane that is not in this build answer `503 not_ready` with a plain sentence and change nothing
-(tailoring, PDF export, ATS check, cover letters, match score, H-1B and place lookups, company facts, interview
-practice, message drafts, board resolve).
+(tailoring, a PDF or Word file made from a resume, ATS check, cover letters, match score, H-1B and place lookups,
+company facts, interview practice, message drafts, board resolve). An uploaded resume file itself does download
+(section 5).
 
 ## 2. Before you start
 
@@ -154,11 +155,29 @@ Useful writes for the "one change of each kind" checks:
 | A job to track | `POST /api/v1/jobs/external` with `{"text":"Data Analyst at Acme\nCompany: Acme\n...","applyUrl":"https://example.com/job/1"}` |
 | Like, status, notes, reminders | `PATCH /api/v1/tracker/<jobId>` with `{"liked":true,"status":"applied","notes":[{"text":"..."}],"reminders":[{"at":"2026-10-01T09:00:00Z","text":"...","done":false}]}` (notes and reminders replace the list; keep `id` to keep a note) |
 | Saved filter | `POST /api/v1/filters` with `{"name":"...","filter":{},"sort":"recommended"}` |
-| Resume file | `curl -X POST -H "x-jobleft-token: $T" -H 'content-type: application/pdf' -H 'x-jobleft-filename: cv.pdf' --data-binary @cv.pdf .../api/v1/resumes/import` |
+| Resume file | `curl -X POST -H "x-jobleft-token: $T" -H 'content-type: application/pdf' -H 'x-jobleft-filename: cv.pdf' --data-binary @cv.pdf .../api/v1/resumes/import`. Get the file back as the API serves it: `curl -H "x-jobleft-token: $T" -o back.pdf ".../api/v1/resumes/<resumeId>/export?format=pdf"` (byte for byte the uploaded file; `format=docx` for a Word upload) |
 | Contacts (network import) | `curl -X POST -H 'content-type: text/csv' --data-binary @Connections.csv .../api/v1/network/import`, then `PATCH /api/v1/network/contacts/<id>` |
 | Chat history | Section 9.3 |
 
 Times are stored exactly as you send them (for example `2026-10-01T09:00:00+02:00` comes back as that text).
+
+### 5.1 Count per kind through the API
+
+While the server runs, this command reads every kind of record through the API (with the token from
+`run/server.json`), downloads each uploaded resume file through the API and prints its SHA-256. It changes nothing:
+
+```sh
+node apps/server/src/cli.ts api-counts --home $JOBLEFT_HOME
+```
+
+You see JSON like this (use it before and after a `kill -9`, a restart, a backup and restore, or an upgrade):
+
+```
+{ "server": {"port": 47821, ...}, "profile": 1, "trackedJobs": 1, "likes": 1, "statuses": 1, "notes": 2,
+  "reminders": 1, "savedFilters": 1, "resumes": 1, "resumeFiles": 1, "contacts": 2, "chats": 1, "chatMessages": 2,
+  "boards": 1, "jobs": 4, "openJobs": 4, "pairedExtensions": 0,
+  "files": [{ "resumeId": "res_...", "fileName": "cv.pdf", "bytes": 36313, "sha256": "6226...", "sameAsRecord": true }] }
+```
 
 ## 6. Security checks you can run (outcomes O1, O2, O14)
 
@@ -173,7 +192,9 @@ Times are stored exactly as you send them (for example `2026-10-01T09:00:00+02:0
 | No Origin but `Sec-Fetch-Site: cross-site` (an image or script tag on another site) | `403` |
 | A JSON body over 1 MB, or a raw upload over 10 MB (restore: over 4 GB or over the free disk space) | `413`, nothing stored, the connection closes |
 | A body that does not match the contract | `400 bad_request` with the issue paths; no value from the body is echoed |
+| A query `limit` outside 1 to 100, or a query key sent twice | `400 bad_request` |
 | `/api/v1/admin`, `/api/mcp`, `/api/v1/dev/clock` without `JOBLEFT_DEV=1`, `/%2e%2e/etc/passwd`, `/api/v1/../../etc/passwd` | `404` |
+| Outside `/api/`: `/admin`, `/debug`, `/developer`, `/data/jobleft.db`, `/logs/server.log`, `/run/server.json` | `404`. Only the files of the app page are served, and `/` is its `index.html`. There is no fallback page (the app page routes by the part after `#`) |
 
 The page test from a browser: serve any page from another port (`python3 -m http.server 8099`), open it in headless
 Chrome with a scratch profile, and try `fetch`, a form post, an image tag and a sandboxed iframe against
@@ -225,7 +246,7 @@ curl -s -X POST -H "x-jobleft-token: $T" -H 'content-type: application/json' -d 
 | Refused files | A cut backup, one changed byte, a random zip, random bytes, a file with `../` names or links: `400` with "Nothing was changed.", and the current data is as it was |
 | Restore into a fresh install | Start a server on an empty folder, then restore. A backup from an older build is upgraded on restore |
 | Export | Readable files: `profile.json`, `tracker.json`, `saved-jobs.ndjson`, `saved-filters.json`, `resumes.json` and the uploaded files, `network-contacts.csv` and `.json`, `chats.json`, `boards.json`, `settings.json`. No key or token |
-| Counts per kind | `node apps/server/src/cli.ts counts --home <folder>` prints the same numbers as the backup manifest (stop the server first) |
+| Counts per kind | With the server running: `node apps/server/src/cli.ts api-counts --home <folder>` (section 5.1, through the API, with file hashes). With the server stopped: `node apps/server/src/cli.ts counts --home <folder>` prints the same numbers as the backup manifest |
 
 ## 9. Test stand-ins: job boards, AI and publik (outcomes O5, O9, O10, O15)
 
@@ -235,8 +256,10 @@ curl -s -X POST -H "x-jobleft-token: $T" -H 'content-type: application/json' -d 
 node apps/server/scripts/mock-servers.ts --dir /private/tmp/jl-mocks
 ```
 
-It prints the exact `export` lines to use. Every request to a stand-in is logged to
-`/private/tmp/jl-mocks/requests.ndjson` (time, path, headers, body), so you can search it for "Testwell".
+It prints the exact `export` lines to use. Every request to a stand-in is logged (time, path, headers, body) to
+`/private/tmp/jl-mocks/requests.ndjson`, and also per stand-in to `boards-requests.ndjson`, `ai-requests.ndjson` and
+`publik-requests.ndjson` in the same folder. Search `boards-requests.ndjson` for "Testwell": a crawl sends nothing
+personal. `ai-requests.ndjson` holds what you chose to send to the AI stand-in (your chat text), and nothing else.
 
 The addresses below are the defaults; when a port is taken, the script takes a free one and prints it.
 
@@ -364,9 +387,28 @@ Data saved in an interim table is not moved into a lane's table automatically ye
 ## 14. Tests
 
 ```sh
-pnpm --filter @jobleft/server test        # 40 tests: security, records, kill -9, backup, pairing, lifecycle, AI, crawl, add by link
+pnpm --filter @jobleft/server test        # 41 tests: security, records, kill -9, backup, pairing, lifecycle, AI, crawl, add by link
 pnpm --filter @jobleft/server typecheck
-apps/server/scripts/jobsync-tests.sh      # the jobsync fork's own unit tests (needs vendor/jobsync/node_modules)
 ```
+
+The jobsync fork's own unit tests need jobsync's dependencies, which are not part of the workspace. Install them once
+outside the repository (806 packages, about 1 GB, no install scripts run), add `jsdom` (an optional peer of vitest that
+npm does not install on its own), and make the Prisma client there. Then run the tests:
+
+```sh
+D=/private/tmp/jl-jobsync-deps
+mkdir -p $D/prisma
+cp apps/server/jobsync/package.json apps/server/jobsync/package-lock.json $D/
+cp apps/server/jobsync/prisma/schema.prisma $D/prisma/
+(cd $D && npm ci --ignore-scripts --no-audit --no-fund && npm install --no-save --ignore-scripts --no-audit --no-fund jsdom@26.1.0)
+(cd $D && CHECKPOINT_DISABLE=1 DATABASE_URL=file:$D/none.db node node_modules/prisma/build/index.js generate --schema prisma/schema.prisma)
+JOBSYNC_DEPS=$D/node_modules apps/server/scripts/jobsync-tests.sh
+rm -rf $D                                       # when done
+```
+
+`prisma generate` fetches Prisma's own engine files once from Prisma's server, unless `PRISMA_QUERY_ENGINE_LIBRARY` and
+`PRISMA_SCHEMA_ENGINE_BINARY` point at local copies (set them for both commands). Result on 2026-09-25: 229 test files,
+2,795 tests, all passed. With `generate --no-engine` instead (no engine at all), only `backupRoundTrip.spec.ts` fails,
+because it needs a real SQLite engine.
 
 The tests start servers on scratch folders under `/private/tmp` and remove them. They use only loopback stand-ins.

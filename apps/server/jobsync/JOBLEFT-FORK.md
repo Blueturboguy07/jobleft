@@ -29,11 +29,12 @@ notice at the top of each file:
 
 ## Tests that still apply
 
-The unit tests of the code that remains still pass (229 test files, 2,795 tests on 2026-09-25), including the
-provider tests that patches 03 and 04 changed (`__tests__/custom-provider.spec.ts`,
-`__tests__/provider-registry.spec.ts`). To run them (they need jobsync's own dependencies, which live only in the
-read-only clone, so the script links them for the run and removes the link after):
+The unit tests of the code that remains still pass (229 test files, 2,795 tests, run again on 2026-09-25 by the server
+lane), including the provider tests that patches 03 and 04 changed (`__tests__/custom-provider.spec.ts`,
+`__tests__/provider-registry.spec.ts`). They need jobsync's own dependencies, which are not part of the jobleft
+workspace. `apps/server/README.md` section 14 gives the exact commands (install outside the repository with
+`--ignore-scripts`, add `jsdom`, make the Prisma client), then:
 
 ```sh
-apps/server/scripts/jobsync-tests.sh
+JOBSYNC_DEPS=/private/tmp/jl-jobsync-deps/node_modules apps/server/scripts/jobsync-tests.sh
 ```
