@@ -48,8 +48,13 @@ function placeWords(places: Place[]): string[] {
 }
 
 function sameRange(a: Pay, b: Pay): boolean {
-  const near = (x: number | null, y: number | null) => (x === null && y === null) || (x !== null && y !== null && Math.abs(x - y) <= Math.max(0.5, 0.01 * Math.max(x, y)));
-  return a.currency === b.currency && a.period === b.period && near(a.min, b.min) && near(a.max, b.max);
+  const near = (x: number | null, y: number | null) => x !== null && y !== null && Math.abs(x - y) <= Math.max(0.5, 0.01 * Math.max(x, y));
+  const same = (x: number | null, y: number | null) => (x === null && y === null) || near(x, y);
+  if (a.currency !== b.currency || a.period !== b.period) return false;
+  if (same(a.min, b.min) && same(a.max, b.max)) return true;
+  // "starting at $17/hour" in the text and 17-17 in the field state the same pay.
+  return (near(a.min, b.min) && (a.max === null || b.max === null || a.max === a.min || b.max === b.min))
+    || (near(a.max, b.max) && (a.min === null || b.min === null));
 }
 
 /** All facts of one posting. Deterministic and offline. */

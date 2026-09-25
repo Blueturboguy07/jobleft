@@ -94,10 +94,10 @@ const PERIOD_FILLER = /^(?:\s*(?:gross|brutto|brut|bruts|brute|bruto|brutos|brut
 
 const PERIOD_AFTER: Array<[RegExp, PayPeriod]> = [
   [/^\s*(?:\/|per|an|a|each|la|por|par|pro|de\s+l'|l')\s*(?:hours?|hrs?|horas?|heures?|stunden?|std|ora)(?![a-z])/i, 'hour'],
-  [/^\s*\/\s*(?:per\s+)?(?:h|hr|hrs|hour)(?![a-z])/i, 'hour'],
+  [/^\s*(?:per\s*)?\/\s*(?:per\s+|an?\s+)?(?:h|hr|hrs|hour)(?![a-z])/i, 'hour'],
   [/^\s*(?:hourly|p\/h|ph|p\.h\.|an?\s+hr|hr)(?![a-z])/i, 'hour'],
   [/^\s*(?:\/|per|an|a|al|por|par|pro|all'|l')\s*(?:years?|yrs?|annum|anos?|años?|an|jahr|anno)(?![a-z])/i, 'year'],
-  [/^\s*\/\s*(?:per\s+)?(?:yearly|annually|annum|y|yr|year)(?![a-z])/i, 'year'],
+  [/^\s*(?:per\s*)?\/\s*(?:per\s+|an?\s+)?(?:yearly|annually|annum|y|yr|year)(?![a-z])/i, 'year'],
   [/^\s*(?:annual(?:ly)?|yearly|per\s+annum|p\.\s?a\.?|pa|anual(?:es)?|annuel(?:le)?s?|jährlich|jahrlich|annui|annuo|annua|anuais|lpa)(?![a-z])/i, 'year'],
   [/^\s*(?:\/|per|a|al|por|par|pro|au)\s*(?:months?|mo|mos|mth|mes|meses|mois|monat|mese|mês)(?![a-z])/i, 'month'],
   [/^\s*\/\s*(?:per\s+)?(?:m|mo|month|mth)(?![a-z])/i, 'month'],
@@ -120,7 +120,10 @@ const PERIOD_BEFORE: Array<[RegExp, PayPeriod]> = [
   [/\b(?:daily|per\s+day|a\s+day|day\s+rate|daily\s+rate|diario)\b|日給|일급/gi, 'day'],
 ];
 
-function periodAfter(s: string): { period: PayPeriod; len: number } | null {
+function periodAfter(s0: string): { period: PayPeriod; len: number } | null {
+  // A period word on the next line starts a new item ("$135,000 - $182,000\nAnnual incentive potential").
+  const nl = s0.indexOf('\n');
+  const s = nl >= 0 ? s0.slice(0, nl) : s0;
   const filler = PERIOD_FILLER.exec(s);
   const skip = filler ? filler[0].length : 0;
   const rest = s.slice(skip);
@@ -154,7 +157,7 @@ const STRONG_EXCL = new RegExp('\\b(?:' + [
   'assets', 'aum', 'loans?', 'credits?', 'discounts?', 'donat\\w*', 'grants?', 'prizes?', 'awards?', 'fees?', 'costs?',
   'prices?', 'pricing', 'deposits?', 'coverage', 'lifetime', 'vouchers?', 'tickets?', 'gift', 'cell\\s?phone', 'phone',
   'internet', 'gym', 'wellness', 'meals?', 'lunch\\w*', 'commut\\w*', 'transit', 'parking', 'housing', 'rent', 'home\\s+office',
-  'equipment', 'learning', 'conference', 'books?', 'certifications?', 'licens\\w*', 'ceus?', 'insurance', 'deductible',
+  'equipment', 'learning', 'conference', 'books?', '(?:certification|license|licensing|licensure|exam)\\s+(?:fees?|costs?)', 'ceus?', 'insurance', 'deductible',
   'copay', 'savings', 'facilit\\w*', 'deals?', 'acv', 'tcv', 'quota', 'portfolio', 'volume', 'transactions?', 'spend\\w*',
   'valued?', 'worth', 'fines?', 'penalt\\w*', 'damages', 'settlement',
   'scholarships?', 'minimum\\s+wage', 'return\\s+offer', 'full[- ]time\\s+offer', 'paid\\s+time\\s+off', 'pto', 'valeur',
@@ -413,7 +416,8 @@ function contextKind(text: string, start: number, end: number, prevEnd: number, 
   const tc = lastMatch(TOTAL_CUE, before);
   const add = lastMatch(ADDITIVE, before);
   const nearestCue = Math.max(pc?.at ?? -1, bc?.at ?? -1, tc?.at ?? -1);
-  if (ex && ex.at > nearestCue && isExcl(ex)) excluded = true;
+  const insideTotal = !!(ex && tc && ex.at >= tc.at && ex.at < tc.end);
+  if (ex && !insideTotal && ex.at > nearestCue && isExcl(ex)) excluded = true;
   // "$48/hr plus a $4/hr night differential": a figure added to an earlier one in the same clause is not the base.
   if (add && add.at > nearestCue && prevEnd > cs) excluded = true;
   if (excluded) return { kind, excluded, cue: false };
@@ -463,6 +467,8 @@ function buildCandidates(text: string, opts: PayParseOptions): Cand[] {
       noMarker = true;
     }
     let va = a.value, vb = b ? b.value : null;
+    // A dropped zero ("$90,00 to $130,000", "$130,00 - $190,000"): the short side is thousands too.
+    if (b && vb !== null && va < 1000 && vb >= 10000 && /^\d{2,3},\d{2}$/.test(text.slice(a.start, a.end).replace(/^[^\d]+/, '').trim())) va *= 1000;
     // "$120-150k", "120k - 150": a "k" on one side belongs to both.
     if (b) {
       if (a.mult === 'k' && !b.mult && vb !== null && vb < 1000 && va >= 1000) vb *= 1000;

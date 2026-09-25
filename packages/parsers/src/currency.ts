@@ -52,7 +52,8 @@ const MARKERS: Record<string, string> = {
  * Plain "$" is returned as "$" so the caller can resolve it by country.
  */
 export const CUR_PRE = new RegExp(
-  '(?:^|[^A-Za-z])(' + [
+  // Letter codes need a non-letter before them ("USD 5"); symbols may follow a word ("from$300,000").
+  '(?:(?:^|[^A-Za-z])(?=[A-Z])|(?=[^A-Za-z]))(' + [
     'US\\s?\\$', 'U\\.S\\.\\s?\\$', 'USD\\s?\\$?', '\\$\\s?USD', 'CA\\$', 'CAN\\$', 'C\\$', 'CAD\\s?\\$?', 'AU\\$', 'A\\$', 'AUD\\s?\\$?',
     'NZ\\$', 'NZD\\s?\\$?', 'S\\$', 'SGD\\s?\\$?', 'HK\\$', 'HKD\\s?\\$?', 'R\\$', 'BRL', 'MX\\$', 'MXN\\s?\\$?', 'NT\\$',
     '\\$', '€', 'EUR', '£', 'GBP', '¥', 'JPY', 'CNY', 'RMB', '₹', 'INR', 'Rs\\.?', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN',
