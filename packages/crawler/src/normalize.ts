@@ -59,8 +59,11 @@ export function canonicalizeUrl(url: string, opts: CanonOptions = {}): string {
   kept.sort((a, b) => (a[0] === b[0] ? (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) : a[0] < b[0] ? -1 : 1));
   const path = u.pathname.replace(/\/+$/, '') || '/';
   const q = new URLSearchParams(kept).toString();
-  // Force https, lower-case host, default ports dropped by URL itself, fragment dropped.
-  return `https://${u.host.toLowerCase().replace(/:(80|443)$/, '')}${path}${q ? '?' + q : ''}`;
+  // A route fragment ("#/jobs/123", "#!/jobs/123") is how a one-page careers site names a posting: it is kept. Any
+  // other fragment (an anchor such as "#apply") is dropped.
+  const route = /^#!?\//.test(u.hash) ? u.hash : '';
+  // Force https, lower-case host, default ports dropped by URL itself.
+  return `https://${u.host.toLowerCase().replace(/:(80|443)$/, '')}${path}${q ? '?' + q : ''}${route}`;
 }
 
 const WS = /\s+/g;

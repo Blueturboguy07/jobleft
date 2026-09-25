@@ -16,7 +16,7 @@ import type { MockBoard, MockJob, MockMode, MockServer } from '../testkit/mock-b
 export { startMockBoards };
 export type { MockBoard, MockJob, MockMode, MockServer };
 
-export const TEST_UA = 'jobleft/0.1 (contact: TBD)';
+export const TEST_UA = 'jobleft-build/0.1 (research build; no personal data)';
 
 export function tempDir(): { dir: string; cleanup: () => void } {
   const dir = mkdtempSync('/private/tmp/jobleft-crawler-test-');

@@ -39,7 +39,7 @@ function tryHook<T>(name: string, args: unknown[], check: (v: unknown) => v is T
  * board's stored validators are tied to it, so the next reading is a full one (not a 304) and every job is stored again
  * under the new rules.
  */
-export const NORMALIZER_VERSION = 2;
+export const NORMALIZER_VERSION = 3;
 
 /** Only absolute http(s) links survive; anything else (javascript:, file:, custom schemes, relative) is dropped. */
 export function httpUrl(v: string | null | undefined): string | null {
@@ -108,10 +108,31 @@ function isLevels(v: unknown): v is ExperienceLevel[] {
   return Array.isArray(v) && v.every((x) => (EXPERIENCE_LEVELS as readonly string[]).includes(x as string));
 }
 
-/** A key for "the same role": company, title and the places (in any order). */
-export function roleKeyOf(company: string, title: string, places: string[]): string {
+/**
+ * A key for "the same opening on another board": company, title, the places (in any order) and the posting's details
+ * (description words and pay). Two openings with the same title at the same company and place but a different text or
+ * pay are two jobs, so they get two keys.
+ */
+export function roleKeyOf(company: string, title: string, places: string[], details = ''): string {
   const p = places.map((x) => x.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()).filter(Boolean).sort().join('|');
-  return createHash('sha256').update(`${normalizeCompany(company)}|${normalizeTitle(title)}|${p}`).digest('hex');
+  return createHash('sha256').update(`${normalizeCompany(company)}|${normalizeTitle(title)}|${p}|${details}`).digest('hex');
+}
+
+/** The details part of a role key: the description's words (case and spacing ignored) and the pay figures. */
+function roleDetails(description: string, pay: Array<string | number | null>): string {
+  const words = description.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  return createHash('sha256').update(`${words}|${pay.map((x) => x ?? '').join('|')}`).digest('hex');
+}
+
+/**
+ * US or not, consistent with the places: a board country list wins; else any place whose country is US makes it US,
+ * and places that all name a non-US country make it not US. Otherwise the location text decides (null when unclear).
+ */
+function isUsOf(places: Place[], location: string, countries: string[]): boolean | null {
+  if (countries.length > 0) return isUsLocation(location, countries);
+  if (places.some((p) => p.country === 'US' || p.country === 'PR')) return true; // Puerto Rico counts as US, as in isUsLocation
+  if (places.length > 0 && places.every((p) => p.country !== null)) return false;
+  return isUsLocation(location, countries);
 }
 
 /** Returns null when the posting cannot be persisted (no id, no title or no web link); see skipReason(). */
@@ -214,7 +235,7 @@ export function normalizeJob(board: BoardRef, raw: RawJob): Job | null {
     location,
     remote,
     workMode: raw.workMode || (wm.workModel ?? ''),
-    isUs: isUsLocation(location, raw.countries),
+    isUs: isUsOf(places, location, raw.countries),
     level,
     levelSource,
     payMin, payMax, payCurrency, payPeriod,
@@ -238,7 +259,7 @@ export function normalizeJob(board: BoardRef, raw: RawJob): Job | null {
     evidence,
     payRanges,
     boardUpdatedAt: raw.boardUpdatedAt ?? null,
-    roleKey: roleKeyOf(company, title, uniqueTexts),
+    roleKey: roleKeyOf(company, title, uniqueTexts, roleDetails(description, [payMin, payMax, payCurrency, payPeriod])),
   };
   job.contentHash = contentHash([
     job.title, job.company, job.location, job.remote, job.workMode, job.level, job.payMin, job.payMax,

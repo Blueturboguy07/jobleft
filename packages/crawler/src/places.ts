@@ -103,6 +103,8 @@ export function parsePlace(text: string): Place {
   }
   const last = parts[parts.length - 1]!;
   let country = countryOf(last);
+  // "Toronto, ON, CA": after a Canadian province, "CA" is the country code of Canada, not California.
+  if (!country && parts.length >= 3 && last.toUpperCase() === 'CA' && CA_PROVINCES[parts[parts.length - 2]!.toUpperCase()]) country = 'CA';
   const rest = country ? parts.slice(0, -1) : parts;
   if (rest.length === 0) { place.country = country; return place; }
   const city = rest[0]!;

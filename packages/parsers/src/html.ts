@@ -53,8 +53,11 @@ export function htmlToText(input: string): string {
   // Collapse runs of blank lines to one.
   const out: string[] = [];
   let blank = 0;
+  let marker = false; // a list marker whose text starts on a later line (<li><p>Text</p></li>)
   for (const l of lines) {
-    if (l === '') { blank++; if (blank <= 1) out.push(''); } else { blank = 0; out.push(l); }
+    if (l === '-') { marker = true; continue; }
+    if (marker && l !== '') { marker = false; blank = 0; out.push(`- ${l}`); continue; }
+    if (l === '') { blank++; if (blank <= 1 && !marker) out.push(''); } else { blank = 0; out.push(l); }
   }
   return out.join('\n').trim();
 }

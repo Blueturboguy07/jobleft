@@ -30,17 +30,17 @@ function metadataEmploymentType(metadata: unknown[]): string {
   return '';
 }
 
-/** The unit a Greenhouse pay range states in its own words, or a safe guess from the size; '' when it cannot be told. */
-function rangePeriod(texts: string, hi: number): PayPeriod | '' {
+/**
+ * The unit a Greenhouse pay range states in its own words; '' when the range states none. Never guessed from the size
+ * of the figures: a range with no unit is not board pay (the posting text may still state the pay with its unit).
+ */
+function rangePeriod(texts: string): PayPeriod | '' {
   const t = texts.toLowerCase();
   if (/\b(per hour|hourly|\/\s?h(ou)?r|an hour)\b/.test(t)) return 'hour';
-  if (/\b(per year|annual|annually|yearly|\/\s?y(ea)?r|salary|per annum)\b/.test(t)) return 'year';
+  if (/\b(per year|annual|annually|yearly|\/\s?y(ea)?r|per annum)\b/.test(t)) return 'year';
   if (/\b(per month|monthly|\/\s?mo(nth)?)\b/.test(t)) return 'month';
   if (/\b(per week|weekly)\b/.test(t)) return 'week';
   if (/\b(per day|daily)\b/.test(t)) return 'day';
-  // No words: a wage-sized figure is hourly and a salary-sized figure is yearly. In between the unit is unknown.
-  if (hi > 0 && hi < 500) return 'hour';
-  if (hi >= 20_000) return 'year';
   return '';
 }
 
@@ -66,7 +66,7 @@ export function mapGreenhouse(j: Record<string, unknown>, board: BoardRef): RawJ
     const min = num(r.min_cents), max = num(r.max_cents);
     const lo = min === null ? null : min / 100, hi = max === null ? null : max / 100;
     const words = `${str(r.title)} ${str(r.blurb)}`;
-    const period = rangePeriod(words, hi ?? lo ?? 0);
+    const period = rangePeriod(words);
     pay = makePay(lo, hi, str(r.currency_type) || 'USD', period);
     if (pay) {
       payEvidence = `pay_input_ranges: ${str(r.title) ? str(r.title) + ' ' : ''}${lo ?? ''} to ${hi ?? ''} ${str(r.currency_type) || 'USD'}${str(r.blurb) ? ' (' + str(r.blurb).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200) + ')' : ''}`;

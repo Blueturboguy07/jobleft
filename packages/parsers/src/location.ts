@@ -19,16 +19,21 @@ const US_STATE_NAME_RE = new RegExp(
   'i',
 );
 
-// Places that are clearly not the US even when a token looks like a state code ("Toronto, ON, CA").
-const NON_US = new RegExp(
+// Countries and regions that are clearly not the US. They veto an ambiguous state code ("Toronto, ON, CA": CA is
+// Canada here) because they name the country itself.
+const NON_US_COUNTRY = new RegExp(
   '\\b(canada|united kingdom|uk|england|scotland|ireland|germany|france|spain|italy|netherlands|india|australia|' +
   'new zealand|singapore|brazil|mexico|japan|china|israel|poland|portugal|sweden|norway|denmark|finland|' +
   'switzerland|austria|belgium|romania|ukraine|philippines|argentina|colombia|chile|uae|dubai|nigeria|kenya|' +
   'south africa|egypt|turkey|hong kong|taiwan|korea|indonesia|vietnam|thailand|malaysia|pakistan|bangladesh|' +
-  'london|toronto|vancouver|montreal|ottawa|calgary|berlin|paris|dublin|sydney|melbourne|bengaluru|bangalore|' +
-  'tel aviv|amsterdam|lisbon|madrid|barcelona|warsaw|krakow|emea|apac|latam)\\b',
+  'emea|apac|latam)\\b',
   'i',
 );
+// Foreign cities. A city name alone says "not the US", but many US places share these names (Dublin, OH; Paris, TX;
+// Vancouver, WA), so a US state code or state name next to it always wins over the city.
+const NON_US_CITY = /\b(london|toronto|vancouver|montreal|ottawa|calgary|berlin|paris|dublin|sydney|melbourne|bengaluru|bangalore|tel aviv|amsterdam|lisbon|madrid|barcelona|warsaw|krakow)\b/i;
+// A Canadian province code after a comma: "CA" in the same place then means Canada, not California.
+const CA_PROVINCE_CODE = /,\s*(ON|QC|BC|AB|MB|SK|NS|NB|NL|PE|YT|NT|NU)\b/;
 
 const US_WORD = /\b(united states( of america)?|u\.s\.a?\.?|usa)\b/i;
 // A standalone upper-case "US" token: "Remote, US", "US-Remote", "(US)".
@@ -46,13 +51,15 @@ export function isUsLocation(location: string, countries: string[] = []): boolea
   const loc = (location ?? '').trim();
   if (!loc) return null;
   if (US_WORD.test(loc) || US_TOKEN.test(loc)) return true;
-  const nonUs = NON_US.test(loc);
-  if (US_STATE_NAME_RE.test(loc)) return !nonUs;
+  const nonUsCountry = NON_US_COUNTRY.test(loc) || CA_PROVINCE_CODE.test(loc);
+  if (US_STATE_NAME_RE.test(loc)) return !nonUsCountry;
   STATE_CODE.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = STATE_CODE.exec(loc)) !== null) {
-    if (US_STATES.has(m[1] ?? m[2])) return !nonUs; // "CA" also means Canada, so a named non-US place vetoes it
+    // "CA" also means Canada, so a named non-US country (or a Canadian province) vetoes it. A foreign city name never
+    // does: "Dublin, OH" is in the US.
+    if (US_STATES.has(m[1] ?? m[2])) return !nonUsCountry;
   }
-  if (nonUs) return false;
+  if (nonUsCountry || NON_US_CITY.test(loc)) return false;
   return null;
 }

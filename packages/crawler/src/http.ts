@@ -24,9 +24,18 @@ import type { RobotsRules } from './robots.ts';
 import type { HttpGetter } from './types.ts';
 
 /**
- * The research-build identity (development runs and tests). An HttpClient made without a `userAgent` option uses it.
- * The app and the CLI pass the configured identity instead (DEFAULT_USER_AGENT in config.ts: "jobleft/0.1 (contact: TBD)").
+ * The crawler identity, fixed in code. Every request carries it. An HttpClient refuses any other `userAgent` option,
+ * and it is never read from the environment, a profile, git, a config file or a flag.
  */
+/**
+ * JSON.parse reviver: an integer too large for a JS number (a Greenhouse id above 2^53) is kept as its exact digits,
+ * so two different ids never collapse into one rounded number.
+ */
+export function keepBigIntegers(_key: string, value: unknown, ctx?: { source?: string }): unknown {
+  if (typeof value === 'number' && !Number.isSafeInteger(value) && ctx?.source && /^-?\d+$/.test(ctx.source)) return ctx.source;
+  return value;
+}
+
 export const USER_AGENT = 'jobleft-build/0.1 (research build; no personal data)';
 /** The robots.txt product token of USER_AGENT. A robots group for "jobleft" also matches it (prefix rule). */
 export const PRODUCT_TOKEN = 'jobleft-build';
@@ -207,6 +216,8 @@ export class Pacer {
    */
   marginMs = 100;
   private next = new Map<string, number>();
+  /** Start (or answer) time of the last request to each host. Every gap is measured from it, with the caller's delay. */
+  private last = new Map<string, number>();
   private blocked = new Map<string, number>();
   private now: () => number;
   private sleep: (ms: number) => Promise<void>;
@@ -221,8 +232,12 @@ export class Pacer {
     const gap = Math.max(this.intervalMs, extraIntervalMs) + this.marginMs;
     for (let guard = 0; guard < 1000; guard++) {
       const t = this.now();
-      const start = Math.max(t, this.next.get(host) ?? 0, this.blocked.get(host) ?? 0);
+      // The gap of THIS request counts from the last request, whatever gap that one used: a robots.txt Crawl-delay
+      // learnt after the robots.txt request (or in an earlier run) still spaces the next request by the full delay.
+      const lastAt = this.last.get(host);
+      const start = Math.max(t, this.next.get(host) ?? 0, lastAt === undefined ? 0 : lastAt + gap, this.blocked.get(host) ?? 0);
       this.next.set(host, start + gap);
+      this.last.set(host, start);
       if (start > t) await this.sleep(start - t);
       if ((this.blocked.get(host) ?? 0) <= this.now()) return;
     }
@@ -235,6 +250,7 @@ export class Pacer {
   /** Continue the spacing from a request made earlier (for example by the previous run). */
   seed(host: string, lastRequestMs: number, gapMs = this.intervalMs): void {
     this.next.set(host, Math.max(this.next.get(host) ?? 0, lastRequestMs + Math.max(this.intervalMs, gapMs)));
+    this.last.set(host, Math.max(this.last.get(host) ?? 0, lastRequestMs));
   }
 }
 
@@ -371,7 +387,9 @@ export class HttpClient implements HttpGetter {
 
   constructor(opts: HttpOptions = {}) {
     this.hostMap = checkHostMap(opts.hostMap ?? {});
-    this.userAgent = checkUserAgent(opts.userAgent ?? USER_AGENT);
+    const ua = checkUserAgent(opts.userAgent ?? USER_AGENT);
+    if (ua !== USER_AGENT) throw new Error(`the crawler identity is fixed in code ("${USER_AGENT}") and cannot be changed`);
+    this.userAgent = ua;
     this.productToken = productTokenOf(this.userAgent);
     this.fetchImpl = opts.fetchImpl ?? nodeTransport({ allowLocal: (u) => loopbackOrigin(u.origin) !== null });
     this.pacer = opts.pacer ?? new Pacer();
@@ -541,7 +559,8 @@ export class HttpClient implements HttpGetter {
         return ALLOW_ALL;
       };
       if (kept && kept.expiresAtMs > now) return fromRecord(kept);
-      await this.pacer.wait(host);
+      // Re-reading an expired robots.txt keeps the Crawl-delay it last stated.
+      await this.pacer.wait(host, kept ? fromRecord(kept).crawlDelayMs : 0);
       const headers = this.baseHeaders('text/plain');
       if (kept && !kept.problem && kept.status >= 200 && kept.status < 300) {
         if (kept.etag) headers['if-none-match'] = kept.etag;
@@ -733,7 +752,7 @@ export function parseJobJson(r: HttpResult): unknown {
     throw new NotJobDataError(r.url, 'web_page', `the reply is a web page (${ct || 'no content type'}), not job data`);
   }
   if (r.body.trim() === '') throw new NotJobDataError(r.url, 'broken', 'the reply is empty');
-  try { return JSON.parse(r.body); } catch (e) {
+  try { return JSON.parse(r.body, keepBigIntegers); } catch (e) {
     const msg = (e as Error).message;
     const cut = /unexpected end|unterminated|end of (json )?input/i.test(msg);
     throw new NotJobDataError(r.url, cut ? 'cut_off' : 'broken', cut ? `the reply stops before the job data is complete (${msg})` : `the reply is not valid JSON (${msg})`);

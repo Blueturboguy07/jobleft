@@ -3,8 +3,10 @@
 // Identity: UNIQUE (ats, board, job_id). A re-crawl is idempotent, an edited posting is updated in place, and two
 // postings with different ids on one board are ALWAYS two jobs (even with the same title, place or page URL).
 // Two routes to one posting:
-//   * the same canonical URL on ANOTHER board is the same posting: it is credited (job_sources), not stored twice;
-//   * the same company, title and places on ANOTHER board is a repeat of the role: stored, flagged `duplicate_of`.
+//   * the same canonical URL AND the same company and title on ANOTHER board is the same posting: it is credited
+//     (job_sources), not stored twice. A shared link alone never merges (two employers may share a generic careers link);
+//   * the same company, title, places, description and pay on ANOTHER board is a repeat of the role: stored, flagged
+//     `duplicate_of`. A different description or pay is a different opening, never hidden.
 // Cheap path: an unchanged open posting only gets last_seen refreshed.
 // Lifecycle: soft close only (`closed_at`); a closed row keeps every detail, and a posting that reappears reopens.
 // A posting closes only when complete, clean readings of its board stopped listing it (see recordReading).
@@ -388,7 +390,8 @@ export class Store {
     ).get(j.ats, j.board, j.jobId) as { id: number; content_hash: string; closed_at: string | null; duplicate_of: number | null; role_key: string | null } | undefined;
 
     if (existing) {
-      if (existing.content_hash === j.contentHash && existing.closed_at === null) {
+      // Unchanged only when the role key is unchanged too: a new key (new rules) must re-check the duplicate flag.
+      if (existing.content_hash === j.contentHash && existing.closed_at === null && existing.role_key === (j.roleKey ?? null)) {
         this.st('UPDATE jobs SET last_seen = ?, miss_count = 0, first_missed_at = NULL WHERE id = ?').run(now, existing.id);
         this.credit(existing.id, j, now);
         return { status: 'unchanged', dupRole: false, row: existing.id };
@@ -413,9 +416,10 @@ export class Store {
       return { status: 'updated', dupRole: dup !== null, row: existing.id };
     }
 
-    // New identity. The same canonical URL on ANOTHER board is the same posting reached by a second route: credit it.
-    const urlOwner = this.st('SELECT id FROM jobs WHERE canonical_url = ? AND NOT (ats = ? AND board = ?) ORDER BY id LIMIT 1')
-      .get(j.canonicalUrl, j.ats, j.board) as { id: number } | undefined;
+    // New identity. The same canonical URL with the same company and title on ANOTHER board is the same posting reached
+    // by a second route: credit it. A generic link shared by different postings is not enough.
+    const urlOwner = this.st('SELECT id FROM jobs WHERE canonical_url = ? AND dedup_hash = ? AND NOT (ats = ? AND board = ?) ORDER BY id LIMIT 1')
+      .get(j.canonicalUrl, j.dedupHash, j.ats, j.board) as { id: number } | undefined;
     if (urlOwner) {
       this.credit(urlOwner.id, j, now);
       return { status: 'dupUrl', dupRole: false, row: urlOwner.id };

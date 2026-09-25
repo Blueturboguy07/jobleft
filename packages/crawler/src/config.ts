@@ -3,8 +3,11 @@
 
 import { readFileSync } from 'node:fs';
 
-/** The product identity. The owner replaces "TBD" with a project contact address (plan section 9, item 3). */
-export const DEFAULT_USER_AGENT = 'jobleft/0.1 (contact: TBD)';
+/**
+ * The crawler identity, fixed in code (docs/INTERFACES.md: USER_AGENT). It is never read from the environment, a
+ * profile, git, a config file or a flag: a config or flag that names another identity is refused.
+ */
+export const DEFAULT_USER_AGENT = 'jobleft-build/0.1 (research build; no personal data)';
 
 export interface CrawlerConfig {
   /** Sent on every request. Must name jobleft and its version; never a browser identity, never a personal address. */
@@ -96,6 +99,15 @@ export function productTokenOf(ua: string): string {
   return ua.trim().split('/')[0]!.toLowerCase();
 }
 
+/** The identity is fixed: the only accepted value is DEFAULT_USER_AGENT itself. */
+function fixedUserAgent(v: unknown): string {
+  const s = String(v ?? '').trim();
+  if (s !== DEFAULT_USER_AGENT) {
+    throw new ConfigError(`the crawler identity is fixed in code ("${DEFAULT_USER_AGENT}") and cannot be changed`);
+  }
+  return s;
+}
+
 function num(v: unknown, name: string, min: number, max: number): number {
   const n = typeof v === 'string' ? Number(v) : v;
   if (typeof n !== 'number' || !Number.isFinite(n)) throw new ConfigError(`${name} must be a number`);
@@ -112,7 +124,7 @@ export function makeConfig(partial: Partial<Record<keyof CrawlerConfig, unknown>
   for (const k of Object.keys(partial)) if (!known.has(k)) throw new ConfigError(`unknown crawler setting "${k}"`);
   const m = { ...DEFAULT_CONFIG, ...Object.fromEntries(Object.entries(partial).filter(([, v]) => v !== undefined)) } as Record<string, unknown>;
   return {
-    userAgent: checkUserAgent(String(m.userAgent)),
+    userAgent: fixedUserAgent(m.userAgent),
     // Below one hour only for mock boards; the scheduler checks that (see Scheduler).
     refreshHours: num(m.refreshHours, 'refreshHours', 1 / 60, 24 * 30),
     confirmHours: num(m.confirmHours, 'confirmHours', 1 / 60, 72),

@@ -89,7 +89,8 @@ test('O2: nothing is invented: no pay, date or place stays empty; benefit money 
     assert.deepEqual([w.pay?.min, w.pay?.max, w.pay?.period, w.pay?.source], [18.5, 22, 'hour', 'description']);
     assert.match(w.evidence.pay?.text ?? '', /18\.50 - \$22\.00 per hour/);
     assert.equal(by.get('3')!.pay, null, 'a sign-on bonus range is not pay');
-    assert.equal(by.get('4')!.pay, null, 'a single figure is not turned into a range');
+    // A single stated wage is pay with the same number and unit (min = max), never widened into a range.
+    assert.deepEqual([by.get('4')!.pay?.min, by.get('4')!.pay?.max, by.get('4')!.pay?.period], [45, 45, 'hour']);
     assert.deepEqual(by.get('4')!.places.map((p) => [p.text, p.country]), [['Remote', null]], 'Remote names no country');
     assert.equal(by.get('4')!.workModel, 'remote');
     assert.deepEqual([by.get('5')!.pay?.min, by.get('5')!.pay?.max, by.get('5')!.pay?.period], [4000, 5000, 'month']);

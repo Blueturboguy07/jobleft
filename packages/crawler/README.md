@@ -51,7 +51,7 @@ package also names it `jobleft-crawl` in its `bin` field. Below, `jobleft-crawl`
              www.linkedin.com is a LinkedIn site; jobleft never contacts LinkedIn; nothing was sent
    skipped   https://acme.wd5.myworkdayjobs.com/en-US/External
              acme.wd5.myworkdayjobs.com is a Workday site; Workday sources are off until the owner turns them on; nothing was sent
-   jobleft-crawl run: 4 board(s), database /private/tmp/jl/jobleft.db, clock 2026-09-25T07:02:42Z, identity "jobleft/0.1 (contact: TBD)"
+   jobleft-crawl run: 4 board(s), database /private/tmp/jl/jobleft.db, clock 2026-09-25T07:02:42Z, identity "jobleft-build/0.1 (research build; no personal data)"
    ok          greenhouse:acme-health            listed     3  new 3  updated 0  same 0  1 req  1.1s
    ok          lever:northwind-logistics         listed     2  new 2  updated 0  same 0  1 req  2.2s
    ok          ashby:brightline-energy           listed     2  new 2  updated 0  same 0  1 req  3.3s
@@ -165,7 +165,7 @@ not on this computer. The same board listed twice is crawled once.
 | `report --db <file> [--run <id\|last>]` | Coverage numbers of the database, or the report of one run |
 | `search --db <file> --q <words>` | Open jobs that hold all the words |
 
-Common flags: `--config <file.json>` (section 8), `--user-agent "<identity>"`, `--refresh 24h`, `--confirm 2h`,
+Common flags: `--config <file.json>` (section 8), `--refresh 24h`, `--confirm 2h`,
 `--max-requests <n>`, `--timeout 60s`, `--now <RFC 3339>`, `--clock-offset <duration>`. Durations: `90s`, `30m`,
 `48h`, `3d`. Exit codes: 0 done, 1 error, 2 wrong usage, 3 offline (`JOBLEFT_OFFLINE=1`), 4 another crawler holds the
 database, 130 stopped by Ctrl+C.
@@ -223,19 +223,19 @@ accepted only when every board is a mock server on this computer; real boards re
 
 | Rule | Detail |
 |---|---|
-| One honest identity | Every request carries `user-agent: jobleft/0.1 (contact: TBD)` (from the config) and only these headers: `host`, `connection`, `user-agent`, `accept`, `accept-encoding`, and `if-none-match` / `if-modified-since` on a conditional request. No cookie, no referrer, no install id. The identity must start with `jobleft/<version>`; a browser word (Mozilla, Chrome, Safari, ...) or a personal e-mail address is refused. It is never read from a profile, git or the environment |
+| One honest identity | Every request carries `user-agent: jobleft-build/0.1 (research build; no personal data)` (fixed in code; a config value or `--user-agent` flag that names another identity is refused) and only these headers: `host`, `connection`, `user-agent`, `accept`, `accept-encoding`, and `if-none-match` / `if-modified-since` on a conditional request. No cookie, no referrer, no install id. The identity must start with `jobleft/<version>`; a browser word (Mozilla, Chrome, Safari, ...) or a personal e-mail address is refused. It is never read from a profile, git or the environment |
 | Nothing personal leaves | A crawl request holds no name, e-mail, resume, profile, search words or filters. The crawler contacts only the boards and their `robots.txt`. It sends the job store and the board list nowhere |
 | Never-crawl hosts | LinkedIn, Indeed, Glassdoor, SmartRecruiters: refused before any request, also as redirect targets. Workday, iCIMS, Oracle, UKG, Taleo: refused unless the owner turns the family on in code (`allowHeldBack`); off by default |
 | No local network | A host that is this computer or the local network (by address or by name, checked when the connection is made) is refused, except a loopback mock named by a board `origin` or `JOBLEFT_HOST_MAP` |
 | Redirects | Never followed. The report names the target (and says when it is a never-crawl host, a local address or a loop) |
-| 1 request per second per host | Requests to one host start at least 1.1 s apart (1 s plus a margin), across concurrent boards, retries, robots.txt, and across runs (the last request time is kept in the database). A longer `Crawl-delay` in robots.txt wins |
+| 1 request per second per host | Requests to one host start at least 1.1 s apart (1 s plus a margin), across concurrent boards, retries, robots.txt, and across runs (the last request time is kept in the database). A longer `Crawl-delay` in robots.txt wins, for every request to that host: counted from the robots.txt request itself, and across runs |
 | robots.txt | Read once per host and kept 24 hours. A disallowed path gets no request. A robots.txt that answers a server error, a redirect, 429 or nothing means "do not crawl this host now" (tried again after 30 minutes), never "all allowed". A 404 means no rules |
 | "Too many requests" | 429 or 503 with `Retry-After`: the host gets no request until then (up to 120 s inside a run; longer, and its boards wait for a later run). 429 without a time: 60 s. Two refusals (403/429) in a row: the host is left alone for 30 minutes |
 | Failing boards | A board that failed before is asked once, without retries. The scheduler asks it again after 1 h, 4 h, 12 h, 1 day, 2 days, 4 days, then weekly (scaled to the refresh period), until it answers well. Server errors on a host lower the retries for its other boards; 6 in a row stop that host for the run |
 | Bounded work | A reply over 64 MB is not read (read as a stream, so memory stays bounded). A request has 60 s in total (headers and body). A board has 300 s. A board that lists more than 10,000 postings is refused as a whole. A run sends at most 5,000 requests; boards left over wait for the next run. At most 3 boards of one host and 8 boards overall are in flight; one hung board holds one slot only |
-| Facts, never inventions | Title, company, every place the board lists, pay (a board field first, else a wage line of the posting text; a bonus, 401(k) or stipend figure is never pay), the unit as stated (hour, month, year), the posted date (Greenhouse `first_published`, Lever `createdAt`, Ashby `publishedAt`; never the crawl time, never the board's "updated" stamp), work model, employment type, level. Anything not stated is `null` or `[]`. Each shown fact names its evidence |
+| Facts, never inventions | Title, company, every place the board lists, pay (a board field first, else a wage line of the posting text, a range or a single figure such as "Pay: $45 per hour"; a bonus, 401(k), HRA or stipend figure is never pay), the figures exactly as the board states them (cents kept: $18.50 stays 18.5), the unit only as stated (hour, month, year; a board range that states no unit is not shown as board pay), the posted date (Greenhouse `first_published`, Lever `createdAt`, Ashby `publishedAt`; never the crawl time, never the board's "updated" stamp), work model, employment type, level. Anything not stated is `null` or `[]`. Each shown fact names its evidence |
 | Text stays text | The description is plain text (lists become `- ` lines, headings their own lines); scripts, images, frames and links are removed as markup. A `url` or `applyUrl` that is not `http(s)` is dropped; a posting with no web link at all is not stored (the report says so) |
-| Identity of a job | `(ats, board, board's job id)`. The same posting read again is updated in place (an edited title or text never makes a second job). Two ids on one board are always two jobs, even with the same title, place or page link. The same page link on another board is the same posting: it is credited to both, stored once. The same company, title and places on another board is a repeat: kept, flagged `duplicateOf`, hidden from the job list until the first copy closes |
+| Identity of a job | `(ats, board, board's job id)`. The same posting read again is updated in place (an edited title or text never makes a second job). Two ids on one board are always two jobs, even with the same title, place or page link. The same page link with the same company and title on another board is the same posting: it is credited to both, stored once (a generic link shared by different postings never merges them; a route fragment such as `#/jobs/123` is part of the link). The same company, title, places, description and pay on another board is a repeat: kept, flagged `duplicateOf`, hidden from the job list until the first copy closes. A different description or pay is a different opening and always shows. Ids above 2^53 keep their exact digits |
 | Closing | A job closes only when its board answered with its whole list, cleanly (no failure, at least one posting, at most 5% unreadable), and a second reading confirms that it is gone: 2 hours later (the scheduler re-checks the board then), or in the same run when the job was last seen more than 48 hours ago. A reappearing job reopens. A closed job keeps every detail |
 | A failed crawl closes nothing | A server error, a timeout, a cut-off or broken reply, a web page, a reply that is not a job list, a Greenhouse reply shorter than its own `meta.total`, "not found", a refusal or a redirect: the board's jobs stay as they were, and the board status names the reason |
 | Mass-close guard | A reading that would close more than half of a board with 10 or more open jobs is held ("held for review") and closes nothing. The same drop, read 3 times over 24 hours, is accepted |
@@ -252,7 +252,7 @@ is an example.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `userAgent` | `jobleft/0.1 (contact: TBD)` | The identity. The owner replaces `TBD` with a project address |
+| `userAgent` | `jobleft-build/0.1 (research build; no personal data)` | The identity. Fixed in code: any other value is refused |
 | `refreshHours` | 24 | A healthy board is read again after this long |
 | `confirmHours` | 2 | A missing job is confirmed (and closed) by a reading this long after the first miss (at most half the refresh) |
 | `graceHours` | 48 | A job last seen this long ago closes on a confirmed miss inside one run |
@@ -293,7 +293,7 @@ Only for people allowed to send live requests. It sends about one request per bo
 at most one request a second per host:
 
 ```sh
-node packages/crawler/src/cli.ts run --boards packages/crawler/examples/boards.live.json --db /private/tmp/jl/live.db --user-agent "jobleft/0.1 (contact: TBD)"
+node packages/crawler/src/cli.ts run --boards packages/crawler/examples/boards.live.json --db /private/tmp/jl/live.db
 node packages/crawler/src/cli.ts jobs --db /private/tmp/jl/live.db --format lines | head -20
 ```
 
@@ -305,7 +305,7 @@ Each job's `url` is the posting's own page from the board (`absolute_url`, `host
 import { Store, runOnce, Scheduler, makeConfig, crawlerClock, queryJobs, SOURCES } from '@jobleft/crawler';
 
 const store = new Store('/path/jobleft.db');          // or new Store(db) with the app's one DatabaseSync
-const config = makeConfig({ userAgent: 'jobleft/0.1 (contact: TBD)' });
+const config = makeConfig();
 const clock = crawlerClock(store);
 await runOnce({ store, config, clock, sources: { ...SOURCES /*, ...ATS_SOURCES */ } }, { reason: 'manual', boards, retryFailing: true });
 const page = queryJobs(store.db, { status: 'open', q: 'registered nurse' });   // contract Job records
@@ -329,7 +329,7 @@ A database written by a newer build is refused with a plain message and left unt
 
 | Command | What it does |
 |---|---|
-| `pnpm --filter @jobleft/crawler test` | 96 tests, about 15 s: the 64 ported S1 tests (2 dedupe tests rewritten for outcome O5, see `test/store.test.ts`), unit tests, and end-to-end tests on loopback mock boards (facts, closing, failures, dedupe, real-pace politeness, hostile boards, kill-and-resume through the CLI, scheduler and time-skip) |
+| `pnpm --filter @jobleft/crawler test` | 105 tests, about 15 s: the 64 ported S1 tests (2 dedupe tests rewritten for outcome O5, see `test/store.test.ts`), unit tests, and end-to-end tests on loopback mock boards (facts, closing, failures, dedupe, real-pace politeness, hostile boards, kill-and-resume through the CLI, scheduler and time-skip) |
 | `pnpm --filter @jobleft/crawler typecheck` | Type-check |
 
 No test sends a request off this computer.

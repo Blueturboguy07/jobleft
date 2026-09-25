@@ -75,7 +75,8 @@ function duration(v: string, name: string): number {
 
 function configFrom(args: Record<string, string>): CrawlerConfig {
   const o: Record<string, unknown> = {};
-  if (args['user-agent']) o.userAgent = args['user-agent'];
+  // The identity is fixed in code: --user-agent may only repeat it; any other value is refused by makeConfig.
+  if (args['user-agent'] !== undefined) o.userAgent = args['user-agent'];
   if (args.refresh) o.refreshHours = duration(args.refresh, 'refresh') / 3_600_000;
   if (args.confirm) o.confirmHours = duration(args.confirm, 'confirm') / 3_600_000;
   if (args['max-requests']) o.maxRequestsPerRun = Number(args['max-requests']);
@@ -360,7 +361,9 @@ function cmdJobs(args: Record<string, string>): number {
         const where = j.places.length ? j.places.map((p) => p.text).join('; ') : '(place not stated)';
         const posted = j.postedAt ? j.postedAt.slice(0, 10) : 'not stated';
         const unseen = now - Date.parse(j.lastSeenAt);
-        console.log(`${j.status.padEnd(7)}${j.id} | ${j.title} | ${j.company} | ${where}${pay} | posted ${posted} | last seen ${j.lastSeenAt}${unseen > 36 * 3600 * 1000 ? ` (not confirmed for ${formatDuration(unseen)})` : ''}${j.closedAt ? ` | closed ${j.closedAt}` : ''}`);
+        // Board text never reaches the terminal as control codes (escape sequences, bells, carriage returns).
+        const line = `${j.status.padEnd(7)}${j.id} | ${j.title} | ${j.company} | ${where}${pay} | posted ${posted} | last seen ${j.lastSeenAt}${unseen > 36 * 3600 * 1000 ? ` (not confirmed for ${formatDuration(unseen)})` : ''}${j.closedAt ? ` | closed ${j.closedAt}` : ''}`;
+        console.log(line.replace(/[\u0000-\u001f\u007f-\u009f]/g, ''));
       }
       console.log(`${page.total} job(s): ${page.open} open, ${page.closed} closed${page.nextCursor ? ` (more: --cursor ${page.nextCursor})` : ''}`);
       return 0;
@@ -424,7 +427,7 @@ function verifyUrl(b: BoardRef): string {
 async function cmdVerifyBoards(args: Record<string, string>): Promise<number> {
   const list = readJson<BoardRef[]>(need(args, 'in'));
   const cfg = configFrom(args);
-  const http = new HttpClient({ userAgent: args['user-agent'] ? cfg.userAgent : USER_AGENT, maxRequests: Number(args['max-requests'] ?? 3000), hostMap: hostMapFromEnv() });
+  const http = new HttpClient({ userAgent: cfg.userAgent, maxRequests: Number(args['max-requests'] ?? 3000), hostMap: hostMapFromEnv() });
   const queues = new Map<string, BoardRef[]>();
   for (const b of list) { const h = hostFor(b.ats, b.region); (queues.get(h) ?? queues.set(h, []).get(h)!).push(b); }
   const rows: VerifyRow[] = [];
@@ -604,7 +607,7 @@ const HELP = `jobleft-crawl <command> [--flags]
   report    [--db <file>] [--run <id|last>]    Coverage report of the database, or the report of one run.
   search    --q <words> [--db <file>]          Open jobs that hold all the words.
 
-Common flags: --config <file.json>, --user-agent "<jobleft/x.y (contact)>", --refresh 24h, --confirm 2h,
+Common flags: --config <file.json>, --refresh 24h, --confirm 2h,
   --max-requests <n>, --now <RFC 3339>, --clock-offset <72h>.
 Environment: JOBLEFT_HOME (default database folder), JOBLEFT_HOST_MAP (real host -> loopback mock),
   JOBLEFT_NOW / JOBLEFT_CLOCK_OFFSET (time-skip), JOBLEFT_OFFLINE=1 (send nothing).`;

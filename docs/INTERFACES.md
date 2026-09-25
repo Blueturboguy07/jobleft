@@ -149,12 +149,10 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_LOG_LEVEL` | server | `info` | `error`, `warn`, `info`, `debug`. No level logs personal text, keys or tokens |
 | `CARGO_TARGET_DIR` | shell builds | `<main checkout>/.cache/cargo-target` | The one shared Cargo target dir (every worktree uses the main checkout's) |
 
-The User-Agent of every crawl request comes from the crawler config (`CrawlerConfig.userAgent`, default
-`DEFAULT_USER_AGENT` = `jobleft/0.1 (contact: TBD)`; the owner replaces TBD with a project contact address). It must
-start with `jobleft/<version>`, may not name a browser and may not hold a personal e-mail address (`checkUserAgent`).
-It is never read from the environment, a profile or git. `USER_AGENT` (`jobleft-build/0.1 (research build; no personal
-data)`) is the research-build identity: an `HttpClient` made without a `userAgent` option uses it, and development runs
-against live boards pass it explicitly.
+The User-Agent of every crawl request is fixed in code: `USER_AGENT` = `DEFAULT_USER_AGENT` =
+`jobleft-build/0.1 (research build; no personal data)`. It is never read from the environment, a profile, git, a
+config file or a flag. `makeConfig` refuses a `userAgent` that differs from it, the CLI refuses `--user-agent`, and
+`new HttpClient({ userAgent })` refuses any other value.
 
 ## 5. Start the whole app
 

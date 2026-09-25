@@ -38,10 +38,13 @@ export function workplaceTypeMode(t: string): WorkMode {
 
 export function workModeFromRemote(remote: boolean): WorkMode { return remote ? 'remote' : ''; }
 
-/** freehire `roundSalaryPart`: round; a non-positive value means "not set". */
+/**
+ * A board's pay figure as the board states it. A non-positive value means "not set". Cents are kept ($18.50 stays
+ * 18.5): only float noise from cent arithmetic (1850 / 100) is removed, to two decimals. Never rounded to whole units.
+ */
 export function roundSalaryPart(v: number | null): number | null {
   if (v === null || !(v > 0)) return null;
-  return Math.round(v);
+  return Math.round(v * 100) / 100;
 }
 
 /** freehire employment-type mapping by keyword containment (Lever, Greenhouse metadata). */

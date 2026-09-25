@@ -117,6 +117,65 @@ export function parsePayFromText(text: string): ParsedPay | null {
     if (!plausible(min, max, period)) continue;
     found.push({ pay: { min, max, currency: cur1, period }, cued });
   }
-  if (found.length === 0) return null;
-  return (found.find((f) => f.cued) ?? found[0]).pay;
+  if (found.length > 0) return (found.find((f) => f.cued) ?? found[0]).pay;
+  return parseSingleWage(text);
+}
+
+// A single-figure wage: "Pay: $45 per hour.", "Compensation for this role is $30/hour.", "Starting at $20/hr.".
+// Stricter than a range: a wage word must lead into the figure on the same line, and the unit must follow the figure.
+const SINGLE_SRC = `(${CUR})\\s?${NUM}${K}`;
+const SINGLE_CUE = /\b(pay|paid|salary|compensation|wages?|hourly rate|pay rate|rate of pay|starting at|starts at|starting|earn(ing)?s?)\b/i;
+const SINGLE_REJECT = /\b(up to|as much as|stipend|bonus|benefits?|hra|hsa|fsa|reimburse\w*|allowance|tuition|commuter|relocation|referral|401|match|equity|stock|per diem|gift|credit)\b/i;
+
+/**
+ * A line that is nothing but a figure and its unit ("$30 per hour.") is a wage when a neighbouring line talks about pay
+ * ("The hourly pay range is posted ...") and the line before it is not about a benefit, bonus or stipend.
+ */
+function standaloneWage(text: string, lineStart: number, figureEnd: number): boolean {
+  const lineEndIdx = text.indexOf('\n', figureEnd);
+  const lineEnd = lineEndIdx < 0 ? text.length : lineEndIdx;
+  const line = text.slice(lineStart, lineEnd).trim();
+  if (!new RegExp(`^${CUR}\\s?[\\d,.]+(?:\\s?[kK])?\\s*(?:\\/|per\\s+|an?\\s+)\\s*(?:hour|hr|year|yr|annum|month|week)\\.?$`, 'i').test(line)) return false;
+  const lines = text.split('\n');
+  const idx = text.slice(0, lineStart).split('\n').length - 1;
+  const near = (step: number): string => {
+    for (let i = idx + step; i >= 0 && i < lines.length; i += step) if (lines[i]!.trim()) return lines[i]!.trim();
+    return '';
+  };
+  const prev = near(-1), next = near(1);
+  if (SINGLE_REJECT.test(prev)) return false;
+  return /\b(pay|salary|compensation|wages?|hourly)\b/i.test(prev) || /\b(pay|salary|compensation|wages?|hourly)\b/i.test(next);
+}
+
+function parseSingleWage(text: string): ParsedPay | null {
+  const re = new RegExp(SINGLE_SRC, 'gi');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const currency = currencyOf(m[1]);
+    if (!currency) continue;
+    const lineStart = text.lastIndexOf('\n', m.index) + 1;
+    const before = text.slice(Math.max(lineStart, m.index - 80), m.index);
+    // Part of a range ("$20 - $25") is the range parser's business, not a single figure.
+    if (/(?:-|–|—|\bto|\band|\bthrough)\s*$/i.test(before)) continue;
+    const end = m.index + m[0].length;
+    const tail = text.slice(end, end + 40);
+    const cue = SINGLE_CUE.exec(before);
+    if (cue) {
+      if (SINGLE_REJECT.test(before.slice(cue.index)) || /\b(?:up to|as much as)\s*$/i.test(before)) continue;
+    } else if (!standaloneWage(text, lineStart, end)) continue;
+    if (TAIL_REJECT.test(tail)) continue;
+    let period: PayPeriod | null = null;
+    let periodLen = 0;
+    for (const [pr, p] of PERIOD_AFTER) {
+      const pm = pr.exec(tail);
+      if (pm) { period = p; periodLen = pm[0].length; break; }
+    }
+    if (!period) continue; // a single figure needs its unit stated right after it
+    // "$28/hour to $47/hour" is a range with mid periods, handled (or refused) by the range parser.
+    if (/^\s*(?:-|–|—|to\b|and\b|through\b)\s*[$€£\d]/i.test(tail.slice(periodLen))) continue;
+    const v = amount(m[2], m[3]);
+    if (!plausible(v, v, period)) continue;
+    return { min: v, max: v, currency, period };
+  }
+  return null;
 }
