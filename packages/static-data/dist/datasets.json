@@ -25,7 +25,7 @@
       "sequence": 20260925,
       "dataThrough": "2026-09-02",
       "licence": "Public domain (USGS GNIS; Natural Earth)",
-      "attribution": "US places: USGS Geographic Names Information System (GNIS). World cities: Made with Natural Earth (naturalearthdata.com). Both are public domain; the credit is given as a courtesy.",
+      "attribution": "US places: USGS Geographic Names Information System (GNIS). World cities: Made with Natural Earth (naturalearthdata.com). Both are public domain; the attribution is given as a courtesy.",
       "sourceUrl": "https://www.usgs.gov/tools/geographic-names-information-system-gnis",
       "builtAt": "2026-09-25T00:00:00.000Z"
     }

@@ -1,0 +1,388 @@
+{
+  "jobs@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 10301
+  },
+  "jobs_liked@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 3001
+  },
+  "jobs_applied@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1830
+  },
+  "jobs_external@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1162
+  },
+  "jobs_hidden@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1571
+  },
+  "DETAIL@1024x640": {
+    "noName": [],
+    "lowContrast": [
+      {
+        "text": "Close (Esc)",
+        "ratio": 1.08,
+        "color": "rgb(255, 255, 255)",
+        "cls": "ant-tooltip-inner"
+      }
+    ],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 22413
+  },
+  "tracker@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1639
+  },
+  "dashboard@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1036
+  },
+  "resume@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 426
+  },
+  "profile@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1204
+  },
+  "network@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1198
+  },
+  "network_people@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1198
+  },
+  "interview@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 590
+  },
+  "assistant@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 670
+  },
+  "settings_ai@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1479
+  },
+  "settings_balance@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [
+      "$0 found"
+    ],
+    "text": 968
+  },
+  "settings_alerts@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 774
+  },
+  "settings_sources@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 2751
+  },
+  "settings_data@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 2958
+  },
+  "settings_extension@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 701
+  },
+  "settings_about@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1058
+  },
+  "notifications@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 430
+  },
+  "onboarding@1024x640": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 535
+  },
+  "jobs@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 11626
+  },
+  "jobs_liked@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 3001
+  },
+  "jobs_applied@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1830
+  },
+  "jobs_external@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1162
+  },
+  "jobs_hidden@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1571
+  },
+  "DETAIL@1440x900": {
+    "noName": [],
+    "lowContrast": [
+      {
+        "text": "Close (Esc)",
+        "ratio": 1.08,
+        "color": "rgb(255, 255, 255)",
+        "cls": "ant-tooltip-inner"
+      }
+    ],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 23998
+  },
+  "tracker@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1639
+  },
+  "dashboard@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1036
+  },
+  "resume@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 426
+  },
+  "profile@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1355
+  },
+  "network@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1198
+  },
+  "network_people@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1198
+  },
+  "interview@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 590
+  },
+  "assistant@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 670
+  },
+  "settings_ai@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1479
+  },
+  "settings_balance@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [
+      "$0 found"
+    ],
+    "text": 969
+  },
+  "settings_alerts@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 774
+  },
+  "settings_sources@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 2751
+  },
+  "settings_data@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 2958
+  },
+  "settings_extension@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 701
+  },
+  "settings_about@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 1058
+  },
+  "notifications@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 430
+  },
+  "onboarding@1440x900": {
+    "noName": [],
+    "lowContrast": [],
+    "overflowX": false,
+    "offscreen": [],
+    "banned": [],
+    "text": 535
+  }
+}

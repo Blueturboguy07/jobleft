@@ -235,7 +235,7 @@ export async function buildPlacesTable(opts: BuildPlacesOptions): Promise<{ path
     licence: useGeoNames ? 'US places: public domain (USGS). World cities: GeoNames, CC BY 4.0.' : 'Public domain (USGS GNIS; Natural Earth)',
     attribution: useGeoNames
       ? 'US places: USGS Geographic Names Information System. World cities: GeoNames (https://www.geonames.org/), licensed under CC BY 4.0.'
-      : 'US places: USGS Geographic Names Information System (GNIS). World cities: Made with Natural Earth (naturalearthdata.com). Both are public domain; the credit is given as a courtesy.',
+      : 'US places: USGS Geographic Names Information System (GNIS). World cities: Made with Natural Earth (naturalearthdata.com). Both are public domain; the attribution is given as a courtesy.',
     sourceUrl: 'https://www.usgs.gov/tools/geographic-names-information-system-gnis',
   };
   const table: PlacesTable = {

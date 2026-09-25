@@ -71,9 +71,16 @@ export function useApi<T>(key: string | null, fetcher: () => Promise<T>, opts: {
   const snap = useSyncExternalStore(subscribe, () => entry(k).snapshot);
   useEffect(() => {
     if (!key) return;
-    const en = entry(key);
-    const stale = opts.staleMs ?? (STABLE.test(key) ? Infinity : STALE_MS);
-    if (!en.loading && (!en.loaded || opts.revalidate || Date.now() - en.loadedAt > stale)) void load(key);
+    // Checked when the subscriber mounts and again on every screen change: the shell's badges never remount, and the
+    // browser extension or a refresh can change their counts while the app is open.
+    const check = () => {
+      const en = entry(key);
+      const stale = opts.staleMs ?? (STABLE.test(key) ? Infinity : STALE_MS);
+      if (!en.loading && (!en.loaded || opts.revalidate || Date.now() - en.loadedAt > stale)) void load(key);
+    };
+    check();
+    window.addEventListener('hashchange', check);
+    return () => window.removeEventListener('hashchange', check);
   }, [key]);
   const reload = useCallback(() => (key ? load(key) : Promise.resolve()), [key]);
   return { ...(snap as Snapshot<T>), reload };
