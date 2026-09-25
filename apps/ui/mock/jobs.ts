@@ -107,7 +107,7 @@ export interface MappedJob {
 }
 
 /** Posting -> contract Job. `seen` carries firstSeenAt from an earlier crawl, so a re-crawl keeps it. */
-export function toJob(board: BoardFile, p: RawPosting, seen: { firstSeenAt: string; lastSeenAt: string; fn: string | null }): Job {
+export function toJob(board: BoardFile, p: RawPosting, seen: { firstSeenAt: string; lastSeenAt: string }): Job {
   const evidence: Job['evidence'] = {};
   const text = p.description;
   const id = `${board.ats}:${board.board}:${p.externalId}`.toLowerCase();

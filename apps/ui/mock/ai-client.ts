@@ -86,8 +86,9 @@ function cap(s: string): string {
 }
 
 async function failFromResponse(t: Target, res: Response): Promise<ApiFail> {
-  let body: { error?: { code?: string; message?: string; link?: { label: string; url: string } } } | null = null;
-  try { body = await res.json() as typeof body; } catch { /* not JSON */ }
+  type ErrBody = { error?: { code?: string; message?: string; link?: { label: string; url: string } } };
+  let body: ErrBody | null = null;
+  try { body = (await res.json()) as ErrBody; } catch { body = null; }
   if (res.status === 402) {
     const link = body?.error?.link ?? null;
     return new ApiFail('insufficient_balance', 402, 'Your publik balance is too low for this step, so nothing was charged. Add money to your balance to continue.', link ?? { label: 'Add money to your balance', url: 'https://publik.invalid/top-up' });
