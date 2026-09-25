@@ -56,7 +56,7 @@ export function rawFromHtml(url: string, html: string): RawJob {
     const period = PERIODS[String(sal?.unitText ?? '').toUpperCase()];
     const min = num(sal?.minValue ?? sal?.value), max = num(sal?.maxValue);
     const currency = String(posting.baseSalary?.currency ?? '').toUpperCase();
-    const posted = typeof posting.datePosted === 'string' && Number.isFinite(Date.parse(posting.datePosted)) ? new Date(Date.parse(posting.datePosted)).toISOString() : null;
+    const posted = typeof posting.datePosted === 'string' ? statedDate(posting.datePosted) : null;
     return {
       externalId: hash16(url), url, applyUrl: '', title: htmlToText(String(posting.title ?? '')).trim(), company: htmlToText(company).trim(),
       location: places.join('; ') || (remote ? 'Remote' : ''), descriptionHtml: String(posting.description ?? ''), remote,
@@ -73,14 +73,59 @@ export function rawFromHtml(url: string, html: string): RawJob {
   };
 }
 
-/** A RawJob from pasted text. The first line is the title; a "Company:" line or "Title at Company" names the employer. */
+/**
+ * A date the source states. A plain date (no time) is kept at 12:00 UTC, so it is the same calendar day in every
+ * US time zone and never moves by a day on display. A date-time keeps its own instant. Anything else is null.
+ */
+export function statedDate(v: string): string | null {
+  const s = v.trim();
+  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (d) {
+    const t = Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]), 12);
+    const back = new Date(t);
+    return back.getUTCFullYear() === Number(d[1]) && back.getUTCMonth() === Number(d[2]) - 1 && back.getUTCDate() === Number(d[3]) ? back.toISOString() : null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i.test(s) && Number.isFinite(Date.parse(s))) return new Date(Date.parse(s)).toISOString();
+  // A date-time with no zone states the day but not the instant: keep the day, as a plain date.
+  const local = /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.exec(s);
+  if (local) return statedDate(local[1]!);
+  return null;
+}
+
+const WORK_MODES: Record<string, RawJob['workMode']> = { remote: 'remote', hybrid: 'hybrid', 'on-site': 'onsite', onsite: 'onsite', 'on site': 'onsite', 'in office': 'onsite', 'in-office': 'onsite' };
+const TEXT_EMPLOYMENT: Array<[RegExp, string]> = [[/^full[- ]?time$/i, 'full_time'], [/^part[- ]?time$/i, 'part_time'], [/^(contract|contractor|temporary|temp)$/i, 'contract'], [/^(intern|internship)$/i, 'internship']];
+
+/**
+ * A RawJob from pasted text. The first line is the title; a "Company:" line or "Title at Company" names the employer.
+ * Only LABELLED lines give facts ("Location:", "Workplace:", "Employment type:", "Department:", "Posted:"), plus a
+ * line that is only "Remote", "Hybrid" or "On-site". Pay comes from the text through the crawler's own pay parser.
+ * Nothing is guessed: a fact the text does not label stays unknown.
+ */
 export function rawFromText(text: string, applyUrl: string | null): RawJob {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   let title = [...(lines[0] ?? '')].slice(0, 200).join('');
   let company: string | null = null;
-  for (const l of lines.slice(0, 15)) {
-    const m = /^(company|employer|organization|organisation)\s*[:\-–]\s*(.{1,120})$/i.exec(l);
-    if (m) { company = m[2]!.trim(); break; }
+  let location = '';
+  let workMode: RawJob['workMode'] = '';
+  let employmentType = '';
+  let department = '';
+  let postedAt: string | null = null;
+  for (const l of lines.slice(1, 40)) {
+    const m = /^([A-Za-z][A-Za-z ]{1,24}?)\s*[:\-–]\s*(.{1,200})$/.exec(l);
+    const whole = WORK_MODES[l.toLowerCase().replace(/[.!]$/, '')];
+    if (whole && !workMode) { workMode = whole; continue; }
+    if (!m) continue;
+    const label = m[1]!.trim().toLowerCase();
+    const value = m[2]!.trim();
+    if (!company && /^(company|employer|organization|organisation)$/.test(label)) company = value.slice(0, 120);
+    else if (!location && /^(location|locations|job location|office|city)$/.test(label)) location = value;
+    else if (!workMode && /^(workplace|workplace type|work model|work mode|work type|remote)$/.test(label)) {
+      const k = value.toLowerCase().replace(/[.!]$/, '');
+      workMode = WORK_MODES[k] ?? (label === 'remote' && /^(yes|true)$/i.test(value) ? 'remote' : '');
+    } else if (!employmentType && /^(employment type|job type|type|schedule)$/.test(label)) {
+      employmentType = TEXT_EMPLOYMENT.find(([re]) => re.test(value))?.[1] ?? '';
+    } else if (!department && /^(department|team)$/.test(label)) department = value.slice(0, 120);
+    else if (!postedAt && /^(posted|date posted|posted on|posting date)$/.test(label)) postedAt = statedDate(value);
   }
   const at = /^(.{3,160}?)\s+(?:at|@)\s+([A-Z0-9][\w&.,'’ -]{1,80})$/.exec(title);
   if (!company && at) { company = at[2]!.trim(); title = at[1]!.trim(); }
@@ -88,8 +133,8 @@ export function rawFromText(text: string, applyUrl: string | null): RawJob {
   const id = hash16(text);
   return {
     externalId: id, url: applyUrl ?? `https://${NO_LINK_HOST}/job/${id}`, applyUrl: applyUrl ?? '', title,
-    company: company ?? 'Company not stated', location: '', descriptionHtml: escaped, remote: false, workMode: '', countries: [],
-    postedAt: null, employmentType: '', department: '', pay: null,
+    company: company ?? 'Company not stated', location, descriptionHtml: escaped, remote: workMode === 'remote', workMode, countries: [],
+    postedAt, employmentType, department, pay: null,
   };
 }
 

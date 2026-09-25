@@ -1322,7 +1322,9 @@ connection in a worker thread for crawls (so a board's write transaction never d
 INTERIM stand-ins in `apps/server/src/interim/` (tables `srv_*`); the routes whose lanes have no stand-in answer
 `503 not_ready` with a plain sentence. Interim `exportResume`: an uploaded resume answers its own uploaded file, byte
 for byte, when `format` matches the upload's type (`pdf` for a PDF, `docx` for a Word file); a rendered export is the
-resume lane's and answers `503 not_ready` until it lands. At integration each lane's package replaces its stand-in
+resume lane's and answers `503 not_ready` until it lands. Interim `addExternalJob` with pasted text reads only labelled
+lines (`Company:`, `Location:`, `Workplace:`, `Employment type:`, `Department:`, `Posted:`); a date without a time
+(pasted, or JSON-LD `datePosted`) is stored at 12:00 UTC of that day. At integration each lane's package replaces its stand-in
 (`apps/server/README.md`, section 13).
 
 Backup format (route `backup`): one zip. `manifest.json` (`format: "jobleft-backup"`, `formatVersion: 1`, app version,

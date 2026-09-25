@@ -120,6 +120,17 @@ test('facts that a job does not state stay null; pay, dates and text come back a
     assert.equal(list.items[0].h1bTag, null);
     assert.equal(list.items[0].match, null);
     assert.equal(list.items[0].networkCount, null);
+    // Labelled lines give facts, exactly as stated; a plain date stays on its day in every US time zone.
+    const text = 'Payroll Analyst\nCompany: Beta LLC\nLocation: Denver, CO\nWorkplace: Hybrid\nEmployment type: Part-time\nPosted: 2026-09-20\nSalary: $120K to $150K per year';
+    const r = await s.call('POST', '/api/v1/jobs/external', { text });
+    assert.equal(r.status, 200, r.text);
+    const k = r.json.job;
+    assert.deepEqual([k.title, k.company, k.workModel, k.employmentType], ['Payroll Analyst', 'Beta LLC', 'hybrid', 'part_time']);
+    assert.equal(k.places[0].text, 'Denver, CO');
+    assert.equal(k.postedAt, '2026-09-20T12:00:00.000Z');
+    assert.deepEqual([k.pay.min, k.pay.max, k.pay.period], [120000, 150000, 'year']);
+    const bare = (await s.call('POST', '/api/v1/jobs/external', { text: 'Barista\nCompany: Gamma Cafe\nWe roast beans in Denver.\nPosted: last week' })).json.job;
+    assert.deepEqual([bare.workModel, bare.postedAt, bare.places.length], [null, null, 0], 'unlabelled or unclear facts stay unknown');
   } finally { await s.stop(); cleanup(s.home); }
 });
 

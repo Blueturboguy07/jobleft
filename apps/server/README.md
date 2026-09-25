@@ -161,6 +161,13 @@ Useful writes for the "one change of each kind" checks:
 
 Times are stored exactly as you send them (for example `2026-10-01T09:00:00+02:00` comes back as that text).
 
+A job added as pasted text takes facts only from LABELLED lines: the first line is the title; `Company:`,
+`Location:`, `Workplace:` (Remote, Hybrid, On-site; a line that is only one of these words also counts),
+`Employment type:` (Full-time, Part-time, Contract, Internship), `Department:` and `Posted:` (`YYYY-MM-DD` or an
+RFC 3339 date-time). Pay is read from the text by the crawler's pay parser. Any other fact stays `null`. A date
+without a time (in pasted text or a page's JSON-LD `datePosted`) is kept as `YYYY-MM-DDT12:00:00.000Z`, so it is the
+same calendar day in every US time zone; a date-time keeps its own instant, in UTC.
+
 ### 5.1 Count per kind through the API
 
 While the server runs, this command reads every kind of record through the API (with the token from
