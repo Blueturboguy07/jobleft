@@ -13,6 +13,14 @@ import { useAiSettings } from '../../app/session.ts';
 import { AiNote, afterAiStep, ensureAiConsent } from '../../components/AiNote.tsx';
 import { InlineError, Loading } from '../../components/States.tsx';
 
+function changeLabel(field: string): string {
+  if (field === 'skills.order') return 'Change to the order of your skills (no skill is added)';
+  if (field === 'bullets.order') return 'Change to the order of the bullets under one job (no bullet is changed)';
+  if (field === 'summary') return 'Change to your summary';
+  if (field.startsWith('bullets[')) return 'Change to one bullet';
+  return 'Change to your resume';
+}
+
 function useResumes() {
   return useApi<Resume[]>('resumes', () => call('listResumes'));
 }
@@ -49,6 +57,7 @@ export function TailorDrawer({ job, open, onClose }: { job: Job; open: boolean; 
       const p = await call('tailorResume', { params: { resumeId }, body: { jobId: job.id } });
       setProp(p);
       setAccept(p.changes.map((c) => c.id));
+      invalidate('ai:publik');
       afterAiStep((p as TailorProposal & { costMicros?: number | null }).costMicros);
     } catch (e) { setErr(e as UiError); invalidate('ai:publik'); } finally { setBusy(null); }
   };
@@ -68,8 +77,8 @@ export function TailorDrawer({ job, open, onClose }: { job: Job; open: boolean; 
     <Drawer open={open} width="min(760px, 94vw)" title={`Tailor a resume for ${job.title}`} onClose={async () => { if (await confirmDiscard(prop ? ['the tailoring draft'] : [])) { setProp(null); onClose(); } }}
       footer={prop && (
         <div className="jl-row">
-          <span className="jl-grow jl-muted">{accept.length} of {prop.changes.length} changes chosen. Your base resume stays as it is.</span>
-          <Button shape="round" onClick={() => setProp(null)}>Discard draft</Button>
+          <span className="jl-grow jl-muted">{accept.length} of {prop.changes.length} changes chosen. {accept.length ? 'Your base resume stays as it is.' : 'With none chosen, nothing is saved and your base resume is what you download.'}</span>
+          <Button shape="round" onClick={() => setProp(null)}>{accept.length ? 'Discard draft' : 'Keep my base resume as it is'}</Button>
           <Button type="primary" shape="round" loading={busy === 'save'} disabled={!accept.length} onClick={() => { void save(); }}>Save tailored version</Button>
         </div>
       )}>
@@ -89,14 +98,23 @@ export function TailorDrawer({ job, open, onClose }: { job: Job; open: boolean; 
               <div key={c.id} className="jl-factbox" style={{ display: 'flex', gap: 12 }}>
                 <Checkbox checked={accept.includes(c.id)} onChange={(e) => setAccept(e.target.checked ? [...accept, c.id] : accept.filter((x) => x !== c.id))} aria-label={`Keep this change to ${c.field}`} />
                 <div className="jl-grow" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span className="jl-small jl-muted">Change to {c.field === 'tags' ? 'your skills list' : c.field === 'text' ? 'your summary' : 'a bullet'}</span>
-                  <del style={{ color: 'var(--jl-text3)' }}>{c.before}</del>
-                  <span><strong>{c.after}</strong></span>
+                  <span className="jl-small jl-muted">{changeLabel(c.field)}</span>
+                  <span className="jl-small jl-muted">Before</span>
+                  <del style={{ color: 'var(--jl-text3)', whiteSpace: 'pre-wrap' }}>{c.before}</del>
+                  <span className="jl-small jl-muted">After</span>
+                  <span style={{ whiteSpace: 'pre-wrap' }}><strong>{c.after}</strong></span>
                   {c.warning && <span className="jl-chip warn" style={{ alignSelf: 'flex-start' }}>{c.warning}</span>}
                 </div>
               </div>
             ))}
-            {prop.gaps.length > 0 && <Alert type="warning" showIcon message="The job asks for things your profile does not show" description={<>jobleft does not add them: {prop.gaps.join(', ')}. If you have them, add them to your profile first.</>} />}
+            {prop.notice && <Alert type="info" showIcon message={prop.notice} />}
+            {prop.gaps.length > 0 && (
+              <Alert type="warning" showIcon message="Not on your resume"
+                description={<>
+                  <div className="jl-row jl-wrap" style={{ margin: '4px 0' }}>{prop.gaps.map((g) => <Tag key={g}>{g}</Tag>)}</div>
+                  The job asks for these and your profile does not show them, so jobleft does not add them. If one is true, add it to your profile yourself; nothing goes on a resume until you do.
+                </>} />
+            )}
             {prop.violations.length > 0 && <Alert type="info" showIcon message="Removed from the draft" description={<ul style={{ margin: 0, paddingLeft: 18 }}>{prop.violations.map((v, i) => <li key={i}>{v.reason}</li>)}</ul>} />}
           </>
         )}

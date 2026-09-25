@@ -107,7 +107,7 @@ export function ResumeEditor({ id }: { id: string }) {
   if (!r.data || !doc) return <div className="jl-page"><Loading label="Opening the resume" /></div>;
   const res = r.data;
 
-  const save = async (overwrite = false) => {
+  const save = async (overwrite = false, docToSave: ResumeDocument = doc) => {
     setBusy('save'); setErr(null);
     try {
       // another window may have saved this resume since it was opened here: ask before overwriting it
@@ -115,7 +115,7 @@ export function ResumeEditor({ id }: { id: string }) {
         const latest = await call('getResume', { params: { resumeId: id } });
         if (openedAt.current && latest.updatedAt !== openedAt.current) { setNewer(latest); return; }
       }
-      const clean: ResumeDocument = { ...doc, sections: doc.sections.map((s) => ({ ...s, items: s.items.map((i) => ({ ...i, bullets: i.bullets.map((b) => b.trim()).filter(Boolean) })) })) };
+      const clean: ResumeDocument = { ...docToSave, sections: docToSave.sections.map((s) => ({ ...s, items: s.items.map((i) => ({ ...i, bullets: i.bullets.map((b) => b.trim()).filter(Boolean) })) })) };
       const n = await call('updateResume', { params: { resumeId: id }, body: { document: clean } });
       setCached<Resume>(`resume:${id}`, () => n);
       setDoc(structuredClone(n.document));
@@ -134,6 +134,20 @@ export function ResumeEditor({ id }: { id: string }) {
       setReport(true);
     } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
+  // A cut bullet comes back when the person moves it up in its entry: the bullets at the end of an entry go first.
+  const keepLine = async (text: string) => {
+    if (dirty) { ui.message?.info('Save your changes first.'); return; }
+    const next = structuredClone(doc);
+    let moved = false;
+    for (const sec of next.sections) for (const it of sec.items) {
+      const k = it.bullets.indexOf(text);
+      if (k > 0 && !moved) { it.bullets.splice(k, 1); it.bullets.unshift(text); moved = true; }
+    }
+    if (!moved) { ui.message?.info('That line is already first in its entry. To bring it back, shorten or remove another line, then check again.'); return; }
+    setDoc(next);
+    await save(false, next);
+  };
+  const cuts = fit.data && !fit.data.fitsOnePage ? fit.data.leftOut : [];
   const setSection = (i: number, s: ResumeSection) => setDoc({ ...doc, sections: doc.sections.map((x, j) => (j === i ? s : x)) });
   const moveSection = (i: number, d: -1 | 1) => { const s = [...doc.sections]; const j = i + d; if (j < 0 || j >= s.length) return; [s[i], s[j]] = [s[j]!, s[i]!]; setDoc({ ...doc, sections: s }); };
   const rep = res.atsReport;
@@ -150,7 +164,11 @@ export function ResumeEditor({ id }: { id: string }) {
           <Button shape="round" icon={<SafetyCertificateOutlined />} loading={busy === 'ats'} onClick={() => { void ats(); }}>Check readability</Button>
           <Dropdown trigger={['click']} menu={{ items: [{ key: 'pdf', label: 'One-page PDF' }, { key: 'docx', label: 'Word (.docx)' }], onClick: async ({ key }) => {
             if (dirty) { ui.message?.info('Save your changes first.'); return; }
-            try { const f = await download('exportResume', { params: { resumeId: id }, query: { format: key as 'pdf' | 'docx' } }); ui.message?.success(`Saved ${f} to your Downloads.`); } catch (e) { ui.message?.error((e as UiError).message); }
+            try {
+              const f = await download('exportResume', { params: { resumeId: id }, query: { format: key as 'pdf' | 'docx' } });
+              if (cuts.length) ui.message?.warning(`Saved ${f} to your Downloads. To fit one page it leaves out ${plural(cuts.length, 'item')}; the list is above.`);
+              else ui.message?.success(`Saved ${f} to your Downloads.`);
+            } catch (e) { ui.message?.error((e as UiError).message); }
           } }}>
             <Button shape="round" icon={<DownloadOutlined />}>Export</Button>
           </Dropdown>
@@ -169,6 +187,25 @@ export function ResumeEditor({ id }: { id: string }) {
           <div className="jl-sev optional"><strong>{count('optional')}</strong> <span className="jl-small">nice to fix</span></div>
         </div>
         {newer && <div style={{ marginBottom: 12 }}><ConflictNotice what="resume" busy={busy === 'save'} onKeepMine={() => { setNewer(null); void save(true); }} onLoadNewer={() => { setCached<Resume>(`resume:${id}`, () => newer); setDoc(structuredClone(newer.document)); openedAt.current = newer.updatedAt; setNewer(null); }} /></div>}
+        {cuts.length > 0 && (
+          <Alert type="warning" showIcon style={{ marginBottom: 12 }} message={`The PDF and the Word file fit one page by leaving out ${plural(cuts.length, 'item')}`}
+            description={
+              <div>
+                <p style={{ margin: '0 0 6px' }}>Nothing is deleted: everything stays in this resume. To bring a line back into the files, move it up in its entry (another line at the end of an entry is left out instead), or shorten or remove another line.</p>
+                <ul style={{ margin: 0, paddingLeft: 18 }} aria-label="Left out of the files">
+                  {cuts.map((c) => {
+                    const m = /^(.*): bullet "([\s\S]*)"$/.exec(c);
+                    return (
+                      <li key={c} style={{ overflowWrap: 'anywhere' }}>
+                        {c}{' '}
+                        {m && <Button size="small" type="link" onClick={() => { void keepLine(m[2]!); }} aria-label={`Undo this cut: ${m[2]!.slice(0, 40)}`}>Undo this cut</Button>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            } />
+        )}
         <InlineError error={err} onRetry={err ? () => { void save(); } : undefined} />
         {dirty && <p className="jl-small" style={{ color: 'var(--jl-warn)', margin: '8px 0' }} role="status">You have unsaved changes.</p>}
         <div className="jl-paper" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>

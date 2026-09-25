@@ -15,26 +15,13 @@ import { useProfile } from '../app/session.ts';
 import { Art } from '../components/Art.tsx';
 import { EmptyState, ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { ago, dateText, plural } from '../lib/format.ts';
+import { importChanges, mergeImported } from '../lib/importMerge.ts';
+import { toInput } from './Profile.tsx';
 
 export const useResumeList = () => useApi<Resume[]>('resumes', () => call('listResumes'));
 
 const MAX = 10 * 1024 * 1024;
 const TYPES: Record<string, string> = { pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
-
-function profileDiff(cur: ProfileInput | undefined, next: ProfileInput): string[] {
-  const out: string[] = [];
-  const name = (p?: ProfileInput) => [p?.personal.firstName, p?.personal.lastName].filter(Boolean).join(' ');
-  if (name(next) && name(next) !== name(cur)) out.push(`Name: ${name(next)}`);
-  if (next.personal.email && next.personal.email !== cur?.personal.email) out.push(`Email: ${next.personal.email}`);
-  if (next.personal.phone && next.personal.phone !== cur?.personal.phone) out.push(`Phone: ${next.personal.phone}`);
-  if (next.personal.city && next.personal.city !== cur?.personal.city) out.push(`City: ${[next.personal.city, next.personal.region].filter(Boolean).join(', ')}`);
-  if (next.summary && next.summary !== cur?.summary) out.push('Summary');
-  if (JSON.stringify(next.work.map((w) => [w.company, w.title])) !== JSON.stringify(cur?.work.map((w) => [w.company, w.title]))) out.push(`Work experience: ${plural(next.work.length, 'job')}`);
-  if (JSON.stringify(next.education.map((e) => e.school)) !== JSON.stringify(cur?.education.map((e) => e.school))) out.push(`Education: ${plural(next.education.length, 'school')}`);
-  const newSkills = next.skills.map((s) => s.name).filter((s) => !cur?.skills.some((c) => c.name.toLowerCase() === s.toLowerCase()));
-  if (newSkills.length) out.push(`New skills: ${newSkills.join(', ')}`);
-  return out;
-}
 
 function ReportView({ r }: { r: ImportReport }) {
   return (
@@ -72,7 +59,8 @@ export function AddResumeModal({ open, onClose }: { open: boolean; onClose: () =
     if (!result) return;
     setBusy(true);
     try {
-      await call('putProfile', { body: result.proposed });
+      // Only the facts the file states change; preferences, work authorization and answers stay as they are.
+      await call('putProfile', { body: profile.data ? mergeImported(toInput(profile.data), result.proposed) : result.proposed });
       invalidate('profile', 'jobs:', 'job:', 'match:');
       ui.message?.success('Profile updated from your resume.');
       onClose(); reset();
@@ -88,7 +76,8 @@ export function AddResumeModal({ open, onClose }: { open: boolean; onClose: () =
       navigate(`resume/${encodeURIComponent(r.id)}`);
     } catch (e) { setErr(e as UiError); } finally { setBusy(false); }
   };
-  const diff = result ? profileDiff(profile.data, result.proposed) : [];
+  const changes = result ? importChanges(profile.data ? toInput(profile.data) : undefined, result.proposed) : { lines: [], replaces: [] };
+  const diff = changes.lines;
   return (
     <Modal open={open} onCancel={() => { onClose(); reset(); }} footer={null} width={640} title={result ? 'Resume added' : 'Add a resume'} destroyOnClose>
       {!result && mode === 'choose' && (
@@ -119,7 +108,11 @@ export function AddResumeModal({ open, onClose }: { open: boolean; onClose: () =
             <div className="jl-factbox">
               <strong>Use these facts from the file in your profile?</strong>
               <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{diff.map((d) => <li key={d}>{d}</li>)}</ul>
-              <p className="jl-small jl-muted" style={{ marginTop: 6 }}>Your profile drives your match scores. Nothing changes unless you press the button.</p>
+              {changes.replaces.length > 0 && (
+                <Alert style={{ marginTop: 8 }} type="warning" showIcon message="This would replace changes you made to your profile"
+                  description={<ul style={{ margin: 0, paddingLeft: 18 }}>{changes.replaces.map((d) => <li key={d}>{d}</li>)}</ul>} />
+              )}
+              <p className="jl-small jl-muted" style={{ marginTop: 6 }}>Your profile drives your match scores. Nothing changes unless you press the button. Your job preferences and answers are never changed by a file.</p>
             </div>
           ) : <p className="jl-muted">Your profile already has these facts.</p>}
           <Space wrap>
@@ -184,6 +177,17 @@ export function ResumeScreen() {
                   ),
                 },
                 { title: 'Target job title', key: 't', render: (_, r) => r.targetTitle ?? <span className="jl-muted">Not set</span> },
+                {
+                  title: 'For job', key: 'j', render: (_, r) => r.kind === 'tailored' && r.jobId
+                    ? <a href={`#/jobs/${encodeURIComponent(r.jobId)}`}>{r.name.includes(' for ') ? r.name.slice(r.name.indexOf(' for ') + 5) : 'Open the job'}</a>
+                    : <span className="jl-muted">Base resume</span>,
+                },
+                {
+                  title: 'Made from', key: 'b', render: (_, r) => {
+                    const base = r.baseResumeId ? list.data?.find((x) => x.id === r.baseResumeId) : null;
+                    return r.kind === 'tailored' ? (base ? <a href={`#/resume/${encodeURIComponent(base.id)}`}>{base.name}</a> : <span className="jl-muted">Its base was deleted</span>) : <span className="jl-muted">{r.file ? r.file.fileName : 'Your profile'}</span>;
+                  },
+                },
                 { title: 'Last changed', key: 'u', render: (_, r) => <span title={dateText(r.updatedAt) ?? ''}>{ago(r.updatedAt)}</span> },
                 { title: 'Created', key: 'c', render: (_, r) => <span title={dateText(r.createdAt) ?? ''}>{ago(r.createdAt)}</span> },
                 {

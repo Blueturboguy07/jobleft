@@ -3,7 +3,7 @@
 // skip at any step; nothing opens by itself afterwards.
 
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Checkbox, Input, Progress, Select, Space, Steps } from 'antd';
+import { Alert, Button, Checkbox, Input, InputNumber, Progress, Select, Space, Steps } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import type { ImportReport, Profile, ProfileInput } from '@jobleft/contracts';
 import { call, type UiError } from '../app/api.ts';
@@ -14,16 +14,17 @@ import { setFeed, useCrawl, useProfile } from '../app/session.ts';
 import { Art, LogoMark, Wordmark } from '../components/Art.tsx';
 import { InlineError, Loading } from '../components/States.tsx';
 import { COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, TYPE_OPTIONS, filterFromProfile, toggle } from '../lib/filters.ts';
-import { plural } from '../lib/format.ts';
+import { plural, yearMonthText } from '../lib/format.ts';
 import { PlacePicker } from './jobs/Filters.tsx';
-import { toInput } from './Profile.tsx';
+import { YesNo, toInput } from './Profile.tsx';
+import { importChanges, mergeImported } from '../lib/importMerge.ts';
 
 const SKIP_KEY = 'jobleft.onboarding.skipped';
 export function onboardingSkipped(): boolean {
   try { return localStorage.getItem(SKIP_KEY) === '1'; } catch { return false; }
 }
 
-const STEPS = ['What you look for', 'Job type', 'Where', 'Resume', 'About you', 'AI'];
+const STEPS = ['Looking for', 'Job type', 'Where', 'Resume', 'About you', 'AI'];
 
 function Choice({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
   return <button type="button" className={`jl-choice${on ? ' on' : ''}`} aria-pressed={on} onClick={onClick}>{children}</button>;
@@ -38,6 +39,7 @@ export function Onboarding() {
   const [err, setErr] = useState<UiError | null>(null);
   const [imported, setImported] = useState<{ report: ImportReport; proposed: ProfileInput } | null>(null);
   const [useFacts, setUseFacts] = useState(true);
+  const hadFacts = !!(profile.data && (profile.data.work.length || profile.data.skills.length || profile.data.education.length));
   const [custom, setCustom] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => { if (profile.data && !d) setD(toInput(profile.data)); }, [profile.data]);
@@ -60,8 +62,7 @@ export function Onboarding() {
   const next = async () => {
     let body = d;
     if (step === 3 && imported && useFacts) {
-      const x = imported.proposed;
-      body = { ...d, personal: { ...x.personal }, summary: x.summary ?? d.summary, work: x.work.length ? x.work : d.work, education: x.education.length ? x.education : d.education, skills: x.skills.length ? x.skills : d.skills };
+      body = mergeImported(d, imported.proposed);
       setD(body);
     }
     const saved = await persist(body);
@@ -89,6 +90,7 @@ export function Onboarding() {
     try {
       const r = await call('importResume', { body: new Uint8Array(await f.arrayBuffer()), contentType: type, fileName: f.name });
       setImported({ report: r.resume.importReport!, proposed: r.proposedProfile });
+      setUseFacts(!hadFacts);
       invalidate('resumes');
     } catch (e) { setErr(e as UiError); } finally { setBusy(false); if (fileRef.current) fileRef.current.value = ''; }
   };
@@ -118,6 +120,9 @@ export function Onboarding() {
         <div className="jl-choice-grid">{MODEL_OPTIONS.map((o) => <Choice key={o.value} on={pr.workModels.includes(o.value)} onClick={() => setPr({ workModels: toggle(pr.workModels, o.value) })}>{o.label}</Choice>)}</div>
         <strong>Experience level</strong>
         <div className="jl-choice-grid">{LEVEL_OPTIONS.map((o) => <Choice key={o.value} on={pr.levels.includes(o.value)} onClick={() => setPr({ levels: toggle(pr.levels, o.value) })}>{o.label}</Choice>)}</div>
+        <strong>Minimum yearly pay (US dollars, optional)</strong>
+        <InputNumber min={0} step={5000} style={{ width: 220 }} value={pr.minAnnualPayUsd ?? undefined} onChange={(v) => setPr({ minAnnualPayUsd: v ?? null })} placeholder="Not set" aria-label="Minimum yearly pay in US dollars" />
+        <p className="jl-note">A job that does not state its pay is never hidden by this. It is marked "pay not stated".</p>
       </Space>
     ),
     (
@@ -128,6 +133,10 @@ export function Onboarding() {
         <strong>Cities (optional)</strong>
         <PlacePicker places={pr.places} onChange={(places) => setPr({ places })} />
         <p className="jl-note">Remote jobs open to people in your countries are always included.</p>
+        <strong>Work authorization</strong>
+        <YesNo label="Are you legally allowed to work in the US?" value={d.workAuthorization.usAuthorized} onChange={(v) => setD({ ...d, workAuthorization: { ...d.workAuthorization, usAuthorized: v } })} />
+        <YesNo label="Will you need visa sponsorship now or later?" value={d.workAuthorization.needsSponsorship} onChange={(v) => setD({ ...d, workAuthorization: { ...d.workAuthorization, needsSponsorship: v } })} />
+        <p className="jl-note">These answers stay on this Mac. They are never sent to an AI provider. A job that says it does not sponsor is flagged. A job that says nothing is never called "no sponsorship".</p>
       </Space>
     ),
     (
@@ -140,6 +149,18 @@ export function Onboarding() {
           <>
             <Alert type={imported.report.outcome === 'ok' ? 'success' : 'info'} showIcon message={`Read ${plural(imported.report.counts.jobs, 'job')}, ${plural(imported.report.counts.skills, 'skill')} and ${plural(imported.report.counts.education, 'school')}.`}
               description={[...imported.report.warnings].join(' ') || undefined} />
+            {(imported.report.unreadSections.length > 0) && <Alert type="info" showIcon message={`Kept aside, not mapped: ${imported.report.unreadSections.join(', ')}`} />}
+            <div className="jl-factbox" role="group" aria-label="What jobleft read">
+              <strong>{[imported.proposed.personal.firstName, imported.proposed.personal.lastName].filter(Boolean).join(' ') || 'No name found'}</strong>
+              <div className="jl-small jl-muted">{[imported.proposed.personal.email, imported.proposed.personal.phone, [imported.proposed.personal.city, imported.proposed.personal.region].filter(Boolean).join(', ')].filter(Boolean).join(' · ') || 'No contact details found'}</div>
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {imported.proposed.work.map((w) => <li key={w.id}>{w.title || 'No title'} at {w.company || 'no employer found'}, {yearMonthText(w.startDate) ?? 'no start date'} to {w.current ? 'now' : (yearMonthText(w.endDate) ?? 'no end date')}</li>)}
+                {imported.proposed.education.map((e) => <li key={e.id}>{[e.degree, e.major].filter(Boolean).join(' in ') || 'Degree not found'}, {e.school || 'school not found'}</li>)}
+                {imported.proposed.skills.length > 0 && <li>Skills: {imported.proposed.skills.map((s) => s.name).join(', ')}</li>}
+              </ul>
+              <p className="jl-small jl-muted" style={{ marginTop: 6 }}>Check every line. You can correct anything on the Profile screen after setup.</p>
+            </div>
+            {importChanges(d, imported.proposed).replaces.length > 0 && <Alert type="warning" showIcon message="This would replace changes you already made" description={<ul style={{ margin: 0, paddingLeft: 18 }}>{importChanges(d, imported.proposed).replaces.map((x) => <li key={x}>{x}</li>)}</ul>} />}
             <Checkbox checked={useFacts} onChange={(e) => setUseFacts(e.target.checked)}>Use the facts from this file in my profile</Checkbox>
             <Button onClick={() => fileRef.current?.click()} icon={<UploadOutlined />}>Use another file</Button>
           </>
