@@ -320,7 +320,7 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `rankContacts` | GET | `/api/v1/network/rank` | launch | network | `{ companyKey, jobId? }` | — | `ContactRank[]` | Who to message first at a company, with reasons |
 | `updateContact` | PATCH | `/api/v1/network/contacts/:contactId` | launch | network | — | `{ stage?, note?, followUpOn?, inPlan? }` | `NetworkContact` | Stage, note, follow-up date, plan |
 | `deleteContact` | DELETE | `/api/v1/network/contacts/:contactId` | launch | network | — | — | `Ok` | Delete one contact and everything about it |
-| `deleteNetwork` | DELETE | `/api/v1/network` | launch | network | — | — | `{ ok, deleted }` | Delete all network data (the user's own file is untouched) |
+| `deleteNetwork` | DELETE | `/api/v1/network` | launch | network | — | — | `{ ok, deleted, logCleared? }` | Delete all network data (the user's own file is untouched) |
 | `draftOutreach` | POST | `/api/v1/network/contacts/:contactId/draft` | launch | network | — | `{ variant, jobId?, template?, confirmRemote? }` | `OutreachDraft` | Draft a short message (sends only this contact, this job and a short summary) |
 | `previewDraft` | POST | `/api/v1/network/contacts/:contactId/draft/preview` | launch | network | — | `{ variant, jobId? }` | `DraftPreview` | What a draft would send and to whom (nothing is sent) |
 | `networkCompanies` | GET | `/api/v1/network/companies` | launch | network | — | — | `NetworkCompanyGroup[]` | Companies in the network with counts; blank and placeholder companies grouped apart |
