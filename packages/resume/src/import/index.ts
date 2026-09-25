@@ -155,7 +155,7 @@ export async function importResume(bytes: Uint8Array, fileName: string, mimeType
   const copy = new Uint8Array(bytes); // the worker gets its own copy; nothing is written to disk
   return await new Promise<ImportOutcome>((resolve) => {
     const worker = new Worker(new URL('./worker.ts', import.meta.url), {
-      workerData: { bytes: copy, fileName, mimeType },
+      workerData: { op: 'import', bytes: copy, fileName, mimeType },
       resourceLimits: { maxOldGenerationSizeMb: 768, maxYoungGenerationSizeMb: 64 },
       stdout: true,
       stderr: true,
@@ -167,6 +167,26 @@ export async function importResume(bytes: Uint8Array, fileName: string, mimeType
     worker.on('error', () => finish(failed('corrupt', 'The file could not be read (it may be damaged or too complex). Export it again and upload the new file.')));
     worker.on('exit', () => finish(failed('corrupt', 'The file could not be read (reading stopped unexpectedly). Export it again and upload the new file.')));
     // The worker's own output never reaches a log: resume text must not be written anywhere (resume O13).
+    worker.stdout?.resume();
+    worker.stderr?.resume();
+  });
+}
+
+/** Runs the readability check of untrusted PDF bytes in a worker with a time limit. */
+export async function atsCheckInWorker(bytes: Uint8Array, opts: { timeoutMs?: number } = {}): Promise<import('@jobleft/contracts').AtsReport | null> {
+  const envTimeout = Number(process.env.JOBLEFT_IMPORT_TIMEOUT_MS);
+  const timeoutMs = opts.timeoutMs ?? (Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : IMPORT_TIMEOUT_MS);
+  return await new Promise((resolve) => {
+    const worker = new Worker(new URL('./worker.ts', import.meta.url), {
+      workerData: { op: 'ats', bytes: new Uint8Array(bytes), fileName: 'check.pdf', mimeType: 'application/pdf' },
+      resourceLimits: { maxOldGenerationSizeMb: 768, maxYoungGenerationSizeMb: 64 }, stdout: true, stderr: true,
+    });
+    let done = false;
+    const finish = (r: import('@jobleft/contracts').AtsReport | null) => { if (done) return; done = true; clearTimeout(timer); void worker.terminate(); resolve(r); };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    worker.on('message', (m: { ok: boolean; report?: import('@jobleft/contracts').AtsReport }) => finish(m.ok ? m.report ?? null : null));
+    worker.on('error', () => finish(null));
+    worker.on('exit', () => finish(null));
     worker.stdout?.resume();
     worker.stderr?.resume();
   });

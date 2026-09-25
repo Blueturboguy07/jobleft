@@ -97,6 +97,20 @@ export function findGutter(rows: Row[], pageWidth: number): number | null {
   return best ? best.x : null;
 }
 
+/** The column gap of a page, with how many lines sit on each side (for the readability check). */
+export function findGutterForPage(p: PdfPageInfo): { x: number; left: number; right: number } | null {
+  const rows = rowsOf(p.items);
+  const x = findGutter(rows, p.width);
+  if (x === null) return null;
+  let left = 0;
+  let right = 0;
+  for (const r of rows) {
+    if (r.cells.some((c) => c.xEnd <= x)) left++;
+    if (r.cells.some((c) => c.x >= x)) right++;
+  }
+  return { x, left, right };
+}
+
 function cellLine(cells: Cell[], page: number, column: 0 | 1 | 2, gapAbove: number): SrcLine {
   let text = cells.map((c) => c.text).join('  ');
   const bullet = isBulletLine(text) || /^[-]/.test(text);
