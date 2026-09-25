@@ -5,8 +5,9 @@
 import { createHash } from 'node:crypto';
 import type { EmploymentType, ExperienceLevel, Job, Pay, Place, WorkModel } from '@jobleft/contracts';
 import { experienceLevelOf, validate, JobSchema } from '@jobleft/contracts';
-import { annualize, htmlToText, levelFromTitle, parsePayFromText } from '@jobleft/parsers';
+import { annualize, htmlToText, parsePayFromText } from '@jobleft/parsers';
 import { parsePlaceText } from './geo.ts';
+import { levelOfTitle } from './job.ts';
 
 export interface LooseJob {
   id?: string;
@@ -71,7 +72,7 @@ export function looseJob(input: LooseJob | Job): Job {
   if (!workModel && locs.some((l) => /\bhybrid\b/i.test(l))) workModel = 'hybrid';
   if (!workModel && locs.some((l) => /\b(on-?site|in[- ]office)\b/i.test(l))) workModel = 'onsite';
   const remoteScope = remoteText ? { regions: /\b(us|usa|united states|u\.s\.)\b/i.test(remoteText) ? ['US'] : /\b(anywhere|worldwide|global)\b/i.test(remoteText) ? ['WORLDWIDE'] : [], text: remoteText } : null;
-  const level = levelFromTitle(x.title);
+  const level = levelOfTitle(x.title);
   const levels: ExperienceLevel[] = level ? [experienceLevelOf(level)] : [];
   const body = `${x.title}\n${company}\n${locs.join('; ')}\n${description}`;
   const id = x.id ?? `ext:${sha(body).slice(0, 16)}`;

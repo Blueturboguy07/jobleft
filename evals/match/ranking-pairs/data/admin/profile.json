@@ -1,0 +1,72 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "work": [
+    {
+      "company": "Baker & Lee CPAs",
+      "title": "Administrative Assistant",
+      "startDate": "2020-08",
+      "endDate": "present",
+      "bullets": [
+        "Manage calendars and travel for 4 partners, answer a multi-line phone, prepare documents in Word and Excel.",
+        "Process invoices, order supplies, keep client files."
+      ]
+    },
+    {
+      "company": "Hill Country Dental",
+      "title": "Receptionist",
+      "startDate": "2018-03",
+      "endDate": "2020-07",
+      "bullets": [
+        "Scheduled appointments and checked patients in."
+      ]
+    }
+  ],
+  "skills": [
+    "Calendar management",
+    "Microsoft Office",
+    "Excel",
+    "Word",
+    "Data entry",
+    "Travel arrangements",
+    "Phone systems",
+    "Records management",
+    "Customer service"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Administrative Assistant"
+    ],
+    "targetTitles": [
+      "Executive Assistant",
+      "Office Manager"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "onsite",
+      "hybrid"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "radiusMiles": 25
+      }
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

@@ -221,7 +221,7 @@ electrical, HVAC, plumbing and construction trades, manufacturing, social work, 
 ```sh
 pnpm --filter @jobleft/match test        # 48 tests: one or more per outcome angle, the dictionaries, the preview server
 pnpm --filter @jobleft/match typecheck
-node evals/match/ranking-pairs/run.ts    # the labelled fit set: 12 job families, 168 postings (add --verbose)
+node evals/match/ranking-pairs/run.ts    # the labelled fit set: 15 job families, 198 postings (add --verbose)
 ```
 
 The probe prints one line per family with the three O3 pass marks and a final JSON line. The labels were written by

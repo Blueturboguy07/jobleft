@@ -1,0 +1,66 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "work": [
+    {
+      "company": "Cool Breeze Mechanical",
+      "title": "HVAC Service Technician",
+      "startDate": "2019-04",
+      "endDate": "present",
+      "bullets": [
+        "Diagnose and repair residential and light commercial heat pumps, furnaces and rooftop units.",
+        "Recover and charge refrigerant; brazing; electrical troubleshooting on control boards."
+      ]
+    },
+    {
+      "company": "Cool Breeze Mechanical",
+      "title": "HVAC Installer Helper",
+      "startDate": "2017-05",
+      "endDate": "2019-03",
+      "bullets": [
+        "Installed ductwork and condensers."
+      ]
+    }
+  ],
+  "skills": [
+    "HVAC",
+    "Refrigeration",
+    "Electrical troubleshooting",
+    "Brazing",
+    "Preventive maintenance",
+    "Customer service"
+  ],
+  "certifications": [
+    "EPA 608 Universal",
+    "NATE certified",
+    "Texas driver's license"
+  ],
+  "preferences": {
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "onsite"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "radiusMiles": 40
+      }
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

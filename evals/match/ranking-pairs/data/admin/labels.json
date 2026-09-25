@@ -1,0 +1,12 @@
+{
+  "01-admin-assistant.txt": "strong",
+  "02-executive-assistant.txt": "strong",
+  "03-office-coordinator.txt": "strong",
+  "04-receptionist.txt": "possible",
+  "05-office-manager.txt": "possible",
+  "06-data-entry.txt": "possible",
+  "07-paralegal.txt": "poor",
+  "08-hr-manager.txt": "poor",
+  "09-software-engineer.txt": "poor",
+  "10-accountant.txt": "poor"
+}

@@ -1,0 +1,12 @@
+{
+  "01-hvac-service-tech.txt": "strong",
+  "02-commercial-hvac-tech.txt": "strong",
+  "03-hvac-maintenance.txt": "strong",
+  "04-hvac-installer.txt": "possible",
+  "05-refrigeration-tech.txt": "possible",
+  "06-hvac-apprentice.txt": "poor",
+  "07-service-manager.txt": "poor",
+  "08-mechanical-engineer.txt": "poor",
+  "09-software-engineer.txt": "poor",
+  "10-plumber.txt": "possible"
+}

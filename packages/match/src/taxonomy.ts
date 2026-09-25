@@ -453,8 +453,38 @@ export function familyOfTitle(title: string): TitleFamily | null {
     }
     offset += w.length + 1;
   }
+  // A trade or field word in the title decides when the matched phrase is only a generic role ("HVAC Maintenance
+  // Technician" is HVAC work; "HVAC Service Manager" has no phrase at all).
+  const words = foldTitleWords(title);
+  const domains = new Set<string>();
+  for (const [re, fam] of DOMAIN_WORDS) if (re.test(title)) domains.add(fam);
+  if (domains.size === 1) {
+    const [fam] = domains;
+    const generic = !best || GENERIC_HEAD.test(best.text);
+    if (!best || (generic && best.family !== fam && !domains.has(best.family))) return { family: fam, phrase: words.join(' ') };
+  }
   return best ? { family: best.family, phrase: best.text } : null;
 }
+
+/** Trade and field words that name the kind of work whatever the role word after them. */
+const DOMAIN_WORDS: Array<[RegExp, string]> = [
+  [/\b(hvac|refrigeration|boiler|plumbing|pipefitting)\b/i, 'trades_mech'],
+  [/\b(electrical|electrician)\b/i, 'trades_electrical'],
+  [/\bpharmacy\b/i, 'health_support'],
+  [/\b(warehouse|forklift|distribution center)\b/i, 'logistics'],
+  [/\bpayroll\b/i, 'payroll'],
+  [/\b(accounting|accounts payable|accounts receivable|bookkeeping)\b/i, 'accounting'],
+  [/\b(nursing|rn)\b/i, 'nursing'],
+  [/\b(kitchen|restaurant|culinary)\b/i, 'food'],
+  [/\b(retail|store)\b/i, 'retail'],
+  [/\b(classroom|teaching)\b/i, 'teaching'],
+  [/\b(marketing|seo|social media)\b/i, 'marketing'],
+  [/\b(recruiting|talent acquisition|human resources)\b/i, 'hr'],
+  [/\b(construction)\b/i, 'construction'],
+  [/\b(fleet|trucking|cdl)\b/i, 'driving'],
+];
+/** Role words that say nothing about the field on their own. */
+const GENERIC_HEAD = /^(maintenance )?(technician|tech|mechanic|specialist|coordinator|assistant|clerk|associate|manager|supervisor|lead|worker|operator|installer|inspector|analyst|administrator|representative|agent|helper|trainee|apprentice|maintenance technician|maintenance mechanic|maintenance worker|service technician|field service technician|general manager|operations manager)$/i;
 
 /** How close two kinds of work are: 1 = the same, 0 = unrelated. */
 export function familyRelatedness(a: string, b: string): number {

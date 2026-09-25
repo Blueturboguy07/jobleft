@@ -175,7 +175,8 @@ const IC_MANAGER = /\b(account|product|project|program|case|property|community|s
  * is not a people manager; an executive chef runs a kitchen team; a sous chef leads one.
  */
 export function levelOfTitle(title: string): Level | null {
-  const t = title.trim();
+  // "Executive Assistant to the CEO", "Assistant to the Director": the person supported is not the job's level.
+  const t = title.trim().replace(/\s+(to|for|supporting|reporting to)\s+(the\s+)?(ceo|cfo|coo|cto|president|founder|vp|vice president|director|chief\b.*|executive team|leadership team|partners?|owner|head of\b.*|svp|evp)\b.*$/i, '');
   if (/\b(executive chef|head chef|chef de cuisine|culinary director)\b/i.test(t)) return 'manager';
   if (/\bsous chef\b/i.test(t)) return 'lead';
   const base = levelFromTitle(t);
@@ -251,9 +252,11 @@ export function readJob(job: Job, company: Company | null): JobFacts {
   let level: Level | null = job.level ?? null;
   let levelSource: JobFacts['levelSource'] = level ? 'job' : null;
   let levelEvidence: string | null = level ? job.evidence?.level?.text ?? job.title : null;
-  // The title, read by the match lane, wins over a crawler's level for the few titles the parsers misread.
+  // The title, read by the match lane, wins over a level that is only the parsers' reading of the same title
+  // ("Account Manager" is not a people manager; "Executive Assistant to the CEO" is not an executive).
   const t = levelOfTitle(job.title);
-  if (t && (!level || (level === 'manager' && t !== 'manager'))) { level = t; levelSource = 'title'; levelEvidence = job.title; }
+  if (level && levelFromTitle(job.title) === level && t !== level) { level = t; levelSource = t ? 'title' : null; levelEvidence = t ? job.title : null; }
+  if (t && !level) { level = t; levelSource = 'title'; levelEvidence = job.title; }
   if (!level && job.employmentType === 'internship') { level = 'intern'; levelSource = 'employment_type'; levelEvidence = 'internship'; }
   if (!level && years && years.importance === 'required') {
     const y = levelFromYears(years.detail.minYears ?? null);
