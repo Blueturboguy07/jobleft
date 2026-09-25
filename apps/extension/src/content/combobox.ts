@@ -1,205 +1,217 @@
-// Custom dropdowns (react-select, Workday prompt lists, ARIA comboboxes): open, read what they offer, pick one with
-// the strict matcher, confirm what the widget committed. Writing text into such a widget commits whatever it
-// highlights, so it is never typed into and left; and no key is ever pressed (an Enter can submit a form).
-//
-// Ported from freehire (https://github.com/strelov1/freehire), extension/lib/combobox.ts and extension/lib/form.ts,
-// commit e58b1af64414b2dca7d1566d5d0db17f44a82ac2, MIT licence, Copyright (c) 2026 freehire contributors:
-// comboListbox, comboOptionNodes, isOnScreen, isOpen/expandedState, displayedValues, press and settle.
-// Workday's option selector (div[data-automation-id="promptOption"]) comes from JobNavigator
-// (https://github.com/vesaias/JobNavigator, extension/lib/ats_combobox.js, commit 972e796, MIT).
-// Changes: option choice goes through jobleft's strict pickOption (never "contains"), typing is limited to a search
-// word for typeahead lists, and a widget that did not commit is put back as it was.
+// Custom dropdowns (react-select style lists, Workday prompt lists, ARIA comboboxes).
+// A custom dropdown ignores typed text and commits whatever it highlights, so jobleft drives it the way a person
+// does: open it, read the options it shows, pick the one option that means the profile value (strict matcher),
+// click it, and read back what the widget shows. It never presses a key (an Enter can submit a form), and it puts
+// the widget back as it was when nothing commits.
+// The approach follows ideas from freehire (extension/lib/combobox.ts, MIT) and the Workday option marker
+// (data-automation-id="promptOption") noted by JobNavigator (MIT); the code is written new. See THIRD_PARTY_NOTICES.md.
 
 import { pickOption, type MatchKind } from '../options.ts';
 import { countryDisplayName } from '../places.ts';
 
-const OPTION_NODES = '[role="option"], [data-automation-id="promptOption"], .oj-listbox-result, .oj-listbox-option';
-const VALUE_NODE = '[class*="singleValue"], [class*="single-value"], [class*="multiValue"], [class*="multi-value"], [data-automation-id="selectedItem"]';
-const PLACEHOLDER_NODE = '[class*="placeholder"]';
-const COMBO = '[role="combobox"], [aria-autocomplete="list"], [aria-autocomplete="both"], [aria-haspopup="listbox"]';
+/** Elements that are one choice in an open list, across the widget libraries seen on application forms. */
+const CHOICE = '[role="option"], [data-automation-id="promptOption"], .oj-listbox-result, .oj-listbox-option';
+/** Where react-select style widgets and Workday show the committed choice. */
+const SHOWN = '[class*="singleValue"], [class*="single-value"], [class*="multiValue"], [class*="multi-value"], [data-automation-id="selectedItem"]';
+const PROMPT = '[class*="placeholder"]';
+const WIDGET = '[role="combobox"], [aria-autocomplete="list"], [aria-autocomplete="both"], [aria-haspopup="listbox"]';
 
-const SETTLE_MS = 1200;
-const POLL_MS = 30;
-
-function text(el: Element): string {
+function words(el: Element): string {
   return (el.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
-export function isOnScreen(el: Element): boolean {
+function seen(el: Element): boolean {
   if (el.closest('[hidden]')) return false;
+  const view = el.ownerDocument.defaultView;
   const cv = (el as Element & { checkVisibility?: () => boolean }).checkVisibility;
   if (typeof cv === 'function' && !cv.call(el)) return false;
-  const view = el.ownerDocument.defaultView;
-  if (!view) return true;
-  for (let node: Element | null = el; node; node = node.parentElement) {
-    const style = view.getComputedStyle(node);
-    if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
-    if (style.opacity === '0') return false;
+  let node: Element | null = el;
+  while (node && view) {
+    const st = view.getComputedStyle(node);
+    if (st.visibility === 'hidden' || st.visibility === 'collapse' || st.opacity === '0') return false;
+    node = node.parentElement;
   }
   return true;
 }
 
-export function comboListbox(el: Element): Element | null {
-  const ids = (el.getAttribute('aria-controls') || el.getAttribute('aria-owns') || '').split(/\s+/).filter(Boolean);
-  const owner = el.closest('[aria-controls], [aria-owns]');
-  if (owner && owner !== el) ids.push(...(owner.getAttribute('aria-controls') || owner.getAttribute('aria-owns') || '').split(/\s+/).filter(Boolean));
-  const named = ids.map((id) => el.ownerDocument.getElementById(id)).filter((n): n is HTMLElement => !!n);
-  const listbox = named.find((n) => n.getAttribute('role') === 'listbox' || n.querySelector(OPTION_NODES));
-  return listbox ?? named[0] ?? null;
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
-function expandedState(widget: Element): string | null {
-  if (widget.hasAttribute('aria-expanded')) return widget.getAttribute('aria-expanded');
-  const owner = widget.closest('[role="combobox"][aria-expanded], [aria-haspopup="listbox"][aria-expanded], [aria-autocomplete][aria-expanded]');
-  return owner?.getAttribute('aria-expanded') ?? null;
-}
-
-export function isOpen(widget: Element): boolean {
-  const expanded = expandedState(widget);
-  if (expanded !== null) return expanded === 'true';
-  const lb = comboListbox(widget);
-  return lb !== null && isOnScreen(lb);
-}
-
-/** Options the widget offers now. Falls back to the one visible list on the page when the widget names none. */
-export function optionNodes(widget: Element): Element[] {
-  const lb = comboListbox(widget);
-  if (lb) return Array.from(lb.querySelectorAll(OPTION_NODES)).filter(isOnScreen);
-  const lists = Array.from(widget.ownerDocument.querySelectorAll('[role="listbox"], [data-automation-id="activeListContainer"]')).filter(isOnScreen);
-  if (lists.length === 1) return Array.from((lists[0] as Element).querySelectorAll(OPTION_NODES)).filter(isOnScreen);
-  return [];
-}
-
-/** What the widget shows as chosen now (one entry per chip). Stops at a neighbour so it never reads its value. */
-export function displayedValues(widget: Element): string[] {
-  if (widget.tagName === 'BUTTON') {
-    const t = text(widget);
-    return t && !/^(select one|select|choose|--)/i.test(t) ? [t] : [];
+/** Waits until `ok()` holds or the time runs out; returns the last answer. */
+export async function waitUntil(ok: () => boolean, ms = 1200): Promise<boolean> {
+  const stop = Date.now() + ms;
+  while (Date.now() < stop) {
+    if (ok()) return true;
+    await sleep(30);
   }
-  for (let el = widget.parentElement; el; el = el.parentElement) {
-    if (el.querySelectorAll(COMBO).length > 1) return [];
-    const shown = Array.from(el.querySelectorAll(VALUE_NODE));
-    if (shown.length) return shown.map(text).filter(Boolean);
-    if (el.querySelector(PLACEHOLDER_NODE)) return [];
-    if (el.tagName === 'FORM') break;
-  }
-  const v = (widget as HTMLInputElement).value;
-  return typeof v === 'string' && v.trim() ? [v.trim()] : [];
+  return ok();
 }
 
-/** The pointer sequence of a real click, on the element itself. Never a key press. */
-export function press(el: Element): void {
+/** A mouse click as the page sees it (pointer down, mouse down, up, click) on that element. Never a key. */
+export function tap(el: Element): void {
   const view = el.ownerDocument.defaultView ?? window;
-  if (typeof view.PointerEvent === 'function') {
-    el.dispatchEvent(new view.PointerEvent('pointerdown', { bubbles: true, cancelable: true, composed: true }));
+  const opts = { bubbles: true, cancelable: true, composed: true, button: 0 };
+  if (typeof view.PointerEvent === 'function') el.dispatchEvent(new view.PointerEvent('pointerdown', opts));
+  el.dispatchEvent(new view.MouseEvent('mousedown', opts));
+  el.dispatchEvent(new view.MouseEvent('mouseup', opts));
+  el.dispatchEvent(new view.MouseEvent('click', opts));
+}
+
+class Widget {
+  readonly el: HTMLElement;
+  constructor(el: HTMLElement) { this.el = el; }
+
+  /** The text box inside the widget (the widget itself for an input). */
+  get box(): HTMLInputElement | null {
+    return this.el instanceof HTMLInputElement ? this.el : this.el.querySelector('input');
   }
-  for (const type of ['mousedown', 'mouseup', 'click']) {
-    el.dispatchEvent(new view.MouseEvent(type, { bubbles: true, cancelable: true, composed: true, button: 0 }));
+
+  /** The list the widget names in aria-controls or aria-owns (on itself or on its combobox wrapper). */
+  list(): Element | null {
+    const refs: string[] = [];
+    for (const holder of [this.el, this.el.closest('[aria-controls], [aria-owns]')]) {
+      if (!holder) continue;
+      refs.push(...`${holder.getAttribute('aria-controls') ?? ''} ${holder.getAttribute('aria-owns') ?? ''}`.split(/\s+/).filter(Boolean));
+    }
+    const found = refs.map((id) => this.el.ownerDocument.getElementById(id)).filter((x): x is HTMLElement => x !== null);
+    return found.find((x) => x.getAttribute('role') === 'listbox' || x.querySelector(CHOICE) !== null) ?? found[0] ?? null;
+  }
+
+  /** Is the list showing? The widget's own aria-expanded wins; without it, the list's visibility decides. */
+  open(): boolean {
+    const holder = this.el.hasAttribute('aria-expanded') ? this.el : this.el.closest(`${WIDGET}[aria-expanded]`);
+    const said = holder?.getAttribute('aria-expanded');
+    if (said === 'true') return true;
+    if (said === 'false') return false;
+    const l = this.list();
+    return l !== null && seen(l);
+  }
+
+  /** The choices shown now. A widget that names no list may use the one visible list on the page, never two. */
+  choices(): Element[] {
+    const l = this.list();
+    if (l) return Array.from(l.querySelectorAll(CHOICE)).filter(seen);
+    const lists = Array.from(this.el.ownerDocument.querySelectorAll('[role="listbox"], [data-automation-id="activeListContainer"]')).filter(seen);
+    return lists.length === 1 ? Array.from((lists[0] as Element).querySelectorAll(CHOICE)).filter(seen) : [];
+  }
+
+  /** The nearest wrapper that holds only this widget (so a neighbour's value is never read). */
+  private own(): Element | null {
+    let node = this.el.parentElement;
+    let last: Element | null = null;
+    while (node && node.tagName !== 'FORM') {
+      if (node.querySelectorAll(WIDGET).length > 1) break;
+      last = node;
+      if (node.querySelector(SHOWN) || node.querySelector(PROMPT)) return node;
+      node = node.parentElement;
+    }
+    return last;
+  }
+
+  hasShownSlot(): boolean {
+    const o = this.own();
+    return !!o && !!o.querySelector(SHOWN);
+  }
+
+  /** What the widget shows as chosen (one entry per chip); empty when it shows a prompt or nothing. */
+  shown(): string[] {
+    if (this.el.tagName === 'BUTTON') {
+      const t = words(this.el);
+      return t && !/^(select one|select|choose|--)/i.test(t) ? [t] : [];
+    }
+    const o = this.own();
+    const slots = o ? Array.from(o.querySelectorAll(SHOWN)).map(words).filter(Boolean) : [];
+    if (slots.length) return slots;
+    if (this.hasShownSlot()) return [];
+    const v = this.box?.value?.trim() ?? '';
+    return v ? [v] : [];
+  }
+
+  type(text: string): void {
+    const b = this.box;
+    if (!b) return;
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    if (set) set.call(b, text); else b.value = text;
+    b.dispatchEvent(new Event('input', { bubbles: true }));
   }
 }
 
-export async function settle(holds: () => boolean, ms = SETTLE_MS): Promise<boolean> {
-  for (let waited = 0; waited < ms; waited += POLL_MS) {
-    if (holds()) return true;
-    await new Promise((r) => setTimeout(r, POLL_MS));
-  }
-  return holds();
-}
-
-function searchInput(widget: Element): HTMLInputElement | null {
-  if (widget instanceof HTMLInputElement) return widget;
-  return widget.querySelector('input');
-}
-
-function setInput(input: HTMLInputElement, value: string): void {
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-  if (setter) setter.call(input, value); else input.value = value;
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-/** The word to type into a typeahead so it lists the wanted option (the city, the country name, the text). */
+/** What to type into a searchable list so it shows the wanted option (the city, the country's name, the text). */
 export function searchWord(kind: MatchKind, wanted: string): string | null {
-  switch (kind) {
-    case 'country': return wanted.length === 2 ? (countryDisplayName(wanted) ?? wanted) : wanted;
-    case 'location': return wanted.split('|')[0] ?? null;
-    case 'region': return null;
-    case 'exact': case 'degree': return wanted;
-    default: return null;
-  }
+  if (kind === 'country') return wanted.length === 2 ? (countryDisplayName(wanted) ?? wanted) : wanted;
+  if (kind === 'location') return wanted.split('|')[0] ?? null;
+  if (kind === 'exact' || kind === 'degree') return wanted;
+  return null;
 }
 
 export type ComboStatus = 'filled' | 'no_option' | 'did_not_open' | 'did_not_commit';
 
-/** Opens the widget, picks the one option that means `wanted`, and confirms the widget shows it. */
-export async function fillCombobox(widget: HTMLElement, kind: MatchKind, wanted: string): Promise<{ status: ComboStatus; chosen: string | null }> {
-  const input = searchInput(widget);
-  const before = input?.value ?? '';
-  const restore = (): void => {
-    if (input && input.value !== before) setInput(input, before);
-    if (isOpen(widget)) press(widget);
-    input?.blur();
+/** Opens the widget, picks the one option that means `wanted`, and checks that the widget shows it. */
+export async function fillCombobox(el: HTMLElement, kind: MatchKind, wanted: string): Promise<{ status: ComboStatus; chosen: string | null }> {
+  const w = new Widget(el);
+  const box = w.box;
+  const before = box?.value ?? '';
+  const putBack = (): void => {
+    if (box && box.value !== before) w.type(before);
+    if (w.open()) tap(el);
+    box?.blur();
   };
-  const pickFrom = (nodes: Element[]): number | null => {
-    const p = pickOption(kind, wanted, nodes.map((n) => ({ value: '', label: text(n) })));
-    return p ? p.index : null;
-  };
-  try { (input ?? widget).focus({ preventScroll: true }); } catch { /* ignore */ }
-  if (!isOpen(widget)) {
-    press(widget);
-    await settle(() => isOpen(widget) || optionNodes(widget).length > 0, 800);
+  const choose = (list: Element[]): number | null => pickOption(kind, wanted, list.map((n) => ({ value: '', label: words(n) })))?.index ?? null;
+
+  try { (box ?? el).focus({ preventScroll: true }); } catch { /* ignore */ }
+  if (!w.open()) {
+    tap(el);
+    await waitUntil(() => w.open() || w.choices().length > 0, 800);
   }
-  let nodes = optionNodes(widget);
-  let chosenIndex = pickFrom(nodes);
+  let list = w.choices();
+  let pick = choose(list);
   const word = searchWord(kind, wanted);
   let typed: string | null = null;
-  if (chosenIndex === null && input && word && !input.readOnly) {
-    setInput(input, word);
+  if (pick === null && box && word && !box.readOnly) {
     typed = word;
-    await settle(() => { nodes = optionNodes(widget); chosenIndex = pickFrom(nodes); return chosenIndex !== null; }, 2500);
-    nodes = optionNodes(widget);
-    chosenIndex = pickFrom(nodes);
+    w.type(word);
+    await waitUntil(() => { list = w.choices(); pick = choose(list); return pick !== null; }, 2500);
+    list = w.choices();
+    pick = choose(list);
   }
-  if (chosenIndex === null) {
-    const opened = nodes.length > 0 || isOpen(widget);
-    restore();
+  if (pick === null) {
+    const opened = list.length > 0 || w.open();
+    putBack();
     return { status: opened ? 'no_option' : 'did_not_open', chosen: null };
   }
-  const node = nodes[chosenIndex] as Element;
-  const label = text(node);
-  press(node);
-  const committed = (): boolean => {
-    if (hasValueNode(widget)) return displayedValues(widget).some((s) => label.toLowerCase().includes(s.toLowerCase()));
-    if (widget.tagName === 'BUTTON') return displayedValues(widget).some((s) => label.toLowerCase().includes(s.toLowerCase()));
-    // A plain typeahead input: it must now hold the option text, not only the word jobleft typed.
-    const v = (input?.value ?? '').trim().toLowerCase();
+  const target = list[pick] as Element;
+  const label = words(target);
+  tap(target);
+  const took = (): boolean => {
+    if (el.tagName === 'BUTTON' || w.hasShownSlot()) return w.shown().some((s) => label.toLowerCase().includes(s.toLowerCase()));
+    // A plain search box must now hold the option's text, not only the word jobleft typed.
+    const v = (box?.value ?? '').trim().toLowerCase();
     return v !== '' && v !== (typed ?? '').toLowerCase() && label.toLowerCase().includes(v);
   };
-  await settle(() => committed() && !isOpen(widget));
-  if (!committed()) { restore(); return { status: 'did_not_commit', chosen: null }; }
-  try { input?.blur(); } catch { /* ignore */ }
+  await waitUntil(() => took() && !w.open());
+  if (!took()) { putBack(); return { status: 'did_not_commit', chosen: null }; }
+  try { box?.blur(); } catch { /* ignore */ }
   return { status: 'filled', chosen: label };
 }
 
-function hasValueNode(widget: Element): boolean {
-  for (let el = widget.parentElement; el; el = el.parentElement) {
-    if (el.querySelectorAll(COMBO).length > 1) return false;
-    if (el.querySelector(VALUE_NODE)) return true;
-    if (el.tagName === 'FORM') break;
-  }
-  return false;
+/** What the widget shows as chosen (for the report and for undo). */
+export function displayedValues(el: Element): string[] {
+  return new Widget(el as HTMLElement).shown();
 }
 
-/** Clears a widget's choice through its own clear control, when it has one. */
-export async function clearCombobox(widget: HTMLElement): Promise<boolean> {
-  let box: Element | null = widget.parentElement;
-  for (let i = 0; i < 6 && box; i++, box = box.parentElement) {
-    if (box.querySelectorAll(COMBO).length > 1) break;
-    const clear = box.querySelector('[aria-label^="clear" i], [aria-label^="remove" i], [class*="clear-indicator" i], [class*="clearIndicator"], [class*="indicatorContainer"]:first-child[aria-hidden="true"]');
+/** Clears the widget through its own clear control, when it has one. */
+export async function clearCombobox(el: HTMLElement): Promise<boolean> {
+  const w = new Widget(el);
+  let node: Element | null = el.parentElement;
+  for (let i = 0; i < 6 && node; i++, node = node.parentElement) {
+    if (node.querySelectorAll(WIDGET).length > 1) break;
+    const clear = node.querySelector('[aria-label^="clear" i], [aria-label^="remove" i], [class*="clear-indicator" i], [class*="clearIndicator"]');
     if (clear) {
-      press(clear);
-      await settle(() => displayedValues(widget).length === 0, 600);
-      return displayedValues(widget).length === 0;
+      tap(clear);
+      await waitUntil(() => w.shown().length === 0, 600);
+      return w.shown().length === 0;
     }
   }
-  return displayedValues(widget).length === 0;
+  return w.shown().length === 0;
 }

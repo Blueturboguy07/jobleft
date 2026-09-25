@@ -4,7 +4,7 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
-  "description": "The Chrome MV3 autofill extension (assisted apply). It talks only to the paired local app.",
+  "description": "The Chrome MV3 autofill extension (assisted apply): it fills, you review, you submit. It talks only to the paired jobleft app on this computer.",
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"
@@ -14,7 +14,12 @@
   },
   "scripts": {
     "test": "node --test \"test/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "node scripts/build.ts",
+    "standin": "node scripts/standin-app.ts",
+    "practice": "node scripts/practice-server.ts",
+    "e2e": "node scripts/build.ts && node scripts/e2e.ts",
+    "record": "node scripts/record-fixture.ts"
   },
   "dependencies": {
     "@jobleft/contracts": "workspace:*"

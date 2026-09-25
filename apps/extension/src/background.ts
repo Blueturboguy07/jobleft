@@ -140,7 +140,8 @@ async function call<T>(path: string, method: string, body: unknown, schema: Json
       if (a.port === p.port && res === null) continue;
       if (a.port === p.port && seen) continue;
       const r = await request(a.port, path, { method, body, token: p.token, timeoutMs }).catch(() => null);
-      if (r && r.status !== 401) {
+      // Only an app that accepts the token is the paired app (another jobleft server answers 401, 403 or 404).
+      if (r && r.status >= 200 && r.status < 300) {
         await setPairing({ ...p, port: a.port, appVersion: a.version });
         res = r;
         found = true;

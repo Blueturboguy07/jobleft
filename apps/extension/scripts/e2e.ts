@@ -39,6 +39,12 @@ async function fillAndWait(s: Ctx, tab: Page, resumeId?: string): Promise<string
   return `${popup}\n${await panelText(tab)}`;
 }
 
+/** Submit, Next and page-change events logged by THIS page load (tabs closed later log their own page change). */
+async function pageEvents(tab: Page): Promise<Array<{ kind: string; path: string; detail: string }>> {
+  const search = await tab.eval<string>('location.search');
+  return (await practiceLog()).entries.filter((e) => e.path.includes(search) && ['submit', 'next', 'page-change'].includes(e.kind));
+}
+
 async function typeInto(tab: Page, id: string, text: string): Promise<void> {
   await tab.eval(`document.getElementById(${JSON.stringify(id)}).focus()`);
   await tab.send('Input.insertText', { text });
@@ -65,7 +71,14 @@ async function main(): Promise<void> {
   const s: Ctx = { browser, extId, appPort: app.port, appToken: app.token, app: app.proc, home };
   const want = (n: string): boolean => !only || only.has(n);
   // A tracking parameter makes each tab's address unique without changing which job it is.
-  const fresh = async (page: string): Promise<Page> => browser.newPage(`${P}/${page}?utm_term=${Date.now()}`);
+  // Tabs are closed as the checks go on, so the headless browser does not run out of memory.
+  const open: Page[] = [];
+  const fresh = async (page: string): Promise<Page> => {
+    while (open.length > 2) await open.shift()?.close();
+    const p = await browser.newPage(`${P}/${page}?utm_term=${Date.now()}`);
+    open.push(p);
+    return p;
+  };
   const appLog = async (): Promise<string[]> => ((await appCall(s, 'GET', '/api/v1/standin/log')) as { lines: string[] }).lines;
   const state = async (): Promise<{ tracker: Array<{ jobId: string; resumeId: string | null; appliedAt: string }>; pairings: unknown[]; drafts: { balanceMicros: number } }> =>
     appCall(s, 'GET', '/api/v1/standin/state') as never;
@@ -78,6 +91,7 @@ async function main(): Promise<void> {
       const before = await dump(tab);
       const pop = await openPopup(browser, extId, tab);
       const text = await pop.eval<string>('document.body.innerText');
+      if (shots) writeFileSync(join(shots, '00-popup-unpaired.png'), await pop.screenshot());
       check('popup asks for pairing', /not paired/.test(text));
       check('popup says what it reads before pairing', /What jobleft reads/.test(text) && /only to the jobleft app/.test(text));
       check('no Fill button before pairing', !/Fill this application/.test(text));
@@ -127,8 +141,8 @@ async function main(): Promise<void> {
       check('report offers two drafts', (report.match(/Insert into the form/g) ?? []).length === 2);
       check('report: needs-you items listed with reasons', /Salary expectations[\s\S]*never answers it/.test(report));
       check('report does not list the hidden traps as filled', !/\bSSN\b[\s\S]{0,40}filled/.test(report));
-      const log1 = await practiceLog();
-      check('no submit, no Next, no page change', log1.counts.submit === 0 && log1.counts.next === 0 && log1.counts.pageChange === 0, JSON.stringify(log1.counts));
+      const ev1 = await pageEvents(tab);
+      check('no submit, no Next, no page change', ev1.length === 0, JSON.stringify(ev1));
 
       console.log('job A: undo');
       const clicked = await tab.clickDeep('button', 'Undo fill');
@@ -159,6 +173,7 @@ async function main(): Promise<void> {
       check('one Applied entry for job A with its resume', st.tracker.length === 1 && st.tracker[0]?.jobId === 'job-a' && st.tracker[0]?.resumeId === 'res-job-a', JSON.stringify(st.tracker));
       const tab2 = await browser.newPage(`${P}/job-a.html?utm_source=newsletter&gh_src=abc&utm_term=${Date.now()}`);
       const pop = await openPopup(browser, extId, tab2);
+      if (shots) writeFileSync(join(shots, '00-popup-paired-applied.png'), await pop.screenshot());
       check('popup says already applied (link with tracking parameters)', /already marked this job as applied/.test(await pop.eval<string>('document.body.innerText')));
       await fillAndWait(s, tab2);
       await tab2.clickDeep('button', 'I submitted it again');
@@ -166,8 +181,8 @@ async function main(): Promise<void> {
       await tab2.clickDeep('button', 'Yes, I submitted it');
       await waitFor(async () => /Saved: your jobleft tracker/.test(await panelText(tab2)), 8000);
       check('a second confirm keeps one entry', (await state()).tracker.length === 1);
-      const log2 = await practiceLog();
-      check('still no submit, Next or page change after all of it', log2.counts.submit === 0 && log2.counts.next === 0 && log2.counts.pageChange === 0, JSON.stringify(log2.counts));
+      const ev2 = [...await pageEvents(tab), ...await pageEvents(tab2)];
+      check('still no submit, Next or page change after all of it', ev2.length === 0, JSON.stringify(ev2));
     }
 
     // ------------------------------------------------ O6: one saved answer changes one question
@@ -233,7 +248,9 @@ async function main(): Promise<void> {
       check('degree dropdown with no B.S. option stays empty', combos[2] === '', JSON.stringify(combos));
       check('report says the degree list has no match', /Highest degree[\s\S]{0,120}(No option|not filled)/.test(rep));
       check('work authorization buttons untouched (no saved answer)', radios(d, 'authorized').every((x) => !x));
-      check('veteran buttons: only the saved answer, through the hidden radio', JSON.stringify(radios(d, 'vet')) === JSON.stringify([false, true, false]), JSON.stringify(radios(d, 'vet')));
+      const savedVet = ((await appCall(s, 'GET', '/api/v1/standin/state')) as { profile: { eeo: { veteran: string | null } } }).profile.eeo.veteran;
+      const wantVet = savedVet === 'no' ? [false, true, false] : [false, false, false];
+      check(`veteran buttons: ${savedVet ? 'only the saved answer, through the hidden radio' : 'untouched (no saved answer)'}`, JSON.stringify(radios(d, 'vet')) === JSON.stringify(wantVet), JSON.stringify(radios(d, 'vet')));
       check('open question not filled', val(d, 'why') === '');
     }
     if (want('tricky')) {
@@ -260,7 +277,7 @@ async function main(): Promise<void> {
       check('panel says a person must complete the human check', /human check \(CAPTCHA\)/.test(rep));
       check('CAPTCHA box untouched', val(d, 'robot') === false && val(d, 'captcha_answer') === '');
       const log = await practiceLog();
-      check('no attempt on the CAPTCHA and no submit', !log.entries.some((e) => /captcha box touched/.test(e.detail)) && log.counts.submit === 0);
+      check('no attempt on the CAPTCHA and no submit', !log.entries.some((e) => /captcha box touched/.test(e.detail)) && (await pageEvents(tab)).length === 0);
     }
     if (want('account')) {
       console.log('account sign-up step');
@@ -299,7 +316,7 @@ async function main(): Promise<void> {
       check('Workday: state list picks Texas', shown[1] === 'Texas', JSON.stringify(shown));
       check('Workday: phone device type left for the person', shown[2] === 'Select One', JSON.stringify(shown));
       const log = await practiceLog();
-      check('Workday: Save and Continue and Add never pressed', log.counts.next === 0 && !log.entries.some((e) => /Add work row/.test(e.detail)));
+      check('Workday: Save and Continue and Add never pressed, no page change', (await pageEvents(tab)).length === 0 && !log.entries.some((e) => /Add work row/.test(e.detail)));
     }
     if (want('generic')) {
       console.log('hand-made form (not supported)');
@@ -318,12 +335,20 @@ async function main(): Promise<void> {
       console.log('saved copies of real application pages');
       await fetch('http://127.0.0.1:47900/__reset', { method: 'POST' });
       const R = 'http://127.0.0.1:47900/recorded';
+      const quiet = { ok: true, detail: '' };
       const run = async (file: string): Promise<{ d: Dump; rep: string; popup: string }> => {
-        const tab = await browser.newPage(`${R}/${file}?utm_term=${Date.now()}`);
+        while (open.length) await open.shift()?.close();
+        const stamp = `utm_term=${Date.now()}`;
+        const tab = await browser.newPage(`${R}/${file}?${stamp}`);
         const popup = await (await openPopup(browser, extId, tab)).eval<string>('document.body.innerText');
         const rep = await fillAndWait(s, tab);
         await shot(tab, `09-${file.replace('.html', '')}`);
-        return { d: await dump(tab), rep, popup };
+        const d = await dump(tab);
+        // Read the page's log before closing the tab (closing it is a page change of its own).
+        const lg = (await practiceLog()).entries.filter((e) => e.path.includes(stamp) && ['submit', 'next', 'page-change'].includes(e.kind));
+        if (lg.length) { quiet.ok = false; quiet.detail += `${file}: ${JSON.stringify(lg)} `; }
+        await tab.close();
+        return { d, rep, popup };
       };
       const fileOf = (d: Dump): string[] => d.filter((x) => x.type === 'file').map((x) => String(x.value));
       const checkedAny = (d: Dump, pre: string): boolean => d.some((x) => x.type === 'checkbox' && x.id.startsWith(pre) && x.value === true);
@@ -347,7 +372,7 @@ async function main(): Promise<void> {
       const lf = fileOf(r.d);
       check('Lever kipp: resume in the resume box only (not the portfolio uploads)', /^Jordan_Testwell_Resume/.test(lf[0] ?? '') && lf.slice(1).every((x) => x === ''), JSON.stringify(lf));
       check('Lever kipp: pronoun boxes untouched', !r.d.some((x) => x.name === 'pronouns' && x.value === true));
-      check('Lever kipp: EEO lists untouched', ['eeo[gender]', 'eeo[race]', 'eeo[veteran]'].every((k) => /select/i.test(String(val(r.d, k)))));
+      check('Lever kipp: EEO gender and race untouched; veteran only with the saved "no"', ['eeo[gender]', 'eeo[race]'].every((k) => /select/i.test(String(val(r.d, k)))) && /select|not/i.test(String(val(r.d, 'eeo[veteran]'))), String(val(r.d, 'eeo[veteran]')));
       check('Lever kipp: labels are the questions, not the widget text', /Resume\/CV/.test(r.rep) && !/Analyzing resume/.test(r.rep));
 
       r = await run('lever-bluebottlecoffee-1.html');
@@ -364,8 +389,7 @@ async function main(): Promise<void> {
 
       r = await run('workable-huggingface-2.html');
       check('Workable 2: names and email', val(r.d, 'firstname') === 'Jordan' && val(r.d, 'email') === 'jordan.testwell@example.com');
-      const lg = await practiceLog();
-      check('saved copies: no submit, Next or page change', lg.counts.submit === 0 && lg.counts.next === 0 && lg.counts.pageChange === 0, JSON.stringify(lg.counts));
+      check('saved copies: no submit, Next or page change while each page was open', quiet.ok, quiet.detail);
     }
 
     // ------------------------------------------------ O1: app closed, then unpaired
@@ -410,6 +434,7 @@ async function main(): Promise<void> {
           const before = await dump(tab);
           const pop = await openPopup(second.browser, second.extId, tab);
           const t = await pop.eval<string>('document.body.innerText');
+          if (shots && h === 'www.linkedin.com') writeFileSync(join(shots, '00-popup-blocked.png'), await pop.screenshot());
           check(`${h}: popup says jobleft does not work here, no Fill button`, /does not work on this site/.test(t) && !/Fill this application/.test(t), t.slice(0, 120));
           check(`${h}: page unchanged`, JSON.stringify(await dump(tab)) === JSON.stringify(before));
         }

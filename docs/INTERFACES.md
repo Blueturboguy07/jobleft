@@ -359,21 +359,29 @@ to the local API. Content scripts never call the app directly.
 
 | Step | Who | What |
 |---|---|---|
-| Discover | extension | `GET /api/v1/health` on ports 47821 to 47830 until one answers `app: "jobleft"`. Re-discover when a call fails (the port can change between launches) |
+| Discover | extension | `GET /api/v1/health` on ports 47821 to 47830 until one answers `app: "jobleft"`. Re-discover when a call fails (the port can change between launches). With more than one jobleft server answering, the paired one is the one that accepts the token (a `401` from one port makes the extension try the others before it drops the pairing) |
 | Start pairing | person, in the app | The person clicks "Pair a browser extension". The UI calls `POST /api/v1/extension/pairing-code` and shows a 6-digit code (valid 5 minutes). This click is the approval |
-| Pair | extension | The person types the code in the extension popup. `POST /api/v1/extension/pair` with `PairRequest`. The Origin must be `chrome-extension://<extensionId>`. Five wrong codes void the code. The answer `PairResponse` holds the pairing token (the app keeps only its hash) |
-| Keep | extension | The token lives only in `chrome.storage.local`. Every later call sends `x-jobleft-pairing` from the same Origin |
+| Pair | extension | The person types the code in the extension popup. `POST /api/v1/extension/pair` with `PairRequest` (tried on each jobleft port; the code is valid only in the app that showed it). The Origin must be `chrome-extension://<extensionId>`. Five wrong codes void the code. The answer `PairResponse` holds the pairing token (the app keeps only its hash). Pairing the same extension id again replaces its old entry and old token |
+| Keep | extension | The token lives only in `chrome.storage.local`, set to trusted contexts (content scripts cannot read it). Every later call sends `x-jobleft-pairing` from the same Origin |
 | List and unpair | person, in the app | `GET /api/v1/extension/pairings`, `DELETE /api/v1/extension/pairings/:extensionId`. The token stops working at once. The extension can unpair itself with `DELETE /api/v1/extension/pairing` |
 | Status | extension | `GET /api/v1/extension/status`: paired, app version, profile completeness |
-| Fill | extension | Only when the person starts a fill. The extension lists the visible fields of the application form (never hidden or off-screen fields, never other forms) as `FillRequest`. The app answers `FillResponse`: values from the profile, the resume file to attach, drafts for open questions, and the fields it has no answer for |
-| Review | person, then extension | The extension fills, marks each changed field, shows the report (filled, kept, needs you) and offers undo. Drafts go in only when the person accepts each one. The extension never submits and never solves a CAPTCHA |
-| Record | extension | `POST /api/v1/extension/review` with `ReviewResult`. `submittedByUser` is true only when the person confirmed they submitted. Then the app marks the job Applied |
+| Page | extension | `POST /api/v1/extension/page` with `PageInfoRequest { pageUrl }` (added in contracts 1.1), only when the person clicks the extension button on a tab that is not a blocked board. The app answers `PageInfo`: the job this address is (match by page key: tracking parameters ignored, job ids kept; `pageKey()` in apps/extension), whether the tracker already says Applied, the resumes, and the suggested resume (the version for this job, else the default) |
+| Fill | extension | Only when the person starts a fill. The extension lists the visible fields of the one application form (never hidden, zero-size, off-screen or see-through fields, never other forms, never password fields) as `FillRequest`, with the 1.1 hints (`autocomplete`, `placeholder`, `inputType`, `entry`, `context`, `combobox`, `accept`). The app answers `FillResponse`: values (1.1: each with `item`, the profile item in words, and `topic`), the resume file to attach (1.1: `resumeId`), drafts for open questions only when drafting is free, `notes` (1.1: why each other field was left empty) and `draftOffer` (1.1: the provider and the most one draft can cost, in micros). Option values are the option's index in the list the extension sent. For a `combobox` field the value is the wanted text and `topic` names the strict matcher the extension runs on the options it sees when it opens the list |
+| Drafts | person, then extension | `POST /api/v1/extension/drafts` with `DraftRequest` (added in 1.1), only after the person saw the price in dollars and pressed "Make drafts". `maxCostMicros` is the most the person agreed to; the app refuses a request that would cost more and charges only drafts it made. `DraftResponse` carries the drafts, `costMicros`, the balance after, and the skipped questions. A draft goes into the form only when the person presses Insert |
+| Review | person, then extension | The extension fills, reads each value back (a value the page rejects or clears is "not filled"), marks each changed field, shows the report (filled with the profile item, kept, needs you with the reason) and offers undo. The extension never submits, never presses a key, never presses next, save or continue, and never solves a CAPTCHA |
+| Record | extension | `POST /api/v1/extension/review` with `ReviewResult` (1.1: `resumeId`, the resume that was attached). `submittedByUser` is true only when the person confirmed they submitted. Then the app marks the job Applied, once per job (a second confirm keeps one entry) |
 
-What the extension never gets: network contacts, AI keys, the publik key, backups, provider settings. Sensitive
-questions (EEO, work authorization, sponsorship, pay expectation, date of birth) stay empty unless the person saved
-an answer for them. The extension never reads, fills or adds anything on LinkedIn, Indeed or Glassdoor.
-Support levels: Greenhouse, Lever, Ashby, Workable and iCIMS supported; Workday partial (built last); everything
-else "not supported" (`ATS_SUPPORT` in apps/extension).
+The app side of `fill`: `answerFill(request, { profile, resume, draftOffer, draft?, jobId })` in `@jobleft/extension`
+(pure; the stand-in app uses it too), so the app and the extension agree on topics and strict option matching. The
+server lane should call it from the `fill` route; `draft` is passed only for a free (local) provider.
+
+What the extension never gets: network contacts, AI keys, the publik key, backups, provider settings, the whole
+profile. Sensitive questions (EEO, work authorization, sponsorship, pay expectation, date of birth, age, criminal
+history, ID numbers) stay empty unless the person saved an answer for that exact topic; pay, age, date of birth,
+criminal history and ID numbers are never answered. The extension never reads, fills or adds anything on LinkedIn,
+Indeed or Glassdoor (every country domain and subdomain).
+Support levels (`ATS_SUPPORT` in apps/extension): Greenhouse, Lever, Ashby and Workable supported; Workday partial
+(built last); iCIMS partial (not testable: no live iCIMS request is allowed); everything else "not supported".
 
 ## 8. Packages and apps
 
@@ -1293,10 +1301,48 @@ copy, own icons; no Jobright name, logo, copy or images; money is "balance" in d
 
 ### `@jobleft/extension` (apps/extension)
 
-Status: skeleton (`APP_PORTS`, `ATS_SUPPORT`, `NEVER_HOSTS`, `manifest.json` Built). Purpose: the Chrome MV3 autofill
-extension. Manifest: permissions `storage`, `activeTab`, `scripting`; host permission `http://127.0.0.1/*` only;
-content scripts are injected on the person's request (`activeTab`), not declared for every site. Protocol: section 7.
-Build output: `apps/extension/dist` (not committed). No Chrome Web Store submission (gate G-store).
+Status: **Built** (extension lane). Purpose: the Chrome MV3 autofill extension (assisted apply) and the pure answer
+engine the app uses to answer it. README: `apps/extension/README.md` (what it reads, how to run it, what you see).
+
+| Part | What |
+|---|---|
+| Manifest | permissions `storage`, `activeTab`, `scripting`; host permissions `http://127.0.0.1:47821/*` to `http://127.0.0.1:47830/*` only (narrower than the foundation's `http://127.0.0.1/*`); extension-page CSP `connect-src` limited to those ten origins; no content scripts declared (the content script is injected only after the person clicks); no web-accessible resources |
+| Node exports (`src/index.ts`) | `answerFill`, `openQuestions` (the app's `fill` and `drafts` logic), `classify`, `isSensitive`, `SENSITIVE_TOPICS`, `pickOption`, `pickMany`, `parseDegree`, `templateDraft`, `contactLeaks`, `pageKey`, `isNeverHost`, `supportFromUrl`, `supportFor`, `atsFromUrl`, `APP_PORTS`, `ATS_SUPPORT`, `NEVER_HOSTS`, `EXTENSION_PROTOCOL_VERSION`; types `AnswerContext`, `ResumeFile`, `Classification`, `Topic`, `SensitiveTopic`, `MatchKind`, `Opt`, `DraftJob`, `SupportInfo`, `SupportLevel` |
+| Browser bundles | `src/background.ts` (service worker, the only network code), `src/popup.ts`, `src/content/main.ts`; built by `pnpm --filter @jobleft/extension build` into `apps/extension/dist` (not committed; esbuild, not minified; only the contracts the extension runs are bundled) |
+| Test tools (not shipped) | `scripts/standin-app.ts` (a stand-in app with the extension routes and section 6.1 rules, no outbound request), `scripts/practice-server.ts` (practice pages with a submit/next/page-change log), `scripts/e2e.ts` (headless Chrome end-to-end checks), `scripts/record-fixture.ts` (polite saved copies of public application pages) |
+| Commands | `test`, `typecheck`, `build`, `standin`, `practice`, `e2e`, `record` (all `pnpm --filter @jobleft/extension <name>`) |
+| Data files | `fixtures/practice/*.html` (hand-made), `fixtures/recorded/*.html` and `fixtures/recorded/sources.json` (saved copies and their sources) |
+| Environment | `JOBLEFT_HOME` (stand-in data folder; default `<repo>/.jobleft-dev/extension-standin`), `JOBLEFT_CHROME` (the Chrome binary for e2e) |
+
+<!-- BEGIN GENERATED: sig:apps/extension -->
+```ts
+import { EXTENSION_PROTOCOL_VERSION } from '@jobleft/contracts';
+import type { AtsId } from '@jobleft/contracts';
+export { EXTENSION_PROTOCOL_VERSION };
+/** Where the extension looks for the app: GET /api/v1/health on each port until one answers app "jobleft". */
+export declare const APP_PORTS: readonly number[];
+/**
+ * Support level the popup shows before a fill (extension O13). Greenhouse, Lever, Ashby and Workable are supported.
+ * Workday is partial (last). iCIMS is partial: no iCIMS form could be tested (no live iCIMS requests are allowed).
+ */
+export declare const ATS_SUPPORT: Readonly<Partial<Record<AtsId, 'supported' | 'partial'>>>;
+/** Hosts where the extension never reads, fills or adds anything (every country domain and subdomain too). */
+export declare const NEVER_HOSTS: RegExp;
+export { answerFill, openQuestions } from './answer.ts';
+export type { AnswerContext, ResumeFile } from './answer.ts';
+export { classify, isSensitive, SENSITIVE_TOPICS } from './classify.ts';
+export type { Classification, SensitiveTopic, Topic } from './classify.ts';
+export { pickOption, pickMany, parseDegree } from './options.ts';
+export type { MatchKind, Opt } from './options.ts';
+export { templateDraft, contactLeaks } from './drafts.ts';
+export type { DraftJob } from './drafts.ts';
+export { pageKey } from './pagekey.ts';
+export { isNeverHost, supportFromUrl, supportFor, atsFromUrl } from './support.ts';
+export type { SupportInfo, SupportLevel } from './support.ts';
+```
+<!-- END GENERATED: sig:apps/extension -->
+
+No Chrome Web Store submission (gate G-store).
 
 ### `@jobleft/shell` (apps/shell)
 

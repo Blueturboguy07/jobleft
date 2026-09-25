@@ -2,7 +2,7 @@
 // practice server, and stops real submission so the page stays. window.__practiceDump() returns every field value.
 (function () {
   'use strict';
-  var page = location.pathname;
+  var page = location.pathname + location.search;
   function post(type, detail) {
     try { navigator.sendBeacon('/__event', new Blob([JSON.stringify({ type: type, page: page, detail: detail || '' })], { type: 'text/plain' })); } catch (e) {}
   }

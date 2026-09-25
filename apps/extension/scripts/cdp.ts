@@ -121,6 +121,10 @@ export class Page {
 
   send<T = Json>(method: string, params: Json = {}): Promise<T> { return this.browser.send<T>(method, params, this.sessionId); }
 
+  async close(): Promise<void> {
+    await this.browser.send('Target.closeTarget', { targetId: this.targetId }).catch(() => undefined);
+  }
+
   async goto(url: string): Promise<void> {
     const loaded = new Promise<void>((resolve) => {
       const done = (m: { method: string; sessionId?: string }): void => { if (m.sessionId === this.sessionId && m.method === 'Page.loadEventFired') resolve(); };
