@@ -261,6 +261,7 @@ export const HANDLERS: HandlerTable = {
   deletePairing: ({ d, params }) => { if (!d.pairing.remove(params.extensionId!)) notFound('That paired extension'); return ok; },
   unpair: ({ d, extensionId }) => { d.pairing.remove(extensionId!); return ok; },
   extensionStatus: ({ d }) => ({ json: new ExtensionService(d).status() }),
+  extensionCheck: ({ d }) => ({ json: new ExtensionService(d).status() }),
   extensionPage: ({ app, d, body }) => ({ json: extensionOf(app, d).page(body) }),
   extensionAddJob: async ({ app, d, body }) => ({ json: await extensionOf(app, d).addJob(body) }),
   fill: async ({ app, d, body }) => ({ json: await extensionOf(app, d).fill(body) }),

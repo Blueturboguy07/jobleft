@@ -344,8 +344,9 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     send(res, 200, { ok: true });
     return;
   }
-  if (m === 'GET' && path === '/api/v1/extension/status') {
+  if ((m === 'GET' && path === '/api/v1/extension/status') || (m === 'POST' && path === '/api/v1/extension/check')) {
     gate(req, 'pairing');
+    if (m === 'POST') await json(req);
     save();
     const missing = missingFields();
     send(res, 200, { paired: true, appVersion: VERSION, protocolVersion: EXTENSION_PROTOCOL_VERSION, profileComplete: missing.length === 0, missingProfileFields: missing });
@@ -364,6 +365,22 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       suggestedResumeId: suggested?.id ?? null,
     };
     send(res, 200, info);
+    return;
+  }
+  if (m === 'POST' && path === '/api/v1/extension/add-job') {
+    gate(req, 'pairing');
+    const body = await json<{ pageUrl: string }>(req, PageInfoRequestSchema);
+    let job = jobForUrl(body.pageUrl);
+    if (!job) {
+      job = { id: `job-${randomBytes(4).toString('hex')}`, title: null, company: new URL(body.pageUrl).hostname, url: body.pageUrl, external: true };
+      S.jobs.push(job);
+      save();
+    }
+    const r = resumeFor(job, null);
+    send(res, 200, {
+      jobId: job.id, title: job.title, company: job.company, applied: null,
+      resumes: S.resumes.map((x) => ({ id: x.id, name: x.name, fileName: x.fileName, tailoredForThisJob: x.jobId === job?.id, isDefault: x.isDefault })), suggestedResumeId: r?.id ?? null,
+    } satisfies PageInfo);
     return;
   }
   if (m === 'POST' && path === '/api/v1/extension/fill') {
