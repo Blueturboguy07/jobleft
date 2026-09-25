@@ -1,0 +1,30 @@
+{
+  "note": "Structural signature of the real answer read on 2026-09-25 (paths and types only, no data).",
+  "listings": [
+    "$:array",
+    "$[].active:boolean",
+    "$[].category:string",
+    "$[].company_name:string",
+    "$[].company_url:string",
+    "$[].date_posted:number",
+    "$[].date_updated:number",
+    "$[].degrees:array",
+    "$[].degrees[]:string",
+    "$[].id:string",
+    "$[].is_visible:boolean",
+    "$[].locations:array",
+    "$[].locations[]:string",
+    "$[].season:string",
+    "$[].source:string",
+    "$[].sponsorship:string",
+    "$[].terms:array",
+    "$[].terms[]:string",
+    "$[].title:string",
+    "$[].url:string",
+    "$[]:object"
+  ],
+  "markdownHeaders": [
+    "| Company | Position | Location | Posting | Age |",
+    "| Company | Position | Location | Salary | Posting | Age |"
+  ]
+}

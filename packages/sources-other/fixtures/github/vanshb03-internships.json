@@ -1,0 +1,70 @@
+[
+  {
+    "date_updated": 1790000000,
+    "url": "https://job-boards.greenhouse.io/acmerobotics-example/jobs/7700000001",
+    "locations": [
+      "Pittsburgh, PA"
+    ],
+    "sponsorship": "Other",
+    "active": true,
+    "company_name": "Acme Robotics",
+    "title": "software engineering intern",
+    "season": "Summer",
+    "source": "vanshb03",
+    "id": "10000000-0000-4000-8000-000000000001",
+    "date_posted": 1790000000,
+    "company_url": "",
+    "is_visible": true
+  },
+  {
+    "date_updated": 1790000000,
+    "url": "https://jobs.ashbyhq.com/ironbark-example/9i9i9i9i-0000-4000-8000-000000000002",
+    "locations": [
+      "Houston, TX"
+    ],
+    "sponsorship": "Other",
+    "active": true,
+    "company_name": "Ironbark Energy",
+    "title": "Grid Software Intern",
+    "season": "Summer",
+    "source": "vanshb03",
+    "id": "10000000-0000-4000-8000-000000000002",
+    "date_posted": 1790000000,
+    "company_url": "",
+    "is_visible": true
+  },
+  {
+    "date_updated": 1790000000,
+    "url": "https://juniper-example.recruitee.com/o/clinical-data-intern",
+    "locations": [
+      "Remote"
+    ],
+    "sponsorship": "Other",
+    "active": true,
+    "company_name": "Juniper Nursing Group",
+    "title": "Clinical Data Intern",
+    "season": "Fall",
+    "source": "vanshb03",
+    "id": "10000000-0000-4000-8000-000000000003",
+    "date_posted": 1790000000,
+    "company_url": "",
+    "is_visible": true
+  },
+  {
+    "date_updated": 1790000000,
+    "url": "https://kestrel-example.jobs.personio.de/job/1000004",
+    "locations": [
+      "Munich, Germany"
+    ],
+    "sponsorship": "Other",
+    "active": false,
+    "company_name": "Kestrel Aerospace",
+    "title": "Avionics Intern",
+    "season": "Summer",
+    "source": "vanshb03",
+    "id": "10000000-0000-4000-8000-000000000004",
+    "date_posted": 1790000000,
+    "company_url": "",
+    "is_visible": true
+  }
+]

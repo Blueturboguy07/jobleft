@@ -44,6 +44,12 @@ export function shapeError(detail: string): FeedError {
   return new FeedError('shape', `the data format changed: ${detail}`);
 }
 
+/**
+ * The smallest gap between two requests to one host. 1 second is the rule; the extra 100 ms absorbs connection setup
+ * and timer jitter, so the gap a server observes is never under 1 second either.
+ */
+export const MIN_GAP_MS = 1100;
+
 /** Spaces requests to one host. Pacing uses real time, never the app clock. */
 export interface HostPacer {
   wait(host: string, gapMs: number, signal?: AbortSignal): Promise<void>;
@@ -65,7 +71,7 @@ export class MemoryPacer implements HostPacer {
   async wait(host: string, gapMs: number, signal?: AbortSignal): Promise<void> {
     const now = Date.now();
     const start = Math.max(now, this.next.get(host) ?? 0);
-    this.next.set(host, start + Math.max(1000, gapMs));
+    this.next.set(host, start + Math.max(MIN_GAP_MS, gapMs));
     await sleep(start - now, signal);
   }
 }
@@ -78,7 +84,7 @@ export class DbPacer implements HostPacer {
   private db: DatabaseSync;
   constructor(db: DatabaseSync) { this.db = db; }
   async wait(host: string, gapMs: number, signal?: AbortSignal): Promise<void> {
-    const gap = Math.max(1000, gapMs);
+    const gap = Math.max(MIN_GAP_MS, gapMs);
     let start = 0;
     let now = 0;
     for (let attempt = 0; ; attempt++) {
@@ -129,6 +135,8 @@ export interface FeedClientOptions {
   robotsExceptions?: readonly string[];
   /** Retries after a 5xx or a network error (never after a timeout, a 4xx or a block). Default 1. */
   retries?: number;
+  /** robots.txt answers shared by every client of one refresh (one fetch per host per refresh). */
+  robotsCache?: Map<string, Promise<RobotsRules>>;
   retryDelayMs?: number;
 }
 
@@ -154,9 +162,10 @@ export class FeedClient implements FeedHttp {
   private robotsExceptions: Set<string>;
   private retries: number;
   private retryDelayMs: number;
-  private robots = new Map<string, Promise<RobotsRules>>();
+  private robots: Map<string, Promise<RobotsRules>>;
 
   constructor(opts: FeedClientOptions) {
+    this.robots = opts.robotsCache ?? new Map();
     this.sourceId = opts.sourceId;
     this.allowed = new Set(opts.allowedHosts.map((h) => h.toLowerCase()));
     this.pacer = opts.pacer;
@@ -246,7 +255,7 @@ export class FeedClient implements FeedHttp {
     let p = this.robots.get(key);
     if (!p) {
       p = (async () => {
-        await this.pacer.wait(realHost, 1000, this.signal);
+        await this.pacer.wait(realHost, MIN_GAP_MS, this.signal);
         let res: Response;
         try {
           res = await this.send(new URL('/robots.txt', target.origin), realHost, { 'user-agent': USER_AGENT, accept: 'text/plain' });
@@ -260,6 +269,8 @@ export class FeedClient implements FeedHttp {
         return ALLOW_ALL; // 4xx: no rules published
       })();
       this.robots.set(key, p);
+      // A failure that is not about robots.txt (budget, cancel, offline) must not stick for other sources.
+      p.catch(() => { if (this.robots.get(key) === p) this.robots.delete(key); });
     }
     return p;
   }

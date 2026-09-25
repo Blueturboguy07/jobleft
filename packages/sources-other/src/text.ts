@@ -86,7 +86,7 @@ const EXTRA_COUNTRIES: Record<string, string> = {
 export function countryCode(token: string): string | null {
   const t = token.trim().replace(/\.$/, '');
   if (!t) return null;
-  const lower = t.toLowerCase();
+  const lower = t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (EXTRA_COUNTRIES[lower]) return EXTRA_COUNTRIES[lower]!;
   if (/^[A-Za-z]{2}$/.test(t)) {
     // Two letters are a country code only in upper case and only when they are not a US state code.
@@ -97,7 +97,7 @@ export function countryCode(token: string): string | null {
     if (!known.has(t)) return null;
     return t === 'UK' ? 'GB' : t;
   }
-  const c = countryFromCode(t);
+  const c = countryFromCode(lower);
   return c.length === 1 ? c[0]! : null;
 }
 

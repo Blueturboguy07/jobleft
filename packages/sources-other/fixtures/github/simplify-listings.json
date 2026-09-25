@@ -1,0 +1,188 @@
+[
+  {
+    "source": "Simplify",
+    "category": "Software",
+    "company_name": "Acme Robotics",
+    "id": "00000000-0000-4000-8000-000000000001",
+    "title": "Software Engineering Intern",
+    "active": true,
+    "terms": [
+      "Summer 2027"
+    ],
+    "date_updated": 1790100000,
+    "date_posted": 1790100000,
+    "url": "https://job-boards.greenhouse.io/acmerobotics-example/jobs/7700000001?utm_source=Simplify&ref=Simplify",
+    "locations": [
+      "Pittsburgh, PA"
+    ],
+    "company_url": "https://simplify.jobs/c/Acme-Robotics",
+    "is_visible": true,
+    "sponsorship": "Other",
+    "degrees": [
+      "Bachelor's"
+    ]
+  },
+  {
+    "source": "Simplify",
+    "category": "Healthcare",
+    "company_name": "Birchwood Health",
+    "id": "00000000-0000-4000-8000-000000000002",
+    "title": "Nursing Intern",
+    "active": true,
+    "terms": [
+      "Summer 2027"
+    ],
+    "date_updated": 1790100000,
+    "date_posted": 1790100000,
+    "url": "https://jobs.lever.co/birchwood-example/2b2b2b2b-0000-4000-8000-000000000002",
+    "locations": [
+      "Denver, CO",
+      "Remote in USA"
+    ],
+    "company_url": "https://simplify.jobs/c/Birchwood-Health",
+    "is_visible": true,
+    "sponsorship": "Does Not Offer Sponsorship",
+    "degrees": [
+      "Bachelor's"
+    ]
+  },
+  {
+    "source": "Simplify",
+    "category": "Quant",
+    "company_name": "Cobalt Ledger",
+    "id": "00000000-0000-4000-8000-000000000003",
+    "title": "Quant Research Intern",
+    "active": true,
+    "terms": [
+      "Summer 2027"
+    ],
+    "date_updated": 1790100000,
+    "date_posted": 1790100000,
+    "url": "https://jobs.ashbyhq.com/cobalt-ledger-example/3c3c3c3c-0000-4000-8000-000000000003",
+    "locations": [
+      "Remote in USA"
+    ],
+    "company_url": "https://simplify.jobs/c/Cobalt-Ledger",
+    "is_visible": true,
+    "sponsorship": "Offers Sponsorship",
+    "degrees": [
+      "Bachelor's"
+    ]
+  },
+  {
+    "source": "Simplify",
+    "category": "Software",
+    "company_name": "Dunmore Analytics",
+    "id": "00000000-0000-4000-8000-000000000004",
+    "title": "Data Science Co-op",
+    "active": true,
+    "terms": [
+      "Fall 2026",
+      "Spring 2027"
+    ],
+    "date_updated": 1790100000,
+    "date_posted": 1790100000,
+    "url": "https://dunmore.wd1.myworkdayjobs.com/External/job/Austin-TX/Data-Science-Co-op_R0001",
+    "locations": [
+      "Austin, TX"
+    ],
+    "company_url": "https://simplify.jobs/c/Dunmore-Analytics",
+    "is_visible": true,
+    "sponsorship": "U.S. Citizenship is Required",
+    "degrees": [
+      "Bachelor's"
+    ]
+  },
+  {
+    "source": "Simplify",
+    "category": "Other",
+    "company_name": "Evergreen Logistics",
+    "id": "00000000-0000-4000-8000-000000000005",
+    "title": "Operations Intern",
+    "active": true,
+    "terms": [
+      "Summer 2027"
+    ],
+    "date_updated": 1790100000,
+    "date_posted": 1790100000,
+    "url": "https://careers.evergreen-logistics.example/jobs/5555",
+    "locations": [
+      "Toronto, ON, Canada"
+    ],
+    "company_url": "https://simplify.jobs/c/Evergreen-Logistics",
+    "is_visible": true,
+    "sponsorship": "Other",
+    "degrees": [
+      "Bachelor's"
+    ]
+  },
+  {
+    "source": "Simplify",
+    "category": "Software",
+    "company_name": "Foxglove Studio",
+    "id": "00000000-0000-4000-8000-000000000006",
+    "title": "Design Intern",
+    "active": false,
+    "terms": [
+      "Summer 2027"
+    ],
+    "date_updated": 1790100000,
+    "date_posted": 1790100000,
+    "url": "https://apply.workable.com/foxglove-example/j/FOX0000006/",
+    "locations": [
+      "London, UK"
+    ],
+    "company_url": "https://simplify.jobs/c/Foxglove-Studio",
+    "is_visible": true,
+    "sponsorship": "Other",
+    "degrees": [
+      "Bachelor's"
+    ]
+  },
+  {
+    "source": "Simplify",
+    "category": "Software",
+    "company_name": "Granite Payments",
+    "id": "00000000-0000-4000-8000-000000000007",
+    "title": "Security Intern",
+    "active": true,
+    "terms": [
+      "Summer 2027"
+    ],
+    "date_updated": 1790100000,
+    "date_posted": 1790100000,
+    "url": "https://jobs.lever.co/granite-example/7g7g7g7g-0000-4000-8000-000000000007",
+    "locations": [
+      "New York, NY"
+    ],
+    "company_url": "https://simplify.jobs/c/Granite-Payments",
+    "is_visible": false,
+    "sponsorship": "Other",
+    "degrees": [
+      "Bachelor's"
+    ]
+  },
+  {
+    "source": "Simplify",
+    "category": "Software",
+    "company_name": "Halcyon Maps",
+    "id": "00000000-0000-4000-8000-000000000008",
+    "title": "GIS Intern",
+    "active": true,
+    "terms": [
+      "Summer 2027"
+    ],
+    "date_updated": 1790100000,
+    "date_posted": 1790100000,
+    "url": "javascript:alert(1)",
+    "locations": [
+      "Seattle, WA"
+    ],
+    "company_url": "https://simplify.jobs/c/Halcyon-Maps",
+    "is_visible": true,
+    "sponsorship": "Other",
+    "degrees": [
+      "Bachelor's"
+    ]
+  }
+]

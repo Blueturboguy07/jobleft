@@ -10,7 +10,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { nowMs } from '@jobleft/contracts';
 import { normalizeJob } from '@jobleft/crawler';
-import type { Ats, BoardRef, CrawledJob, Store } from '@jobleft/crawler';
+import type { Ats, BoardRef, CrawledJob, RobotsRules, Store } from '@jobleft/crawler';
 import { ALL_FEEDS, ROBOTS_EXCEPTIONS } from './catalog.ts';
 import { migrateSourcesOther } from './db.ts';
 import { DbPacer, FeedClient, FeedError } from './http.ts';
@@ -245,6 +245,7 @@ export async function refreshSources(opts: RefreshOptions): Promise<SourceRunRes
   const feeds = opts.ids ? all.filter((f) => opts.ids!.includes(f.id)) : all;
   const pacer = opts.pacer ?? new DbPacer(db);
   const timeoutMs = opts.timeoutMs ?? 15_000;
+  const robotsCache = new Map<string, Promise<RobotsRules>>();
 
   async function runOne(feed: JobFeed): Promise<SourceRunResult> {
     const r = blank(feed);
@@ -281,6 +282,7 @@ export async function refreshSources(opts: RefreshOptions): Promise<SourceRunRes
       offline: false,
       signal: opts.signal,
       robotsExceptions: ROBOTS_EXCEPTIONS,
+      robotsCache,
       retryDelayMs: opts.retryDelayMs,
     });
     const finish: RunFinish = {
@@ -309,7 +311,7 @@ export async function refreshSources(opts: RefreshOptions): Promise<SourceRunRes
         r.outcome = 'ok';
         r.message = res.notModified
           ? `${feed.info.name} has not changed since the last refresh (${counts.listed} open jobs)`
-          : `${feed.info.name}: ${counts.listed} jobs listed, ${counts.inserted} new, ${counts.closed} closed${counts.merged ? `, ${counts.merged} already known from another source` : ''}${counts.closeHeld ? `; ${counts.closeHeld}` : ''}`;
+          : `${feed.info.name}: ${counts.listed} jobs listed, ${counts.inserted} new, ${counts.closed} closed${counts.reopened ? `, ${counts.reopened} reopened` : ''}${counts.merged ? `, ${counts.merged} already known from another source` : ''}${counts.unreadable || (res.unreadableIds?.length ?? 0) || (res.unreadableWithoutId ?? 0) ? `, ${counts.unreadable + (res.unreadableIds?.length ?? 0) + (res.unreadableWithoutId ?? 0)} could not be read` : ''}${!res.complete ? ' (not the whole feed, so nothing was closed)' : ''}${counts.closeHeld ? `; ${counts.closeHeld}` : ''}`;
       }
     } catch (e) {
       const p = plainProblem(e, secrets);

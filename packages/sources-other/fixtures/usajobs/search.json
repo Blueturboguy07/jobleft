@@ -1,0 +1,324 @@
+{
+  "LanguageCode": "EN",
+  "SearchParameters": {},
+  "SearchResult": {
+    "SearchResultCount": 4,
+    "SearchResultCountAll": 4,
+    "SearchResultItems": [
+      {
+        "MatchedObjectId": "800001",
+        "MatchedObjectDescriptor": {
+          "PositionID": "FIX-800001",
+          "PositionTitle": "Program Analyst",
+          "PositionURI": "https://www.usajobs.gov/job/800001",
+          "ApplyURI": [
+            "https://www.usajobs.gov:443/job/800001/apply"
+          ],
+          "PositionLocationDisplay": "Denver, Colorado",
+          "PositionLocation": [
+            {
+              "LocationName": "Denver, Colorado",
+              "CountryCode": "United States",
+              "CountrySubDivisionCode": "Colorado",
+              "CityName": "Denver, Colorado",
+              "Longitude": -104.99,
+              "Latitude": 39.74
+            }
+          ],
+          "OrganizationName": "Fixture Agency for Parks",
+          "DepartmentName": "Department of Fixtures",
+          "JobCategory": [
+            {
+              "Name": "Miscellaneous Administration And Program",
+              "Code": "0301"
+            }
+          ],
+          "JobGrade": [
+            {
+              "Code": "GS"
+            }
+          ],
+          "PositionSchedule": [
+            {
+              "Name": "Full-time",
+              "Code": "1"
+            }
+          ],
+          "PositionOfferingType": [
+            {
+              "Name": "Permanent",
+              "Code": "15317"
+            }
+          ],
+          "QualificationSummary": "Made-up qualification summary for tests.",
+          "PositionRemuneration": [
+            {
+              "MinimumRange": "61111",
+              "MaximumRange": "79431",
+              "RateIntervalCode": "PA",
+              "Description": "Per Year"
+            }
+          ],
+          "PositionStartDate": "2026-09-20T00:00:00.0000Z",
+          "PositionEndDate": "2026-12-31T23:59:59.9970Z",
+          "PublicationStartDate": "2026-09-20T00:00:00.0000Z",
+          "ApplicationCloseDate": "2026-12-31T23:59:59.9970Z",
+          "UserArea": {
+            "Details": {
+              "JobSummary": "A made-up federal job for tests.",
+              "WhoMayApply": {
+                "Name": "United States Citizens",
+                "Code": ""
+              },
+              "LowGrade": "09",
+              "HighGrade": "11",
+              "MajorDuties": [
+                "Duty one.",
+                "Duty two."
+              ]
+            },
+            "IsRadialSearch": false
+          }
+        },
+        "RelevanceRank": 0
+      },
+      {
+        "MatchedObjectId": "800002",
+        "MatchedObjectDescriptor": {
+          "PositionID": "FIX-800002",
+          "PositionTitle": "Park Guide (Seasonal)",
+          "PositionURI": "https://www.usajobs.gov/job/800002",
+          "ApplyURI": [
+            "https://www.usajobs.gov:443/job/800002/apply"
+          ],
+          "PositionLocationDisplay": "Moab, Utah",
+          "PositionLocation": [
+            {
+              "LocationName": "Moab, Utah",
+              "CountryCode": "United States",
+              "CountrySubDivisionCode": "Utah",
+              "CityName": "Moab, Utah",
+              "Longitude": -109.55,
+              "Latitude": 38.57
+            }
+          ],
+          "OrganizationName": "Fixture Agency for Parks",
+          "DepartmentName": "Department of Fixtures",
+          "JobCategory": [
+            {
+              "Name": "Miscellaneous Administration And Program",
+              "Code": "0301"
+            }
+          ],
+          "JobGrade": [
+            {
+              "Code": "GS"
+            }
+          ],
+          "PositionSchedule": [
+            {
+              "Name": "Part-time",
+              "Code": "1"
+            }
+          ],
+          "PositionOfferingType": [
+            {
+              "Name": "Temporary",
+              "Code": "15317"
+            }
+          ],
+          "QualificationSummary": "Made-up qualification summary for tests.",
+          "PositionRemuneration": [
+            {
+              "MinimumRange": "18.50",
+              "MaximumRange": "22.10",
+              "RateIntervalCode": "PH",
+              "Description": "Per Hour"
+            }
+          ],
+          "PositionStartDate": "2026-09-19T00:00:00.0000Z",
+          "PositionEndDate": "2026-11-30T23:59:59.9970Z",
+          "PublicationStartDate": "2026-09-19T00:00:00.0000Z",
+          "ApplicationCloseDate": "2026-11-30T23:59:59.9970Z",
+          "UserArea": {
+            "Details": {
+              "JobSummary": "A made-up federal job for tests.",
+              "WhoMayApply": {
+                "Name": "United States Citizens",
+                "Code": ""
+              },
+              "LowGrade": "05",
+              "HighGrade": "05",
+              "MajorDuties": [
+                "Duty one.",
+                "Duty two."
+              ]
+            },
+            "IsRadialSearch": false
+          }
+        },
+        "RelevanceRank": 0
+      },
+      {
+        "MatchedObjectId": "800003",
+        "MatchedObjectDescriptor": {
+          "PositionID": "FIX-800003",
+          "PositionTitle": "IT Specialist (Remote)",
+          "PositionURI": "https://www.usajobs.gov/job/800003",
+          "ApplyURI": [
+            "https://www.usajobs.gov:443/job/800003/apply"
+          ],
+          "PositionLocationDisplay": "Anywhere in the U.S. (remote job)",
+          "PositionLocation": [
+            {
+              "LocationName": "Anywhere in the U.S. (remote job)",
+              "CountryCode": "United States",
+              "CountrySubDivisionCode": "",
+              "CityName": "Anywhere in the U.S. (remote job)",
+              "Longitude": 0,
+              "Latitude": 0
+            }
+          ],
+          "OrganizationName": "Fixture Office of Systems",
+          "DepartmentName": "Department of Fixtures",
+          "JobCategory": [
+            {
+              "Name": "Miscellaneous Administration And Program",
+              "Code": "0301"
+            }
+          ],
+          "JobGrade": [
+            {
+              "Code": "GS"
+            }
+          ],
+          "PositionSchedule": [
+            {
+              "Name": "Full-time",
+              "Code": "1"
+            }
+          ],
+          "PositionOfferingType": [
+            {
+              "Name": "Permanent",
+              "Code": "15317"
+            }
+          ],
+          "QualificationSummary": "Made-up qualification summary for tests.",
+          "PositionRemuneration": [
+            {
+              "MinimumRange": "4200",
+              "MaximumRange": "5100",
+              "RateIntervalCode": "BW",
+              "Description": "Bi-weekly"
+            }
+          ],
+          "PositionStartDate": "2026-09-18T00:00:00.0000Z",
+          "PositionEndDate": "2026-12-15T23:59:59.9970Z",
+          "PublicationStartDate": "2026-09-18T00:00:00.0000Z",
+          "ApplicationCloseDate": "2026-12-15T23:59:59.9970Z",
+          "UserArea": {
+            "Details": {
+              "JobSummary": "A made-up federal job for tests.",
+              "WhoMayApply": {
+                "Name": "United States Citizens",
+                "Code": ""
+              },
+              "LowGrade": "12",
+              "HighGrade": "13",
+              "MajorDuties": [
+                "Duty one.",
+                "Duty two."
+              ],
+              "RemoteIndicator": true,
+              "TeleworkEligible": false
+            },
+            "IsRadialSearch": false
+          }
+        },
+        "RelevanceRank": 0
+      },
+      {
+        "MatchedObjectId": "800004",
+        "MatchedObjectDescriptor": {
+          "PositionID": "FIX-800004",
+          "PositionTitle": "Records Clerk (Closed)",
+          "PositionURI": "https://www.usajobs.gov/job/800004",
+          "ApplyURI": [
+            "https://www.usajobs.gov:443/job/800004/apply"
+          ],
+          "PositionLocationDisplay": "Kansas City, Missouri",
+          "PositionLocation": [
+            {
+              "LocationName": "Kansas City, Missouri",
+              "CountryCode": "United States",
+              "CountrySubDivisionCode": "Missouri",
+              "CityName": "Kansas City, Missouri",
+              "Longitude": -94.58,
+              "Latitude": 39.1
+            }
+          ],
+          "OrganizationName": "Fixture Records Center",
+          "DepartmentName": "Department of Fixtures",
+          "JobCategory": [
+            {
+              "Name": "Miscellaneous Administration And Program",
+              "Code": "0301"
+            }
+          ],
+          "JobGrade": [
+            {
+              "Code": "GS"
+            }
+          ],
+          "PositionSchedule": [
+            {
+              "Name": "Full-time",
+              "Code": "1"
+            }
+          ],
+          "PositionOfferingType": [
+            {
+              "Name": "Permanent",
+              "Code": "15317"
+            }
+          ],
+          "QualificationSummary": "Made-up qualification summary for tests.",
+          "PositionRemuneration": [
+            {
+              "MinimumRange": "40000",
+              "MaximumRange": "52000",
+              "RateIntervalCode": "PA",
+              "Description": "Per Year"
+            }
+          ],
+          "PositionStartDate": "2026-01-02T00:00:00.0000Z",
+          "PositionEndDate": "2026-01-15T23:59:59.9970Z",
+          "PublicationStartDate": "2026-01-02T00:00:00.0000Z",
+          "ApplicationCloseDate": "2026-01-15T23:59:59.9970Z",
+          "UserArea": {
+            "Details": {
+              "JobSummary": "A made-up federal job for tests.",
+              "WhoMayApply": {
+                "Name": "United States Citizens",
+                "Code": ""
+              },
+              "LowGrade": "04",
+              "HighGrade": "05",
+              "MajorDuties": [
+                "Duty one.",
+                "Duty two."
+              ]
+            },
+            "IsRadialSearch": false
+          }
+        },
+        "RelevanceRank": 0
+      }
+    ],
+    "UserArea": {
+      "NumberOfPages": "1",
+      "IsRadialSearch": false
+    }
+  }
+}
