@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:DealBreakerCheck",
+  "title": "DealBreakerCheck",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "work_model",
+        "location",
+        "pay",
+        "employment_type"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "broken",
+        "not_stated",
+        "not_in_profile"
+      ]
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "quote": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 500
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "kind",
+    "state",
+    "message",
+    "quote"
+  ]
+}

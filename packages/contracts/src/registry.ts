@@ -13,7 +13,9 @@ import {
 } from './extension.ts';
 import { JobFilterSchema, JobListItemSchema, JobSearchRequestSchema, JobSearchResponseSchema, SavedFilterSchema } from './filter.ts';
 import { JobSchema, JobSummarySchema, PaySchema, PlaceSchema, SourceAttributionSchema } from './job.ts';
-import { MatchResultSchema, MatchSummarySchema } from './match.ts';
+import {
+  DealBreakerCheckSchema, ExperienceDetailSchema, JobFactViewSchema, MatchResultSchema, MatchSummarySchema, MustHaveSchema, SkillCheckSchema,
+} from './match.ts';
 import {
   CompanyCoverageSchema, ContactRankSchema, NetworkContactSchema, NetworkImportSummarySchema, OutreachDraftSchema,
 } from './network.ts';
@@ -38,6 +40,8 @@ export const SCHEMAS: Readonly<Record<string, JsonSchema>> = {
   Resume: ResumeSchema, ResumeDocument: ResumeDocumentSchema, AtsReport: AtsReportSchema, KeywordGapReport: KeywordGapReportSchema,
   TailorProposal: TailorProposalSchema, CoverLetter: CoverLetterSchema,
   MatchResult: MatchResultSchema, MatchSummary: MatchSummarySchema,
+  MustHave: MustHaveSchema, DealBreakerCheck: DealBreakerCheckSchema, JobFactView: JobFactViewSchema, SkillCheck: SkillCheckSchema,
+  ExperienceDetail: ExperienceDetailSchema,
   TrackerEntry: TrackerEntrySchema, TrackerPatch: TrackerPatchSchema,
   NetworkContact: NetworkContactSchema, NetworkImportSummary: NetworkImportSummarySchema, ContactRank: ContactRankSchema,
   CompanyCoverage: CompanyCoverageSchema, OutreachDraft: OutreachDraftSchema,

@@ -125,8 +125,17 @@ const PROFILE_INPUT_FIELDS = {
   eeo: EeoAnswersSchema,
 };
 
+/** Optional editable fields, added after 1.0.0 (additive). Readers treat a missing field as empty. */
+const PROFILE_INPUT_OPTIONAL = {
+  /**
+   * Skills the person marked "I don't have this" on a job (match lane). The match score never counts them, even when
+   * a work bullet names them. "I have this" adds a SkillEntry with source "user" instead.
+   */
+  declinedSkills: arr(str({ minLength: 1 })),
+};
+
 /** The editable profile (PUT /api/v1/profile, and the proposal a resume import returns). */
-export const ProfileInputSchema = named(obj(PROFILE_INPUT_FIELDS), 'ProfileInput', 'The editable part of the profile');
+export const ProfileInputSchema = named(obj(PROFILE_INPUT_FIELDS, PROFILE_INPUT_OPTIONAL), 'ProfileInput', 'The editable part of the profile');
 
 export const ProfileSchema = named(obj({
   /** One local user: always "default". */
@@ -135,7 +144,7 @@ export const ProfileSchema = named(obj({
   /** Hash of the facts; MatchResult.profileVersion refers to it. */
   version: str(),
   updatedAt: IsoDateTimeSchema,
-}), 'Profile', "The user's own facts, preferences and answers");
+}, PROFILE_INPUT_OPTIONAL), 'Profile', "The user's own facts, preferences and answers");
 
 export type Link = Infer<typeof LinkSchema>;
 export type Personal = Infer<typeof PersonalSchema>;

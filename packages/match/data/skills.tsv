@@ -1,0 +1,585 @@
+# jobleft skill taxonomy: skills in tech and non-tech work, the words postings and profiles use for them, and which
+# skills can stand in for each other.
+# Source: written new for jobleft by the match lane (2026-09-25). First-party data; no third-party list was copied.
+# Licence: same as the jobleft project. Skill names are ordinary names of tools, methods and trade skills.
+#
+# Format: id | name | kind | families | aliases | related skills
+#   * kind: lang (programming language), tool, skill, method, regime (a rule set a job is subject to, such as HIPAA;
+#     it counts only when a requirement list names it), spoken (a human language).
+#   * families: the kinds of work (data/occupations.tsv) where the skill belongs. Macros: @tech @health @office
+#     @trades @edu @mgmt, and * for every kind. A skill named only in passing (not in a requirement list) counts
+#     only when the job's kind of work is one of these.
+#   * aliases: the words for the skill. Matching is on whole words, longest first, so "JavaScript" is never "Java"
+#     and "C++" is never "C". A leading = means the letters must match in case ("Go", "R", "Excel").
+#     A trailing @ctx needs context in the text around it (see CONTEXT_RULES in src/taxonomy.ts).
+#   * related: skills that can stand in for this one (half credit, and the skill still shows as missing).
+#     Pairs are symmetric. Names that look alike are never related (Java and JavaScript, C and C++).
+#
+# ---------- programming languages
+python | Python | lang | @tech,science,engineering | python, python3, python 3 | 
+java | Java | lang | @tech | java, java 8, java 11, java 17, java 21, java ee, j2ee, jakarta ee | kotlin, scala, csharp
+javascript | JavaScript | lang | @tech,design | javascript, java script, ecmascript, es6, es2015, vanilla js, =JS | typescript
+typescript | TypeScript | lang | @tech,design | typescript, type script | javascript
+c | C | lang | software,engineering,it | =C@prog, c language, c programming, ansi c, embedded c, c99, c11 |
+cpp | C++ | lang | software,engineering,data | c++, cpp, c plus plus, modern c++, c++11, c++14, c++17, c++20 | rust
+csharp | C# | lang | software,it | c#, csharp, c sharp | java
+go | Go | lang | software,it,security | golang, =Go@prog, go language, go programming, go lang |
+rust | Rust | lang | software,security | =Rust@prog, rust language, rust programming, rustlang, rust-lang | cpp
+ruby | Ruby | lang | software | =Ruby@prog, ruby language, ruby programming |
+php | PHP | lang | software | php, php7, php 8 |
+kotlin | Kotlin | lang | software | kotlin | java, swift
+swift | Swift | lang | software | =Swift@ios, swift language, swift programming, swift 5 | kotlin, objective_c
+objective_c | Objective-C | lang | software | objective-c, objective c, objc, obj-c | swift
+scala | Scala | lang | software,data | scala | java
+r | R | lang | data,science,finance | =R@stats, r programming, r language, r studio, rstudio, tidyverse, ggplot2, dplyr, r shiny | sas
+matlab | MATLAB | lang | engineering,science,data | matlab, simulink |
+perl | Perl | lang | software,it | perl |
+bash | Shell scripting | lang | software,it,security | bash, bash scripting, shell scripting, shell scripts, shell script, unix shell, zsh, ksh | powershell
+powershell | PowerShell | lang | it,security,software | powershell | bash
+sql | SQL | lang | @tech,finance,accounting,marketing,health_admin,operations | sql, t-sql, tsql, pl/sql, plsql, ansi sql, sql queries, sql query, writing sql, structured query language, sql scripting |
+haskell | Haskell | lang | software | haskell |
+elixir | Elixir | lang | software | elixir | erlang
+erlang | Erlang | lang | software | erlang | elixir
+clojure | Clojure | lang | software | clojure |
+dart | Dart | lang | software | =Dart@prog, dart language |
+lua | Lua | lang | software | lua |
+julia | Julia | lang | data,science | =Julia@prog, julia language |
+fortran | Fortran | lang | engineering,science | fortran |
+cobol | COBOL | lang | software,it | cobol |
+assembly | Assembly language | lang | software,engineering | assembly language, assembly programming, x86 assembly, arm assembly, =ASM |
+vba | VBA | lang | @office,data | vba, visual basic for applications, excel vba, excel macros, macros in excel |
+vbnet | VB.NET | lang | software | vb.net, visual basic .net, visual basic | csharp
+solidity | Solidity | lang | software | solidity |
+groovy | Groovy | lang | software | groovy |
+fsharp | F# | lang | software | f# | csharp
+html | HTML | lang | software,design,marketing | html, html5, html 5 |
+css | CSS | lang | software,design,marketing | css, css3, css 3 | sass
+sass | Sass | tool | software,design | sass, scss |
+graphql | GraphQL | tool | software | graphql |
+# ---------- web and app frameworks
+react | React | tool | software,design | =React@notverb, react.js, reactjs, react js, react hooks | vue, angular, svelte
+react_native | React Native | tool | software | react native | flutter
+nextjs | Next.js | tool | software | next.js, nextjs, next js | nuxt
+vue | Vue | tool | software | vue, vue.js, vuejs, vue js, vue 3 | react, angular
+nuxt | Nuxt | tool | software | nuxt, nuxt.js, nuxtjs | nextjs
+angular | Angular | tool | software | =Angular, angularjs, angular.js, angular 2+ | react, vue
+svelte | Svelte | tool | software | svelte, sveltekit | react
+jquery | jQuery | tool | software | jquery |
+redux | Redux | tool | software | redux |
+nodejs | Node.js | tool | software | node.js, nodejs, node js, =Node@prog | deno
+deno | Deno | tool | software | deno | nodejs
+express | Express | tool | software | express.js, expressjs, =Express@prog | nestjs, fastify
+nestjs | NestJS | tool | software | nestjs, nest.js | express
+fastify | Fastify | tool | software | fastify | express
+django | Django | tool | software | django, django rest framework | flask, fastapi
+flask | Flask | tool | software | =Flask@prog | django, fastapi
+fastapi | FastAPI | tool | software | fastapi | flask, django
+spring | Spring | tool | software | spring boot, springboot, spring framework, spring mvc, =Spring@prog | dotnet
+dotnet | .NET | tool | software | .net, dotnet, .net core, asp.net, asp.net core, .net framework | spring
+laravel | Laravel | tool | software | laravel | symfony
+symfony | Symfony | tool | software | symfony | laravel
+rails | Ruby on Rails | tool | software | ruby on rails, rails, =RoR | django
+flutter | Flutter | tool | software | flutter | react_native
+swiftui | SwiftUI | tool | software | swiftui, uikit |
+android | Android development | tool | software | android sdk, android development, android studio, =Android@prog, jetpack compose |
+ios | iOS development | tool | software | ios development, ios sdk, =iOS@prog, xcode |
+unity | Unity | tool | software,design | unity3d, unity 3d, unity engine, =Unity@prog | unreal
+unreal | Unreal Engine | tool | software,design | unreal engine, ue4, ue5 | unity
+wordpress | WordPress | tool | software,marketing,design | wordpress | shopify
+shopify | Shopify | tool | software,marketing | shopify | wordpress
+tailwind | Tailwind CSS | tool | software,design | tailwind, tailwind css, tailwindcss |
+webpack | Webpack | tool | software | webpack | vite
+vite | Vite | tool | software | =Vite, vitejs | webpack
+jest | Jest | tool | software | =Jest | mocha, vitest
+mocha | Mocha | tool | software | =Mocha@prog | jest
+vitest | Vitest | tool | software | vitest | jest
+cypress | Cypress | tool | software | cypress, cypress.io | playwright, selenium
+playwright | Playwright | tool | software | playwright | cypress, selenium
+selenium | Selenium | tool | software | selenium, selenium webdriver, webdriver | playwright, cypress
+junit | JUnit | tool | software | junit | pytest
+pytest | pytest | tool | software | pytest | junit
+rest_api | REST APIs | skill | software,sales_eng | rest api, rest apis, restful, restful api, restful apis, restful services, rest services, rest endpoints, rest web services, api development, api design | graphql
+grpc | gRPC | tool | software | grpc |
+microservices | Microservices | method | software | microservices, microservice, microservice architecture, service-oriented architecture, soa |
+distributed_systems | Distributed systems | skill | software,data | distributed systems, distributed computing |
+system_design | System design | skill | software | system design, systems design, software architecture, scalable systems |
+data_structures | Data structures and algorithms | skill | software | data structures, algorithms, data structures and algorithms |
+oop | Object-oriented programming | method | software | object-oriented programming, object oriented programming, object-oriented design, object oriented design, ood |
+# ---------- data, ML and analytics
+pandas | pandas | tool | data,software,finance | =pandas, =Pandas@prog |
+numpy | NumPy | tool | data,software,science | numpy |
+scikit_learn | scikit-learn | tool | data | scikit-learn, sklearn, scikit learn |
+tensorflow | TensorFlow | tool | data,software | tensorflow, tf.keras | pytorch
+pytorch | PyTorch | tool | data,software | pytorch, torch | tensorflow
+keras | Keras | tool | data | keras | tensorflow
+spark | Apache Spark | tool | data,software | apache spark, pyspark, spark sql, =Spark@data | databricks
+hadoop | Hadoop | tool | data | hadoop, hdfs, mapreduce, hive, =Hive@data |
+airflow | Airflow | tool | data,software | airflow, apache airflow | dagster
+dagster | Dagster | tool | data | dagster | airflow
+dbt | dbt | tool | data | =dbt, dbt cloud, dbt core, data build tool |
+kafka | Kafka | tool | data,software | kafka, apache kafka | rabbitmq, sqs
+rabbitmq | RabbitMQ | tool | software | rabbitmq | kafka, sqs
+sqs | Amazon SQS | tool | software | sqs, amazon sqs | kafka, rabbitmq
+redis | Redis | tool | software | redis | memcached
+memcached | Memcached | tool | software | memcached | redis
+elasticsearch | Elasticsearch | tool | software,data | elasticsearch, elastic search, opensearch, elk stack |
+etl | ETL pipelines | skill | data,software | etl, elt, etl pipelines, data pipelines, data pipeline, etl processes |
+data_modeling | Data modeling | skill | data,business_analysis | data modeling, data modelling, dimensional modeling, star schema |
+data_warehousing | Data warehousing | skill | data | data warehousing, data warehouse, data warehouses, data lake, lakehouse |
+machine_learning | Machine learning | skill | data,software,science | machine learning, =ML@data, ml models, predictive modeling, predictive modelling |
+deep_learning | Deep learning | skill | data,software | deep learning, neural networks, neural network |
+nlp | Natural language processing | skill | data,software | natural language processing, =NLP, text mining |
+computer_vision | Computer vision | skill | data,software | computer vision, image recognition, opencv |
+llm | Large language models | skill | data,software | large language models, generative ai, genai, gen ai, prompt engineering, langchain, llamaindex, retrieval-augmented generation, rag pipelines, =LLM@data, =LLMs@data | 
+statistics | Statistics | skill | data,science,finance | statistics, statistical analysis, statistical modeling, statistical modelling, regression analysis, hypothesis testing, statistical methods |
+ab_testing | A/B testing | skill | data,marketing,product | a/b testing, a/b tests, ab testing, split testing, experimentation design |
+data_analysis | Data analysis | skill | data,business_analysis,finance,marketing,operations | data analysis, analyzing data, data analytics, analyze data, quantitative analysis |
+data_visualization | Data visualization | skill | data,business_analysis,marketing | data visualization, data visualisation, dashboards, dashboarding, dashboard development |
+tableau | Tableau | tool | data,business_analysis,finance,marketing | tableau | power_bi, looker
+power_bi | Power BI | tool | data,business_analysis,finance,accounting | power bi, powerbi, power-bi | tableau, looker
+looker | Looker | tool | data | looker, lookml | tableau, power_bi
+sas | SAS | tool | data,science,finance,health_admin | =SAS, sas programming, sas enterprise guide | r, spss
+spss | SPSS | tool | data,science,counseling | spss, ibm spss | sas, stata
+stata | Stata | tool | data,science | stata | spss
+alteryx | Alteryx | tool | data,finance | alteryx |
+google_analytics | Google Analytics | tool | marketing,data | google analytics, ga4, universal analytics | mixpanel
+mixpanel | Mixpanel | tool | data,product,marketing | mixpanel | google_analytics
+jupyter | Jupyter | tool | data,science | jupyter, jupyter notebooks, jupyter notebook, jupyterlab |
+# ---------- databases
+postgresql | PostgreSQL | tool | software,data | postgresql, postgres, psql, postgre sql | mysql, mariadb, sql_server
+mysql | MySQL | tool | software,data | mysql | postgresql, mariadb, sql_server
+mariadb | MariaDB | tool | software,data | mariadb | mysql, postgresql
+sql_server | SQL Server | tool | software,data,it | sql server, mssql, ms sql, microsoft sql server, ssms, ssis, ssrs | postgresql, mysql, oracle_db
+oracle_db | Oracle Database | tool | software,data,it | oracle database, oracle db, oracle sql, oracle 19c, oracle rdbms | sql_server, postgresql
+mongodb | MongoDB | tool | software,data | mongodb, mongo db, =Mongo | dynamodb, cassandra
+dynamodb | DynamoDB | tool | software | dynamodb | mongodb, cassandra
+cassandra | Cassandra | tool | software,data | =Cassandra@data, apache cassandra | dynamodb, mongodb
+sqlite | SQLite | tool | software | sqlite |
+snowflake | Snowflake | tool | data | =Snowflake@data, snowflake data warehouse | bigquery, redshift, databricks
+bigquery | BigQuery | tool | data | bigquery, big query, google bigquery | snowflake, redshift
+redshift | Redshift | tool | data | redshift, amazon redshift | snowflake, bigquery
+databricks | Databricks | tool | data | databricks | snowflake, spark
+firebase | Firebase | tool | software | firebase, firestore | supabase
+supabase | Supabase | tool | software | supabase | firebase
+# ---------- cloud, devops and infrastructure
+aws | AWS | tool | software,data,it,security,sales_eng | =AWS@cloud, amazon web services, aws cloud, ec2, s3, aws lambda, cloudwatch, amazon ecs, amazon eks | gcp, azure
+gcp | Google Cloud | tool | software,data,it,sales_eng | gcp, google cloud, google cloud platform, gke | aws, azure
+azure | Azure | tool | software,data,it,sales_eng | azure, microsoft azure, azure devops, azure cloud | aws, gcp
+docker | Docker | tool | software,it,data | docker, dockerfile, docker compose, containerization | podman
+podman | Podman | tool | software | podman | docker
+kubernetes | Kubernetes | tool | software,it,data | kubernetes, k8s, kube, kubectl, eks, aks, openshift | nomad
+nomad | Nomad | tool | software | hashicorp nomad | kubernetes
+helm | Helm | tool | software | =Helm@devops, helm charts |
+terraform | Terraform | tool | software,it,security | terraform, hcl terraform, terragrunt | pulumi, cloudformation
+pulumi | Pulumi | tool | software | pulumi | terraform
+cloudformation | CloudFormation | tool | software,it | cloudformation, aws cdk, cdk | terraform
+ansible | Ansible | tool | software,it | ansible | puppet, chef
+puppet | Puppet | tool | software,it | =Puppet@devops | ansible, chef
+chef | Chef (configuration) | tool | software,it | =Chef@devops | ansible, puppet
+jenkins | Jenkins | tool | software,it | jenkins | github_actions, gitlab_ci, circleci
+github_actions | GitHub Actions | tool | software | github actions, gh actions | jenkins, gitlab_ci, circleci
+gitlab_ci | GitLab CI | tool | software | gitlab ci, gitlab ci/cd, gitlab pipelines | github_actions, jenkins
+circleci | CircleCI | tool | software | circleci, circle ci | github_actions, jenkins
+cicd | CI/CD | method | software,it,data | ci/cd, cicd, ci cd, continuous integration, continuous delivery, continuous deployment, ci pipelines, cd pipelines |
+git | Git | tool | software,data,design | =Git, =git, github, gitlab, bitbucket, version control, source control |
+linux | Linux | tool | software,it,security,data | linux, ubuntu, red hat, redhat, rhel, centos, debian, unix | windows_server
+windows_server | Windows Server | tool | it | windows server, windows server 2019, windows server 2022, windows administration | linux
+active_directory | Active Directory | tool | it,security | active directory, azure ad, entra id, group policy, gpo, ldap |
+vmware | VMware | tool | it | vmware, vsphere, esxi, hyper-v, virtualization |
+networking | Computer networking | skill | it,security | tcp/ip, computer networking, network administration, networking protocols, lan/wan, lan, wan, routing and switching, dns, dhcp, vpn, firewalls, subnetting |
+cisco | Cisco networking | tool | it,security | cisco, cisco ios, meraki |
+nginx | Nginx | tool | software,it | nginx, apache http server | 
+prometheus | Prometheus | tool | software | prometheus | datadog
+grafana | Grafana | tool | software | grafana |
+datadog | Datadog | tool | software,it | datadog, new relic | prometheus, splunk
+splunk | Splunk | tool | software,it,security | splunk | datadog, siem
+observability | Observability and monitoring | skill | software,it | observability, application monitoring, monitoring and alerting, opentelemetry |
+serverless | Serverless | method | software | serverless, lambda functions, cloud functions, azure functions |
+jira | Jira | tool | software,project,product,it,data,business_analysis | jira software, atlassian jira, jira | asana, trello
+confluence | Confluence | tool | software,project,product,it | =Confluence | notion
+notion | Notion | tool | product,project | =Notion | confluence
+asana | Asana | tool | project,marketing,operations,product | =Asana | jira, trello, monday
+trello | Trello | tool | project,marketing,operations | trello | asana
+monday | monday.com | tool | project,operations,marketing | monday.com | asana
+smartsheet | Smartsheet | tool | project,operations,construction_mgmt | smartsheet | ms_project
+ms_project | Microsoft Project | tool | project,construction_mgmt,engineering | microsoft project, ms project, msp project | smartsheet, primavera
+# ---------- security
+siem | SIEM | tool | security,it | siem, security information and event management, qradar, sentinel siem | splunk
+pentest | Penetration testing | skill | security | penetration testing, pen testing, pentesting, ethical hacking, burp suite, metasploit |
+vuln_mgmt | Vulnerability management | skill | security,it | vulnerability management, vulnerability scanning, vulnerability assessment, nessus, qualys |
+incident_response | Incident response | skill | security,it | incident response, incident handling, digital forensics |
+iam | Identity and access management | skill | security,it | identity and access management, iam, okta, sso, single sign-on, access management |
+threat_modeling | Threat modeling | skill | security,software | threat modeling, threat modelling, threat intelligence |
+nist | NIST framework | regime | security,it | nist, nist 800-53, nist csf, nist 800-171 |
+iso27001 | ISO 27001 | regime | security,it | iso 27001, iso/iec 27001 |
+soc2 | SOC 2 | regime | security,it,accounting | soc 2, soc2, soc 1, soc ii |
+pci_dss | PCI DSS | regime | security,it,finance | pci dss, pci-dss, pci compliance |
+hipaa | HIPAA | regime | @health,it,security,counseling | hipaa, hipaa compliance |
+gdpr | GDPR | regime | security,legal,it,marketing | gdpr, ccpa |
+# ---------- design and creative
+figma | Figma | tool | design,product,software | figma, figjam | sketch_app, adobe_xd
+sketch_app | Sketch | tool | design | =Sketch@design, sketch app | figma, adobe_xd
+adobe_xd | Adobe XD | tool | design | adobe xd | figma, sketch_app
+photoshop | Photoshop | tool | design,marketing | photoshop, adobe photoshop |
+illustrator | Illustrator | tool | design,marketing | adobe illustrator, =Illustrator@design |
+indesign | InDesign | tool | design,marketing | indesign, adobe indesign |
+creative_suite | Adobe Creative Suite | tool | design,marketing | adobe creative suite, adobe creative cloud, creative suite, creative cloud, adobe cc, adobe suite |
+after_effects | After Effects | tool | design,marketing | after effects, adobe after effects |
+premiere | Premiere Pro | tool | design,marketing | premiere pro, adobe premiere, final cut pro, davinci resolve |
+canva | Canva | tool | marketing,design,admin | canva |
+ux_research | User research | skill | design,product | user research, ux research, user interviews, usability testing, usability studies |
+wireframing | Wireframing and prototyping | skill | design,product | wireframing, wireframes, wireframe, prototyping, prototypes, high-fidelity mockups, mockups, user flows |
+design_systems | Design systems | skill | design,software | design systems, design system, component libraries |
+graphic_design | Graphic design | skill | design,marketing | graphic design, visual design, typography, layout design |
+video_editing | Video editing | skill | design,marketing,media | video editing, video production, editing video, video editor |
+photography | Photography | skill | design,marketing | photography, photo editing, product photography |
+autocad | AutoCAD | tool | engineering,construction_mgmt,trades_electrical,design | autocad, auto cad, autocad civil 3d, civil 3d | revit
+revit | Revit | tool | engineering,construction_mgmt,design | revit, bim, building information modeling | autocad
+solidworks | SolidWorks | tool | engineering,manufacturing | solidworks, solid works, creo, catia, inventor cad, autodesk inventor, fusion 360 |
+cad | CAD | tool | engineering,manufacturing,design,construction_mgmt | =CAD, computer-aided design, computer aided design, 3d modeling, 3d modelling | autocad, solidworks
+gdt | GD&T | skill | engineering,manufacturing | gd&t, geometric dimensioning and tolerancing |
+# ---------- product and project methods
+agile | Agile | method | software,product,project,data,design,business_analysis,marketing | =Agile@sw, agile methodology, agile methodologies, agile development, agile/scrum, agile scrum | 
+scrum | Scrum | method | software,product,project | scrum, scrum ceremonies, sprint planning | kanban
+kanban | Kanban | method | software,project,operations | kanban | scrum
+product_roadmap | Product roadmapping | skill | product | product roadmap, product roadmaps, roadmapping, product strategy, product requirements, prds, product requirement documents |
+requirements | Requirements gathering | skill | business_analysis,product,project,software | requirements gathering, requirements analysis, business requirements, user stories, functional requirements, requirements documentation |
+project_management | Project management | skill | project,construction_mgmt,operations,product,marketing,engineering,it | project management, managing projects, project planning, project coordination, project scheduling |
+budgeting | Budget management | skill | operations,project,finance,accounting,marketing,construction_mgmt | budget management, budgeting, managing budgets, budget planning, budget preparation, budget oversight |
+risk_management | Risk management | skill | finance,project,operations,security | risk management, risk assessment, risk assessments, risk mitigation |
+change_management | Change management | skill | operations,project,hr,it | change management, organizational change |
+process_improvement | Process improvement | skill | operations,manufacturing,logistics,business_analysis,project | process improvement, continuous improvement, process optimization, process re-engineering, workflow optimization |
+lean | Lean | method | manufacturing,operations,logistics,engineering | lean manufacturing, lean principles, lean methodology, lean production, lean practices | six_sigma
+six_sigma | Six Sigma | method | manufacturing,operations,logistics,engineering | six sigma, lean six sigma, 6 sigma, dmaic | lean
+kaizen | Kaizen and 5S | method | manufacturing,operations,logistics | kaizen, 5s, 5-s, gemba |
+root_cause | Root cause analysis | skill | manufacturing,engineering,maintenance,it,operations | root cause analysis, rca, 8d, corrective and preventive action, capa, fishbone, 5 whys |
+vendor_mgmt | Vendor management | skill | operations,logistics,it,project,admin | vendor management, vendor relations, supplier management, supplier relationships, managing vendors |
+# ---------- office and general tools
+ms_office | Microsoft Office | tool | * | microsoft office, ms office, microsoft office suite, ms office suite, office 365, microsoft 365, m365, o365, office suite | google_workspace
+excel | Excel | tool | * | =Excel@notverb, microsoft excel, ms excel, excel spreadsheets, advanced excel, excel skills, =EXCEL | google_sheets
+word | Word | tool | * | microsoft word, ms word, =Word@office |
+powerpoint | PowerPoint | tool | * | powerpoint, power point, ms powerpoint, microsoft powerpoint |
+outlook | Outlook | tool | * | microsoft outlook, ms outlook, =Outlook@office |
+access_db | Microsoft Access | tool | @office,data | microsoft access, ms access |
+google_workspace | Google Workspace | tool | * | google workspace, g suite, gsuite, google suite, google docs, google drive | ms_office
+google_sheets | Google Sheets | tool | * | google sheets | excel
+pivot_tables | Pivot tables | skill | @office,data | pivot tables, pivot table, pivottables, pivottable |
+vlookup | VLOOKUP | skill | @office,data | vlookup, vlookups, xlookup, index match, index/match |
+data_entry | Data entry | skill | admin,health_admin,accounting,logistics,support,hr | data entry, entering data, keying data, data input |
+typing | Typing | skill | admin,health_admin,support,legal | typing, typing speed, type 40 wpm, type 45 wpm, type 50 wpm, words per minute, 10-key, ten key, 10 key |
+customer_service | Customer service | skill | retail,food,hospitality,support,admin,sales,health_admin,logistics,driving,real_estate,finance | customer service, client service, customer support, guest service, guest services, customer care, customer-facing, customer facing |
+cash_handling | Cash handling | skill | retail,food,hospitality,finance,admin | cash handling, handling cash, cash register, cash drawer, counting cash, money handling, handling money, balancing cash drawers, cashiering | 
+pos | POS systems | tool | retail,food,hospitality | point of sale, pos system, pos systems, =POS, square pos, toast pos, clover pos |
+phone_etiquette | Phone systems | skill | admin,support,health_admin,hospitality | multi-line phone, multi-line phone system, multiline phone, switchboard, answering phones, phone etiquette, inbound calls, high call volume |
+scheduling | Appointment scheduling | skill | admin,health_admin,support,hospitality | appointment scheduling, scheduling appointments, calendar management, managing calendars, schedule appointments |
+travel_arrangements | Travel arrangements | skill | admin | travel arrangements, travel booking, booking travel, coordinate travel, arranging travel |
+records_mgmt | Records management | skill | admin,health_admin,legal,hr | records management, filing, recordkeeping, record keeping, document management, file management |
+bilingual_spanish | Spanish | spoken | * | spanish, bilingual spanish, bilingual in spanish, spanish speaking, spanish-speaking, fluent in spanish, bilingual (english/spanish), bilingual english/spanish, english and spanish |
+french | French | spoken | * | =French@spoken, fluent in french, bilingual french |
+german | German | spoken | * | =German@spoken, fluent in german |
+mandarin | Mandarin | spoken | * | mandarin, mandarin chinese, fluent in chinese, cantonese |
+portuguese | Portuguese | spoken | * | portuguese, fluent in portuguese |
+arabic | Arabic | spoken | * | =Arabic, fluent in arabic |
+vietnamese | Vietnamese | spoken | * | =Vietnamese, fluent in vietnamese |
+korean | Korean | spoken | * | =Korean@spoken, fluent in korean |
+japanese | Japanese | spoken | * | =Japanese@spoken, fluent in japanese |
+hindi | Hindi | spoken | * | =Hindi, fluent in hindi |
+asl | American Sign Language | spoken | * | american sign language, =ASL |
+# ---------- sales and marketing
+salesforce | Salesforce | tool | sales,sales_eng,marketing,support,operations,business_analysis | salesforce, sfdc, salesforce crm, salesforce.com, sales cloud, service cloud | hubspot, dynamics_crm
+hubspot | HubSpot | tool | sales,marketing | hubspot, hubspot crm | salesforce
+dynamics_crm | Microsoft Dynamics CRM | tool | sales,support | dynamics crm, dynamics 365 sales, microsoft dynamics crm | salesforce
+crm | CRM software | tool | sales,marketing,support,real_estate,sales_eng | =CRM, crm software, crm system, crm systems, customer relationship management, crm tools | salesforce, hubspot
+prospecting | Prospecting | skill | sales | prospecting, lead generation, lead gen, generating leads, generate leads, outbound prospecting, sourcing new business | 
+cold_calling | Cold calling | skill | sales | cold calling, cold calls, cold-calling, outbound calls, outbound calling, cold outreach |
+pipeline_mgmt | Pipeline management | skill | sales,sales_eng | pipeline management, managing a pipeline, sales pipeline, pipeline generation, pipeline development, forecasting sales, sales forecasting |
+negotiation | Negotiation | skill | sales,real_estate,logistics,legal,hr | negotiation, negotiating, negotiate contracts, contract negotiation, contract negotiations |
+b2b_sales | B2B sales | skill | sales,sales_eng | b2b sales, business-to-business sales, business to business sales, enterprise sales, saas sales, software sales, selling to businesses, solution selling, consultative selling |
+account_mgmt | Account management | skill | sales,support,marketing | account management, managing accounts, client relationships, client relationship management, relationship building, upselling, upsell, cross-selling, cross-sell |
+quota | Quota attainment | skill | sales | quota attainment, exceeding quota, quota-carrying, quota carrying, meeting sales quotas, sales quotas, sales targets |
+territory_mgmt | Territory management | skill | sales | territory management, managing a territory, territory planning |
+product_demos | Product demos | skill | sales,sales_eng | product demos, product demonstrations, technical demos, software demos, demo the product, conducting demos |
+sales_navigator | LinkedIn Sales Navigator | tool | sales | sales navigator, linkedin sales navigator |
+seo | SEO | skill | marketing | seo, search engine optimization, search engine optimisation, on-page seo, technical seo, keyword research | sem
+sem | SEM and paid search | skill | marketing | sem, search engine marketing, ppc, pay-per-click, paid search, google ads, adwords, google adwords, bing ads | seo, paid_social
+paid_social | Paid social | skill | marketing | paid social, facebook ads, meta ads, instagram ads, linkedin ads, tiktok ads, social advertising | sem
+social_media | Social media marketing | skill | marketing | social media marketing, social media management, managing social media, social media strategy, social media content, instagram, tiktok, community management |
+content_marketing | Content marketing | skill | marketing | content marketing, content strategy, content creation, blog writing, content calendar |
+email_marketing | Email marketing | skill | marketing | email marketing, email campaigns, marketing emails, newsletters, lifecycle marketing | marketing_automation
+marketing_automation | Marketing automation | tool | marketing | marketing automation, marketo, pardot, eloqua, klaviyo, braze, mailchimp, constant contact | email_marketing
+copywriting | Copywriting | skill | marketing,design | copywriting, copy writing, writing copy, ad copy, marketing copy |
+brand_mgmt | Brand management | skill | marketing | brand management, brand strategy, brand guidelines, brand marketing |
+market_research | Market research | skill | marketing,product,business_analysis | market research, competitive analysis, competitor analysis, customer research, market analysis |
+public_relations | Public relations | skill | marketing | public relations, media relations, press releases, press relations, crisis communications |
+event_planning | Event planning | skill | marketing,hospitality,admin | event planning, event management, planning events, event coordination, trade shows, conferences |
+ecommerce_ops | E-commerce operations | skill | marketing,retail | e-commerce, ecommerce, online store management, amazon seller central, marketplace management |
+technical_writing | Technical writing | skill | software,engineering,marketing | technical writing, technical documentation, api documentation, writing documentation |
+# ---------- customer support and IT support
+zendesk | Zendesk | tool | support,it | zendesk | freshdesk, servicenow
+freshdesk | Freshdesk | tool | support | freshdesk | zendesk
+servicenow | ServiceNow | tool | it,support | servicenow, service now | zendesk
+ticketing | Ticketing systems | skill | support,it | ticketing system, ticketing systems, ticketing tools, help desk software, ticket management |
+technical_support | Technical support | skill | it,support,sales_eng | technical support, tech support, desktop support, end user support, end-user support, hardware and software support |
+troubleshooting | Troubleshooting | skill | it,support,@trades,maintenance,engineering | troubleshooting, troubleshoot, diagnosing problems, diagnose issues, fault finding |
+call_center | Call center work | skill | support,sales,health_admin | call center, call centre, contact center, contact centre, inbound call center |
+itil | ITIL | method | it | itil, itil v4, itil foundation |
+# ---------- HR and recruiting
+recruiting | Recruiting | skill | hr | recruiting, recruitment, full-cycle recruiting, full cycle recruiting, full life cycle recruiting, talent acquisition, sourcing candidates, candidate sourcing, interviewing candidates, screening candidates, boolean search |
+ats_tools | Applicant tracking systems | tool | hr | applicant tracking system, applicant tracking systems, greenhouse ats, lever ats, icims, jobvite, taleo, bullhorn |
+onboarding | Onboarding | skill | hr,admin | employee onboarding, new hire onboarding, onboarding new employees, onboarding process, new hire orientation |
+employee_relations | Employee relations | skill | hr | employee relations, employee investigations, workplace investigations | 
+benefits_admin | Benefits administration | skill | hr,payroll | benefits administration, benefits enrollment, open enrollment, benefits programs, cobra, 401(k) administration |
+hris | HRIS | tool | hr,payroll | hris, human resources information system, workday hcm, bamboohr, ukg, ultipro, successfactors, paycom, paylocity, rippling | adp
+adp | ADP | tool | payroll,hr,accounting | =ADP, adp workforce now, adp payroll, paychex | hris
+payroll | Payroll processing | skill | payroll,accounting,hr | payroll, payroll processing, processing payroll, payroll administration, payroll tax, payroll taxes, multi-state payroll |
+employment_law | Employment law | skill | hr,legal | employment law, labor law, flsa, fmla, ada compliance, eeo compliance, eeoc, i-9, e-verify, i-9 verification |
+performance_mgmt | Performance management | skill | hr,@mgmt | performance management, performance reviews, performance evaluations, performance appraisals |
+training_delivery | Training delivery | skill | training,hr,teaching,@mgmt | training delivery, delivering training, facilitation, training programs, training sessions, employee training, staff training, train new employees, training new hires, coaching and developing |
+instructional_design | Instructional design | skill | training,teaching,hr | instructional design, e-learning, elearning, articulate storyline, articulate 360, adobe captivate, addie, course design | curriculum_dev
+# ---------- accounting and finance
+gaap | GAAP | regime | accounting,finance | gaap, us gaap, u.s. gaap, generally accepted accounting principles | ifrs
+ifrs | IFRS | regime | accounting,finance | ifrs, international financial reporting standards | gaap
+accounts_payable | Accounts payable | skill | accounting,payroll,admin | accounts payable, a/p, ap processing, invoice processing, vendor payments, three-way match, 3-way match, processing invoices | accounts_receivable
+accounts_receivable | Accounts receivable | skill | accounting,admin | accounts receivable, a/r, ar processing, collections, cash application, invoicing, billing and collections | accounts_payable
+general_ledger | General ledger | skill | accounting | general ledger, gl accounting, gl reconciliation, gl reconciliations, chart of accounts |
+reconciliation | Account reconciliation | skill | accounting,finance,payroll | account reconciliation, account reconciliations, reconciliation, reconciliations, bank reconciliation, bank reconciliations, balance sheet reconciliation, balance sheet reconciliations, reconciling accounts, reconcile accounts |
+journal_entries | Journal entries | skill | accounting | journal entries, journal entry, adjusting entries, adjusting journal entries, recording entries |
+month_end | Month-end close | skill | accounting,finance | month-end close, month end close, month-end closing, month end closing, monthly close, period-end close, year-end close, month-end and year-end close, close process, financial close |
+financial_reporting | Financial reporting | skill | accounting,finance | financial reporting, financial statements, financial statement preparation, preparing financial statements, balance sheet, income statement, cash flow statement, p&l statements |
+budget_forecast | Budgeting and forecasting | skill | finance,accounting | budgeting and forecasting, forecasting, financial forecasting, variance analysis, budget vs actual, fp&a, financial planning and analysis |
+financial_modeling | Financial modeling | skill | finance,accounting | financial modeling, financial modelling, financial models, dcf, discounted cash flow, valuation, valuations, lbo |
+financial_analysis | Financial analysis | skill | finance,accounting | financial analysis, analyzing financial data, ratio analysis |
+auditing | Auditing | skill | accounting,finance | auditing, audit, audits, internal audit, internal audits, external audit, audit procedures, audit support, audit preparation |
+tax_prep | Tax preparation | skill | accounting | tax preparation, tax returns, tax return preparation, tax compliance, tax filings, sales tax, 1099 reporting, 1099s, corporate tax, individual tax |
+bookkeeping | Bookkeeping | skill | accounting,admin | bookkeeping, book keeping, full-charge bookkeeping, full charge bookkeeping |
+cost_accounting | Cost accounting | skill | accounting | cost accounting, standard costing, inventory costing, job costing |
+accruals | Accruals and prepaids | skill | accounting | accruals, accrual accounting, prepaid expenses, prepaids, deferred revenue |
+fixed_assets | Fixed assets | skill | accounting | fixed assets, fixed asset accounting, depreciation, capital assets |
+revenue_recognition | Revenue recognition | skill | accounting | revenue recognition, asc 606, rev rec |
+lease_accounting | Lease accounting | skill | accounting | lease accounting, asc 842 |
+consolidation | Consolidations | skill | accounting,finance | consolidations, consolidation, intercompany, intercompany accounting, intercompany reconciliations |
+sox | SOX compliance | regime | accounting,finance,it,security | sox, sarbanes-oxley, sox compliance, internal controls, sox 404 |
+quickbooks | QuickBooks | tool | accounting,admin,payroll | quickbooks, quickbooks online, quickbooks desktop, qbo, quick books | xero, sage, netsuite
+xero | Xero | tool | accounting | =Xero, xero accounting | quickbooks, sage
+sage | Sage | tool | accounting | sage 50, sage 100, sage 300, sage intacct, intacct, =Sage@acct | quickbooks, xero, netsuite
+netsuite | NetSuite | tool | accounting,finance,operations | netsuite, oracle netsuite | sap, oracle_erp, sage, quickbooks
+sap | SAP | tool | accounting,finance,logistics,manufacturing,operations,business_analysis | =SAP, sap erp, sap s/4hana, s/4hana, sap fico, sap fi/co, sap mm, sap sd, sap ecc | oracle_erp, netsuite, dynamics_erp
+oracle_erp | Oracle ERP | tool | accounting,finance,logistics | oracle financials, oracle erp, oracle fusion, oracle ebs, oracle e-business suite, jd edwards, jde | sap, netsuite
+dynamics_erp | Microsoft Dynamics ERP | tool | accounting,finance,logistics | dynamics 365 finance, dynamics gp, dynamics ax, dynamics nav, business central, microsoft dynamics | sap, netsuite
+erp | ERP systems | tool | accounting,finance,logistics,manufacturing,operations | =ERP, erp system, erp systems, enterprise resource planning | sap, netsuite, oracle_erp
+hyperion | Hyperion | tool | finance,accounting | hyperion, oracle hyperion, anaplan, adaptive insights, workday adaptive planning |
+blackline | BlackLine | tool | accounting | blackline |
+concur | Concur | tool | accounting,admin | concur, sap concur, expensify, expense reports, expense reporting |
+bill_com | Bill.com | tool | accounting | bill.com |
+credit_analysis | Credit analysis | skill | finance | credit analysis, credit underwriting, credit risk, credit decisions |
+underwriting | Underwriting | skill | finance | underwriting, loan underwriting, mortgage underwriting, insurance underwriting |
+loan_processing | Loan processing | skill | finance | loan processing, loan origination, mortgage processing, loan documentation |
+kyc_aml | KYC and AML | regime | finance,legal | kyc, aml, anti-money laundering, bsa/aml, bsa, know your customer, ofac |
+bloomberg | Bloomberg Terminal | tool | finance | bloomberg terminal, capital iq, factset, pitchbook, =Bloomberg | 
+portfolio_mgmt | Portfolio management | skill | finance | portfolio management, portfolio analysis, asset allocation |
+banking_ops | Branch banking | skill | finance | branch operations, teller transactions, cash drawer balancing, opening accounts, deposit operations, vault management |
+claims | Claims handling | skill | finance,health_admin,support | claims processing, claims handling, claims adjusting, claims investigation, insurance claims |
+# ---------- healthcare and nursing
+patient_care | Patient care | skill | @health,counseling | patient care, direct patient care, bedside care, hands-on patient care, providing care to patients, resident care |
+patient_assessment | Patient assessment | skill | nursing,health_clinical,health_support | patient assessment, patient assessments, nursing assessment, nursing assessments, head-to-toe assessment, head-to-toe assessments, physical assessment, physical assessments, clinical assessment, clinical assessments |
+med_admin | Medication administration | skill | nursing,health_support | medication administration, administering medications, administer medications, administration of medications, med pass, med passes, medication passes, medication management |
+iv_therapy | IV therapy | skill | nursing,health_clinical | iv therapy, iv insertion, iv starts, iv access, intravenous therapy, peripheral iv, piv insertion, iv medications, iv administration, infusion therapy | phlebotomy
+phlebotomy | Phlebotomy | skill | health_support,nursing,health_clinical | phlebotomy, venipuncture, blood draws, drawing blood, blood collection, specimen collection | iv_therapy
+wound_care | Wound care | skill | nursing,health_support,health_clinical | wound care, wound management, dressing changes, wound assessment, wound vac |
+telemetry | Telemetry | skill | nursing,health_support | telemetry, cardiac monitoring, heart monitoring, telemetry monitoring |
+critical_care | Critical care | skill | nursing,health_clinical | critical care, intensive care, =ICU, icu experience, icu nursing, ccu, cvicu, micu, sicu |
+emergency_nursing | Emergency care | skill | nursing,health_clinical,health_support | emergency nursing, emergency department experience, emergency room experience, =ER@health, =ED@health, trauma care, emergency care |
+med_surg | Medical-surgical nursing | skill | nursing | med-surg, med surg, medsurg, medical-surgical, medical surgical, acute care, acute care experience |
+labor_delivery | Labor and delivery | skill | nursing | labor and delivery, l&d, obstetrics, postpartum, mother-baby, antepartum |
+nicu | Neonatal care | skill | nursing | =NICU, neonatal intensive care, neonatal care, newborn care |
+pediatrics | Pediatrics | skill | nursing,health_clinical,health_support | pediatrics, pediatric care, pediatric nursing, pediatric patients, =PICU |
+geriatrics | Geriatric care | skill | nursing,health_support | geriatrics, geriatric care, elder care, eldercare, gerontology, long-term care, long term care |
+dementia_care | Dementia care | skill | nursing,health_support,counseling | dementia care, memory care, alzheimer's care, alzheimers care |
+oncology | Oncology | skill | nursing,health_clinical | oncology, oncology nursing, chemotherapy administration, chemo administration |
+perioperative | Perioperative care | skill | nursing,health_clinical | perioperative, operating room experience, pre-op, post-op, pacu, surgical nursing, scrub nurse, circulating nurse |
+dialysis | Dialysis | skill | nursing,health_support | dialysis, hemodialysis, peritoneal dialysis |
+hospice_care | Hospice and palliative care | skill | nursing,health_support,counseling | hospice care, palliative care, end-of-life care, end of life care |
+home_health | Home health care | skill | nursing,health_support | home health, home health care, home care visits, in-home care, oasis documentation |
+psych_nursing | Psychiatric care | skill | nursing,health_support,counseling | psychiatric nursing, psychiatric care, behavioral health nursing, inpatient psychiatric |
+triage | Triage | skill | nursing,health_support,health_clinical | triage, telephone triage, patient triage |
+care_planning | Care planning | skill | nursing,counseling,health_support | care planning, care plans, nursing care plans, plan of care, plans of care, care coordination |
+charting | Clinical documentation | skill | @health | charting, clinical documentation, nursing documentation, medical documentation, documenting patient care, patient charting, patient records |
+ehr | Electronic health records | tool | @health,counseling | ehr, emr, electronic health records, electronic health record, electronic medical records, electronic medical record, ehr systems | epic, cerner, meditech
+epic | Epic | tool | @health | =Epic@health, epic ehr, epic emr, epic systems, epic hyperspace, epiccare | cerner, meditech, ehr
+cerner | Cerner | tool | @health | cerner, oracle cerner, cerner powerchart, powerchart | epic, meditech
+meditech | Meditech | tool | @health | meditech | epic, cerner
+pointclickcare | PointClickCare | tool | nursing,health_support,health_admin | pointclickcare, point click care, matrixcare | ehr
+infection_control | Infection control | skill | @health,food,security_services | infection control, infection prevention, sterile technique, aseptic technique, standard precautions, universal precautions, isolation precautions, ppe protocols |
+vital_signs | Vital signs | skill | nursing,health_support,health_clinical | vital signs, vitals, taking vitals, taking vital signs, blood pressure measurement, obtaining vital signs |
+patient_education | Patient education | skill | nursing,health_clinical | patient education, patient teaching, educating patients, health education |
+discharge_planning | Discharge planning | skill | nursing,counseling | discharge planning, discharge teaching, discharges, transitions of care |
+catheterization | Catheter care | skill | nursing,health_support | foley catheter, foley insertion, catheter insertion, catheterization, catheter care |
+ventilator | Ventilator management | skill | nursing,health_clinical | ventilator management, mechanical ventilation, ventilators, vent management, airway management |
+ekg | EKG | skill | nursing,health_support,health_clinical | ekg, ecg, ekgs, electrocardiogram, 12-lead, 12 lead ekg |
+medical_terminology | Medical terminology | skill | @health | medical terminology, medical terms |
+icd10 | ICD-10 coding | skill | health_admin | icd-10, icd10, icd-10-cm, icd 10, diagnosis coding |
+cpt_coding | CPT coding | skill | health_admin | cpt coding, cpt codes, =CPT@health, hcpcs, procedure coding |
+medical_billing | Medical billing | skill | health_admin | medical billing, healthcare billing, insurance billing, claims submission, revenue cycle, denial management, denials management |
+insurance_verification | Insurance verification | skill | health_admin,support | insurance verification, verifying insurance, benefits verification, eligibility verification, prior authorization, prior authorizations, pre-authorization |
+patient_registration | Patient registration | skill | health_admin | patient registration, patient intake, patient check-in, registering patients |
+personal_care | Personal care | skill | health_support,childcare | personal care, activities of daily living, adls, adl assistance, bathing, grooming, toileting, feeding assistance, hoyer lift, mobility assistance, patient transfers, transferring patients | 
+pharmacology | Pharmacology | skill | nursing,health_clinical | pharmacology, medication knowledge, drug interactions |
+lab_testing | Laboratory testing | skill | health_clinical,science | laboratory testing, lab testing, specimen processing, clinical laboratory, sample preparation, microscopy, pcr, elisa |
+radiology_imaging | Diagnostic imaging | skill | health_clinical | diagnostic imaging, x-ray, radiography, ct scans, mri, ultrasound imaging, sonography |
+physical_therapy | Therapeutic exercise | skill | health_clinical | therapeutic exercise, manual therapy, rehabilitation exercises, gait training |
+cpr_skill | Life support procedures | skill | @health | code blue, rapid response, resuscitation |
+# ---------- counselling and social work
+case_management | Case management | skill | counseling,nursing,health_admin,legal | case management, case managing, caseload management, managing a caseload, caseload |
+crisis_intervention | Crisis intervention | skill | counseling,nursing,health_support,security_services | crisis intervention, de-escalation, deescalation, crisis management, cpi training, safety care |
+cbt | Cognitive behavioral therapy | method | counseling | cognitive behavioral therapy, cognitive behavioural therapy, =CBT@therapy | dbt_therapy
+dbt_therapy | Dialectical behavior therapy | method | counseling | dialectical behavior therapy, =DBT | cbt
+motivational_interviewing | Motivational interviewing | method | counseling,nursing | motivational interviewing |
+trauma_informed | Trauma-informed care | method | counseling,teaching,childcare | trauma-informed care, trauma informed care, trauma-informed, trauma informed |
+treatment_planning | Treatment planning | skill | counseling,health_clinical | treatment planning, treatment plans, individualized treatment plans |
+psychosocial_assessment | Psychosocial assessment | skill | counseling | psychosocial assessment, psychosocial assessments, biopsychosocial, intake assessments, mental health assessments |
+substance_abuse | Substance use treatment | skill | counseling | substance abuse, substance use, addiction treatment, chemical dependency |
+aba | Applied behavior analysis | method | counseling,health_support,teaching | applied behavior analysis, behavior intervention plans, behavior plans, discrete trial training, =ABA@aba | 
+# ---------- teaching and childcare
+lesson_planning | Lesson planning | skill | teaching,childcare,training | lesson planning, lesson plans, lesson plan, planning lessons, unit plans, unit planning |
+classroom_mgmt | Classroom management | skill | teaching,childcare | classroom management, managing a classroom, classroom behavior management |
+curriculum_dev | Curriculum development | skill | teaching,training,childcare | curriculum development, curriculum design, developing curriculum, curriculum planning, curriculum writing | instructional_design
+differentiated | Differentiated instruction | method | teaching | differentiated instruction, differentiation, differentiating instruction, small group instruction, small-group instruction, scaffolding |
+special_ed | Special education | skill | teaching,childcare,counseling | special education, =SPED, students with disabilities, special needs students, inclusion classroom, co-teaching |
+iep | IEPs | skill | teaching,counseling | =IEP, =IEPs, individualized education program, individualized education programs, individualized education plan, 504 plans, 504 plan |
+student_assessment | Student assessment | skill | teaching | student assessment, formative assessment, formative assessments, summative assessment, progress monitoring, data-driven instruction, student data |
+literacy | Literacy instruction | skill | teaching,childcare | literacy instruction, reading instruction, guided reading, phonics, science of reading, balanced literacy, reading intervention, orton-gillingham |
+math_instruction | Math instruction | skill | teaching | math instruction, mathematics instruction, math intervention |
+esl_instruction | ESL instruction | skill | teaching | esl instruction, english language learners, ell students, english learners, sheltered instruction, siop |
+google_classroom | Google Classroom | tool | teaching | google classroom | canvas_lms, schoology
+canvas_lms | Canvas LMS | tool | teaching,training | canvas lms, =Canvas@lms, instructure canvas | google_classroom, schoology, blackboard
+schoology | Schoology | tool | teaching | schoology | canvas_lms, google_classroom
+blackboard | Blackboard | tool | teaching,training | blackboard learn, =Blackboard@lms | canvas_lms, moodle
+moodle | Moodle | tool | teaching,training | moodle | canvas_lms, blackboard
+lms | Learning management systems | tool | teaching,training,hr | learning management system, learning management systems, =LMS | canvas_lms
+early_childhood | Early childhood education | skill | childcare,teaching | early childhood education, early childhood development, child development, early learning, developmentally appropriate practice, play-based learning, creative curriculum |
+behavior_mgmt | Behavior management | skill | teaching,childcare,counseling,health_support | behavior management, positive behavior support, pbis, behavior support, behavioral interventions, behavior intervention |
+tutoring | Tutoring | skill | teaching | tutoring, one-on-one instruction, one on one tutoring, small group tutoring |
+stem_ed | STEM instruction | skill | teaching | stem education, stem instruction, science instruction |
+parent_communication | Family communication | skill | teaching,childcare | parent communication, communicating with parents, parent-teacher conferences, family engagement, family communication |
+edtech | Educational technology | tool | teaching,training | educational technology, edtech, smartboard, smart board, promethean, nearpod, kahoot, seesaw, classdojo |
+childcare_skills | Child supervision | skill | childcare,teaching | child supervision, supervising children, childcare, child care, caring for children, infant care, toddler care |
+# ---------- retail, food and hospitality
+merchandising | Merchandising | skill | retail | merchandising, visual merchandising, product displays, store displays, planograms, planogram, merchandise displays |
+inventory_mgmt | Inventory management | skill | retail,logistics,food,manufacturing,operations,health_admin | inventory management, inventory control, managing inventory, stock management, inventory replenishment, cycle counting, cycle counts, cycle count, physical inventory, inventory counts, inventory audits |
+loss_prevention | Loss prevention | skill | retail,security_services | loss prevention, shrink reduction, shrink control, asset protection, theft prevention |
+store_ops | Store operations | skill | retail,food | store operations, opening and closing procedures, opening and closing the store, store opening, store closing, key holder duties |
+pl_mgmt | P&L management | skill | retail,food,hospitality,operations,sales | p&l, p&l management, p&l responsibility, profit and loss, profit & loss, managing a p&l, sales and profit goals |
+staff_scheduling | Staff scheduling | skill | retail,food,hospitality,@mgmt,nursing,health_admin | staff scheduling, employee scheduling, labor scheduling, labor management, scheduling staff, creating schedules, shift scheduling, workforce scheduling |
+hiring | Hiring and staffing | skill | retail,food,hospitality,@mgmt,hr | hiring, interviewing and hiring, recruiting and hiring, staffing the store, hiring and training |
+team_leadership | Team supervision | skill | retail,food,hospitality,@mgmt,@trades,nursing | team supervision, supervising staff, supervising employees, managing a team, managing teams, people management, direct reports, supervisory experience, supervising a team, leading a team, team leadership, managing staff |
+sales_goals | Sales goals | skill | retail,sales | sales goals, driving sales, suggestive selling, selling techniques, clienteling | 
+food_safety | Food safety | regime | food,hospitality,retail,manufacturing | food safety, food handling, safe food handling, food sanitation, haccp, food safety standards |
+food_prep | Food preparation | skill | food,hospitality | food preparation, food prep, preparing food, cooking, line cooking, knife skills, recipe execution, grill, grilling, sauteing, baking | 
+menu_planning | Menu planning | skill | food | menu planning, menu development, recipe development, costing recipes |
+kitchen_mgmt | Kitchen management | skill | food | kitchen management, back of house, back-of-house, boh operations, food cost control, food costs |
+barista | Espresso and coffee | skill | food | espresso, latte art, coffee preparation, espresso machine, barista experience |
+bartending | Bartending | skill | food,hospitality | bartending, mixology, cocktails, cocktail preparation |
+table_service | Table service | skill | food,hospitality | table service, serving guests, fine dining service, food service, front of house, front-of-house, foh |
+catering | Catering and banquets | skill | food,hospitality | catering, banquets, banquet service, events catering |
+front_desk | Front desk operations | skill | hospitality,admin,health_admin | front desk, front desk operations, check-in and check-out, guest check-in, reservations, room reservations |
+hotel_pms | Hotel property management systems | tool | hospitality | opera pms, oracle opera, property management system hotel, onq, fosse |
+housekeeping | Housekeeping | skill | hospitality,security_services,health_support | housekeeping, room cleaning, cleaning guest rooms, laundry, linen |
+janitorial | Janitorial and cleaning | skill | security_services,hospitality,maintenance | janitorial, custodial, commercial cleaning, cleaning duties, floor care, floor stripping, stripping and waxing, buffing floors, carpet cleaning, sanitizing, disinfecting |
+landscaping | Landscaping and grounds | skill | security_services,construction | landscaping, lawn care, grounds maintenance, groundskeeping, mowing, irrigation, tree trimming, snow removal |
+security_patrol | Security patrol | skill | security_services | security patrols, patrolling, monitoring cctv, cctv monitoring, incident reports, post orders, alarm response | 
+# ---------- warehouse, logistics and driving
+forklift | Forklift operation | skill | logistics,manufacturing,retail,construction | forklift, forklifts, forklift operation, operating a forklift, operate a forklift, sit-down forklift, stand-up forklift, counterbalance forklift | pallet_jack, reach_truck, order_picker_truck
+pallet_jack | Pallet jack | skill | logistics,retail,manufacturing | pallet jack, pallet jacks, electric pallet jack, walkie rider, walkie, jack rider | forklift
+reach_truck | Reach truck | skill | logistics | reach truck, reach trucks, reach lift | forklift, order_picker_truck
+order_picker_truck | Order picker truck | skill | logistics | order picker truck, cherry picker, stock picker, turret truck | reach_truck, forklift
+order_picking | Order picking and packing | skill | logistics,retail | order picking, picking and packing, pick and pack, picking orders, packing orders, order fulfillment, order selection |
+shipping_receiving | Shipping and receiving | skill | logistics,manufacturing,retail | shipping and receiving, shipping & receiving, receiving, receiving shipments, shipping, preparing shipments, bill of lading, bills of lading, bol |
+loading | Loading and unloading | skill | logistics,driving,retail | loading and unloading, loading/unloading, load and unload, unloading trucks, loading trucks, unloading freight, trailer loading |
+material_handling | Material handling | skill | logistics,manufacturing,construction | material handling, materials handling, handling materials, moving materials |
+rf_scanner | RF scanners | tool | logistics,retail | rf scanner, rf scanners, rf gun, rf guns, handheld scanner, handheld scanners, barcode scanner, barcode scanners, scan guns |
+wms | Warehouse management systems | tool | logistics | wms, warehouse management system, warehouse management systems, manhattan associates, manhattan wms, blue yonder, jda wms, highjump, sap ewm | tms
+tms | Transportation management systems | tool | logistics,driving | =TMS, transportation management system, transportation management systems, mercurygate, mcleod | wms
+route_planning | Route planning | skill | driving,logistics | route planning, route optimization, routing, delivery routes, route management |
+dot_regs | DOT regulations | regime | driving,logistics | dot regulations, fmcsa, fmcsa regulations, dot compliance, hours of service, eld, electronic logging, dot physical, dot medical card, pre-trip inspections, pre-trip inspection, pre and post trip inspections |
+freight_mgmt | Freight management | skill | logistics,driving | freight management, freight coordination, freight booking, carrier management, load planning, load building |
+supply_chain | Supply chain management | skill | logistics,manufacturing,operations | supply chain management, supply chain operations, supply chain planning, end-to-end supply chain |
+procurement | Procurement and purchasing | skill | logistics,operations,manufacturing,finance | procurement, purchasing, sourcing suppliers, strategic sourcing, purchase orders, issuing purchase orders |
+demand_planning | Demand planning | skill | logistics,manufacturing,operations | demand planning, demand forecasting, supply planning, s&op, sales and operations planning, mrp, material requirements planning |
+customs | Customs and trade compliance | regime | logistics | customs, customs compliance, import/export, import and export, trade compliance, harmonized tariff, hts codes, incoterms |
+fleet_mgmt | Fleet management | skill | driving,logistics,maintenance | fleet management, fleet maintenance, vehicle maintenance scheduling |
+dispatching | Dispatching | skill | driving,logistics,trades_mech,maintenance | dispatching, dispatch, dispatch operations, scheduling drivers, driver dispatch |
+safe_driving | Safe driving | skill | driving | clean driving record, safe driving record, defensive driving, safe driving, motor vehicle record, mvr |
+osha | OSHA safety | regime | @trades,logistics,construction_mgmt,security_services | =OSHA, osha regulations, osha standards, osha compliance, workplace safety, safety regulations, safety procedures, safety protocols, job site safety |
+# ---------- skilled trades
+electrical_wiring | Electrical wiring | skill | trades_electrical,maintenance,construction | electrical wiring, wiring, residential wiring, commercial wiring, industrial wiring, pulling wire, wire pulling, terminations, wire terminations, branch circuits, circuit breakers, panel installation, electrical panels, service upgrades, receptacles, lighting installation, lighting fixtures | low_voltage
+nec | National Electrical Code | regime | trades_electrical,construction_mgmt | =NEC, national electrical code, nfpa 70, nfpa 70e, arc flash |
+conduit | Conduit bending | skill | trades_electrical | conduit bending, bending conduit, conduit, emt conduit, rigid conduit, pvc conduit, conduit installation, conduit runs |
+blueprints | Blueprint reading | skill | @trades,engineering,construction_mgmt | blueprint reading, blueprints, reading blueprints, read blueprints, schematics, electrical schematics, wiring diagrams, technical drawings, construction drawings, shop drawings, reading plans, read and interpret drawings |
+electrical_troubleshooting | Electrical troubleshooting | skill | trades_electrical,maintenance | electrical troubleshooting, troubleshooting electrical, electrical diagnostics, diagnosing electrical |
+motor_controls | Motor controls | skill | trades_electrical,maintenance,manufacturing | motor controls, motor control, motor control circuits, vfds, vfd, variable frequency drives, starters, contactors |
+plc | PLC programming | skill | trades_electrical,maintenance,manufacturing,engineering | plc programming, plcs, programmable logic controllers, programmable logic controller, ladder logic, allen-bradley, allen bradley, rslogix, studio 5000, siemens plc, =PLC@trades |
+low_voltage | Low-voltage systems | skill | trades_electrical | low voltage, low-voltage, structured cabling, data cabling, cat6, cat5e, fiber optic cabling, access control systems, security systems installation, fire alarm, fire alarm systems | electrical_wiring
+three_phase | Three-phase power | skill | trades_electrical,maintenance | three-phase, three phase, 3-phase, 3 phase, 480v, 480 volt, high voltage, medium voltage |
+solar_pv | Solar PV installation | skill | trades_electrical,construction | solar pv, solar installation, photovoltaic, pv systems, solar panels |
+multimeter | Test equipment | tool | trades_electrical,maintenance,trades_mech,manufacturing | multimeter, multimeters, voltmeter, megger, clamp meter, test equipment, oscilloscope |
+hvac | HVAC systems | skill | trades_mech,maintenance | =HVAC, hvac systems, heating and cooling, heating ventilation and air conditioning, air conditioning, rooftop units, rtus, heat pumps, furnaces, chillers, boilers | refrigeration
+refrigeration | Refrigeration | skill | trades_mech,maintenance | refrigeration, commercial refrigeration, refrigerant, refrigerant handling, walk-in coolers, ice machines | hvac
+plumbing | Plumbing | skill | trades_mech,maintenance,construction | plumbing, pipe fitting, pipefitting, plumbing repairs, drain cleaning, water heaters, piping, backflow, backflow testing |
+soldering | Soldering and brazing | skill | trades_mech,manufacturing,maintenance | soldering, brazing, solder |
+welding | Welding | skill | construction,manufacturing,maintenance,trades_mech | welding, welder, weld, welds | 
+mig | MIG welding | skill | construction,manufacturing | =MIG, mig welding, gmaw | tig, stick_welding
+tig | TIG welding | skill | construction,manufacturing | =TIG, tig welding, gtaw | mig, stick_welding
+stick_welding | Stick welding | skill | construction,manufacturing | stick welding, smaw, flux core, fcaw | mig, tig
+carpentry | Carpentry | skill | construction,maintenance | carpentry, framing, rough framing, finish carpentry, trim carpentry, cabinetry, cabinet installation |
+drywall | Drywall | skill | construction,maintenance | drywall, sheetrock, drywall repair, taping and mudding |
+concrete | Concrete work | skill | construction | concrete, concrete finishing, concrete forming, pouring concrete, rebar |
+masonry | Masonry | skill | construction | masonry, bricklaying, brick laying, stonework, block laying |
+roofing | Roofing | skill | construction | roofing, shingles, roof repair, roof installation |
+painting | Painting | skill | construction,maintenance | commercial painting, residential painting, interior painting, exterior painting, spray painting, surface preparation |
+hand_tools | Hand and power tools | tool | @trades,maintenance,logistics | hand tools, power tools, hand and power tools, power and hand tools, tools of the trade |
+preventive_maintenance | Preventive maintenance | skill | maintenance,manufacturing,trades_mech,trades_electrical,security_services | preventive maintenance, preventative maintenance, pm schedules, scheduled maintenance, routine maintenance |
+machining | Machining | skill | manufacturing,maintenance | machining, lathe, lathes, milling machine, mill operation, manual machining, precision machining | cnc
+cnc | CNC | skill | manufacturing | =CNC, cnc machining, cnc programming, cnc operation, cnc machines, g-code, gcode, mastercam, fanuc, haas | machining
+hydraulics | Hydraulics and pneumatics | skill | maintenance,manufacturing,construction | hydraulics, hydraulic systems, hydraulic, pneumatics, pneumatic systems, pneumatic |
+diesel | Diesel engines | skill | maintenance,driving | diesel, diesel engines, diesel repair, diesel mechanics, heavy duty trucks |
+auto_repair | Automotive repair | skill | maintenance | automotive repair, auto repair, vehicle repair, brake repair, brakes, suspension, engine diagnostics, oil changes, tire rotation, alignments, automotive diagnostics, obd |
+small_engine | Small engine repair | skill | maintenance | small engine repair, small engines, outdoor power equipment |
+heavy_equipment | Heavy equipment operation | skill | construction,logistics | heavy equipment, heavy equipment operation, excavator, excavators, backhoe, bulldozer, loader operation, skid steer, bobcat, front end loader, grader, dozer |
+crane | Crane operation | skill | construction,logistics | crane operation, crane operator, overhead crane, overhead cranes, mobile crane, rigging, signaling cranes |
+scaffolding | Scaffolding | skill | construction | scaffolding, scaffold erection, scaffold |
+lockout_tagout | Lockout/tagout | regime | maintenance,manufacturing,trades_electrical,trades_mech | lockout/tagout, lockout tagout, lock out tag out, lock-out/tag-out, loto |
+estimating | Estimating and takeoffs | skill | construction_mgmt,construction,trades_electrical,trades_mech | estimating, cost estimating, construction estimating, takeoffs, quantity takeoffs, bid preparation, preparing bids |
+building_codes | Building codes | regime | construction_mgmt,construction,engineering | building codes, building code, international building code, ibc, local codes, code compliance |
+procore | Procore | tool | construction_mgmt | procore, bluebeam, plangrid |
+primavera | Primavera P6 | tool | construction_mgmt,project | primavera p6, primavera, p6 scheduling | ms_project
+subcontractor_mgmt | Subcontractor management | skill | construction_mgmt | subcontractor management, managing subcontractors, subcontractor coordination, coordinating subcontractors, trade coordination |
+# ---------- manufacturing and quality
+assembly_work | Assembly | skill | manufacturing | =Assembly@mfg, assembly line, product assembly, mechanical assembly, electronic assembly, electrical assembly, assembling products, assemble components, assembly work |
+quality_control | Quality control | skill | manufacturing,engineering,logistics,food | quality control, quality inspection, quality inspections, inspecting products, product inspection, visual inspection, first article inspection, quality checks |
+quality_assurance | Quality assurance | skill | software,manufacturing,engineering,health_admin | quality assurance, qa testing, software testing, manual testing, test cases, regression testing, =QA | quality_control
+iso9001 | ISO 9001 | regime | manufacturing,engineering,logistics | iso 9001, iso9001, iso 13485, as9100, iatf 16949 |
+gmp | GMP | regime | manufacturing,science,health_clinical,food | gmp, cgmp, good manufacturing practices, good manufacturing practice, fda regulations, 21 cfr |
+spc | Statistical process control | skill | manufacturing,engineering | statistical process control, =SPC, control charts |
+measuring_tools | Precision measuring tools | tool | manufacturing,maintenance,construction | calipers, micrometers, micrometer, precision measuring instruments, precision measuring tools, gauges, height gauge, cmm |
+machine_operation | Machine operation | skill | manufacturing | machine operation, operating machinery, operate machinery, machine setup, machine set-up, production equipment, running production machines |
+injection_molding | Injection molding | skill | manufacturing | injection molding, injection moulding, extrusion, blow molding |
+production_planning | Production planning | skill | manufacturing,logistics,operations | production planning, production scheduling, capacity planning |
+# ---------- legal
+legal_research | Legal research | skill | legal | legal research, case law research, =Westlaw, lexisnexis, lexis nexis |
+legal_writing | Legal writing | skill | legal | legal writing, legal drafting, drafting pleadings, pleadings, legal memoranda, legal memos, drafting motions, drafting briefs, legal briefs | 
+contract_drafting | Contract drafting | skill | legal,sales,real_estate | contract drafting, drafting contracts, contract review, reviewing contracts, contract management, contract administration |
+litigation | Litigation support | skill | legal | litigation, litigation support, e-discovery, ediscovery, document review, depositions, trial preparation, legal discovery | 
+court_filings | Court filings | skill | legal,admin | court filings, e-filing, efiling, filing with courts, docketing, calendaring deadlines |
+compliance | Regulatory compliance | skill | legal,finance,@health,operations | regulatory compliance, compliance monitoring, compliance programs, compliance audits, regulatory reporting |
+# ---------- real estate and property
+property_mgmt | Property management | skill | real_estate | property management, managing properties, rent collection, lease administration, tenant relations, resident relations, move-ins, move-outs, make-ready, make readies |
+leasing | Leasing | skill | real_estate | leasing, lease signing, leasing apartments, apartment leasing, showing units, property tours |
+yardi | Yardi | tool | real_estate | yardi, yardi voyager, appfolio, realpage, entrata, onesite, buildium |
+# ---------- science and engineering (non-software)
+lab_techniques | Laboratory techniques | skill | science,health_clinical | laboratory techniques, lab techniques, wet lab, cell culture, tissue culture, chromatography, hplc, gc-ms, mass spectrometry, western blot, spectroscopy, titration |
+glp | GLP | regime | science | =GLP, good laboratory practice, good laboratory practices |
+clinical_research | Clinical research | skill | science,health_clinical,nursing | clinical research, clinical trials, gcp guidelines, good clinical practice, irb, informed consent, protocol compliance |
+mechanical_design | Mechanical design | skill | engineering,manufacturing | mechanical design, machine design, design for manufacturing, dfm, fea, finite element analysis, tolerance analysis | 
+circuit_design | Circuit design | skill | engineering | circuit design, pcb design, pcb layout, analog design, digital design, altium, orcad, fpga, verilog, vhdl |
+embedded | Embedded systems | skill | software,engineering | embedded systems, embedded software, embedded development, microcontrollers, microcontroller, firmware development, rtos, arm cortex |
+civil_design | Civil and structural design | skill | engineering,construction_mgmt | civil design, structural design, structural analysis, site design, stormwater, grading design, hydraulic modeling |

@@ -2060,7 +2060,8 @@
                       "level",
                       "industry",
                       "location",
-                      "network"
+                      "network",
+                      "post_says_no_sponsorship"
                     ]
                   },
                   "label": {
@@ -2095,7 +2096,11 @@
                       "location",
                       "level",
                       "years",
-                      "employment_type"
+                      "employment_type",
+                      "licence",
+                      "degree",
+                      "work_model",
+                      "pay"
                     ]
                   },
                   "message": {
@@ -2143,6 +2148,19 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "unmet",
+                      "not_in_profile"
+                    ]
+                  },
+                  "requirement": {
+                    "type": "string"
+                  },
+                  "dealBreaker": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -2232,6 +2250,633 @@
               "type": "string",
               "format": "date-time",
               "description": "RFC 3339 date-time, UTC (\"Z\")"
+            },
+            "complete": {
+              "type": "boolean"
+            },
+            "unknownParts": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "experienceLevel",
+                  "skills",
+                  "industryExperience"
+                ]
+              }
+            },
+            "mustHaves": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "sponsorship",
+                      "work_authorization",
+                      "citizenship",
+                      "clearance",
+                      "licence",
+                      "degree",
+                      "years"
+                    ]
+                  },
+                  "requirement": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "importance": {
+                    "type": "string",
+                    "enum": [
+                      "required",
+                      "preferred",
+                      "obtainable"
+                    ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "met",
+                      "unmet",
+                      "not_in_profile",
+                      "in_progress",
+                      "info"
+                    ]
+                  },
+                  "quote": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "requirement",
+                  "importance",
+                  "state",
+                  "quote",
+                  "message"
+                ],
+                "title": "MustHave"
+              }
+            },
+            "dealBreakers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "work_model",
+                      "location",
+                      "pay",
+                      "employment_type"
+                    ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "ok",
+                      "broken",
+                      "not_stated",
+                      "not_in_profile"
+                    ]
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "quote": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "state",
+                  "message",
+                  "quote"
+                ],
+                "title": "DealBreakerCheck"
+              }
+            },
+            "jobFacts": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "quote": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "text",
+                    "quote"
+                  ],
+                  "title": "JobFactView"
+                },
+                "years": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "quote": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "text",
+                    "quote"
+                  ],
+                  "title": "JobFactView"
+                },
+                "pay": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "quote": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "text",
+                    "quote"
+                  ],
+                  "title": "JobFactView"
+                },
+                "sponsorship": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "quote": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "text",
+                    "quote"
+                  ],
+                  "title": "JobFactView"
+                },
+                "industry": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "quote": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "text",
+                    "quote"
+                  ],
+                  "title": "JobFactView"
+                },
+                "workModel": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "quote": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "text",
+                    "quote"
+                  ],
+                  "title": "JobFactView"
+                },
+                "employmentType": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "quote": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "text",
+                    "quote"
+                  ],
+                  "title": "JobFactView"
+                }
+              },
+              "required": [
+                "level",
+                "years",
+                "pay",
+                "sponsorship",
+                "industry",
+                "workModel",
+                "employmentType"
+              ]
+            },
+            "experience": {
+              "type": "object",
+              "properties": {
+                "totalMonths": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "text": {
+                  "type": "string"
+                },
+                "rolesCounted": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "company": {
+                        "type": "string"
+                      },
+                      "from": {
+                        "type": "string"
+                      },
+                      "to": {
+                        "type": "string"
+                      },
+                      "months": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "company",
+                      "from",
+                      "to",
+                      "months"
+                    ]
+                  }
+                },
+                "rolesNotCounted": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "company": {
+                        "type": "string"
+                      },
+                      "why": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "company",
+                      "why"
+                    ]
+                  }
+                },
+                "relevantMonths": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "jobYears": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "min": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "max": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "importance": {
+                          "type": "string"
+                        },
+                        "quote": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "min",
+                        "max",
+                        "importance",
+                        "quote"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "jobLevel": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "totalMonths",
+                "text",
+                "rolesCounted",
+                "rolesNotCounted",
+                "relevantMonths",
+                "jobYears",
+                "jobLevel"
+              ],
+              "title": "ExperienceDetail"
+            },
+            "skillDetail": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "importance": {
+                    "type": "string",
+                    "enum": [
+                      "required",
+                      "preferred",
+                      "mentioned"
+                    ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "met",
+                      "related",
+                      "implied",
+                      "missing"
+                    ]
+                  },
+                  "quote": {
+                    "type": "string"
+                  },
+                  "heldFrom": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "via": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "importance",
+                  "state",
+                  "quote",
+                  "heldFrom",
+                  "via"
+                ],
+                "title": "SkillCheck"
+              }
+            },
+            "cap": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "percent": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "percent",
+                    "reason"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": [
