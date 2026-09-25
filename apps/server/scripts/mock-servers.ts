@@ -3,7 +3,7 @@
 //   node apps/server/scripts/mock-servers.ts --dir /private/tmp/jl-mocks [--boards-port 4010] [--ai-port 4020] [--publik-port 4030]
 //
 // It writes <dir>/boards.json (one Greenhouse board "mockco" with three postings, if the file does not exist yet)
-// and appends every request to <dir>/requests.ndjson. Edit boards.json at any time: the next request reads it.
+// and appends every request to <dir>/requests.ndjson and to <dir>/<boards|ai|publik>-requests.ndjson. Edit boards.json at any time: the next request reads it.
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -28,16 +28,19 @@ if (!existsSync(boardsFile)) {
   }, null, 2));
 }
 const log = join(dir, 'requests.ndjson');
-const boards = await startBoards({ file: boardsFile, port: Number(values['boards-port'] ?? 4010), logFile: log });
-const ai = await startAi({ port: Number(values['ai-port'] ?? 4020), logFile: log });
-const publik = await startPublik({ port: Number(values['publik-port'] ?? 4030), logFile: log });
+// One log per stand-in (so a search of the job-board log is not mixed with what the person chose to send to the AI),
+// and all of them together in requests.ndjson.
+const logOf = (name: string) => [log, join(dir, `${name}-requests.ndjson`)];
+const boards = await startBoards({ file: boardsFile, port: Number(values['boards-port'] ?? 4010), logFile: logOf('boards') });
+const ai = await startAi({ port: Number(values['ai-port'] ?? 4020), logFile: logOf('ai') });
+const publik = await startPublik({ port: Number(values['publik-port'] ?? 4030), logFile: logOf('publik') });
 
 process.stdout.write([
   'jobleft stand-ins are running on 127.0.0.1 (Ctrl+C stops them).',
   `  job boards: ${boards.origin}  (edit ${boardsFile}; Greenhouse, Lever and Ashby list endpoints)`,
   `  AI server:  ${ai.origin}/v1  (OpenAI-compatible; model "mock-model")`,
   `  publik:     ${publik.origin}/api/v1  (balance: POST ${publik.origin}/__admin/balance {"micros":0})`,
-  `  every request is logged to ${log}`,
+  `  every request is logged to ${log}, and per stand-in to ${join(dir, 'boards-requests.ndjson')}, ai-requests.ndjson, publik-requests.ndjson`,
   '',
   'Start jobleft with:',
   `  export JOBLEFT_HOST_MAP='${JSON.stringify({ 'boards-api.greenhouse.io': boards.origin, 'api.lever.co': boards.origin, 'api.ashbyhq.com': boards.origin })}'`,

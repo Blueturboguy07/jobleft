@@ -28,14 +28,16 @@ function json(res: ServerResponse, status: number, body: unknown, headers: Recor
   res.end(t);
 }
 
-async function start(name: string, port: number, logFile: string | null, handle: (req: IncomingMessage, res: ServerResponse, body: string, url: URL) => void | Promise<void>): Promise<Mock> {
+type LogFiles = string | string[] | null;
+
+async function start(name: string, port: number, logFile: LogFiles, handle: (req: IncomingMessage, res: ServerResponse, body: string, url: URL) => void | Promise<void>): Promise<Mock> {
   const log: LogEntry[] = [];
   const server: Server = createServer(async (req, res) => {
     const body = await read(req);
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     const e: LogEntry = { at: new Date().toISOString(), mock: name, method: req.method ?? 'GET', path: req.url ?? '/', headers: req.headers, body };
     log.push(e);
-    if (logFile) appendFileSync(logFile, JSON.stringify(e) + '\n');
+    for (const f of logFile === null ? [] : Array.isArray(logFile) ? logFile : [logFile]) appendFileSync(f, JSON.stringify(e) + '\n');
     try { await handle(req, res, body, url); } catch { if (!res.headersSent) json(res, 500, { error: 'mock failed' }); else res.end(); }
   });
   // The asked port, or any free loopback port when it is taken (the caller prints the real address).
@@ -58,7 +60,7 @@ async function start(name: string, port: number, logFile: string | null, handle:
  */
 export type BoardsFile = Partial<Record<'greenhouse' | 'lever' | 'ashby', Record<string, unknown[]>>> & { pages?: Record<string, string> };
 
-export function startBoards(opts: { file: string; port?: number; logFile?: string | null }): Promise<Mock> {
+export function startBoards(opts: { file: string; port?: number; logFile?: LogFiles }): Promise<Mock> {
   const load = (): BoardsFile => { try { return JSON.parse(readFileSync(opts.file, 'utf8')) as BoardsFile; } catch { return {}; } };
   return start('boards', opts.port ?? 0, opts.logFile ?? null, (_req, res, _body, url) => {
     const b = load();
@@ -106,7 +108,7 @@ export function greenhouseJob(id: number, o: { title: string; location?: string;
 
 // ---------------------------------------------------------------- AI (OpenAI-compatible)
 
-export function startAi(opts: { port?: number; logFile?: string | null; reply?: string; model?: string } = {}): Promise<Mock> {
+export function startAi(opts: { port?: number; logFile?: LogFiles; reply?: string; model?: string } = {}): Promise<Mock> {
   const model = opts.model ?? 'mock-model';
   const reply = opts.reply ?? 'This answer comes from the local mock model.';
   return start('ai', opts.port ?? 0, opts.logFile ?? null, async (req, res, body, url) => {
@@ -135,7 +137,7 @@ export function startAi(opts: { port?: number; logFile?: string | null; reply?: 
 
 // ---------------------------------------------------------------- publik
 
-export function startPublik(opts: { port?: number; logFile?: string | null; balanceMicros?: number } = {}): Promise<Mock & { setBalance(m: number): void }> {
+export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMicros?: number } = {}): Promise<Mock & { setBalance(m: number): void }> {
   let balance = opts.balanceMicros ?? 2_000_000;
   const keys = new Set<string>();
   const m = start('publik', opts.port ?? 0, opts.logFile ?? null, async (req, res, body, url) => {

@@ -10,7 +10,11 @@
 //       Makes a data folder that a NEWER build wrote (schema version 999), to see an older build refuse it.
 //   node apps/server/src/cli.ts counts --home <dir>
 //       Prints the count per kind (the same numbers a backup's manifest lists). Reads only.
+//   node apps/server/src/cli.ts api-counts --home <dir>
+//       While the server RUNS: reads the count per kind THROUGH THE API (with the token from run/server.json), and
+//       the SHA-256 of each uploaded resume file as the API serves it. Changes nothing. Prints JSON.
 
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -22,6 +26,7 @@ import { acquireLock } from './lock.ts';
 import { ensureHome, homeLayout } from './home.ts';
 import { SERVER_MIGRATIONS } from './db/schema.ts';
 import { openReadOnly } from './db/open.ts';
+import { readRunFile } from './runfile.ts';
 import { countsOf } from './services/backup.ts';
 
 process.umask(0o077);
@@ -34,10 +39,71 @@ const cmd = positionals[0];
 
 function die(msg: string): never { process.stderr.write(`${msg}\n`); process.exit(1); }
 
-if (!cmd || !['seed-jobs', 'fixture', 'counts'].includes(cmd)) {
-  die('usage: cli.ts seed-jobs --home <dir> --count <n> | fixture --home <dir> --schema 1|future | counts --home <dir>');
+if (!cmd || !['seed-jobs', 'fixture', 'counts', 'api-counts'].includes(cmd)) {
+  die('usage: cli.ts seed-jobs --home <dir> --count <n> | fixture --home <dir> --schema 1|future | counts --home <dir> | api-counts --home <dir>');
 }
 if (!values.home) die('--home <dir> is required (a scratch data folder, never your real one)');
+
+/** The count per kind read through the running server's API (server O4, O7, O12). */
+async function apiCounts(home: string): Promise<Record<string, unknown>> {
+  const run = readRunFile(homeLayout(home).runFile);
+  if (!run) die('no jobleft server is running on this data folder (no run/server.json); start it first');
+  const base = `http://127.0.0.1:${run.port}/api/v1`;
+  const get = async (path: string): Promise<Response> => {
+    const r = await fetch(base + path, { headers: { 'x-jobleft-token': run.token } });
+    if (!r.ok) die(`GET /api/v1${path} answered ${r.status}: ${(await r.text()).slice(0, 300)}`);
+    return r;
+  };
+  const json = async (path: string): Promise<any> => (await get(path)).json();
+  const profile = await json('/profile');
+  const p = profile.personal ?? {};
+  const profileSaved = [p.firstName, p.lastName, p.email, p.phone, profile.summary].some((x) => typeof x === 'string' && x.length > 0)
+    || ['education', 'work', 'projects', 'certifications', 'skills'].some((k) => Array.isArray(profile[k]) && profile[k].length > 0);
+  const tracked = new Map<string, any>();
+  for (const view of ['liked', 'applied', 'external', 'hidden', 'closed']) {
+    for (const it of (await json(`/tracker?view=${view}`)).items) tracked.set(it.entry.jobId, it.entry);
+  }
+  const entries = [...tracked.values()];
+  const resumes = await json('/resumes');
+  const resumeFiles: Array<{ resumeId: string; fileName: string; bytes: number; sha256: string; sameAsRecord: boolean }> = [];
+  for (const r of resumes) {
+    if (!r.file) continue;
+    const format = r.file.mimeType === 'application/pdf' ? 'pdf' : 'docx';
+    const bytes = Buffer.from(await (await get(`/resumes/${encodeURIComponent(r.id)}/export?format=${format}`)).arrayBuffer());
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    resumeFiles.push({ resumeId: r.id, fileName: r.file.fileName, bytes: bytes.length, sha256, sameAsRecord: sha256 === r.file.sha256 });
+  }
+  const chats = await json('/ai/chats');
+  let chatMessages = 0;
+  for (const c of chats) chatMessages += (await json(`/ai/chats/${encodeURIComponent(c.id)}`)).messages.length;
+  const storage = await json('/storage');
+  return {
+    server: { port: run.port, pid: run.pid, version: run.version },
+    profile: profileSaved ? 1 : 0,
+    trackedJobs: entries.length,
+    likes: entries.filter((e) => e.liked).length,
+    statuses: entries.filter((e) => e.status !== null).length,
+    notes: entries.reduce((n, e) => n + e.notes.length, 0),
+    reminders: entries.reduce((n, e) => n + e.reminders.length, 0),
+    savedFilters: (await json('/filters')).length,
+    resumes: resumes.length,
+    resumeFiles: resumeFiles.length,
+    contacts: (await json('/network/contacts')).length,
+    chats: chats.length,
+    chatMessages,
+    boards: (await json('/boards?limit=100')).total,
+    jobs: storage.jobs,
+    openJobs: storage.openJobs,
+    pairedExtensions: (await json('/extension/pairings')).length,
+    files: resumeFiles,
+  };
+}
+
+if (cmd === 'api-counts') {
+  process.stdout.write(JSON.stringify(await apiCounts(values.home), null, 2) + '\n');
+  process.exit(0);
+}
+
 const layout = homeLayout(values.home);
 ensureHome(layout);
 const lock = acquireLock(layout.lockFile);
