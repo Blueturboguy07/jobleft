@@ -268,6 +268,13 @@ async function main(): Promise<void> {
       if (live > 25 && a.live !== true) {
         fail(`This refresh would ask ${live} boards on live job-board hosts (about ${Math.ceil(live / 3 / 60)} minutes at 1 request per second per host). Add --live to do that, or use a small directory (JOBLEFT_BOARD_DIRECTORY) and mock hosts (JOBLEFT_HOST_MAP).`, 9);
       }
+      {
+        const refs = ids?.length ? ids.map((id) => app.service.get(id)).filter((e): e is BoardEntry => !!e && !e.hidden && !e.disabled) : app.service.due(nowMs(), { intervalHours: dueHours ?? 0, catchUp: false });
+        const perHost = new Map<string, number>();
+        for (const b of refs) { const h = boardApiHost(b.ats, b.board, b.region ?? null); perHost.set(h, (perHost.get(h) ?? 0) + 1); }
+        const worst = Math.max(0, ...perHost.values());
+        if (!json) console.error(`Refreshing ${refs.length} board${refs.length === 1 ? '' : 's'} on ${perHost.size} host${perHost.size === 1 ? '' : 's'} (about ${Math.max(1, Math.ceil((worst * 1.1) / 60))} minute${worst * 1.1 > 60 ? 's' : ''} at 1 request per second per host).`);
+      }
       let last = 0;
       const t0 = Date.now();
       const sched = app.scheduler;
