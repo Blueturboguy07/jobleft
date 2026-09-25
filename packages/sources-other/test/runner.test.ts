@@ -351,3 +351,33 @@ test('O9: remote jobs open to US applicants: US-only and worldwide by default, u
     assert.equal(unknown.isUs, null);
   } finally { await t.done(); }
 });
+
+test('O8: a level shows only when the source or the title states it; titles are plain text', async () => {
+  const t = await setup();
+  try {
+    t.editJson('remoteok.json', (d) => [d[0], { ...d[1], id: '910001', position: 'Clinic &amp; Care <b>Nurse</b>', description: '<p>You need 8+ years of experience in clinics.</p>', url: 'https://remoteOK.com/remote-jobs/910001', apply_url: 'https://remoteOK.com/remote-jobs/910001' }, { ...d[2], id: '910002', position: 'Senior Nurse', url: 'https://remoteOK.com/remote-jobs/910002', apply_url: 'https://remoteOK.com/remote-jobs/910002' }]);
+    await t.svc.update('remoteok', { enabled: true });
+    await t.svc.refresh({ ids: ['remoteok'] });
+    const jobs = feedJobs(t.store.db, { sourceId: 'remoteok' });
+    const coord = jobs.find((j) => j.externalId === '910001')!;
+    assert.equal(coord.title, 'Clinic & Care Nurse');
+    assert.equal(coord.level, null, 'not inferred from "8+ years"');
+    assert.deepEqual(coord.levels, []);
+    const senior = jobs.find((j) => j.externalId === '910002')!;
+    assert.equal(senior.level, 'senior');
+    assert.equal(senior.evidence.level?.source, 'title');
+  } finally { await t.done(); }
+});
+
+test('a run lease left by a process that is gone is taken over; a live one is respected', async () => {
+  const t = await setup();
+  try {
+    await t.svc.update('remoteok', { enabled: true });
+    const far = Date.now() + 3_600_000;
+    t.store.db.prepare('UPDATE source_state SET lease_until_ms = ?, lease_owner = ? WHERE source_id = ?').run(far, '999999:gone', 'remoteok');
+    assert.equal((await t.svc.refresh({ ids: ['remoteok'] })).results[0]!.outcome, 'ok', 'dead owner: taken over');
+    t.clock.advance(2 * HOUR);
+    t.store.db.prepare('UPDATE source_state SET lease_until_ms = ?, lease_owner = ? WHERE source_id = ?').run(far, '1:launchd', 'remoteok');
+    assert.equal((await t.svc.refresh({ ids: ['remoteok'] })).results[0]!.skipReason, 'running', 'live owner: respected');
+  } finally { await t.done(); }
+});

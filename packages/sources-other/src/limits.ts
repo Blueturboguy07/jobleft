@@ -14,7 +14,16 @@ export const DAY_MS = 24 * 3_600_000;
 export type RunReason = 'manual' | 'schedule' | 'launch';
 export type WaitReason = 'too_early' | 'daily_limit' | 'request_limit' | 'rate_limited' | 'backoff';
 
-const PROCESS_ID = randomUUID();
+/** "<pid>:<random>" of this process; a lease whose process is gone can be taken over at once. */
+const PROCESS_ID = `${process.pid}:${randomUUID()}`;
+
+function leaseOwnerAlive(owner: string | null): boolean {
+  if (!owner) return false;
+  if (owner === PROCESS_ID) return true;
+  const pid = Number(owner.split(':')[0]);
+  if (!Number.isInteger(pid) || pid <= 0) return true; // unknown form: respect the lease until it ends
+  try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; }
+}
 
 export interface StateRow {
   source_id: string;
@@ -109,7 +118,7 @@ export function reserveRun(db: DatabaseSync, feed: JobFeed, now: number, reason:
     ensureState(db, feed.id);
     const st = getState(db, feed.id);
     const real = Date.now();
-    if (st.lease_until_ms !== null && Number(st.lease_until_ms) > real && st.lease_owner !== null) {
+    if (st.lease_until_ms !== null && Number(st.lease_until_ms) > real && leaseOwnerAlive(st.lease_owner)) {
       db.exec('COMMIT');
       return { ok: false, reason: 'running', nextAllowedAt: null, message: `${feed.info.name} is being refreshed right now` };
     }

@@ -76,9 +76,10 @@ function toJob(db: DatabaseSync, r: Row, postings: PostingRow[]): Job {
   };
   const evidence: JobEvidence = { ...facts.evidence };
   let level = (primary.level as Level | null) ?? null;
-  if (!level && r.level) {
+  // A level the title states ("Senior Nurse") is a fact; one inferred from "5+ years" in the text is not (O8).
+  if (!level && r.level && r.level_source === 'title') {
     level = r.level as Level;
-    evidence.level = { source: r.level_source === 'title' ? 'title' : 'description', text: r.level_source === 'title' ? r.title.slice(0, 500) : 'years of experience stated in the posting' };
+    evidence.level = { source: 'title', text: r.title.slice(0, 500) };
   }
   let pay = facts.pay;
   if (!pay) {

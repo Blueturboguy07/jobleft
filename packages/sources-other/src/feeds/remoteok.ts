@@ -4,7 +4,7 @@
 
 import type { FeedContext, FeedPosting, FeedResult, JobFeed } from '../types.ts';
 import { parseJsonBody, shapeError } from '../http.ts';
-import { fixMojibake, makePay, parseRemoteScope, placeFromText, safeHttpUrl, scopeOpenToUs } from '../text.ts';
+import { fixMojibake, makePay, plainLine, parseRemoteScope, placeFromText, safeHttpUrl, scopeOpenToUs } from '../text.ts';
 import { HOUR, countriesOf, creditFor, emptyFacts, ev, isoFrom, obj, rawJob, rawPayOf, result, str } from './common.ts';
 
 export const REMOTEOK_URL = 'https://remoteok.com/api';
@@ -28,8 +28,8 @@ export function parseRemoteOk(data: unknown, now: number): FeedResult {
     const j = obj(it);
     if (!j) { unreadableWithoutId++; continue; }
     const id = str(j.id).trim() || str(j.slug).trim();
-    const title = fixMojibake(str(j.position)).trim();
-    const company = fixMojibake(str(j.company)).trim();
+    const title = plainLine(str(j.position));
+    const company = plainLine(str(j.company));
     const url = safeHttpUrl(j.url) ?? safeHttpUrl(j.apply_url);
     if (!id) { unreadableWithoutId++; continue; }
     if (!title || !company || !url) { unreadableIds.push(id); continue; }

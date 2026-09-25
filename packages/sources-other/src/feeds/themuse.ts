@@ -5,7 +5,7 @@
 import type { Level } from '@jobleft/contracts';
 import type { FeedContext, FeedPosting, FeedResult, JobFeed } from '../types.ts';
 import { FeedError, parseJsonBody, shapeError } from '../http.ts';
-import { fixMojibake, placeFromText, safeHttpUrl } from '../text.ts';
+import { fixMojibake, placeFromText, plainLine, safeHttpUrl } from '../text.ts';
 import { HOUR, arr, countriesOf, creditFor, emptyFacts, ev, isoFrom, obj, rawJob, result, str } from './common.ts';
 
 export const MUSE_BASE = 'https://www.themuse.com/api/public/jobs';
@@ -40,8 +40,8 @@ export function parseMusePage(data: unknown, now: number): MusePage {
     const j = obj(it);
     const id = j ? str(j.id).trim() : '';
     if (!j || !id) { unreadableWithoutId++; continue; }
-    const title = fixMojibake(str(j.name)).trim();
-    const company = fixMojibake(str(obj(j.company)?.name)).trim();
+    const title = plainLine(str(j.name));
+    const company = plainLine(str(obj(j.company)?.name));
     const url = safeHttpUrl(obj(j.refs)?.landing_page);
     if (!title || !company || !url) { unreadableIds.push(id); continue; }
     const facts = emptyFacts();

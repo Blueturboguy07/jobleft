@@ -4,7 +4,7 @@
 
 import type { FeedContext, FeedPosting, FeedResult, JobFeed } from '../types.ts';
 import { parseJsonBody, shapeError } from '../http.ts';
-import { employmentTypeOf, fixMojibake, parseRemoteScope, payFromSalaryField, safeHttpUrl, scopeOpenToUs } from '../text.ts';
+import { employmentTypeOf, fixMojibake, plainLine, parseRemoteScope, payFromSalaryField, safeHttpUrl, scopeOpenToUs } from '../text.ts';
 import { HOUR, arr, countriesOf, creditFor, emptyFacts, ev, isoFrom, obj, rawJob, rawPayOf, result, str } from './common.ts';
 
 export const REMOTIVE_URL = 'https://remotive.com/api/remote-jobs';
@@ -21,8 +21,8 @@ export function parseRemotive(data: unknown, now: number): FeedResult {
     const j = obj(it);
     const id = j ? str(j.id).trim() : '';
     if (!j || !id) { unreadableWithoutId++; continue; }
-    const title = fixMojibake(str(j.title)).trim();
-    const company = fixMojibake(str(j.company_name)).trim();
+    const title = plainLine(str(j.title));
+    const company = plainLine(str(j.company_name));
     const url = safeHttpUrl(j.url);
     if (!title || !company || !url) { unreadableIds.push(id); continue; }
     const facts = emptyFacts();

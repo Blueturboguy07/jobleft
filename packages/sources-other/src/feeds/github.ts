@@ -10,7 +10,7 @@ import { canonicalizeUrl } from '@jobleft/crawler';
 import { decodeEntities } from '@jobleft/parsers';
 import type { FeedContext, FeedFacts, FeedPosting, FeedResult, JobFeed } from '../types.ts';
 import { FeedError, parseJsonBody, shapeError } from '../http.ts';
-import { employmentTypeOf, parseRemoteScope, payFromSalaryField, placeFromText, safeHttpUrl, scopeOpenToUs } from '../text.ts';
+import { employmentTypeOf, parseRemoteScope, payFromSalaryField, placeFromText, plainLine, safeHttpUrl, scopeOpenToUs } from '../text.ts';
 import { HOUR, arr, countriesOf, creditFor, emptyFacts, ev, isoFrom, obj, rawJob, rawPayOf, result, str } from './common.ts';
 
 export interface GithubList {
@@ -80,8 +80,8 @@ export function parseListings(data: unknown, list: GithubList, now: number): Fee
     const id = str(j.id).trim();
     if (!id) { unreadableWithoutId++; continue; }
     if (j.active === false || j.is_visible === false) { skipped++; continue; } // not listed any more
-    const company = str(j.company_name).trim();
-    const title = str(j.title).trim();
+    const company = plainLine(str(j.company_name));
+    const title = plainLine(str(j.title));
     const url = safeHttpUrl(j.url);
     if (!company || !title || !url) { unreadableIds.push(id); continue; }
     const facts = emptyFacts();

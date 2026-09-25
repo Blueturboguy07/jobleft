@@ -7,7 +7,7 @@
 import type { EmploymentType, PayPeriod, Place } from '@jobleft/contracts';
 import type { FeedContext, FeedPosting, FeedResult, JobFeed } from '../types.ts';
 import { FeedError, parseJsonBody, shapeError } from '../http.ts';
-import { countryCode, makePay, safeHttpUrl } from '../text.ts';
+import { countryCode, makePay, plainLine, safeHttpUrl } from '../text.ts';
 import { HOUR, arr, countriesOf, emptyFacts, ev, isoFrom, obj, rawJob, rawPayOf, result, str } from './common.ts';
 
 export const USAJOBS_BASE = 'https://data.usajobs.gov/api/Search';
@@ -70,8 +70,8 @@ export function parseUsajobsPage(data: unknown, now: number): UsajobsPage {
     const d = obj(item?.MatchedObjectDescriptor);
     const id = (str(item?.MatchedObjectId) || str(d?.PositionID)).trim();
     if (!d || !id) { unreadableWithoutId++; continue; }
-    const title = str(d.PositionTitle).trim();
-    const company = str(d.OrganizationName).trim() || str(d.DepartmentName).trim();
+    const title = plainLine(str(d.PositionTitle));
+    const company = plainLine(str(d.OrganizationName)) || plainLine(str(d.DepartmentName));
     const url = safeHttpUrl(d.PositionURI);
     if (!title || !company || !url) { unreadableIds.push(id); continue; }
     const closes = isoFrom(d.ApplicationCloseDate, Number.POSITIVE_INFINITY);

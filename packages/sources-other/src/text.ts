@@ -3,7 +3,12 @@
 
 import type { EmploymentType, Pay, PayPeriod, Place, RemoteScope } from '@jobleft/contracts';
 import { countryFromCode } from '@jobleft/crawler';
-import { annualize, parsePayFromText } from '@jobleft/parsers';
+import { annualize, decodeEntities, parsePayFromText } from '@jobleft/parsers';
+
+/** One line of plain text from a source field (a title, a company): entities decoded, tags and extra spaces removed. */
+export function plainLine(v: string): string {
+  return decodeEntities(fixMojibake(v).replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Mojibake: UTF-8 bytes that were decoded as Latin-1 or Windows-1252 ("MecÃ¡nico" for "Mecánico").
