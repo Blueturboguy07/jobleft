@@ -459,7 +459,7 @@ export class CompanyFacts {
     let rejected = 0;
     for (const p of proposed) {
       if (checkProposed(p, results, target) !== null) { rejected += 1; continue; }
-      if (p.field === 'news') news.push(...(p.value as typeof news));
+      if (p.field === 'news') { for (const n of p.value as typeof news) if (!news.some((x) => x.url === n.url)) news.push(n); }
       else if (p.field === 'totalFundingUsd' && !facts.totalFundingUsd) facts.totalFundingUsd = { value: Number(p.value), source: src(p.url) };
       else if (p.field === 'investors' && !facts.investors) facts.investors = { value: p.value as string[], source: src(p.url) };
       else if (p.field === 'stage' && !facts.stage) facts.stage = { value: p.value as NonNullable<Company['facts']['stage']>['value'], source: src(p.url) };
