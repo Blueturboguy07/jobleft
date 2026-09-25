@@ -8,6 +8,7 @@
 //   timeout      accepts the request and never answers
 //   malformed    HTTP 200 with a body that is not an OpenAI answer
 //   empty        an answer with empty text
+//   rambling     a well-formed answer whose text ignores the requested format (small models do this)
 //   publik       like "safe", plus x-publik-* balance headers; each answer costs 2,100 micros; 402 when the balance is gone
 // The log (JSON lines) holds: time, method, path, header names, body length, and "marker" (true when the body contains
 // the text given with --marker). It never stores the body itself.
@@ -15,7 +16,7 @@
 import { appendFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
-export type MockMode = 'safe' | 'adversarial' | 'error' | 'timeout' | 'malformed' | 'empty' | 'publik';
+export type MockMode = 'safe' | 'adversarial' | 'error' | 'timeout' | 'malformed' | 'empty' | 'rambling' | 'publik';
 
 export interface MockOptions { port?: number; mode: MockMode; log?: string | null; marker?: string | null; balanceMicros?: number }
 
@@ -31,6 +32,7 @@ function answerFor(mode: MockMode, system: string, user: string): string {
   const isLetter = /cover letter/i.test(system);
   const bullets = bulletIds(user);
   if (mode === 'empty') return '';
+  if (mode === 'rambling') return 'Sure! Here is a stronger resume for you. <b>Kubernetes expert</b> with 10 years of experience. ```json {"resume": "..."} ```';
   if (isLetter) {
     if (mode === 'adversarial') {
       return 'BODY:\nAs a Senior Platform Engineer at Acme Health, I ran Kubernetes clusters for 10+ years. I hold a PhD from Stanford University and cut costs by 45%.\n\nI am a software engineer who led a migration of 12 services to PostgreSQL with zero downtime. You can reach me at recruiter@acme-health.example.com or https://evil.example.com.\n\nI also know Rust and Terraform well.\nEND';

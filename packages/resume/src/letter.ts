@@ -159,6 +159,11 @@ function gateSentences(paras: string[], ctx: Ctx): { paras: string[]; removed: s
   for (const p of paras) {
     const keep: string[] = [];
     for (const s of splitSentences(p)) {
+      // Chatter about the task, markup and code are never letter text.
+      if (/^(?:sure|certainly|of course|absolutely|here is|here's|below is|as an ai|i hope this|let me know|note:)/i.test(s) || /[<>`{}|*]|(?<![CF])#/.test(s) || /\b(?:cover letter|this letter|resume for you|the profile block|the job block)\b/i.test(s)) {
+        removed.push('text that is not part of a letter');
+        continue;
+      }
       const v = checkText(s, 'Letter', ctx.pf, jc, 'letter');
       const names = /\b(?:\[[^\]]+\]|\{[^}]+\}|your name|company name|hiring manager's name)\b/i.test(s);
       if (v.length || names) removed.push(...(v.length ? v.map((x) => x.fact) : ['a placeholder']));
@@ -208,7 +213,7 @@ export async function draftLetter(input: { profile: Profile; job: Job; resume: R
   const body = parseBody(res.text);
   const gated = gateSentences(body, ctx);
   let paras = gated.paras;
-  if (gated.removed.length) notice = `Left out AI sentences with facts that are not in your profile (${gated.removed.slice(0, 6).join(', ')}).`;
+  if (gated.removed.length) notice = `Left out AI sentences that were not usable or held facts that are not in your profile (${gated.removed.slice(0, 6).join(', ')}).`;
   const sentences = paras.join(' ').split(/(?<=[.!?])\s+/).filter(Boolean).length;
   if (sentences < 2) {
     paras = ruleLetterBody(ctx).slice(1, -1);

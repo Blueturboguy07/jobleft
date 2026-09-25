@@ -199,6 +199,21 @@ test('AI failures: a plain message, nothing half-made saved, the previous letter
   } finally { s.done(); mock.setMode('safe'); }
 });
 
+test('an answer in the wrong form is never pasted in: the draft keeps only rule-based changes and says why', async () => {
+  const s = setup({ ai: 'mock' });
+  try {
+    mock.setMode('rambling');
+    const base = s.svc.create({ name: 'Base' });
+    const p = await s.svc.tailor(base.id, J_FIT().id);
+    assert.match(p.notice ?? '', /could not be used/);
+    assert.ok(p.changes.every((c) => !c.field.startsWith('bullets[') && c.field !== 'summary'));
+    assert.ok(!JSON.stringify(p.changes).includes('<b>'));
+    const l = await s.svc.createCoverLetter(J_FIT().id, base.id);
+    assert.ok(!/<b>|```|Kubernetes|10 years|Sure!|Here is/.test(l.text));
+    assert.equal(l.ready, true);
+  } finally { s.done(); mock.setMode('safe'); }
+});
+
 test('paid steps carry their cost; an empty balance stops the step with the top-up link and saves nothing', async () => {
   const paid = await startMockAi({ mode: 'publik', balanceMicros: 5_000 });
   const t = tempDir('jl-resume-pub');

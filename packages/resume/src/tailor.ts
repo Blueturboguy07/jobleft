@@ -221,8 +221,9 @@ export async function draftTailoring(input: TailorInput): Promise<TailorDraft> {
     const res = await aiComplete(input.ai, system, user, { maxTokens: 1200 });
     costMicros = res.costMicros;
     const parsed = parseRewrites(res.text, new Set(refs.map((r) => r.id)));
-    if (parsed === null) throw new ResumeError('provider_error', 'The AI answer could not be used (it was not in the expected form). Nothing was saved; try again, or tailor without AI.');
-    if (parsed !== 'none') {
+    // An answer in the wrong form is not used at all (never pasted into a resume); the rule-based changes remain.
+    if (parsed === null) notice = 'The AI answer could not be used (it was not in the expected form), so this draft has only the changes jobleft makes without AI. Nothing was saved.';
+    if (parsed !== null && parsed !== 'none') {
       const jc = jobContext(job);
       for (const [key, text] of parsed) {
         if (key === 'SUMMARY') {
