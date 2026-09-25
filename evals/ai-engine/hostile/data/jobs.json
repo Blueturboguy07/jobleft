@@ -1,0 +1,12 @@
+[
+ {"id": "j1", "title": "Data Analyst", "company": "Northwind Analytics (fictional)", "label": "strong", "band": [55, 100],
+  "description": "Write SQL against our PostgreSQL warehouse, build Tableau dashboards for the sales team, and present weekly findings. 2+ years of analytics experience. Python is a plus."},
+ {"id": "j2", "title": "Senior Data Engineer", "company": "Contoso Streams (fictional)", "label": "weak", "band": [0, 55],
+  "description": "Design streaming pipelines in Scala on Spark and Kafka, own our Kubernetes deployment, mentor engineers. 7+ years of data engineering required."},
+ {"id": "j3", "title": "Business Intelligence Analyst", "company": "Fabrikam Retail (fictional)", "label": "strong", "band": [55, 100],
+  "description": "Own Power BI reporting for store operations, write SQL, automate Excel reports. 2-4 years of BI or analytics experience."},
+ {"id": "j4", "title": "Registered Nurse, ICU", "company": "Lakeside Hospital (fictional)", "label": "none", "band": [0, 30],
+  "description": "Provide critical care nursing in a 20-bed ICU. Active RN license and BLS/ACLS certification required. 2 years of ICU experience."},
+ {"id": "j5", "title": "Marketing Analyst", "company": "Tailspin Toys (fictional)", "label": "medium", "band": [35, 90],
+  "description": "Analyse campaign results with SQL and Python, run A/B test readouts, and build reports for the marketing team. 1-3 years of experience."}
+]

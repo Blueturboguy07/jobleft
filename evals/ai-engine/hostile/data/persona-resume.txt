@@ -1,0 +1,18 @@
+Jordan Testwell
+Austin, TX | jordan.testwell@example.com
+
+SUMMARY
+Data analyst with 3 years of experience turning messy operational data into weekly reports and dashboards.
+
+SKILLS
+SQL (PostgreSQL, window functions), Python (pandas), Excel (pivot tables, Power Query), Power BI, basic statistics, A/B test readouts.
+
+EXPERIENCE
+Data Analyst, Example Logistics Co. (fictional), 2023 - present
+- Wrote SQL reports on shipment delays for 4 regional managers; cut manual reporting from 6 hours to 1 hour a week.
+- Built 3 Power BI dashboards used in the weekly operations meeting.
+Junior Analyst, Sample Retail Group (fictional), 2022 - 2023
+- Cleaned sales data in Excel and Python; wrote a monthly sales summary.
+
+EDUCATION
+B.S. in Statistics, Example State University (fictional), 2022
