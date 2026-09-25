@@ -1,0 +1,71 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "middleName": null,
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "+1 555 0100",
+    "addressLine": "1 Test Way",
+    "city": "Austin",
+    "region": "TX",
+    "postalCode": "78701",
+    "country": "US",
+    "links": [
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/jordan-testwell-example"
+      },
+      {
+        "label": "Portfolio",
+        "url": "https://example.com/jordan"
+      }
+    ]
+  },
+  "summary": "Data analyst. Ünïcödé, 日本語 and emoji 🎯 stay as written.",
+  "education": [],
+  "work": [],
+  "projects": [],
+  "certifications": [],
+  "skills": [
+    {
+      "name": "SQL",
+      "years": 3,
+      "source": "user"
+    }
+  ],
+  "preferences": {
+    "jobFunctions": [],
+    "targetTitles": [
+      "Data Analyst"
+    ],
+    "employmentTypes": [],
+    "workModels": [],
+    "levels": [],
+    "countries": [
+      "US"
+    ],
+    "places": [],
+    "minAnnualPayUsd": null,
+    "industries": [],
+    "companyStages": [],
+    "roleTypes": [],
+    "excludedCompanies": []
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": null,
+    "hasSecurityClearance": null,
+    "authorizedCountries": []
+  },
+  "eeo": {
+    "disability": null,
+    "veteran": "decline",
+    "gender": null,
+    "lgbtq": null,
+    "race": null,
+    "hispanicOrLatino": null,
+    "sexualOrientation": [],
+    "pronouns": null
+  }
+}

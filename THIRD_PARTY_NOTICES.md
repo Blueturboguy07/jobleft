@@ -34,6 +34,17 @@ Local additions that are not in freehire (written new): the per-host pacer, the 
 - Source: the owner's own Python project (`~/Documents/internships`, `pipeline/normalize.py` and `pipeline/dedup.py`). First-party code, no third-party licence applies.
 - jobleft file: `packages/crawler/src/normalize.ts` (URL canonicalisation, company and title normalisers, the two-layer dedupe spine). Two deliberate changes are documented in that file (`gh_jid` is kept; intern words are kept).
 
+### 1.3 jobsync (MIT)
+
+- Source: https://github.com/Gsync/jobsync, commit `527333e` (release 1.1.20). Read-only clone at `vendor/jobsync` (not committed).
+- Licence: MIT. Copyright (c) 2024 gsync. Full text in section 5.2 and in `apps/server/jobsync/LICENSE`.
+- Added by the server lane (2026-09-25).
+
+| jobleft file | From jobsync | What |
+|---|---|---|
+| `apps/server/jobsync/` (whole folder) | The source tree at `527333e` | A fork copy with the four spike S3 patches applied (`spikes/s3-shell/patches/01` to `04`), and its pages, API routes, end-to-end tests and deploy files removed. It is not run or served; it is the port source. Details: `apps/server/jobsync/JOBLEFT-FORK.md` |
+| `apps/server/src/interim/ai.ts` | `src/lib/ai/custom-endpoint.ts`, `src/lib/ai/provider-registry.server.ts`, `src/lib/ai/ollama-capabilities.ts` (as changed by spike patches 03 and 04) | Logic re-written in plain TypeScript: an OpenAI-compatible provider is a base URL plus an optional key over Chat Completions; its check asks `GET <base>/models` and treats 404 as usable; Ollama gets `think: true` only for models whose `/api/show` lists "thinking" |
+
 ## 2. Data shipped with the app
 
 None yet. The static-data lane adds entries here (board directory, H-1B sponsor table from US Department of Labor LCA disclosure files, city dictionary with its attribution, skill dictionary).
@@ -57,6 +68,32 @@ None. `pnpm-workspace.yaml` sets `ignoreScripts: true` and an empty `allowBuilds
 MIT License
 
 Copyright (c) 2026 freehire contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### 5.2 MIT licence (jobsync)
+
+```
+MIT License
+
+Copyright (c) 2024 gsync
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

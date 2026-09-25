@@ -38,7 +38,14 @@ async function start(name: string, port: number, logFile: string | null, handle:
     if (logFile) appendFileSync(logFile, JSON.stringify(e) + '\n');
     try { await handle(req, res, body, url); } catch { if (!res.headersSent) json(res, 500, { error: 'mock failed' }); else res.end(); }
   });
-  await new Promise<void>((r) => server.listen(port, '127.0.0.1', () => r()));
+  // The asked port, or any free loopback port when it is taken (the caller prints the real address).
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', (e: NodeJS.ErrnoException) => {
+      if (e.code === 'EADDRINUSE' && port !== 0) server.listen(0, '127.0.0.1', () => resolve());
+      else reject(e);
+    });
+    server.listen(port, '127.0.0.1', () => resolve());
+  });
   const p = (server.address() as AddressInfo).port;
   return { name, port: p, origin: `http://127.0.0.1:${p}`, log, close: () => new Promise((r) => { server.closeAllConnections(); server.close(() => r()); }) };
 }
