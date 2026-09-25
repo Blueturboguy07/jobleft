@@ -465,7 +465,7 @@ function rawControls(doc: Document): { raws: Raw[]; hidden: Map<Element, number>
     }
     const kind = kindOf(el);
     const combobox = isCombo(el);
-    const markEl = combobox ? comboBox(el, mark) : mark;
+    const markEl = combobox && el instanceof HTMLInputElement ? comboBox(el, mark) : mark;
     if (el instanceof HTMLInputElement && (el.type === 'radio' || el.type === 'checkbox')) {
       const scope = el.form ?? container;
       const key = el.name ? `${el.type}:${el.name}` : '';

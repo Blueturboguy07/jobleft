@@ -111,9 +111,30 @@ async function main(): Promise<void> {
       await typeInto(tab, 'phone', '512-555-0199');
       await typeInto(tab, 'location', 'Round Rock');
       const before = await dump(tab);
+      const contexts: Array<{ id: number; name: string; type: string }> = [];
+      browser.on((m) => {
+        if (m.sessionId === tab.sessionId && m.method === 'Runtime.executionContextCreated') {
+          const c = m.params.context as { id: number; name: string; auxData?: { type?: string } };
+          contexts.push({ id: c.id, name: c.name, type: c.auxData?.type ?? '' });
+        }
+      });
       const report = await fillAndWait(s, tab);
       const d = await dump(tab);
       await shot(tab, '02-job-a-filled');
+      // The pairing key is out of reach of the page AND of the extension's own content script.
+      const iso = contexts.find((c) => c.type === 'isolated' && /jobleft/i.test(c.name));
+      if (iso) {
+        const r = await tab.send<{ result: { value?: string }; exceptionDetails?: unknown }>('Runtime.evaluate', {
+          contextId: iso.id, awaitPromise: true, returnByValue: true,
+          expression: `chrome.storage.local.get(null).then(function(v){ return JSON.stringify(v); }, function(e){ return 'refused: ' + e.message; })`,
+        }).catch((e: Error) => ({ result: { value: `refused: ${e.message}` } }));
+        const v = String(r.result.value ?? '');
+        check('content script cannot read the pairing key', !/pairingToken|"token"/.test(v), v.slice(0, 80));
+      } else {
+        check('content script context found for the key check', false, JSON.stringify(contexts.slice(0, 5)));
+      }
+      const pageSees = await tab.eval<string>(`typeof chrome === 'undefined' || !chrome.storage ? 'no storage' : 'storage'`);
+      check('the page itself has no extension storage', pageSees === 'no storage', pageSees);
       check('first name', val(d, 'first_name') === 'Jordan');
       check('last name', val(d, 'last_name') === 'Testwell');
       check('email', val(d, 'email') === 'jordan.testwell@example.com');
@@ -310,7 +331,7 @@ async function main(): Promise<void> {
       const shown = await tab.eval<string[]>(`Array.from(document.querySelectorAll('button[aria-haspopup]')).map(function(b){return b.textContent})`);
       const d = await dump(tab);
       await shot(tab, '08-workday-like');
-      check('Workday: says partial and never 100%', /Workday: jobleft filled only the step you can see/.test(rep));
+      check('Workday: says partial and never 100%', /Workday support is partial: jobleft fills only the step you can see/.test(rep) && /add them yourself/.test(rep));
       check('Workday: names filled', val(d, 'fn') === 'Jordan' && val(d, 'ln') === 'Testwell');
       check('Workday: country list picks United States of America', shown[0] === 'United States of America', JSON.stringify(shown));
       check('Workday: state list picks Texas', shown[1] === 'Texas', JSON.stringify(shown));

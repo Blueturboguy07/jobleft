@@ -353,7 +353,6 @@ async function startFill(tabId: number, resumeId: string | null): Promise<{ ok: 
   // Only the fields jobleft asked about; never a field the app made up.
   const asked = new Set(req.fields.map((f) => f.fieldId));
   resp = { ...resp, fills: resp.fills.filter((f) => asked.has(f.fieldId)), files: resp.files.filter((f) => asked.has(f.fieldId)), drafts: resp.drafts.filter((d) => asked.has(d.fieldId)) };
-  if (support.level === 'partial' && support.ats === 'workday') notices.push('Workday: jobleft filled only the step you can see. Add work and education rows yourself, and press Save and Continue yourself.');
   for (const w of resp.warnings) notices.push(w);
 
   const input: ApplyInput = {

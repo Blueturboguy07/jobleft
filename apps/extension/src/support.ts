@@ -51,7 +51,7 @@ export const SUPPORT: Readonly<Partial<Record<AtsId, 'supported' | 'partial'>>> 
 };
 
 const PARTIAL_WHY: Readonly<Partial<Record<AtsId, string>>> = {
-  workday: 'Workday support is partial: jobleft fills the step you can see, does not add work or education rows, and never presses Next or Save.',
+  workday: 'Workday support is partial: jobleft fills only the step you can see. It does not add work or education rows: add them yourself. It never presses Next or Save and Continue: press them yourself.',
   icims: 'iCIMS support is partial: jobleft uses its general mode here and was not tested on iCIMS forms.',
 };
 

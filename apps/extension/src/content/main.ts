@@ -280,6 +280,8 @@ async function undo(): Promise<void> {
   r.notices = [...r.notices.filter((n) => !n.startsWith('Undo:')),
     `Undo: ${last.length - failed - keptEdits} put back${keptEdits ? `, ${keptEdits} kept because you changed them` : ''}${failed ? `, ${failed} could not be put back` : ''}.`];
   pushReport();
+  // When everything went back, the page looks as it did before the fill: the panel goes away too, after a moment.
+  if (failed === 0) setTimeout(() => { if (S.report?.phase === 'undone') send({ type: 'panel:close' }); }, 2500);
 }
 
 function insertDraft(fieldId: string, textValue: string): void {
