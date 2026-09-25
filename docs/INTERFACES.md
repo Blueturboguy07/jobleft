@@ -88,10 +88,13 @@ logs outside it). Secrets live in the OS secret store, never in a plain-text fil
 | `logs/` | Logs with no personal data, no keys, no tokens, no resume or chat text | server |
 | `tmp/` | Temporary files; emptied at start and after each step | every Node package |
 | `run/server.json` | `{ pid, port, token, version, startedAt }`, mode 0600; removed on clean exit | server |
-| `run/server.lock` | Single-instance lock (one server per data folder) | server |
+| `run/server.lock` | Single-instance lock (one server per data folder): `{ pid, procStart, lockedAt, nonce }`. A lock whose process is gone, or whose pid now belongs to another program (start time differs), is stale and is taken over | server |
+| `run/restore-journal.json` | Present only while a restore swaps folders; at start the server finishes or undoes an interrupted restore before it empties `tmp/` | server |
 
 Defaults: macOS `~/Library/Application Support/jobleft`, Windows `%APPDATA%\jobleft`, others
-`~/.local/share/jobleft`. `pnpm app:up` uses `<repo>/.jobleft-dev` (ignored by git). Tests use a folder under
+`~/.local/share/jobleft`. The server (main.ts) sets `TMPDIR` and `SQLITE_TMPDIR` to `$JOBLEFT_HOME/tmp` and runs every
+connection with `temp_store = MEMORY`, so no temporary copy lands in the system temp folder. Keys go to the macOS
+Keychain, one service per data folder (`jobleft-<first 12 hex of sha256(folder path)>`). `pnpm app:up` uses `<repo>/.jobleft-dev` (ignored by git). Tests use a folder under
 `/private/tmp`. The folder is created with mode 0700 and files with 0600. `homeLayout(home)` in apps/server
 (Built) returns every path.
 
@@ -100,6 +103,9 @@ Defaults: macOS `~/Library/Application Support/jobleft`, Windows `%APPDATA%\jobl
 Engine: `node:sqlite` (built into Node; no native module). `openDatabase(path)` in `@jobleft/store` (Built) sets
 `page_size = 16384` on a new file (spike S2), then WAL, `synchronous = NORMAL` and `foreign_keys = ON`.
 
+Migrations (server: Built, `apps/server/src/db/`): every pending server step runs in ONE transaction; a file with a step
+of an owner this build does not know, or a newer version, is refused before any write (it is read with SQLite's
+`immutable` flag, so not even a -wal file appears), and a read-only folder is refused before any write.
 Migrations: each owner creates and changes only its own tables, with forward-only numbered steps recorded in
 `schema_migrations(owner TEXT, version INTEGER, applied_at TEXT, PRIMARY KEY (owner, version))`. Each step runs in one
 transaction. The server runs the owners in this order at start: crawler, store, boards, static-data, sources-other,
@@ -117,7 +123,10 @@ message and left untouched.
 | `resumes`, `tailor_proposals`, `cover_letters` | resume | Planned |
 | `network_contacts` | network | Planned |
 | `practice_sessions`, `practice_items` | ai-engine | Planned |
-| `pairings` | server | Planned. Extension id, hash of the pairing token, browser, times |
+| `pairings` | server | Built. Extension id, sha256 of the pairing token (hex), browser, extension version, paired and last-seen times |
+| `srv_kv`, `srv_notifications` | server | Built. The server's key-value JSON (app settings, key-free AI and publik state, the folder's creation time) and the notifications the shell shows |
+| `srv_profile`, `srv_tracker`, `srv_tracker_history`, `srv_tracker_notes`, `srv_tracker_reminders`, `srv_saved_filters`, `srv_resumes`, `srv_contacts`, `srv_chats`, `srv_chat_messages`, `srv_boards`, `srv_crawl_runs`, `srv_saved_answers`, `srv_extension_reviews` | server (INTERIM) | Built. Stand-ins for the records of lanes not merged into the server branch (store, resume, network, boards, extension). The `srv_` prefix keeps them apart from the owning lanes' tables; each lane's package replaces its stand-in at integration (apps/server/README.md section 13) |
+| `srv_job_index` (+ triggers `srv_job_index_ai`, `_au`, `_ad` on `jobs`; indexes `srv_jobs_apply`, `srv_jobs_key` on `jobs`) | server (INTERIM) | Built. A narrow copy of the searchable facts of open, non-duplicate jobs, kept in step by triggers that use built-in SQL only (any connection can fire them). Derived data only: dropping it loses nothing. The store lane's search replaces it |
 
 Job id: `makeJobId(ats, board, externalId)` in `@jobleft/store` (Built) gives `"<ats>:<board>:<externalId>"` in lower
 case for ATS and board. Every `jobId` in the contracts and routes is this id. A tracker row outlives its job: a closed
@@ -145,6 +154,8 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_MODEL_BASE_URL` | ai-engine | the Hugging Face `BAAI/bge-small-en-v1.5` files | Where the fit model is downloaded from, once (tests use a local stand-in) |
 | `JOBLEFT_DATASET_MANIFEST_URL` | static-data | none until the owner names the release location | Where newer dataset releases are listed (tests use a local stand-in) |
 | `JOBLEFT_LOG_LEVEL` | server | `info` | `error`, `warn`, `info`, `debug`. No level logs personal text, keys or tokens |
+| `JOBLEFT_SECRET_STORE` | server | `keychain` on macOS, else `memory` | `memory` keeps keys in memory only (tests); keys are then forgotten at stop |
+| `JOBLEFT_QUIET` | server | off | `1` = main.ts prints nothing at start (the address and token go only to `run/server.json`; `pnpm app:up` uses it) |
 | `CARGO_TARGET_DIR` | shell builds | `<main checkout>/.cache/cargo-target` | The one shared Cargo target dir (every worktree uses the main checkout's) |
 
 The User-Agent of every crawl request is fixed in code (`USER_AGENT` in `@jobleft/crawler`):
@@ -154,8 +165,7 @@ The User-Agent of every crawl request is fixed in code (`USER_AGENT` in `@joblef
 
 ### 5.1 `pnpm app:up` and `pnpm app:down` (development)
 
-Status: placeholders in `scripts/app-up.ts` and `scripts/app-down.ts` (app:up exits 1 with a plain message). The
-server lane replaces them. When built, they must do exactly this:
+Status: Built by the server lane (`scripts/app-up.ts`, `scripts/app-down.ts`). They do exactly this:
 
 `pnpm app:up`
 
@@ -204,6 +214,19 @@ Code: `packages/contracts/src/api.ts` (`LOCAL_API`, 97 routes). Typed client: `c
 10. No route serves a file from outside the data folder. Downloads come from records, not from paths in the request.
 11. `health` reveals no personal data, no data-folder path and no counts.
 
+How the server enforces them (Built, `apps/server/src/server.ts`), in this order: dot segments (`..`, `%2e%2e`) and
+backslashes in the raw path answer 404 before the URL is normalised; Host; Origin; a request with no Origin but a
+browser `Sec-Fetch-Site` of `cross-site` or `same-site` is refused on `/api/` (image and script tags); OPTIONS is
+answered only for a paired extension on its own routes (or the pair route), with its exact Origin, never `*`; a
+token-like query key (`token`, `key`, `auth`, ...) or the launch token anywhere in the query answers 400; the route's
+token; launch routes refuse an extension Origin and pairing routes refuse any other Origin; media type; body size;
+body and query contracts (a query key sent twice answers 400); for writes, a read-only data folder answers 507
+`write_failed` before any work. Every answer carries `x-content-type-options: nosniff`, `x-frame-options: DENY`,
+`cross-origin-resource-policy: same-origin`, `referrer-policy: no-referrer`; API answers add `cache-control: no-store`.
+The UI is served with a CSP of `default-src 'self'` (inline styles allowed for Ant Design, no inline scripts,
+`connect-src 'self'`, `frame-ancestors 'none'`). Exception to rule 7: `restore` streams its upload to `tmp/` with a
+4 GiB limit and first checks the free disk space against the declared length.
+
 ### 6.2 Errors
 
 Every error answers with this body (`ApiErrorSchema`): `{ "error": { "code", "message", "details"?, "retryAfterSeconds"?, "link"? } }`.
@@ -232,6 +255,7 @@ Every error answers with this body (`ApiErrorSchema`): `{ "error": { "code", "me
 | `not_ready` | 503 | For example the fit model is not downloaded yet |
 | `offline` | 503 | No network (or `JOBLEFT_OFFLINE=1`) for a step that needs it |
 | `internal` | 500 | A bug. Plain message, no details |
+| `write_failed` | 507 | The disk refused a save (full or read-only); nothing was saved. `details.reason` is `full`, `read_only`, `io` or `corrupt`. Added by the server lane (additive) |
 
 ### 6.3 Conventions
 
@@ -1266,19 +1290,50 @@ carries only one contact's name, title and company, one job and a short profile 
 
 ### `@jobleft/server` (apps/server)
 
-Status: **Stub** (`resolveHome`, `homeLayout`, `newLaunchToken` Built). Purpose: the local HTTP server that enforces
-section 6.1 and wires every package. Owns: table `pairings`; routes `health`, `getSettings`, `putSettings`, `backup`,
-`restore`, `exportAll`, `deleteAllData`, `listNotifications`, `ackNotification`, `devClock`, `pairingCode`, `pair`,
-`listPairings`, `deletePairing`, `unpair`, `extensionStatus`, `fill`, `review`; the scripts `pnpm app:up` and
-`pnpm app:down`.
+Status: **Built** (server lane). Purpose: the local HTTP server that enforces section 6.1 and wires every package.
+Owns: tables `pairings`, `srv_kv`, `srv_notifications` and the interim `srv_*` tables (section 3); routes `health`,
+`getSettings`, `putSettings`, `backup`, `restore`, `exportAll`, `deleteAllData`, `listNotifications`,
+`ackNotification`, `devClock`, `pairingCode`, `pair`, `listPairings`, `deletePairing`, `unpair`, `extensionStatus`,
+`fill`, `review`; the scripts `pnpm app:up` and `pnpm app:down`. How to run it: `apps/server/README.md`.
 
-Exports: `resolveHome(env?, platform?)`, `homeLayout(home)`, `newLaunchToken()`, `startServer(opts: ServerOptions): Promise<RunningServer>`
-(`ServerOptions { home, port?, launchToken, uiDir?, dev?, parentPid?, offline?, env? }`,
-`RunningServer { port, origin, uiUrl, close() }`). Entry point (planned): `apps/server/src/main.ts`, which reads section 4.
-Wiring: `new Store(homeLayout(home).db)` for the crawl tables on the same file as `openDatabase()`; `{ ...SOURCES, ...ATS_SOURCES }`
-for adapters; one shared `HttpClient` for every outbound board request; the AI engine's client for resume, network
-and assistant work. Backups are zip files of the data folder without secrets; restore refuses damaged or foreign
-files and `..` paths.
+| Export (`apps/server/src/index.ts`) | What |
+|---|---|
+| `resolveHome(env?, platform?)`, `homeLayout(home)`, `newLaunchToken()` | The data folder and its paths; a fresh 32-byte base64url token |
+| `startServer(opts: ServerOptions): Promise<RunningServer>` | `ServerOptions { home, port?, launchToken, uiDir?, dev?, parentPid?, offline?, env?, secrets?, onStop? }`; `RunningServer { port, origin, uiUrl, close() }`. Throws `AlreadyRunningError` (another live server on the folder) or `DataFolderError` (`kind`: newer, read_only, full, not_jobleft, upgrade_failed; nothing was changed) |
+| `SERVER_SCHEMA_VERSION`, `APP_VERSION`, `readRunFile(path)`, `memorySecrets()` | Schema version of the server's tables (2), the app version, the run file reader, a test secret store |
+
+Entry point: `node apps/server/src/main.ts` (reads section 4; exit codes 0 stopped, 1 could not start, 2 data folder
+refused and untouched, 3 already running). It prints the UI address and the token unless `JOBLEFT_QUIET=1`, and stops
+cleanly within 5 s on SIGTERM, SIGINT or SIGHUP, and within 10 s after `JOBLEFT_PARENT_PID` is gone.
+
+CLI (`node apps/server/src/cli.ts`, refuses to run while a server uses the folder): `seed-jobs --home <dir> --count <n>`
+(synthetic jobs for speed tests), `fixture --home <dir> --schema 1|future` (an older or a newer data folder with the
+test persona, for upgrade tests), `counts --home <dir>` (count per kind, read-only).
+Test stand-ins: `node apps/server/scripts/mock-servers.ts --dir <dir>` (job boards from an editable JSON file, an
+OpenAI-compatible AI server, a publik stand-in; every request logged).
+
+Wiring in this build: the crawl tables through `new Store(homeLayout(home).db)` (@jobleft/crawler, Built), a second
+connection in a worker thread for crawls (so a board's write transaction never delays an answer), `SOURCES` from
+@jobleft/crawler. The routes of the store, resume, network, boards, sources-other and ai-engine lanes are answered by
+INTERIM stand-ins in `apps/server/src/interim/` (tables `srv_*`); the routes whose lanes have no stand-in answer
+`503 not_ready` with a plain sentence. At integration each lane's package replaces its stand-in
+(`apps/server/README.md`, section 13).
+
+Backup format (route `backup`): one zip. `manifest.json` (`format: "jobleft-backup"`, `formatVersion: 1`, app version,
+schema versions, count per kind, and the size and SHA-256 of every other file), `data/jobleft.db` (a consistent copy
+by SQLite's online backup, with `pairings` emptied and free pages wiped), and every file under `files/` except
+`files/exports/`. The zip comment is `jobleft-backup v1 sha256=<hex>`: the SHA-256 of every byte before the comment.
+Restore refuses a missing or wrong seal, unsafe names (`..`, absolute, backslash, control characters), links,
+encryption, ZIP64, duplicates, a file not in the manifest, a size, CRC-32 or SHA-256 mismatch, a database that fails
+`PRAGMA integrity_check`, and a newer schema; then it moves `data/` and `files/` aside, moves the backup in, opens it
+(upgrading an older one), keeps this computer's pairings, and moves the old folders back on any failure.
+
+The server's own page (`apps/server/ui-fallback/`, served at `/` when there is no built UI): data folder, count of
+records, pairing with the 6-digit code and the list of paired extensions with Unpair, backup, restore, export, delete
+everything. It keeps only the launch token, in `sessionStorage`.
+
+`apps/server/jobsync/` is a fork of jobsync (MIT, 527333e) with the four spike S3 patches applied and its pages and
+API routes removed. It is not run or served; it is the port source (`apps/server/jobsync/JOBLEFT-FORK.md`).
 
 ### `@jobleft/ui` (apps/ui)
 
@@ -1350,6 +1405,10 @@ Redirects are never followed automatically.
 | 5 | The launch token rides in the URL fragment and a header; the port range is fixed (47821 to 47830) | The extension can find the app after a restart; the fragment never reaches a server |
 | 6 | Other feeds and added jobs live in the crawler's `jobs` table (`feed:<id>`, `external`) | One search index; one dedupe spine |
 | 7 | TypeScript 7.0.2 (native) for type checks | Fast; no JS API is needed. If a lane needs the TypeScript JS API, pin 6.x in that package and say why |
+
+Server lane note (2026-09-25): the lane plan said "fork jobsync into apps/server". Decision 1 above wins for what
+runs: the server is plain `node:http`. The fork is kept, patched and tested, in `apps/server/jobsync/` as the port
+source, and nothing in it is served.
 
 Open items for the owner: the release location for dataset updates (`JOBLEFT_DATASET_MANIFEST_URL`); a project
 contact address for the crawler identity (plan section 9); the publik app token (gate G-publik).
