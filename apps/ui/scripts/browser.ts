@@ -117,8 +117,8 @@ export async function launch(): Promise<Browser> {
             for (const e of cands) {
               const r = e.getBoundingClientRect(); const st = getComputedStyle(e);
               if (r.width <= 0 || r.height <= 0 || st.visibility === 'hidden' || e.closest('[inert],[aria-hidden=true]')) continue;
-              const t = ((e.getAttribute('aria-label') || '') + '|' + (e.textContent || '')).split('|').map((x) => x.trim().replace(/\s+/g, ' '));
-              if (t.includes(want)) { e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; }
+              const t = ((e.getAttribute('aria-label') || '') + '|' + (e.textContent || '')).split('|').map((x) => x.trim().replace(/\\s+/g, ' ').toLowerCase());
+              if (t.includes(want.toLowerCase())) { e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; }
             }
             return null; })()`);
           if (!box) return false;
