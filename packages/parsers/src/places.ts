@@ -1,6 +1,6 @@
 // Places: every place a posting names, with its city, state or region and country. Never a default country
 // (parsers O7, O8). "Remote", "Multiple locations" and "Various" are not places.
-import type { FactEvidence, Place, WorkModel } from '@jobleft/contracts';
+import type { Place, WorkModel } from '@jobleft/contracts';
 import { AU_STATE_CODES, CA_PROVINCE_CODES, COUNTRIES, COUNTRY_TYPOS, FOREIGN_REGIONS, GLOBAL_DOMINANT, MACRO_REGIONS, WORLD_CITY_COUNTRIES, WORLD_CITY_NAMES } from './geo-world.ts';
 import { US_CITY_DOMINANT, US_CITY_STATES, US_PLACE_ALIASES, US_REGION_NAMES, US_STATES, US_STATE_ALIASES } from './geo-us.ts';
 import { clip, cutOtherJobs, keyOf, normalizeText } from './text.ts';
@@ -748,4 +748,3 @@ export function isRemoteText(location: string): boolean {
   return /remote/i.test(location);
 }
 
-export type { FactEvidence };

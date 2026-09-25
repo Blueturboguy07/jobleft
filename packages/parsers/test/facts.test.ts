@@ -4,7 +4,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { validate, PaySchema, PlaceSchema, RemoteScopeSchema, JobEvidenceSchema, PostingStatementsSchema } from '@jobleft/contracts';
+import { validate, PaySchema, PlaceSchema, JobEvidenceSchema, PostingStatementsSchema } from '@jobleft/contracts';
 import { extractFacts, fromAshby, fromGreenhouse, fromJsonLd, fromLever, fromRecruitee, fromWorkable, postingsFromBoard } from '../src/index.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
