@@ -60,7 +60,7 @@ export function outcomeOf(r: BoardResult): { outcome: CheckOutcome | null; statu
   }
   else if (name === 'RobotsError') { failure = 'robots'; status = 'robots'; message = "The host's robots.txt does not allow jobleft to read this board."; }
   else if (name === 'DeniedHostError' || name === 'ForbiddenHostError') { failure = 'forbidden'; status = 'forbidden'; message = 'The host is on the never-crawl list; nothing was sent.'; }
-  else if (name === 'HostBusyError') { failure = 'busy'; status = 'blocked'; message = 'The host asked jobleft to wait before asking again.'; }
+  else if (name === 'HostBusyError' || name === 'HostWaitError') { failure = 'busy'; status = 'blocked'; message = 'The host asked jobleft to wait before asking again.'; }
   else if (name === 'OfflineError') { return { outcome: null, status: 'failed', reason: 'jobleft is offline; nothing was sent.' }; }
   // The client refused to ask (its host refused jobleft twice in a row earlier in this run): this board was not asked,
   // so no check is counted against it. Boards of a mapped host reach here as an error instead of 'host-skipped'.

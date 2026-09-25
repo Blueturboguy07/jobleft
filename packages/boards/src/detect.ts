@@ -9,7 +9,7 @@ import type { CrawlAtsId } from '@jobleft/contracts';
 import { forbiddenProvider, jobSite, unsupportedProvider } from './hosts.ts';
 
 export const PROVIDER_NAMES: Readonly<Record<CrawlAtsId, string>> = {
-  greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workable: 'Workable', recruitee: 'Recruitee', personio: 'Personio',
+  greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workable: 'Workable', recruitee: 'Recruitee', personio: 'Personio', teamtailor: 'Teamtailor', gem: 'Gem',
 };
 
 /** One board named by a link. `jobId` is set when the link is a single job (the board is still the answer). */
@@ -254,6 +254,8 @@ export function boardPageUrl(ats: CrawlAtsId, board: string, region: string | nu
     case 'workable': return `https://apply.workable.com/${b}/`;
     case 'recruitee': return `https://${b}.recruitee.com/`;
     case 'personio': return `https://${b}.jobs.personio.de/`;
+    case 'teamtailor': return `https://${b}.${region === 'na' ? 'na.' : ''}teamtailor.com/jobs`;
+    case 'gem': return `https://jobs.gem.com/${b}`;
   }
 }
 
@@ -268,6 +270,8 @@ export function boardApiUrl(ats: CrawlAtsId, board: string, region: string | nul
     case 'workable': return `https://apply.workable.com/api/v1/widget/accounts/${b}?details=true`;
     case 'recruitee': return `https://${b}.recruitee.com/api/offers/`;
     case 'personio': return `https://${b}.jobs.personio.de/xml?language=en`;
+    case 'teamtailor': return `https://${b}.${region === 'na' ? 'na.' : ''}teamtailor.com/jobs.rss?offset=0&per_page=100`;
+    case 'gem': return `https://api.gem.com/job_board/v0/${b}/job_posts/`;
   }
 }
 

@@ -122,7 +122,13 @@ class ClientPacer extends Pacer {
       this.seen.add(host);
       if (this.shared instanceof SqlitePacer && this.shared.cachedRobots(host, ROBOTS_CACHE_MS)) return;
     }
-    return this.shared.wait(host, extraIntervalMs);
+    // Boards run side by side: a 429 can arrive while another request already waits for its slot. Look again after
+    // the slot came, so no request starts before the wait the host named.
+    for (let guard = 0; guard < 20; guard++) {
+      await this.shared.wait(host, extraIntervalMs);
+      if (this.shared.busyUntil(host) <= Date.now()) return;
+    }
+    throw new HostBusyError(host, this.shared.busyUntil(host));
   }
 }
 
@@ -273,6 +279,8 @@ export function createBoardHttp(opts: BoardHttpOptions): HttpClient {
     maxBodyBytes: maxBody,
     retries: opts.retries ?? 1,
     retryDelayMs: opts.retryDelayMs ?? 500,
+    // A host that names a wait is left alone by the shared pacer (markBusy above). The client never waits for a Retry-After inside a request (-1: not even 0 s); the board reports "blocked".
+    maxRetryAfterMs: -1,
   });
   STATE.set(http, { redirects: log, robots, pacer: opts.pacer });
   return http;
