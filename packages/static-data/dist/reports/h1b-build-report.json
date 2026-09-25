@@ -1,0 +1,155 @@
+{
+  "files": [
+    {
+      "name": "LCA_Disclosure_Data_FY2025_Q1.xlsx",
+      "rows": 107414,
+      "certifiedH1b": 95775,
+      "decisionDates": {
+        "min": "2024-10-01",
+        "max": "2024-12-31"
+      },
+      "rowsOutsideCoverage": 0,
+      "statusCounts": {
+        "Withdrawn | H-1B": 1543,
+        "Denied | E-3 Australian": 82,
+        "Denied | H-1B": 338,
+        "Certified | H-1B": 95775,
+        "Certified | E-3 Australian": 2119,
+        "Certified | H-1B1 Chile": 498,
+        "Certified | H-1B1 Singapore": 357,
+        "Certified - Withdrawn | H-1B": 6390,
+        "Withdrawn | E-3 Australian": 49,
+        "Withdrawn | H-1B1 Chile": 16,
+        "Certified - Withdrawn | E-3 Australian": 164,
+        "Certified - Withdrawn | H-1B1 Chile": 23,
+        "Denied | H-1B1 Chile": 13,
+        "Denied | H-1B1 Singapore": 8,
+        "Certified - Withdrawn | H-1B1 Singapore": 33,
+        "Withdrawn | H-1B1 Singapore": 6
+      }
+    },
+    {
+      "name": "LCA_Disclosure_Data_FY2025_Q2.xlsx",
+      "rows": 132133,
+      "certifiedH1b": 119519,
+      "decisionDates": {
+        "min": "2025-01-01",
+        "max": "2025-03-31"
+      },
+      "rowsOutsideCoverage": 0,
+      "statusCounts": {
+        "Withdrawn | E-3 Australian": 53,
+        "Withdrawn | H-1B": 1936,
+        "Denied | H-1B": 698,
+        "Certified | H-1B": 119519,
+        "Certified | E-3 Australian": 2255,
+        "Certified | H-1B1 Chile": 467,
+        "Certified | H-1B1 Singapore": 306,
+        "Certified - Withdrawn | H-1B": 6520,
+        "Certified - Withdrawn | E-3 Australian": 195,
+        "Certified - Withdrawn | H-1B1 Chile": 37,
+        "Withdrawn | H-1B1 Singapore": 8,
+        "Denied | E-3 Australian": 73,
+        "Certified - Withdrawn | H-1B1 Singapore": 29,
+        "Denied | H-1B1 Singapore": 2,
+        "Withdrawn | H-1B1 Chile": 11,
+        "Denied | H-1B1 Chile": 24
+      }
+    },
+    {
+      "name": "LCA_Disclosure_Data_FY2025_Q3.xlsx",
+      "rows": 238425,
+      "certifiedH1b": 220865,
+      "decisionDates": {
+        "min": "2025-04-01",
+        "max": "2025-06-30"
+      },
+      "rowsOutsideCoverage": 0,
+      "statusCounts": {
+        "Withdrawn | H-1B": 3968,
+        "Denied | H-1B": 1538,
+        "Certified | H-1B": 220865,
+        "Certified | E-3 Australian": 2271,
+        "Certified | H-1B1 Singapore": 426,
+        "Certified | H-1B1 Chile": 565,
+        "Certified - Withdrawn | H-1B": 8355,
+        "Certified - Withdrawn | E-3 Australian": 168,
+        "Certified - Withdrawn | H-1B1 Singapore": 39,
+        "Certified - Withdrawn | H-1B1 Chile": 49,
+        "Withdrawn | H-1B1 Chile": 11,
+        "Denied | E-3 Australian": 82,
+        "Withdrawn | E-3 Australian": 55,
+        "Withdrawn | H-1B1 Singapore": 11,
+        "Denied | H-1B1 Singapore": 5,
+        "Denied | H-1B1 Chile": 17
+      }
+    },
+    {
+      "name": "LCA_Disclosure_Data_FY2025_Q4.xlsx",
+      "rows": 118580,
+      "certifiedH1b": 103285,
+      "decisionDates": {
+        "min": "2025-07-01",
+        "max": "2025-09-30"
+      },
+      "rowsOutsideCoverage": 0,
+      "statusCounts": {
+        "Withdrawn | H-1B": 1764,
+        "Denied | H-1B": 931,
+        "Withdrawn | H-1B1 Singapore": 6,
+        "Withdrawn | E-3 Australian": 66,
+        "Denied | E-3 Australian": 83,
+        "Certified | H-1B": 103285,
+        "Certified | E-3 Australian": 2512,
+        "Certified | H-1B1 Chile": 461,
+        "Certified | H-1B1 Singapore": 355,
+        "Certified - Withdrawn | H-1B": 8846,
+        "Certified - Withdrawn | E-3 Australian": 170,
+        "Certified - Withdrawn | H-1B1 Chile": 34,
+        "Certified - Withdrawn | H-1B1 Singapore": 32,
+        "Denied | H-1B1 Chile": 16,
+        "Withdrawn | H-1B1 Chile": 8,
+        "Denied | H-1B1 Singapore": 11
+      }
+    },
+    {
+      "name": "LCA_Disclosure_Data_FY2026_Q3.xlsx",
+      "rows": 437496,
+      "certifiedH1b": 392175,
+      "decisionDates": {
+        "min": "2025-10-01",
+        "max": "2026-06-30"
+      },
+      "rowsOutsideCoverage": 0,
+      "statusCounts": {
+        "Certified - Withdrawn | H-1B": 25546,
+        "Certified - Withdrawn | E-3 Australian": 556,
+        "Withdrawn | H-1B": 6996,
+        "Certified | H-1B": 392175,
+        "Certified | E-3 Australian": 6702,
+        "Certified | H-1B1 Singapore": 1050,
+        "Certified | H-1B1 Chile": 1485,
+        "Certified - Withdrawn | H-1B1 Singapore": 109,
+        "Withdrawn | E-3 Australian": 166,
+        "Denied | H-1B": 2235,
+        "Denied | H-1B1 Chile": 43,
+        "Certified - Withdrawn | H-1B1 Chile": 92,
+        "Denied | E-3 Australian": 247,
+        "Withdrawn | H-1B1 Singapore": 28,
+        "Withdrawn | H-1B1 Chile": 34,
+        "Denied | H-1B1 Singapore": 32
+      }
+    }
+  ],
+  "entities": 94974,
+  "certifiedH1bTotal": 931619,
+  "uniqueCertifiedCases": 931619,
+  "caseNumbersInTwoFiles": 0,
+  "rowsWithDecisionOutsideTheQuarters": 0,
+  "titles": 8803,
+  "output": {
+    "path": "/Users/mannbellani/jobleft-wt/static-data/packages/static-data/dist/h1b-lca.json.gz",
+    "bytes": 3640448,
+    "sha256": "69255ecbc512207c318acbc91eb25269d8cece4694c2685054e9dd84e9a06035"
+  }
+}
