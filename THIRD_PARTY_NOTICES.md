@@ -34,7 +34,34 @@ Local additions that are not in freehire (written new): the per-host pacer, the 
 - Source: the owner's own Python project (`~/Documents/internships`, `pipeline/normalize.py` and `pipeline/dedup.py`). First-party code, no third-party licence applies.
 - jobleft file: `packages/crawler/src/normalize.ts` (URL canonicalisation, company and title normalisers, the two-layer dedupe spine). Two deliberate changes are documented in that file (`gh_jid` is kept; intern words are kept).
 
+### 1.3 Designs studied closely by the match lane (no code or data copied)
+
+The match engine (`packages/match`) is written new. These MIT-licensed modules were read as references only; no file,
+function, list or text was copied or ported.
+
+| Source (read-only) | Licence | What was studied | Where the idea shows up in jobleft |
+|---|---|---|---|
+| freehire `internal/candidate/jobmatch/jobmatch.go` (commit `e58b1af6`, `vendor/freehire`) | MIT | Skill coverage with exact and "adjacent" matches, an adjacent match counting half | `packages/match/src/score.ts` (Skills part: a related skill counts half and still shows as missing) |
+| freehire `internal/candidate/hardconstraint/hardconstraint.go`, `degrees.go` | MIT | Blockers per category with a score ceiling; judge a category only when both sides carry data | `packages/match/src/score.ts` (caps; "not in your profile" instead of a guessed answer) |
+| freehire `internal/dict/skilladjacency`, `internal/dict/skilltag` (comments on ambiguous words) | MIT | A conservative list of substitutable skills; words such as "slack", "react", "epic", "assembly" that are also ordinary words | `packages/match/data/skills.tsv` (case and context rules; related skills) |
+| career-ops `jd-skill-gap.mjs`, reactive-resume `jd/match.ts` (as summarised in `jobright-research/audit/03`) | MIT | Requirement-section detection by headings; weighting required over preferred terms; stuffing counted once | `packages/match/src/text.ts`, `src/job.ts` |
+
+The starting weights of the overall percent (0.24 / 0.29 / 0.08 / +36) come from the project's own observation notes
+(`jobright-research/ui/UI-SPEC-LOGGED-IN.md`, section MATCH SCORE), not from any code or dataset.
+
 ## 2. Data shipped with the app
+
+### 2.1 Match dictionaries (first party)
+
+- Files: `packages/match/data/skills.tsv` (about 550 skills with aliases, contexts and related skills),
+  `credentials.tsv` (90 licences and certifications), `occupations.tsv` (42 kinds of work, about 1,500 job-title
+  phrases, how close two kinds are), `industries.tsv` (30 industries with posting and employer-name phrases).
+- Source: written new for jobleft by the match lane on 2026-09-25 from general knowledge of job titles, tools, trade
+  skills and licences. No third-party list, taxonomy or dataset (O*NET, ESCO, Lightcast, freehire, or any other) was
+  copied or transformed. Each file states this in its header.
+- Licence: the jobleft project's own licence (not decided yet; see the root `package.json`).
+
+### 2.2 Other data
 
 None yet. The static-data lane adds entries here (board directory, H-1B sponsor table from US Department of Labor LCA disclosure files, city dictionary with its attribution, skill dictionary).
 

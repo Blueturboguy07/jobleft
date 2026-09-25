@@ -19,42 +19,8 @@ export const ENGINE_BASE_VERSION = 'match-1.0.0';
 
 // ---------------------------------------------------------------- result extras (additive contract fields)
 
-export interface MustHave {
-  kind: PostedRequirement['kind'];
-  requirement: string;
-  importance: 'required' | 'preferred' | 'obtainable';
-  state: 'met' | 'unmet' | 'not_in_profile' | 'in_progress' | 'info';
-  quote: string;
-  message: string;
-}
-
-export interface DealBreakerCheck {
-  kind: 'work_model' | 'location' | 'pay' | 'employment_type';
-  state: 'ok' | 'broken' | 'not_stated' | 'not_in_profile';
-  message: string;
-  quote: string | null;
-}
-
-export interface JobFactView { value: string | null; text: string; quote: string | null }
-
-export interface SkillCheck {
-  name: string;
-  importance: 'required' | 'preferred' | 'mentioned';
-  state: 'met' | 'related' | 'implied' | 'missing';
-  quote: string;
-  heldFrom: string | null;
-  via: string | null;
-}
-
-export interface ExperienceDetail {
-  totalMonths: number | null;
-  text: string;
-  rolesCounted: Array<{ title: string; company: string; from: string; to: string; months: number }>;
-  rolesNotCounted: Array<{ title: string; company: string; why: string }>;
-  relevantMonths: number | null;
-  jobYears: { min: number | null; max: number | null; importance: string; quote: string } | null;
-  jobLevel: string | null;
-}
+import type { DealBreakerCheck, ExperienceDetail, JobFactView, MustHave, SkillCheck } from '@jobleft/contracts';
+export type { DealBreakerCheck, ExperienceDetail, JobFactView, MustHave, SkillCheck };
 
 export type Part = 'experienceLevel' | 'skills' | 'industryExperience';
 

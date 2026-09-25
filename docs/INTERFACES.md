@@ -1,6 +1,6 @@
 # jobleft interfaces
 
-Version: contracts 1.0.0, local API v1, extension protocol v1. Written by the foundation commit, 2026-09-25.
+Version: contracts 1.1.0 (1.0.0 plus the match lane's optional fields, section 8), local API v1, extension protocol v1. Written by the foundation commit, 2026-09-25.
 
 This document is the contract between the lanes. Lanes build in parallel from it. It tells each lane what it
 owns, what it exports, what it may import, which tables and routes it serves, and which environment variables,
@@ -1139,39 +1139,107 @@ export declare class ResumeService {
 
 ### `@jobleft/match`
 
-Status: **Stub**. Purpose: the deterministic match score with reasons. Owns: route `getMatch` (results may be cached
-by the store, keyed by job content hash, profile version and `ENGINE_VERSION`).
+Status: **Built** (match lane, 2026-09-25). Purpose: the deterministic match score with reasons. Owns: route
+`getMatch` (results may be cached by the store, keyed by job content hash, profile version and `ENGINE_VERSION`); the
+data files `packages/match/data/{skills,credentials,occupations,industries}.tsv` (first-party, see
+THIRD_PARTY_NOTICES.md); the CLI `node packages/match/src/cli.ts` (score, feed, claim, undo, explain, check, serve,
+stats; packages/match/README.md); the probe `evals/match/ranking-pairs`.
 
 <!-- BEGIN GENERATED: sig:packages/match -->
 ```ts
-import type { Company, Job, MatchResult, Profile } from '@jobleft/contracts';
+import type { Company, Job, MatchResult, MatchSummary, Place, PlaceQuery, Profile } from '@jobleft/contracts';
 import type { SkillDictionary } from '@jobleft/static-data';
+import type { MatchConfigInput } from './config.ts';
+import { type FullMatchResult } from './score.ts';
+import { matchSkillDictionary } from './taxonomy.ts';
 /** Bump when the scoring rules change; cached results with another version are recomputed. */
-export declare const ENGINE_VERSION = "match-0.0.0";
+export declare const ENGINE_VERSION = "match-1.0.0";
 export interface MatchInput {
     profile: Profile;
     job: Job;
     company: Company | null;
-    skills: SkillDictionary;
-    /** ms since the epoch (for years of experience). */
+    /**
+     * Accepted for compatibility with the foundation interface and not read: the engine uses its own skill taxonomy
+     * (packages/match/data), exported as `matchSkillDictionary` so other packages can use the same names.
+     */
+    skills?: SkillDictionary;
+    /** ms since the epoch (for years of experience). Only the month is used. */
     now: number;
+    /** Optional fit-model vectors (bge-small). Used only when `config.weights.semantic` is above 0 (default 0). */
+    profileVector?: Float32Array | ArrayLike<number> | null;
+    jobVector?: Float32Array | ArrayLike<number> | null;
+    /** Optional weights and limits (see DEFAULT_CONFIG). Other weights give another engineVersion. */
+    config?: MatchConfigInput | null;
+    /** Optional distance in miles between a posting's place and a wanted place (a place dictionary). */
+    distanceMiles?: (a: Place, b: PlaceQuery) => number | null;
 }
 /** The match of one job for the profile. Pure and deterministic. */
-export declare function scoreMatch(input: MatchInput): MatchResult;
+export declare function scoreMatch(input: MatchInput): FullMatchResult;
 /** Hash of the profile facts the score reads (MatchResult.profileVersion). EEO answers are not part of it. */
 export declare function profileVersion(profile: Profile): string;
-/** Years of experience from the work dates (overlaps counted once), or null with no dates. */
+/**
+ * Years of experience from the work dates (overlaps counted once, a current role up to this month), or null with no
+ * dates. A profile with education and no work entries counts as 0.
+ */
 export declare function yearsOfExperience(profile: Profile, now: number): number | null;
 /** The text of the profile that fit indexing embeds (no contact details, no EEO answers). */
 export declare function profileText(profile: Profile): string;
 /** The text of a job that fit indexing embeds (title, company, skills and the first part of the description). */
 export declare function jobText(job: Job): string;
+/** The card view of a result: the percent, the band, two chips, and the first warning (never the detail only). */
+export declare function summarize(result: MatchResult): MatchSummary;
+export { DEFAULT_CONFIG, resolveConfig } from './config.ts';
+export type { MatchConfig, MatchConfigInput } from './config.ts';
+export type { FullMatchResult, MatchExtras, MustHave, DealBreakerCheck, SkillCheck, ExperienceDetail, JobFactView, Part } from './score.ts';
+export { matchSkillDictionary };
+export { taxonomyStats } from './taxonomy.ts';
+export { bucketOf, bandCounts, rankTopMatched, type Bucket, type RankedItem } from './rank.ts';
+export { cardText, detailText } from './views.ts';
+export { narrativeBrief, checkNarrative, AI_TEXT_LABEL, type NarrativeBrief, type NarrativeIssue } from './narrative.ts';
+export { setSkillClaim, undoSkillClaim, type SkillClaimChange } from './claims.ts';
+export { looseJob, type LooseJob } from './loose.ts';
+export { distanceFromPlaceIndex } from './geo.ts';
 ```
 <!-- END GENERATED: sig:packages/match -->
 
 Rules: pure and stable (same inputs, same numbers); free and offline; a part that cannot be judged has
 `percent: null` with a reason, never a default; blockers name the posting's own words (for example "US citizenship
 required") with evidence; protected traits and names are never inputs; posting text cannot inflate the score.
+
+How it scores (details in packages/match/README.md, section 4): `overall = 36 + 0.24 x Experience + 0.29 x Skills +
+0.08 x Industry` (weights in `DEFAULT_CONFIG`; a part with `null` adds 0, so an incomplete score is a floor), then
+capped by unmet must-haves and broken deal-breakers (45 legal, 60 deal-breaker or level, 65 degree or years, 70 trade
+licence, 84 for any "not in your profile" answer, so such a job is never Strong). `computedAt` is the first day of the
+month the score was computed for: the score depends only on the month (a current role counts up to it).
+
+Additive contract fields this lane added (contracts 1.1.0; all optional, readers that do not know them show nothing):
+
+| Record | New field(s) | Meaning |
+|---|---|---|
+| `MatchResult` | `complete`, `unknownParts` | `false` / the parts with "not enough information". The UI shows "INCOMPLETE" and the band filter puts such a job in an "incomplete" bucket (`bucketOf`, `bandCounts`) |
+| `MatchResult` | `mustHaves: MustHave[]` | Every must-have the posting states: `requirement`, `importance` (required, preferred, obtainable), `state` (met, unmet, not_in_profile, in_progress, info), the exact `quote`, a plain `message` |
+| `MatchResult` | `dealBreakers: DealBreakerCheck[]` | Work model, location, minimum pay, job type against the person's preferences: ok, broken, not_stated |
+| `MatchResult` | `jobFacts` | level, years, pay, sponsorship, industry, workModel, employmentType: `{ value, text, quote }`; `value: null` and `text: "not stated"` when the posting does not say |
+| `MatchResult` | `experience: ExperienceDetail` | The years used, the roles counted (from, to, months) and not counted (why), the job's years and level |
+| `MatchResult` | `skillDetail: SkillCheck[]`, `cap`, `notes` | Every skill or credential the posting names with its quote and whether the profile has it (met, related, implied, missing); the cap that lowered the percent; notes such as "not in English" |
+| `Blocker` | kinds `licence`, `degree`, `work_model`, `pay`; fields `state` (unmet, not_in_profile), `requirement`, `dealBreaker` | |
+| `WhyFitChip` | kind `post_says_no_sponsorship` | Only when the POSTING says it does not sponsor (never from missing data) |
+| `MatchSummary` | `complete`, `blockerCount`, `warning` | `summarizeMatch()` fills them for results that carry `complete`, so a card shows the same first warning as the detail |
+| `ProfileInput`, `Profile` | `declinedSkills: string[]` | "I don't have this": the score never counts these skills, even when a work bullet names them. The store must keep the field |
+
+For other lanes:
+
+- server: `getMatch` answers `scoreMatch({ profile, job, company, now: nowMs(), distanceMiles })`; `needs_profile` when
+  there is no profile. Pass `distanceMiles: distanceFromPlaceIndex(placeIndex)` once @jobleft/static-data builds its
+  place index (the CLI does this automatically when `loadPlaceIndex` stops throwing).
+- store and UI: "Top Matched" orders by `percent` (then `complete`, then job id) with `rankTopMatched`; band filters
+  and counts use `bucketOf` / `bandCounts`; cards use `summarizeMatch` (percent, band, two chips, first warning).
+  "I have this" / "I don't have this" is `setSkillClaim(profileInput, skill, have)` (returns the new profile, the
+  notice to show and a change for `undoSkillClaim`); it edits the profile, so every job follows.
+- ai-engine: an AI summary gets only `narrativeBrief(result, job.contentHash)` (cache it under `cacheKey`) and is
+  checked with `checkNarrative(text, result)` before it is shown, labelled with `AI_TEXT_LABEL`. It never changes a
+  number.
+- Anyone who needs skill names: `matchSkillDictionary` has the `SkillDictionary` shape (canonical, aliases, extract).
 
 ### `@jobleft/network`
 

@@ -202,7 +202,7 @@ function jobIndustries(job: Job, a: AnalyzedText, company: Company | null, famil
     for (const h of scanIndustries(tokensOfText(f))) {
       const cur = scores.get(h.industry) ?? { score: 0, strong: null, weak: [], source: 'company' as const };
       cur.score += 3;
-      cur.strong ??= `${f} (company data)`;
+      cur.strong ??= f;
       cur.source = 'company';
       scores.set(h.industry, cur);
     }
