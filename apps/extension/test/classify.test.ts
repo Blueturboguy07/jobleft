@@ -99,3 +99,14 @@ test('a long question that mentions a link site is not the link field', () => {
   assert.equal(t('LinkedIn Profile (please include link)'), 'pro_profile');
   assert.equal(t('Attach', { kind: 'file', name: 'resume' }), 'resume_file');
 });
+
+test('a saved answer fits only its own topic: near topics stay with the person', () => {
+  assert.equal(t('Are you a military spouse?', { kind: 'radio', options: opts('Yes', 'No') }), 'eeo_other');
+  assert.equal(t('Have you served in the military?', { kind: 'radio', options: opts('Yes', 'No') }), 'eeo_other');
+  assert.equal(t('Do you require any reasonable accommodation?', { kind: 'radio', options: opts('Yes', 'No') }), 'eeo_other');
+  assert.equal(t('Sex', { kind: 'select', options: opts('Male', 'Female') }), 'eeo_other');
+  assert.equal(t('Have you ever been sponsored for an H-1B visa?', { kind: 'radio', options: opts('Yes', 'No') }), 'eeo_other');
+  assert.equal(t('What is your current visa status?'), 'eeo_other');
+  assert.equal(t('Will you require visa sponsorship now or in the future?', { kind: 'radio', options: opts('Yes', 'No') }), 'sponsorship');
+  assert.equal(t('Protected veteran status', { kind: 'select' }), 'eeo_veteran');
+});

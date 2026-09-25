@@ -194,12 +194,19 @@ export function classify(f: FormField): Classification {
   }
   const authWords = /\b(authori[sz]ed to (work|be employed)|authori[sz]ation to work|work authori[sz]ation|employment authori[sz]ation|legally (eligible|able|permitted|entitled) to work|eligible to work|eligibility to work|right to work|permitted to work|lawfully (work|employed)|legal right to work|legally authori[sz]ed)\b/;
   const sponsorWords = /\b(sponsor|sponsorship|sponsored|visa|visas|h 1b|h1b|h 1 b|immigration|work permit|tn status|stem opt|opt ead|f 1 visa|e verify)\b/;
+  // A saved "needs sponsorship" answers only a question about NEEDING sponsorship (now or later), never one about
+  // a past sponsorship, a visa type or an immigration status: those are other topics.
+  const needVerb = /\b(require|requires|required|need|needs|will you|would you|now or in the future|in the future|going forward)\b/;
   if (authWords.test(S)) {
     if (sponsorWords.test(S) && /\bwithout\b/.test(S)) return out('work_auth_nosponsor', 'authorized without sponsorship', { country: countryInQuestion(S) });
-    if (sponsorWords.test(S)) return out('sponsorship', 'sponsorship', { country: countryInQuestion(S) });
+    if (sponsorWords.test(S) && needVerb.test(S)) return out('sponsorship', 'sponsorship', { country: countryInQuestion(S) });
+    if (sponsorWords.test(S)) return out('eeo_other', 'immigration status');
     return out('work_auth', 'work authorization', { country: countryInQuestion(S) });
   }
-  if (sponsorWords.test(S)) return out('sponsorship', 'sponsorship', { country: countryInQuestion(S) });
+  if (sponsorWords.test(S)) {
+    if (needVerb.test(S) && /\bsponsor/.test(S)) return out('sponsorship', 'sponsorship', { country: countryInQuestion(S) });
+    return out('eeo_other', 'visa or immigration status');
+  }
   if (/\b(citizen|citizenship|nationality|nationalities|permanent resident|green card|immigration status|residency status|resident status)\b/.test(S)) {
     return out('citizenship', 'citizenship', { country: countryInQuestion(S) });
   }
@@ -212,9 +219,14 @@ export function classify(f: FormField): Classification {
   if (/\b(hispanic|latino|latina|latinx|latine)\b/.test(L) && !/\b(race|races|racial)\b/.test(L)) return out('eeo_hispanic', 'Hispanic or Latino');
   if (/\b(race|races|racial|ethnicity|ethnicities|ethnic|ancestry)\b/.test(S)) return out('eeo_race', 'race or ethnicity');
   if (/\b(hispanic|latino|latina|latinx|latine)\b/.test(S)) return out('eeo_hispanic', 'Hispanic or Latino');
-  if (/\b(gender|sex)\b/.test(S) && !/\bsexual\b/.test(S)) return out('eeo_gender', 'gender');
-  if (/\b(disability|disabilities|disabled|handicap|impairment|accommodation|accommodations)\b/.test(S)) return out('eeo_disability', 'disability');
-  if (/\b(veteran|veterans|military|armed forces|military service|protected veteran|vevraa|service member|national guard|reserves)\b/.test(S)) return out('eeo_veteran', 'veteran status');
+  // Each saved answer fits only its own topic. Near topics ("sex", "accommodation", "military spouse",
+  // "served in the military") are other questions and stay with the person.
+  if (/\bgender\b/.test(S) && !/\bsexual\b/.test(S)) return out('eeo_gender', 'gender');
+  if (/\bsex\b/.test(S)) return out('eeo_other', 'sex');
+  if (/\b(disability|disabilities|disabled)\b/.test(S) && !/\b(family|spouse|child|dependent|relative|parent)\b/.test(S)) return out('eeo_disability', 'disability');
+  if (/\b(handicap|impairment|accommodation|accommodations|adjustments)\b/.test(S)) return out('eeo_other', 'accommodation');
+  if (/\b(veteran|veterans|vevraa|protected veteran)\b/.test(S) && !/\b(spouse|family|child|dependent|relative|parent|married)\b/.test(S)) return out('eeo_veteran', 'veteran status');
+  if (/\b(military|armed forces|service member|national guard|reserves|veteran|veterans)\b/.test(S)) return out('eeo_other', 'military service');
   // ---------------- consent and opt-ins: never ticked by jobleft
   if ((f.kind === 'checkbox' || f.kind === 'radio') && anyWords(`${L} ${labelN}`, CONSENT_WORDS)) return out('consent', 'consent or opt-in');
 

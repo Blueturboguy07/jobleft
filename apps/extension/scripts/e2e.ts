@@ -392,6 +392,35 @@ async function main(): Promise<void> {
       check('unpaired: page unchanged', JSON.stringify(await dump(tab)) === JSON.stringify(before));
     }
 
+    // ------------------------------------------------ O12: never on the three blocked job boards
+    if (want('blocked')) {
+      console.log('blocked job boards (their host names mapped to a local https practice page)');
+      const tls = await startPractice(47943, true);
+      const hosts = ['www.linkedin.com', 'uk.linkedin.com', 'www.indeed.com', 'uk.indeed.com', 'www.glassdoor.com', 'www.glassdoor.co.uk'];
+      const rules = hosts.map((h) => `MAP ${h} 127.0.0.1:47943`).join(', ');
+      // The mapped names skip the test browser's dead proxy; everything else still cannot leave the computer.
+      const second = await launch({ args: [`--host-resolver-rules=${rules}`, '--ignore-certificate-errors', `--proxy-bypass-list=${hosts.join(';')}`] });
+      const s2 = { browser: second.browser, extId: second.extId, appPort: s.appPort, appToken: s.appToken };
+      try {
+        const first = await second.browser.newPage(`${P}/job-b.html?utm_term=${Date.now()}`);
+        await pair(s2, first);
+        const beforeLog = (await appLog()).length;
+        for (const h of hosts) {
+          const tab = await second.browser.newPage(`https://${h}/practice/blocked.html?utm_term=${Date.now()}`);
+          const before = await dump(tab);
+          const pop = await openPopup(second.browser, second.extId, tab);
+          const t = await pop.eval<string>('document.body.innerText');
+          check(`${h}: popup says jobleft does not work here, no Fill button`, /does not work on this site/.test(t) && !/Fill this application/.test(t), t.slice(0, 120));
+          check(`${h}: page unchanged`, JSON.stringify(await dump(tab)) === JSON.stringify(before));
+        }
+        const newLines = (await appLog()).slice(beforeLog);
+        check('blocked boards: the app got nothing about those pages', !newLines.some((l) => /extension\/(page|fill)/.test(l)), newLines.join(' | '));
+      } finally {
+        await second.browser.close();
+        tls.kill();
+      }
+    }
+
     // ------------------------------------------------ O2: the extension talks only to the app
     console.log('network');
     const others = swUrls.filter((u) => !/^http:\/\/127\.0\.0\.1:478(2[1-9]|30)\/api\/v1\//.test(u));

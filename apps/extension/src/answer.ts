@@ -47,7 +47,7 @@ type Result =
 const TOPIC_WORDS: Partial<Record<Topic, string>> = {
   eeo_gender: 'gender', eeo_race: 'race or ethnicity', eeo_hispanic: 'Hispanic or Latino identity', eeo_veteran: 'veteran status',
   eeo_disability: 'disability', eeo_lgbtq: 'LGBTQ+ identity', eeo_orientation: 'sexual orientation', eeo_transgender: 'transgender identity',
-  eeo_pronouns: 'pronouns', eeo_other: 'self-identification', age: 'age', dob: 'date of birth', criminal: 'criminal history',
+  eeo_pronouns: 'pronouns', eeo_other: 'a personal topic (self-identification, military, accommodation or immigration)', age: 'age', dob: 'date of birth', criminal: 'criminal history',
   gov_id: 'a government ID number', work_auth: 'work authorization', work_auth_nosponsor: 'work authorization and sponsorship',
   sponsorship: 'visa sponsorship', citizenship: 'citizenship', clearance: 'security clearance', pay: 'pay expectations',
 };

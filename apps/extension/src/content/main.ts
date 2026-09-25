@@ -164,6 +164,8 @@ async function apply(input: ApplyInput): Promise<void> {
     done += 1;
     S.report.progress = { done, total };
     pushSoon();
+    // A short pause between fields: the page settles, the person can follow, and "Stop" gets through.
+    await new Promise((r) => setTimeout(r, 40));
   }
   for (const file of resp.files) {
     keepScroll();

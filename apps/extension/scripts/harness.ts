@@ -40,8 +40,8 @@ export async function startApp(home: string, port?: number): Promise<{ proc: Chi
   return { proc, port: Number(m[1]), token: m[2] as string };
 }
 
-export async function startPractice(port = 47900): Promise<ChildProcess> {
-  const proc = spawn(process.execPath, [join(extRoot, 'scripts/practice-server.ts'), '--port', String(port)], { stdio: ['ignore', 'pipe', 'pipe'] });
+export async function startPractice(port = 47900, https = false): Promise<ChildProcess> {
+  const proc = spawn(process.execPath, [join(extRoot, 'scripts/practice-server.ts'), '--port', String(port), ...(https ? ['--https'] : [])], { stdio: ['ignore', 'pipe', 'pipe'] });
   await waitLine(proc, /practice pages/);
   return proc;
 }
@@ -55,6 +55,7 @@ export async function appCall(s: { appPort: number; appToken: string }, method: 
 }
 
 export async function launch(opts: { headless?: boolean; distDir?: string; args?: string[] } = {}): Promise<{ browser: Browser; extId: string }> {
+  // Note: extra args may add host-resolver rules (the blocked-site check).
   const browser = await Browser.launch({ headless: opts.headless, args: opts.args });
   const r = await browser.send<{ id: string }>('Extensions.loadUnpacked', { path: opts.distDir ?? join(extRoot, 'dist') });
   return { browser, extId: r.id };
