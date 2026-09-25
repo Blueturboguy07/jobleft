@@ -21,7 +21,7 @@ export interface Mention {
   start: number;
   end: number;
   value?: number;
-  unit?: 'money' | 'percent' | 'mult' | 'plain' | 'vague';
+  unit?: 'money' | 'percent' | 'mult' | 'plain' | 'vague' | 'measure';
   year?: number;
   month?: number | null;
   years?: number;
@@ -282,7 +282,9 @@ export function findDurations(text: string): Mention[] {
 const SCALE: Readonly<Record<string, number>> = {
   k: 1e3, thousand: 1e3, m: 1e6, mm: 1e6, million: 1e6, b: 1e9, bn: 1e9, billion: 1e9, t: 1e12, trillion: 1e12,
 };
-const NUMBER_RE = /(?<![\w.])([$€£¥])?\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?:\s?(k|K|mm|MM|m|M|bn|b|B|thousand|million|billion|trillion)\b)?(\+)?(?:\s?(%|percent\b|x\b|X\b|times\b))?/g;
+/** Units of measure written after a number ("2TB", "500 ms"): the unit is part of the fact. */
+const MEASURE_UNITS = 'KB|MB|GB|TB|PB|EB|KiB|MiB|GiB|TiB|Kb|Mb|Gb|Tb|kbps|Kbps|Mbps|Gbps|ms|µs|ns|GHz|MHz|kHz|Hz|kg|km|lbs|TPS|QPS|RPS|rps|qps|tps|LOC|kLOC|KLOC|fps|FPS|px|kW|MW|GW|kWh|MWh|mAh|ft|sq ft|sqft';
+const NUMBER_RE = new RegExp(`(?<![\\w.])([$€£¥])?\\s?(\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.(\\d+))?(?:\\s?(k|K|mm|MM|m|M|bn|b|B|thousand|million|billion|trillion)\\b)?(?:\\s?(${MEASURE_UNITS})(?![\\p{L}\\p{N}]))?(\\+)?(?:\\s?(%|percent\\b|x\\b|X\\b|times\\b))?`, 'gu');
 const SPELLED_RE = /\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a dozen|dozens|hundreds|thousands|millions|billions)\b(?:\s+(percent)\b)?/gi;
 const MULT_WORDS: Readonly<Record<string, number>> = { doubled: 2, doubling: 2, tripled: 3, tripling: 3, quadrupled: 4, halved: 0.5, halving: 0.5 };
 
@@ -300,8 +302,14 @@ export function findNumbers(text: string): Mention[] {
     let v = Number(m[2]!.replace(/,/g, '') + (m[3] ? '.' + m[3] : ''));
     const scaleWord = m[4]?.toLowerCase();
     if (scaleWord) v *= SCALE[scaleWord] ?? 1;
-    const suffix = m[6]?.toLowerCase();
+    const measure = m[5];
+    const suffix = m[7]?.toLowerCase();
     let unit: Mention['unit'] = 'plain';
+    if (measure) {
+      const t = raw.trimEnd();
+      out.push({ kind: 'number', text: t, key: `measure:${measure.toLowerCase().replace(/\s+/g, '')}:${Number(v.toPrecision(12))}`, value: v, unit: 'measure', start: m.index!, end: m.index! + t.length });
+      continue;
+    }
     if (cur) unit = 'money';
     else if (suffix === '%' || suffix === 'percent') unit = 'percent';
     else if (suffix === 'x' || suffix === 'times') unit = 'mult';
@@ -386,10 +394,14 @@ export function findOrgs(text: string): Mention[] {
     out.push({ kind: 'school', text: t, key: orgKey(t), start: m.index!, end: m.index! + t.length, via: 'suffix' });
   }
   for (const m of text.matchAll(ORG_SUFFIX_RE)) {
-    const t = m[1]!.trim();
+    // Leading function words are not part of a name ("As Systems Engineer" -> "Systems"; "At Contoso Labs" -> "Contoso Labs").
+    const lead = /^(?:(?:As|At|In|For|With|The|A|An|My|Our|Your|And|Or|Of|To|From|By|On|Dear|While|During|Then|Now|Also|Both|Each|Every|This|That|These|Those|Our|His|Her|Their|Its)\s+)+/.exec(m[1]!);
+    const t = m[1]!.slice(lead ? lead[0].length : 0).trim();
+    if (!t) continue;
+    const at = m.index! + (lead ? lead[0].length : 0);
     if (!/\s/.test(t) && /^(?:Health|Group|Software|Services|Media|Global|International|Analytics|Solutions|Systems|Technology|Technologies|Capital|Lab|Labs|Center|Centre|Department|School|College|Company|Consulting|Insurance)$/.test(t)) continue;
     if (!orgKey(t)) continue; // a bare legal ending ("Inc.") after a name that is matched on its own
-    out.push({ kind: 'employer', text: t, key: orgKey(t), start: m.index!, end: m.index! + t.length, via: 'suffix' });
+    out.push({ kind: 'employer', text: t, key: orgKey(t), start: at, end: at + t.length, via: 'suffix' });
   }
   for (const m of text.matchAll(AT_ORG_RE)) {
     const name = m[1]!.replace(/[.,;:]+$/, '').replace(/\s+(?:of|and|&)$/, '').trim();
@@ -471,7 +483,8 @@ export interface FactScan {
   proper: Mention[];
 }
 
-function mask(text: string, ms: Mention[]): string {
+/** Replaces each mention with spaces (indexes stay the same), so a later finder does not read it twice. */
+export function mask(text: string, ms: Mention[]): string {
   if (!ms.length) return text;
   // Mentions carry UTF-16 indexes; each one is replaced by the same number of spaces, so later indexes still line up.
   let out = '';

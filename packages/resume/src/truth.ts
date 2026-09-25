@@ -10,8 +10,8 @@ import {
   canonicalSkill, findContacts, findDates, findDurations, findNumbers, findOrgs, findSkills, findTitles, normUrl, phoneDigits,
   scanFacts, type FactScan, type Mention,
 } from './facts.ts';
-import { ROLE_NOUNS } from './lexicon.ts';
-import { foldKey, orgKey, splitSentences, squash } from './text.ts';
+import { ORG_WORDS, ROLE_NOUNS } from './lexicon.ts';
+import { escapeRegExp, foldKey, orgKey, splitSentences, squash } from './text.ts';
 
 // ------------------------------------------------------------------------------------------------ profile facts
 
@@ -31,6 +31,10 @@ export interface ProfileFacts {
   titles: string[];
   titleSeniority: Set<string>;
   orgKeys: Set<string>;
+  /** Each organisation name the profile holds, as folded words ("contoso example corp" -> [contoso, example, corp]). */
+  orgNames: string[][];
+  /** Canonical skill key -> the folded forms the profile itself uses ("docker" -> ["docker"]). */
+  skillSurfaces: Map<string, Set<string>>;
   emails: Set<string>;
   phones: Set<string>;
   urls: Set<string>;
@@ -104,9 +108,20 @@ export function buildProfileFacts(p: Profile): ProfileFacts {
   const corpus = texts.map(foldKey).join(' | ');
   const words = new Set<string>();
   for (const t of texts) for (const w of foldKey(t).split(/[\s/]+/)) if (w) { words.add(w); words.add(w.replace(/s$/, '')); }
-  for (const w of foldKey(headerName(p)).split(' ')) if (w) words.add(w);
+  // Name parts count whole as well as word by word: "Test-well" folds to "test well", one name.
+  for (const part of [p.personal.firstName, p.personal.middleName, p.personal.lastName]) {
+    if (!part || !part.trim()) continue;
+    for (const piece of part.trim().split(/\s+/)) { const k = foldKey(piece); if (k) words.add(k); }
+    for (const w of foldKey(part).split(' ')) if (w) words.add(w);
+  }
 
   const skillKeys = new Set<string>();
+  const skillSurfaces = new Map<string, Set<string>>();
+  const addSurface = (key: string, text: string) => {
+    const set = skillSurfaces.get(key) ?? new Set<string>();
+    set.add(foldKey(text));
+    skillSurfaces.set(key, set);
+  };
   const certKeys = new Set<string>();
   const numberKeys = new Map<string, number>();
   const numberValues = new Set<number>();
@@ -120,13 +135,14 @@ export function buildProfileFacts(p: Profile): ProfileFacts {
     const c = canonicalSkill(s.name);
     skillKeys.add((c ?? s.name).toLowerCase());
     skillKeys.add(foldKey(s.name));
+    addSurface((c ?? s.name).toLowerCase(), s.name);
     if (s.years !== null) maxYears = Math.max(maxYears, s.years);
   }
   for (const c of p.certifications) certKeys.add(foldKey(c.name));
   if (p.workAuthorization.hasSecurityClearance === 'yes') certKeys.add('security clearance');
 
   const addScan = (scan: FactScan) => {
-    for (const m of scan.skills) skillKeys.add(m.key);
+    for (const m of scan.skills) { skillKeys.add(m.key); addSurface(m.key, m.text); }
     for (const m of scan.certifications) { certKeys.add(m.key); certKeys.add(foldKey(m.text)); }
     for (const m of scan.numbers) { numberKeys.set(m.key, (numberKeys.get(m.key) ?? 0) + 1); if (m.value !== undefined) numberValues.add(m.value); }
     for (const m of scan.dates) { years.add(m.year!); if (m.month) yearMonths.add(m.key); }
@@ -164,6 +180,10 @@ export function buildProfileFacts(p: Profile): ProfileFacts {
   for (const pr of p.projects) orgKeys.add(orgKey(pr.name));
   for (const c of p.certifications) if (c.issuer) orgKeys.add(orgKey(c.issuer));
   for (const t of texts) for (const m of findOrgs(t)) orgKeys.add(m.key);
+  const orgNames: string[][] = [];
+  const orgSources = [...p.work.map((w) => w.company), ...p.education.map((e) => e.school), ...p.projects.map((pr) => pr.name), ...p.certifications.map((c) => c.issuer ?? '')];
+  for (const t of texts) for (const m of findOrgs(t)) orgSources.push(m.text);
+  for (const o of orgSources) { const w = foldKey(o).split(' ').filter(Boolean); if (w.length) orgNames.push(w); }
 
   const emails = new Set<string>();
   const phones = new Set<string>();
@@ -184,7 +204,7 @@ export function buildProfileFacts(p: Profile): ProfileFacts {
 
   return {
     corpus, words, skillKeys, certKeys, numberKeys, numberValues, years, yearMonths, maxYears, degreeLevels, titles, titleSeniority,
-    orgKeys, emails, phones, urls, locationKeys, headerName: headerName(p),
+    orgKeys, orgNames, skillSurfaces, emails, phones, urls, locationKeys, headerName: headerName(p),
   };
 }
 
@@ -246,10 +266,47 @@ function v(kind: TruthViolation['kind'], fact: string, where: string, reason: st
 /** Sentences that talk about the person's own history with an employer ("worked at X", "as a Y at X"). */
 const HISTORY_RE = /\b(?:worked|work(?:ing)?|served|serving|interned|interning|employed|was|were|have been|had been|spent|my time|my role|my years|my tenure|during my|while at|while working|as an?|i am an?|i'm an?|i was an?|i led|i built|i managed)\b/i;
 
+/** Words a longer form may add to a tool name without naming another tool ("Microsoft Azure" for "Azure"). */
+const VENDOR_WORDS = new Set(['microsoft', 'amazon', 'google', 'apache', 'platform', 'cloud', 'web', 'services', 'language', 'framework', 'js', 'the']);
+
+/**
+ * True when `surface` (a form of the canonical skill `key`) traces to the profile. A known short form is fine
+ * ("k8s" for Kubernetes), but a longer name that adds a word to the profile's own form is another tool
+ * ("Docker Compose" when the profile says "Docker").
+ */
+export function skillTraces(surface: string, key: string, pf: ProfileFacts): boolean {
+  const f = foldKey(surface);
+  if (pf.skillKeys.has(f) || inCorpus(pf, surface)) return true;
+  if (!pf.skillKeys.has(key)) return false;
+  const sw = f.split(' ');
+  for (const own of pf.skillSurfaces.get(key) ?? []) {
+    const ow = own.split(' ');
+    if (sw.length > ow.length && ow.every((w) => sw.includes(w)) && sw.some((w) => !ow.includes(w) && !VENDOR_WORDS.has(w))) return false;
+  }
+  return true;
+}
+
 function traceSkill(m: Mention, ctx: Ctx): boolean {
-  if (ctx.pf.skillKeys.has(m.key)) return true;
-  if (ctx.pf.skillKeys.has(foldKey(m.text))) return true;
-  return inCorpus(ctx.pf, m.text);
+  return skillTraces(m.text, m.key, ctx.pf);
+}
+
+/**
+ * True when an organisation name traces to one organisation in the profile: the same name, or a shorter form of it
+ * whose words appear in that one name in the same order ("Contoso" for "Contoso Labs", never "Contoso Ltd").
+ */
+function orgTraces(m: Mention, pf: ProfileFacts): boolean {
+  if (inCorpus(pf, m.text)) return true;
+  const mw = foldKey(m.text).replace(/[.,]/g, ' ').split(' ').filter(Boolean);
+  if (!mw.length || m.key.length < 3) return false;
+  const run = mw.join(' ');
+  return pf.orgNames.some((n) => ` ${n.join(' ')} `.includes(` ${run} `)
+    // The same name with a legal ending added ("Contoso" -> "Contoso Ltd") when the profile name has none.
+    || (orgKey(n.join(' ')) === m.key && orgKey(n.join(' ')) === n.join(' ')));
+}
+
+const ORG_ENDING_RE = new RegExp(`(?:^|\\s)(?:${ORG_WORDS.map(escapeRegExp).join('|')})\\.?$`, 'i');
+function hasOrgEnding(text: string): boolean {
+  return ORG_ENDING_RE.test(text.trim());
 }
 
 function checkMentions(text: string, where: string, ctx: Ctx, opts: { sentence?: string } = {}): TruthViolation[] {
@@ -327,7 +384,7 @@ function checkMentions(text: string, where: string, ctx: Ctx, opts: { sentence?:
     out.push(v('title', m.text, where, m.seniority && !pf.titleSeniority.has(m.seniority) ? `Your profile has no "${m.seniority}" title.` : 'This job title is not in your profile.'));
   }
   for (const m of scan.orgs) {
-    if (pf.orgKeys.has(m.key) || inCorpus(pf, m.text) || [...pf.orgKeys].some((k) => k && (k.includes(m.key) || m.key.includes(k)) && m.key.length >= 3)) continue;
+    if (orgTraces(m, pf)) continue;
     if (ctx.job && m.key && (m.key === ctx.job.companyKey || ctx.job.companyKey.includes(m.key) || m.key.includes(ctx.job.companyKey))) {
       if (aboutJob(sentence)) continue;
       out.push(v('employer', m.text, where, 'This is the hiring company, not a place you have worked.'));
@@ -337,11 +394,26 @@ function checkMentions(text: string, where: string, ctx: Ctx, opts: { sentence?:
     const tokens = m.text.split(/\s+/).filter((w) => /^\p{Lu}/u.test(w));
     // A name with an organisation ending ("Northwind Labs") must be one of yours; words after "at"/"with" that are
     // all your own words ("with Python") are not an organisation.
-    if (!tokens.length || (m.via !== 'suffix' && tokens.every((w) => pf.words.has(foldKey(w)) || ctx.job?.words.has(foldKey(w)) && ctx.mode === 'letter'))) continue;
+    if (!tokens.length || (m.via !== 'suffix' && !hasOrgEnding(m.text) && tokens.every((w) => pf.words.has(foldKey(w)) || ctx.job?.words.has(foldKey(w)) && ctx.mode === 'letter'))) continue;
     out.push(v(m.kind === 'school' ? 'school' : 'employer', m.text, where, m.kind === 'school' ? 'This school is not in your profile.' : 'This organisation is not in your profile.'));
   }
   for (const m of scan.proper) {
     const k = m.key;
+    // A name right after a tool makes a new tool name ("Tableau Prep", "Docker Swarm"): the whole name must be yours.
+    const tool = scan.skills.find((s) => s.end <= m.start && /^\s+$/.test(text.slice(s.end, m.start)));
+    if (tool) {
+      let startAt = tool.start;
+      for (let prev = tool; ;) {
+        const before = scan.skills.find((s) => s.end <= prev.start && /^\s+$/.test(text.slice(s.end, prev.start)));
+        if (!before) break;
+        startAt = before.start; prev = before;
+      }
+      const phrase = text.slice(startAt, m.end);
+      if (!inCorpus(pf, phrase) && !pf.skillKeys.has(foldKey(phrase))) {
+        out.push(v('skill', phrase, where, 'This tool is not in your profile.'));
+        continue;
+      }
+    }
     if (!k || pf.words.has(k) || pf.words.has(k.replace(/s$/, '')) || inCorpus(pf, m.text)) continue;
     if (ctx.mode === 'letter' && ctx.job && ctx.job.words.has(k) && aboutJob(sentence)) continue;
     out.push(v('other', m.text, where, 'This name is not in your profile.'));
@@ -412,6 +484,18 @@ function checkExperienceItem(item: ResumeItem, where: string, p: Profile, ctx: C
   }
   item.bullets.forEach((b, i) => out.push(...checkText(b, `${where}, bullet ${i + 1}`, ctx.pf, ctx.job, 'resume')));
   for (const t of item.tags) out.push(...checkText(t, `${where}, tag`, ctx.pf, ctx.job, 'resume'));
+  // A bullet that names another of your employers belongs under that job, unless this job's own text names it too.
+  if (w) {
+    const own = ` ${[w.company, w.summary ?? '', ...w.bullets].map(foldKey).join(' | ')} `;
+    item.bullets.forEach((b, i) => {
+      for (const o of findOrgs(b)) {
+        const ok = foldKey(o.text);
+        if (!ok || own.includes(` ${ok} `)) continue;
+        const other = p.work.find((x) => x !== w && (orgKey(x.company) === o.key || ` ${foldKey(x.company)} `.includes(` ${ok} `)));
+        if (other) out.push(v('employer', o.text, `${where}, bullet ${i + 1}`, `"${other.company}" is another job in your profile, not this one.`));
+      }
+    });
+  }
   return out;
 }
 
@@ -442,8 +526,8 @@ function checkSkillList(values: string[], where: string, ctx: Ctx): TruthViolati
       const t = part.trim();
       if (!t) continue;
       const c = canonicalSkill(t);
-      if (c && ctx.pf.skillKeys.has(c.toLowerCase())) continue;
-      if (ctx.pf.skillKeys.has(foldKey(t)) || inCorpus(ctx.pf, t)) continue;
+      if (c && skillTraces(t, c.toLowerCase(), ctx.pf)) continue;
+      if (!c && (ctx.pf.skillKeys.has(foldKey(t)) || inCorpus(ctx.pf, t))) continue;
       // A phrase can still hold known skills: check them one by one ("AWS (EC2, S3)").
       const inner = findSkills(t);
       if (inner.length && inner.every((m) => traceSkill(m, ctx)) && foldKey(t).split(' ').every((w) => ctx.pf.words.has(w) || inner.some((m) => foldKey(m.text).includes(w)))) continue;
@@ -512,6 +596,15 @@ export function checkDocument(doc: ResumeDocument, p: Profile, job: Job | null, 
   return dedupe(out);
 }
 
+/** A header line holds only the profile's contact details and separators ("a@b.com | 555-0100 | Austin, TX"). */
+function isContactLine(line: string, p: Profile): boolean {
+  const hdr = headerFromProfile(p);
+  let t = line;
+  for (const want of [hdr.email, hdr.phone, hdr.city, ...hdr.links.map((l) => l.url)]) if (want) t = t.split(want).join(' ');
+  for (const m of findContacts(t)) t = t.split(m.text).join(' ');
+  return line.trim() !== '' && /^[\s|•·,;/–—-]*$/.test(t);
+}
+
 /** Checks a cover letter: every fact traces to the profile; the job's own company, title and places may be named. */
 export function checkLetter(text: string, p: Profile, job: Job | null, pf: ProfileFacts = buildProfileFacts(p)): TruthViolation[] {
   const jc = jobContext(job);
@@ -524,16 +617,25 @@ export function checkLetter(text: string, p: Profile, job: Job | null, pf: Profi
   paras.forEach((para, i) => {
     const body = para.trim();
     if (!body) return;
-    // The header block (name and contact line) is checked as contact details only.
-    if (i === 0 && body.startsWith(name)) {
-      for (const m of findContacts(body)) {
+    // The header block (name and contact lines) is checked as contact details only. It ends at the first line that
+    // holds anything else, even with no blank line after it; the rest of the paragraph is checked like any other.
+    if (i === 0 && name && body.startsWith(name)) {
+      const hdrLines = body.split('\n');
+      let n = 1;
+      while (n < hdrLines.length && isContactLine(hdrLines[n]!, p)) n++;
+      const rest = hdrLines.slice(n).join('\n').trim();
+      const headText = hdrLines.slice(0, n).join('\n');
+      const extraName = hdrLines[0]!.trim().slice(name.length).trim();
+      if (extraName) out.push(...checkText(extraName, 'Letter header', pf, jc, 'letter'));
+      if (rest) out.push(...checkText(rest, `Letter, paragraph ${i + 1}`, pf, jc, 'letter'));
+      for (const m of findContacts(headText)) {
         if (m.key.startsWith('email:') && !pf.emails.has(m.key.slice(6))) out.push(v('contact', m.text, 'Letter header', 'This email address is not in your profile.'));
         if (m.key.startsWith('url:') && !pf.urls.has(m.key.slice(4))) out.push(v('contact', m.text, 'Letter header', 'This link is not in your profile.'));
         if (m.key.startsWith('phone:') && !pf.phones.has(m.key.slice(6))) out.push(v('contact', m.text, 'Letter header', 'This phone number is not in your profile.'));
       }
       const hdr = headerFromProfile(p);
       for (const want of [hdr.email, hdr.phone, hdr.city, ...hdr.links.map((l) => l.url)]) {
-        if (want && !body.includes(want)) out.push(v('contact', want, 'Letter header', 'A contact detail from your profile is missing or changed.'));
+        if (want && !headText.includes(want)) out.push(v('contact', want, 'Letter header', 'A contact detail from your profile is missing or changed.'));
       }
       return;
     }

@@ -5,7 +5,7 @@
 import type { Job, KeywordGapReport, Profile, ResumeDocument } from '@jobleft/contracts';
 import type { SkillDictionary } from '@jobleft/static-data';
 import { documentText } from './document.ts';
-import { canonicalSkill, findCertifications, findDegrees, findSkills, isCaseSensitiveForm, skillForms } from './facts.ts';
+import { canonicalSkill, findCertifications, findDegrees, findSkills, isCaseSensitiveForm, mask, skillForms } from './facts.ts';
 import { CERTS, DEGREE_LEVELS } from './lexicon.ts';
 import { profileTexts } from './truth.ts';
 import { termRegExp } from './text.ts';
@@ -18,7 +18,8 @@ export function builtinSkillDictionary(): SkillDictionary {
     extract: (text) => {
       const seen = new Set<string>();
       const out: string[] = [];
-      for (const m of [...findCertifications(text), ...findSkills(text)].sort((a, b) => a.start - b.start)) {
+      const certs = findCertifications(text);
+      for (const m of [...certs, ...findSkills(mask(text, certs))].sort((a, b) => a.start - b.start)) {
         const c = canonicalSkill(m.text) ?? m.text;
         if (seen.has(c.toLowerCase())) continue;
         seen.add(c.toLowerCase());
@@ -72,17 +73,20 @@ export function jobTerms(job: Job, skills: SkillDictionary): JobTerm[] {
   const found: Array<{ at: number; t: JobTerm }> = [];
   const seen = new Set<string>();
   const add = (at: number, t: JobTerm) => { if (seen.has(t.key)) return; seen.add(t.key); found.push({ at, t }); };
-  for (const m of findCertifications(text)) {
+  const certs = findCertifications(text);
+  for (const m of certs) {
     const c = canonicalSkill(m.text) ?? m.text;
     add(m.start, { term: c, key: c.toLowerCase(), kind: 'certification', forms: formsFor(c, dict) });
   }
-  for (const m of findSkills(text)) {
+  // A certification's words are not skills ("TS/SCI" is a clearance, not TypeScript).
+  const rest = mask(text, certs);
+  for (const m of findSkills(rest)) {
     const c = canonicalSkill(m.text) ?? m.text;
     add(m.start, { term: c, key: c.toLowerCase(), kind: 'skill', forms: formsFor(c, dict) });
   }
-  for (const s of dict.extract(text)) {
+  for (const s of dict.extract(rest)) {
     const c = dict.canonical(s) ?? s;
-    const at = text.toLowerCase().indexOf(s.toLowerCase());
+    const at = rest.toLowerCase().indexOf(s.toLowerCase());
     add(at < 0 ? text.length : at, { term: c, key: c.toLowerCase(), kind: CERTS.some((e) => e.canonical === c) ? 'certification' : 'skill', forms: formsFor(c, dict) });
   }
   for (const s of job.skills) {
