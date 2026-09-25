@@ -5,7 +5,7 @@
 import type { FeedContext, FeedPosting, FeedResult, JobFeed } from '../types.ts';
 import { parseJsonBody, shapeError } from '../http.ts';
 import { employmentTypeOf, fixMojibake, plainLine, parseRemoteScope, payFromSalaryField, safeHttpUrl, scopeOpenToUs } from '../text.ts';
-import { HOUR, arr, countriesOf, creditFor, emptyFacts, ev, isoFrom, obj, rawJob, rawPayOf, result, str } from './common.ts';
+import { HOUR, arr, countriesOf, creditFor, emptyFacts, ev, formatProblem, isoFrom, missingFields, obj, rawJob, rawPayOf, result, str } from './common.ts';
 
 export const REMOTIVE_URL = 'https://remotive.com/api/remote-jobs';
 export const REMOTIVE_CREDIT = creditFor('Found on Remotive', 'https://remotive.com/');
@@ -53,7 +53,8 @@ export function parseRemotive(data: unknown, now: number): FeedResult {
     });
   }
   if (jobs.length > 0 && postings.length === 0) throw shapeError(`none of the ${jobs.length} postings had an id, a title, a company and a link`);
-  return result(postings, { complete: true, unreadableIds, unreadableWithoutId });
+  const problem = formatProblem(missingFields(jobs, ['id', 'title', 'company_name', 'url', 'candidate_required_location', 'publication_date', 'description']));
+  return result(postings, { complete: !problem, unreadableIds, unreadableWithoutId, problem });
 }
 
 export const remotive: JobFeed = {

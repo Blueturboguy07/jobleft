@@ -113,7 +113,7 @@ async function main(): Promise<number> {
       if (flag('json')) { console.log(JSON.stringify(list, null, 2)); store.close(); return 0; }
       console.log(`${pad('SOURCE', 26)}${pad('CRAWLED', 8)}${pad('ON', 4)}${pad('STATE', 12)}${pad('OPEN', 6)}${pad('LAST SUCCESS', 22)}NEXT ALLOWED / PROBLEM`);
       for (const s of list) {
-        const extra = !s.crawled ? `not crawled: ${s.reason}` : [s.status.nextAllowedAt ? `next ${s.status.nextAllowedAt}` : '', s.status.lastProblem ?? ''].filter(Boolean).join(' | ');
+        const extra = !s.crawled ? `not crawled: ${s.reason}` : [s.needsKey ? `key ${s.keySet ? 'set' : 'not set'}` : '', s.status.nextAllowedAt ? `next ${s.status.nextAllowedAt}` : '', s.status.lastProblem ?? ''].filter(Boolean).join(' | ');
         console.log(`${pad(s.id, 26)}${pad(s.crawled ? 'yes' : 'no', 8)}${pad(s.enabled ? 'on' : 'off', 4)}${pad(s.status.state, 12)}${pad(s.status.openJobs === null ? '-' : String(s.status.openJobs), 6)}${pad(s.status.lastSuccessAt ?? '-', 22)}${extra}`);
         if (s.credit) console.log(`${' '.repeat(26)}credit: ${s.credit.text} (${s.credit.url})`);
       }

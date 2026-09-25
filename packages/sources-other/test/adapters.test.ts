@@ -190,3 +190,19 @@ test('USAJOBS (built, not crawled): grade line, hourly pay, bi-weekly gives no p
   assert.deepEqual(parseUsajobsSecret('TESTKEY-0000-jordan jordan.testwell@example.com'), { email: 'jordan.testwell@example.com', key: 'TESTKEY-0000-jordan' });
   assert.equal(parseUsajobsSecret('TESTKEY-0000-jordan'), null);
 });
+
+test('a field renamed in every posting is a format change: readable jobs are kept, nothing may close', () => {
+  const data = (fixture('remoteok/api.json') as Array<Record<string, unknown>>).map((o) => {
+    if (!('salary_min' in o)) return o;
+    const { salary_min, salary_max, ...rest } = o;
+    return { ...rest, salaryMin: salary_min, salaryMax: salary_max };
+  });
+  const r = parseRemoteOk(data, NOW);
+  assert.equal(r.postings!.length, 10, 'the jobs are still read');
+  assert.equal(r.complete, false, 'so nothing is closed by this answer');
+  assert.match(r.problem ?? '', /no posting has the fields "salary_min", "salary_max"/);
+  const lists = (fixture('github/vanshb03-newgrad.json') as Array<Record<string, unknown>>).map(({ date_posted, ...o }) => ({ ...o, posted: date_posted }));
+  assert.match(parseListings(lists, list('gh-vanshb03-newgrad'), NOW).problem ?? '', /"date_posted"/);
+  const noLoc = fixtureText('github/speedyapply-swe/README.md').replace(/\| Location \|/g, '| Where |');
+  assert.equal(parseSpeedyMarkdown(noLoc, list('gh-speedyapply-swe'), 'README.md', NOW).missingColumns.length, 1);
+});

@@ -8,7 +8,7 @@ import type { EmploymentType, PayPeriod, Place } from '@jobleft/contracts';
 import type { FeedContext, FeedPosting, FeedResult, JobFeed } from '../types.ts';
 import { FeedError, parseJsonBody, shapeError } from '../http.ts';
 import { countryCode, makePay, plainLine, safeHttpUrl } from '../text.ts';
-import { HOUR, arr, countriesOf, emptyFacts, ev, isoFrom, obj, rawJob, rawPayOf, result, str } from './common.ts';
+import { HOUR, arr, countriesOf, emptyFacts, ev, formatProblem, isoFrom, missingFields, obj, rawJob, rawPayOf, result, str } from './common.ts';
 
 export const USAJOBS_BASE = 'https://data.usajobs.gov/api/Search';
 export const USAJOBS_PAGE_SIZE = 500;
@@ -54,7 +54,7 @@ function placeOf(l: Record<string, unknown>): Place | null {
   return place;
 }
 
-export interface UsajobsPage { countAll: number; postings: FeedPosting[]; unreadableIds: string[]; unreadableWithoutId: number; expired: number; items: number }
+export interface UsajobsPage { countAll: number; postings: FeedPosting[]; unreadableIds: string[]; unreadableWithoutId: number; expired: number; items: number; problem?: string }
 
 export function parseUsajobsPage(data: unknown, now: number): UsajobsPage {
   const sr = obj(obj(data)?.SearchResult);
@@ -143,7 +143,8 @@ export function parseUsajobsPage(data: unknown, now: number): UsajobsPage {
       }),
     });
   }
-  return { countAll: Number.isFinite(countAll) ? countAll : NaN, postings, unreadableIds, unreadableWithoutId, expired, items: items.length };
+  const problem = formatProblem(missingFields(items.map((i) => obj(i)?.MatchedObjectDescriptor), ['PositionTitle', 'PositionURI', 'OrganizationName', 'PositionLocation', 'PublicationStartDate', 'PositionRemuneration']));
+  return { countAll: Number.isFinite(countAll) ? countAll : NaN, postings, unreadableIds, unreadableWithoutId, expired, items: items.length, ...(problem ? { problem } : {}) };
 }
 
 function escapeHtml(s: string): string {
@@ -180,6 +181,7 @@ export const usajobs: JobFeed = {
     const postings: FeedPosting[] = [];
     const unreadableIds: string[] = [];
     let unreadableWithoutId = 0, skipped = 0, rows = 0, countAll = NaN;
+    let problem: string | undefined;
     for (let page = 1; page <= USAJOBS_MAX_PAGES; page++) {
       let p: UsajobsPage;
       try {
@@ -194,6 +196,7 @@ export const usajobs: JobFeed = {
         return result(postings, { complete: false, unreadableIds, unreadableWithoutId, skipped, problem: `page ${page} failed: ${e.message}` });
       }
       if (page === 1) countAll = p.countAll;
+      problem ??= p.problem;
       postings.push(...p.postings);
       unreadableIds.push(...p.unreadableIds);
       unreadableWithoutId += p.unreadableWithoutId;
@@ -201,9 +204,9 @@ export const usajobs: JobFeed = {
       rows += p.items;
       if (p.items < USAJOBS_PAGE_SIZE || (Number.isFinite(countAll) && rows >= countAll)) break;
     }
-    const complete = Number.isFinite(countAll) ? rows >= countAll : false;
+    const complete = (Number.isFinite(countAll) ? rows >= countAll : false) && !problem;
     return result(postings, {
-      complete, unreadableIds, unreadableWithoutId, skipped,
+      complete, unreadableIds, unreadableWithoutId, skipped, problem,
       notes: complete ? [] : [`read ${rows} of ${Number.isFinite(countAll) ? countAll : 'an unknown number of'} rows; nothing was closed`],
     });
   },

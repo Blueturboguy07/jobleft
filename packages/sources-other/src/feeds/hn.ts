@@ -10,7 +10,7 @@ import { decodeEntities, htmlToText } from '@jobleft/parsers';
 import type { FeedContext, FeedPosting, FeedResult, JobFeed } from '../types.ts';
 import { FeedError, parseJsonBody, shapeError } from '../http.ts';
 import { clip, countryCode, employmentTypeOf, parseRemoteScope, payFromSalaryField, payFromText, placeFromText, safeHttpUrl, scopeOpenToUs } from '../text.ts';
-import { HOUR, arr, countriesOf, creditFor, emptyFacts, ev, isoFrom, obj, rawJob, result, str } from './common.ts';
+import { HOUR, arr, countriesOf, creditFor, emptyFacts, ev, formatProblem, isoFrom, missingFields, obj, rawJob, result, str } from './common.ts';
 
 export const HN_SEARCH_URL = 'https://hn.algolia.com/api/v1/search_by_date?tags=story%2Cauthor_whoishiring&hitsPerPage=10';
 export const hnItemUrl = (id: string | number): string => `https://hn.algolia.com/api/v1/items/${encodeURIComponent(String(id))}`;
@@ -188,7 +188,8 @@ export function parseHnThread(data: unknown, thread: HnThreadRef, now: number): 
     const p = parseHnComment(c, { ...thread, title }, now);
     if (p) postings.push(p); else skipped++;
   }
-  return result(postings, { complete: true, skipped, notes: [`thread "${title}": ${postings.length} postings in the "Company | Role | Place" format, ${skipped} other comments skipped`] });
+  const problem = formatProblem(missingFields(children, ['id', 'text', 'created_at']));
+  return result(postings, { complete: !problem, skipped, problem, notes: [`thread "${title}": ${postings.length} postings in the "Company | Role | Place" format, ${skipped} other comments skipped`] });
 }
 
 export const hnWhoIsHiring: JobFeed = {

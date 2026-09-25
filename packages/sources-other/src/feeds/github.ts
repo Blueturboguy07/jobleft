@@ -11,7 +11,7 @@ import { decodeEntities } from '@jobleft/parsers';
 import type { FeedContext, FeedFacts, FeedPosting, FeedResult, JobFeed } from '../types.ts';
 import { FeedError, parseJsonBody, shapeError } from '../http.ts';
 import { employmentTypeOf, parseRemoteScope, payFromSalaryField, placeFromText, plainLine, safeHttpUrl, scopeOpenToUs } from '../text.ts';
-import { HOUR, arr, countriesOf, creditFor, emptyFacts, ev, isoFrom, obj, rawJob, rawPayOf, result, str } from './common.ts';
+import { HOUR, arr, countriesOf, creditFor, emptyFacts, ev, formatProblem, isoFrom, missingFields, obj, rawJob, rawPayOf, result, str } from './common.ts';
 
 export interface GithubList {
   id: string;
@@ -118,7 +118,8 @@ export function parseListings(data: unknown, list: GithubList, now: number): Fee
   }
   if (!sawFields) throw shapeError('the rows have no "company_name", "title" and "url" fields');
   if (rows.length - skipped > 0 && postings.length === 0) throw shapeError(`none of the ${rows.length - skipped} active rows had an id, a company, a title and a link`);
-  return result(postings, { complete: true, unreadableIds, unreadableWithoutId, skipped });
+  const problem = formatProblem(missingFields(rows, ['id', 'company_name', 'title', 'url', 'locations', 'date_posted', 'active']));
+  return result(postings, { complete: !problem, unreadableIds, unreadableWithoutId, skipped, problem });
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -150,7 +151,7 @@ export function speedyId(url: string): string {
   return createHash('sha256').update(canonicalizeUrl(url) || url).digest('hex').slice(0, 20);
 }
 
-export interface MarkdownParse { postings: FeedPosting[]; tables: number; openTables: number; unreadableWithoutId: number }
+export interface MarkdownParse { postings: FeedPosting[]; tables: number; openTables: number; unreadableWithoutId: number; missingColumns: string[] }
 
 /** Parses one speedyapply markdown file. Pure. */
 export function parseSpeedyMarkdown(text: string, list: GithubList, file: string, now: number): MarkdownParse {
@@ -159,6 +160,7 @@ export function parseSpeedyMarkdown(text: string, list: GithubList, file: string
   let tables = 0, openTables = 0, unreadableWithoutId = 0;
   let inTable = false;
   let cols: Record<string, number> | null = null;
+  const missingColumns = new Set<string>();
   const starts = (text.match(/<!--\s*TABLE[A-Z_]*_START\s*-->/g) ?? []).length;
   const ends = (text.match(/<!--\s*TABLE[A-Z_]*_END\s*-->/g) ?? []).length;
   openTables = Math.max(0, starts - ends);
@@ -175,6 +177,7 @@ export function parseSpeedyMarkdown(text: string, list: GithubList, file: string
       if (c.company < 0 || c.position < 0 || c.posting < 0) {
         throw shapeError(`${file}: a table header lacks the Company, Position or Posting column (found: ${names.join(', ')})`);
       }
+      if (c.location < 0) missingColumns.add(`${file}: Location`);
       cols = c;
       continue;
     }
@@ -214,7 +217,7 @@ export function parseSpeedyMarkdown(text: string, list: GithubList, file: string
   }
   if (tables === 0) throw shapeError(`${file}: no job table was found`);
   void now;
-  return { postings, tables, openTables, unreadableWithoutId };
+  return { postings, tables, openTables, unreadableWithoutId, missingColumns: [...missingColumns] };
 }
 
 function feedFor(list: GithubList): JobFeed {
@@ -274,6 +277,7 @@ function feedFor(list: GithubList): JobFeed {
         }
         read++;
         if (parsed.openTables > 0) problems.push(`${file} was cut off (a table has no end marker)`);
+        if (parsed.missingColumns.length) problems.push(`the data format changed: no ${parsed.missingColumns.join(', ')} column`);
         unreadableWithoutId += parsed.unreadableWithoutId;
         for (const p of parsed.postings) {
           if (seen.has(p.raw.externalId)) continue;

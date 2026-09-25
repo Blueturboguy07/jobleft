@@ -487,7 +487,7 @@ whole board (a paged adapter reads every page, and a page failure fails the boar
 
 ### `@jobleft/sources-other`
 
-Status: **Built** (48 tests, no live request). Purpose: non-ATS feeds (each OFF until the person turns it on),
+Status: **Built** (49 tests, no live request). Purpose: non-ATS feeds (each OFF until the person turns it on),
 add-a-job by URL or text, and the metered fetch and search client (paid, OFF until the person turns it on, price
 shown first in dollars). Owns: tables `source_state`, `source_runs`, `source_requests`, `source_host_slots`,
 `feed_postings`; routes `addExternalJob`, `listSources`, `updateSource`, `setSourceKey`, `deleteSourceKey`.

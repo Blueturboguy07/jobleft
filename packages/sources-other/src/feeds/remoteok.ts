@@ -5,7 +5,9 @@
 import type { FeedContext, FeedPosting, FeedResult, JobFeed } from '../types.ts';
 import { parseJsonBody, shapeError } from '../http.ts';
 import { fixMojibake, makePay, plainLine, parseRemoteScope, placeFromText, safeHttpUrl, scopeOpenToUs } from '../text.ts';
-import { HOUR, countriesOf, creditFor, emptyFacts, ev, isoFrom, obj, rawJob, rawPayOf, result, str } from './common.ts';
+import { HOUR, countriesOf, creditFor, emptyFacts, ev, formatProblem, isoFrom, missingFields, obj, rawJob, rawPayOf, result, str } from './common.ts';
+
+const REMOTEOK_FIELDS = ['id', 'position', 'company', 'url', 'date', 'location', 'salary_min', 'salary_max', 'description'] as const;
 
 export const REMOTEOK_URL = 'https://remoteok.com/api';
 export const REMOTEOK_CREDIT = creditFor('Found on Remote OK', 'https://remoteok.com/');
@@ -76,7 +78,8 @@ export function parseRemoteOk(data: unknown, now: number): FeedResult {
   if (items.length > 0 && postings.length === 0) {
     throw shapeError(`none of the ${items.length} postings had an id, a title, a company and a link`);
   }
-  return result(postings, { complete: true, unreadableIds, unreadableWithoutId, notes: hasNotice ? [] : ['the legal notice was missing from the answer'] });
+  const problem = formatProblem(missingFields(items, REMOTEOK_FIELDS));
+  return result(postings, { complete: !problem, unreadableIds, unreadableWithoutId, problem, notes: hasNotice ? [] : ['the legal notice was missing from the answer'] });
 }
 
 export const remoteOk: JobFeed = {

@@ -6,7 +6,7 @@ import type { Level } from '@jobleft/contracts';
 import type { FeedContext, FeedPosting, FeedResult, JobFeed } from '../types.ts';
 import { FeedError, parseJsonBody, shapeError } from '../http.ts';
 import { fixMojibake, placeFromText, plainLine, safeHttpUrl } from '../text.ts';
-import { HOUR, arr, countriesOf, creditFor, emptyFacts, ev, isoFrom, obj, rawJob, result, str } from './common.ts';
+import { HOUR, arr, countriesOf, creditFor, emptyFacts, ev, formatProblem, isoFrom, missingFields, obj, rawJob, result, str } from './common.ts';
 
 export const MUSE_BASE = 'https://www.themuse.com/api/public/jobs';
 export const MUSE_SLICE = 'Flexible / Remote';
@@ -24,7 +24,7 @@ export function museUrl(page: number, key: string): string {
 }
 
 /** One page of The Muse answer. */
-export interface MusePage { page: number; pageCount: number; postings: FeedPosting[]; unreadableIds: string[]; unreadableWithoutId: number }
+export interface MusePage { page: number; pageCount: number; postings: FeedPosting[]; unreadableIds: string[]; unreadableWithoutId: number; problem?: string }
 
 export function parseMusePage(data: unknown, now: number): MusePage {
   const root = obj(data);
@@ -80,7 +80,8 @@ export function parseMusePage(data: unknown, now: number): MusePage {
     });
   }
   if (results.length > 0 && postings.length === 0) throw shapeError(`none of the ${results.length} postings had an id, a title, a company and a link`);
-  return { page, pageCount, postings, unreadableIds, unreadableWithoutId };
+  const problem = formatProblem(missingFields(results, ['id', 'name', 'company', 'refs', 'locations', 'levels', 'publication_date', 'contents']));
+  return { page, pageCount, postings, unreadableIds, unreadableWithoutId, ...(problem ? { problem } : {}) };
 }
 
 export const theMuse: JobFeed = {
@@ -117,6 +118,7 @@ export const theMuse: JobFeed = {
     let unreadableWithoutId = 0;
     let pageCount = 1;
     let read = 0;
+    let problem: string | undefined;
     for (let page = 0; page < pageCount && page < MUSE_MAX_PAGES; page++) {
       let p: MusePage;
       try {
@@ -132,13 +134,14 @@ export const theMuse: JobFeed = {
         });
       }
       if (page === 0) pageCount = p.pageCount;
+      problem ??= p.problem;
       postings.push(...p.postings);
       unreadableIds.push(...p.unreadableIds);
       unreadableWithoutId += p.unreadableWithoutId;
       read++;
     }
-    const complete = read >= pageCount;
+    const complete = read >= pageCount && !problem;
     const notes = complete ? [] : [`read ${read} of ${pageCount} pages (the limit per refresh is ${MUSE_MAX_PAGES}); nothing was closed`];
-    return result(postings, { complete, unreadableIds, unreadableWithoutId, notes });
+    return result(postings, { complete, unreadableIds, unreadableWithoutId, notes, problem });
   },
 };

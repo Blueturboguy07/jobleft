@@ -85,3 +85,18 @@ export function countriesOf(facts: FeedFacts): string[] {
 }
 
 export function creditFor(text: string, url: string): Credit { return { text, url }; }
+
+/**
+ * Fields the adapter reads that no item has at all (a renamed or dropped field). A non-empty answer means the source
+ * changed its format: the readable postings are kept, nothing closes, and the source shows the problem (O5).
+ */
+export function missingFields(items: unknown[], fields: readonly string[]): string[] {
+  const objs = items.map(obj).filter((o): o is Record<string, unknown> => o !== null);
+  if (objs.length === 0) return [];
+  return fields.filter((f) => !objs.some((o) => f in o));
+}
+
+export function formatProblem(missing: string[]): string | undefined {
+  if (!missing.length) return undefined;
+  return `the data format changed: no posting has the field${missing.length > 1 ? 's' : ''} ${missing.map((m) => `"${m}"`).join(', ')}`;
+}
