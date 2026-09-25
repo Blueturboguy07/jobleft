@@ -94,7 +94,8 @@ export function readTitle(title: string): TitleReading | null {
     if (/\b(?:lead|leader)\s+(?:teacher|educator|instructor|caregiver|technician|tech|mechanic|carpenter|electrician|plumber|welder|operator|driver|installer|painter|groundskeeper|custodian|janitor|guard|officer|clerk|agent|representative|rep|specialist|coordinator)\b/i.test(s) && !senior) {
       return { level: 'lead', strength: 'medium', buckets: ['mid', 'lead_staff'] };
     }
-    return { level: 'lead', strength: 'medium' };
+    // "Team Lead", "Tech Lead", "Marketing Lead": a lead is a role, not a grade, so stated years do not overrule it.
+    return { level: 'lead', strength: 'strong' };
   }
   // Senior (never "Senior Care Aide" or "Senior Living Cook").
   if (senior) return { level: 'senior', strength: 'medium' };

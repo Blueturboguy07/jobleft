@@ -39,25 +39,31 @@ export function workModelFromField(v: string | null | undefined): WorkModel | nu
 }
 
 // Phrases in the posting text. Each is specific enough that "remote sensing" or "hybrid cloud" never matches.
-const TEXT_RULES: Array<{ re: RegExp; model: WorkModel }> = [
-  // Negations first: "this is not a remote position".
-  { re: /\b(?:this\s+is\s+)?not\s+(?:a\s+)?(?:fully\s+)?remote\s+(?:position|role|job|opportunity)\b|\b(?:no|not)\s+remote\s+(?:work|option|options|opportunit\w+)\b|\bremote\s+work\s+is\s+not\s+(?:available|possible|an\s+option|offered|permitted)\b|\bnot\s+eligible\s+for\s+remote\b|\bthis\s+(?:role|position|job)\s+(?:is\s+not|isn't|cannot\s+be)\s+(?:performed\s+)?remote(?:ly)?\b|\bno\s+remote\b/i, model: 'onsite' },
-  { re: /\b(?:this|the)\s+(?:role|position|job|opportunity)\s+(?:is|will\s+be)\s+(?:a\s+)?(?:100%\s+|fully\s+|entirely\s+|completely\s+)?(?:on-?site|in[- ]office|in[- ]person|office[- ]based)\b/i, model: 'onsite' },
+type TextModel = WorkModel | 'notremote';
+
+const TEXT_RULES: Array<{ re: RegExp; model: TextModel }> = [
+  // Negations: "this is not a remote position" rules out remote, and fits onsite or hybrid.
+  { re: /\b(?:this\s+is\s+)?not\s+(?:a\s+)?(?:fully\s+)?remote\s+(?:position|role|job|opportunity)\b|\b(?:no|not)\s+remote\s+(?:work|option|options|opportunit\w+)\b|\bremote\s+work\s+is\s+not\s+(?:available|possible|an\s+option|offered|permitted)\b|\bnot\s+eligible\s+for\s+remote\b|\bthis\s+(?:role|position|job)\s+(?:is\s+not|isn't|cannot\s+be)\s+(?:performed\s+)?remote(?:ly)?\b|\bno\s+remote\b/i, model: 'notremote' },
+  { re: /\b(?:this|the)\s+(?:is\s+an?\s+)?(?:role|position|job|opportunity)\s+(?:is|will\s+be)\s+(?:a\s+)?(?:100%\s+|fully\s+|entirely\s+|completely\s+)?(?:on-?site|in[- ]office|in[- ]person|office[- ]based)\b|\bthis\s+is\s+an?\s+(?:full[- ]time,?\s+)?(?:on-?site|in[- ]office|in[- ]person|office[- ]based)\s+(?:role|position|job|opportunity)\b/i, model: 'onsite' },
   { re: /\b(?:100%|fully|full[- ]time|five\s+days|5\s+days)\s+(?:on-?site|in[- ]office|in[- ]person|in\s+the\s+office)\b|\bon-?site\s+(?:role|position|job|opportunity|five|5)\b|\b(?:5|five)\s+days\s+(?:a|per)\s+week\s+(?:in|at)\s+(?:the|our)\s+office\b/i, model: 'onsite' },
-  { re: /\b(?:must|required\s+to|expected\s+to|need\s+to|will\s+need\s+to)\s+(?:work|be|report)\s+(?:on-?site|in[- ]person|in\s+(?:the|our)\s+office|onsite|in\s+office)\b(?!\s+(?:\d|one|two|three|four)\s+days?)(?![^.\n]{0,40}\b(?:days?\s+(?:a|per)\s+week|x\s+(?:a|per)\s+week|\d{1,2}\s*%|percent|half|part\s+of))/i, model: 'onsite' },
+  { re: /\b(?:must|required\s+to|expected\s+to|need\s+to|will\s+need\s+to)\s+(?:work|be|report)\s+(?:on-?site|in[- ]person|in\s+(?:the|our)\s+office|onsite|in\s+office)\b/i, model: 'onsite' },
   { re: /\b(?:on-?site|in[- ]office|in[- ]person|in\s+the\s+office)\s+(?:at\s+least\s+|a\s+minimum\s+of\s+|about\s+|roughly\s+)?\d{1,2}\s*%\s+of\s+the\s+time\b/i, model: 'hybrid' },
   // Hybrid: a schedule of office days, or the word with a work noun.
-  { re: /\bhybrid\s+(?:role|position|schedule|arrangement|opportunity|job|setup|set-up|basis|remote|in-office|office|work(?:ing)?\s+(?:model|schedule|arrangement|pattern|mode|setup|policy|environment|structure))\b|\bhybrid\s+work(?:ing)?\s*:|\b(?:this\s+is\s+an?|offers?\s+an?|on\s+an?|in\s+an?|follows?\s+an?|with\s+an?|we\s+(?:use|follow|operate|work)\s+(?:an?\s+)?)\s*(?:full[- ]time,?\s+)?hybrid\b(?!\s+(?:cloud|apps?|mobile|vehicles?|cars?|infrastructure|it\b|seeds?|search|approach|integration|events?|classroom|learning|teaching|instruction|environments?|solutions?|architecture|model\b(?!\s+of\s+work)|systems?|storage|network|deployments?|workloads?|data|engines?|powertrains?|electric|varieties|species|courses?|format|technolog\w+|methods?|strateg\w+|teams?\b(?!\s+role)))/i, model: 'hybrid' },
-  { re: /\b(?:this|the)\s+(?:role|position|job|opportunity)\s+is\s+(?:a\s+)?hybrid\b|\bhybrid\s+(?:in|from|out\s+of|at)\s+(?:our\s+)?[A-Z]/, model: 'hybrid' },
+  { re: /\bhybrid\s+(?:schedule|arrangement|setup|set-up|basis|remote|in-office|office|work(?:ing)?\s+(?:model|schedule|arrangement|pattern|mode|setup|policy|environment|structure|opportunity))\b|\bhybrid\s+work(?:ing)?\s*:|\b(?:a|an|this|is|as|our)\s+(?:full[- ]time,?\s+)?hybrid\s+(?:role|position|job|opportunity)\b(?!\s+(?:between|combining|that\s+combines|spanning|bridging|blending|mixing|across|of)\b)|\b(?:offers?\s+an?|on\s+an?|follows?\s+an?|we\s+(?:use|follow|operate|work)\s+(?:an?\s+)?)\s*hybrid\b(?!\s+(?:cloud|apps?|mobile|vehicles?|cars?|infrastructure|it\b|seeds?|search|approach|integration|events?|classroom|learning|teaching|instruction|environments?|solutions?|architecture|model\b(?!\s+of\s+work)|systems?|storage|network|deployments?|workloads?|data|engines?|powertrains?|electric|varieties|species|courses?|format|technolog\w+|methods?|strateg\w+|teams?\b))/i, model: 'hybrid' },
+  { re: /\b(?:this|the)\s+(?:role|position|job|opportunity)\s+is\s+(?:a\s+)?hybrid\b(?!\s+(?:of|between)\b)|\bhybrid\s+(?:in|from|out\s+of|at)\s+(?:our\s+)?[A-Z]/, model: 'hybrid' },
   { re: /\b(?:\d|one|two|three|four)\s*(?:\+|or\s+more)?\s*(?:days?|x)\s*(?:a|per|each|\/|every)\s*week\s+(?:in|at|from|on)\s+(?:the\s+|our\s+)?(?:office|hq|headquarters|studio|campus|site|location|clinic|facility|lab)\b/i, model: 'hybrid' },
   { re: /\b(?:in[- ](?:the[- ])?office|on-?site|in[- ]person)\s+(?:at\s+least\s+|a\s+minimum\s+of\s+)?(?:\d|one|two|three|four)\s*(?:\+|or\s+more)?\s*(?:days?|x|times)\s*(?:a|per|each|\/)?\s*(?:week)?\b/i, model: 'hybrid' },
-  { re: /\b(?:split|divided)\s+between\s+(?:home|remote)\s+and\s+(?:the\s+)?office\b|\bpartially\s+remote\b|\bremote\s+with\s+(?:occasional|regular|periodic)\s+(?:office|in-person|on-?site)\b|\bflexible\s+hybrid\b|\bpartly\s+remote\b/i, model: 'hybrid' },
+  { re: /\b(?:split|divided)\s+between\s+(?:home|remote)\s+and\s+(?:the\s+)?office\b|\bpartially\s+remote\b|\bflexible\s+hybrid\b|\bpartly\s+remote\b/i, model: 'hybrid' },
   // Remote: the job itself is remote.
   { re: /\b(?:this|the)\s+(?:is\s+(?:a|an)\s+)?(?:role|position|job|opportunity)\s+(?:is\s+)?(?:a\s+)?(?:100%\s+|fully\s+|completely\s+|entirely\s+|permanently\s+)?remote\b(?!\s+(?:patient|sensing|monitoring|support|access|desktop|control|site|locations?|areas?))/i, model: 'remote' },
-  { re: /\b(?:100%|fully|completely|entirely|permanently)\s+remote\b(?!\s+(?:patient|sensing|monitoring|support|access|desktop|control|teams?|company))|\bremote[- ](?:only|position|role|job|opportunity|based\s+(?:role|position))\b/i, model: 'remote' },
+  { re: /\b(?:100%|fully|completely|entirely|permanently)\s+remote\b(?!\s+(?:patient|sensing|monitoring|support|access|desktop|control|teams?|company|companies|program|programs|workforce|employees|culture|policy|staff|option|options|organization|org|environment|world))|\bremote[- ](?:only|position|role|job|opportunity|based\s+(?:role|position))\b/i, model: 'remote' },
   { re: /\b(?:can|will|may)\s+(?:be\s+)?(?:work(?:ed)?|performed|done|based)\s+(?:fully\s+|100%\s+)?remote(?:ly)?\s+(?:from\s+)?(?:anywhere|in|within|across)\b|\bwork\s+(?:fully\s+)?remotely\s+from\s+(?:anywhere|home|your\s+home)\b|\bwork\s+from\s+(?:home|anywhere)\s+(?:position|role|job|opportunity|full[- ]time)\b/i, model: 'remote' },
   { re: /\b(?:trabajo|posición|puesto)\s+(?:100%\s+)?remoto\b|\b100%\s+remoto\b|\b(?:100%\s+)?télétravail\s+(?:complet|total|à\s+100)|\bfull\s+remote\b|\b100%\s+(?:home\s*office|homeoffice)\b/i, model: 'remote' },
 ];
+
+/** A part-week office schedule in the same sentence turns an "onsite" phrase into hybrid ("onsite ~2 days per week"). */
+const PART_WEEK = /\b(?:[1-4]|one|two|three|four|~\s?[1-4])\s*(?:\+\s*)?(?:days?|x)\s*(?:a|per|each|\/|every)\s*week\b|\b(?:mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:rs(?:day)?)?)\s*(?:-|–|to|through)\s*(?:tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:rs(?:day)?)?)\b|\b\d{1,2}\s*%\s+of\s+the\s+time\b|\bhalf\s+(?:of\s+)?the\s+(?:time|week)\b|\b(?:M|T|W|Th|F)\s*,\s*(?:M|T|W|Th|F)\s*,?\s*(?:and\s+)?(?:M|T|W|Th|F)\b/i;
+
 
 // Area limits for a remote job.
 const TZ_REGION: Array<[RegExp, string]> = [
@@ -132,21 +138,35 @@ export function regionsOfArea(area: string): { regions: string[]; states: string
 }
 
 /** "If you are near one of our offices, you'll be hybrid": a condition for some people, not the job's model. */
-const CONDITIONAL = /\b(?:if\s+(?:you\s+(?:are|live|reside|'re)|you're|located|local)|for\s+(?:those|candidates|employees)\s+(?:near|within|living|located|based)|those\s+near|when\s+(?:near|local)|unless)\b/i;
+const CONDITIONAL = /\b(?:if\s+(?:you\s+(?:are|live|reside|'re)|you're|located|local|based)|for\s+(?:those|candidates|employees|people|team\s+members|members)\s+(?:who\s+(?:live|are|reside)|near|within|living|located|based|in)|(?:those|members|employees|candidates|people|anyone|staff|team\s+members)(?:\s+\w+){0,3}\s+(?:who|that)\s+(?:live|are\s+located|reside|are\s+based|are\s+within|are\s+near)|those\s+near|when\s+(?:near|local)|unless)\b/i;
+/** "Providers may work a hybrid schedule": an option, not the job's model. */
+const OPTIONAL = /\b(?:may|can|could|might|option(?:al|ally)?\s+to|choose\s+to|opportunity\s+to|flexibility\s+to|are\s+welcome\s+to)\s+(?:\w+\s+){0,3}$/i;
 
-function textSignals(text: string): Signal[] {
-  const out: Signal[] = [];
+function sentenceAround(text: string, start: number, end: number): { lead: string; trail: string } {
+  const sStart = Math.max(text.lastIndexOf('.', start - 1), text.lastIndexOf('\n', start - 1), start - 200);
+  let sEnd = text.length;
+  for (const c of ['.', '\n']) { const i = text.indexOf(c, end); if (i >= 0 && i < sEnd) sEnd = i; }
+  sEnd = Math.min(sEnd, end + 200);
+  return { lead: text.slice(Math.max(0, sStart + 1), start), trail: text.slice(end, sEnd) };
+}
+
+function textSignals(text: string): Array<Signal | { model: 'notremote'; source: 'description'; text: string; strong: true }> {
+  const out: Array<Signal | { model: 'notremote'; source: 'description'; text: string; strong: true }> = [];
   for (const { re, model } of TEXT_RULES) {
     const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
     let m: RegExpExecArray | null;
     let tries = 0;
     while ((m = g.exec(text)) !== null && tries++ < 20) {
-      const sStart = Math.max(text.lastIndexOf('.', m.index), text.lastIndexOf('\n', m.index), m.index - 160);
-      const lead = text.slice(Math.max(0, sStart), m.index);
+      const { lead, trail } = sentenceAround(text, m.index, m.index + m[0].length);
       // "not remote-only", "remote-first, but not remote-only": a negated phrase says nothing.
       if (model === 'remote' && /\bnot\s+(?:a\s+|an\s+)?(?:fully\s+)?$/i.test(lead)) continue;
-      if (CONDITIONAL.test(lead)) continue;
-      out.push({ model, source: 'description', text: snippet(text, m.index, m.index + m[0].length, 220), strong: true });
+      if (CONDITIONAL.test(lead) || CONDITIONAL.test(trail) || OPTIONAL.test(lead)) continue;
+      // "Whether you're coming in regularly or are part of our fully remote program": a company policy, not this job.
+      if (/\bwhether\b/i.test(lead) || /\bour\s+(?:\w+\s+){0,2}$/i.test(lead) && model === 'remote') continue;
+      let mm: TextModel = model;
+      if (mm === 'onsite' && PART_WEEK.test(lead + m[0] + trail)) mm = 'hybrid';
+      const sig = { source: 'description' as const, text: snippet(text, m.index, m.index + m[0].length, 220), strong: true as const };
+      out.push(mm === 'notremote' ? { model: 'notremote', ...sig } : { model: mm, ...sig });
       break;
     }
   }
@@ -184,7 +204,14 @@ export function parseWorkModel(text: string, fields: WorkModelFields = {}): Work
   }
   const ts = titleSignal(fields.title);
   if (ts) signals.push(ts);
-  signals.push(...textSignals(body));
+  const fromText = textSignals(body);
+  // "Not a remote position" rules remote out: it is onsite unless another source says hybrid.
+  const notRemote = fromText.find((x) => x.model === 'notremote');
+  for (const x of fromText) if (x.model !== 'notremote') signals.push(x as Signal);
+  if (notRemote) {
+    const hybrid = signals.some((x) => x.model === 'hybrid');
+    signals.push({ model: hybrid ? 'hybrid' : 'onsite', source: 'description', text: notRemote.text, strong: true });
+  }
   if (!signals.length && fields.remote === true) signals.push({ model: 'remote', source: 'board_field', text: 'The board marks this job remote', strong: false });
 
   let workModel: WorkModel | null = null;
