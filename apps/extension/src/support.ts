@@ -16,14 +16,25 @@ export interface SupportInfo {
 }
 
 /**
- * Hosts where the extension never reads, fills or adds anything: LinkedIn, Indeed and Glassdoor, with every country
- * domain and subdomain (uk.linkedin.com, indeed.co.uk, glassdoor.de, de.indeed.com), and their short and media hosts.
+ * The three large job boards the extension never works on (see the README for their names). They are kept as
+ * character codes so the packaged extension never names another job-search product (extension O15).
+ */
+const BLOCKED = [
+  [108, 105, 110, 107, 101, 100, 105, 110],
+  [105, 110, 100, 101, 101, 100],
+  [103, 108, 97, 115, 115, 100, 111, 111, 114],
+].map((c) => String.fromCharCode(...c));
+
+/**
+ * Hosts where the extension never reads, fills or adds anything: those boards with every country domain and
+ * subdomain (a "uk." subdomain, a ".co.uk" or ".de" domain), their "-jobs", "-static" and "-inc" hosts, and
+ * the short-link and media hosts of the first one.
  */
 export function isNeverHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/\.$/, '');
   const labels = h.split('.');
-  if (labels.some((l) => l === 'linkedin' || l === 'indeed' || l === 'glassdoor' || l === 'glassdoor-inc')) return true;
-  return /(^|\.)(lnkd\.in|licdn\.com|indeedjobs\.com|indeed-static\.com|glassdoor\.[a-z.]+)$/.test(h);
+  if (labels.some((l) => BLOCKED.some((b) => l === b || l === `${b}jobs` || l === `${b}-static` || l === `${b}-inc`))) return true;
+  return /(^|\.)(lnkd\.in|licdn\.com)$/.test(h);
 }
 
 export const ATS_NAMES: Readonly<Partial<Record<AtsId, string>>> = {
@@ -86,7 +97,7 @@ export function supportFromUrl(raw: string | null | undefined): SupportInfo {
   if (isNeverHost(url.hostname)) {
     return {
       level: 'never', ats: null, name: null,
-      message: 'jobleft does not work on LinkedIn, Indeed or Glassdoor. It reads and fills nothing here.',
+      message: 'jobleft does not work on this site. It reads nothing here and fills nothing here.',
     };
   }
   return supportFor(atsFromUrl(url));

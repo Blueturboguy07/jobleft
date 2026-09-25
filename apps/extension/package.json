@@ -20,6 +20,7 @@
     "@jobleft/contracts": "workspace:*"
   },
   "devDependencies": {
+    "@types/chrome": "0.1.24",
     "esbuild": "0.28.2"
   }
 }

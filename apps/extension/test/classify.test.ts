@@ -15,7 +15,8 @@ test('standard fields by label, name and autocomplete', () => {
   assert.equal(t('Email address'), 'email');
   assert.equal(t('Phone'), 'phone');
   assert.equal(t('Mobile phone number'), 'phone');
-  assert.equal(t('LinkedIn Profile'), 'linkedin');
+  assert.equal(t('LinkedIn Profile'), 'pro_profile');
+  assert.equal(t('Linked In URL'), 'pro_profile');
   assert.equal(t('GitHub URL'), 'github');
   assert.equal(t('Portfolio URL'), 'portfolio');
   assert.equal(t('Website'), 'website');

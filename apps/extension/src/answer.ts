@@ -12,7 +12,7 @@
 //     reference) stays empty.
 
 import type { DraftOffer, EducationEntry, FieldNote, FillRequest, FillResponse, FormField, Profile, WorkEntry } from '@jobleft/contracts';
-import { classify, IDENTITY_TOPICS, isSensitive, type Classification, type Topic } from './classify.ts';
+import { classify, IDENTITY_TOPICS, isSensitive, PRO_SITE, type Classification, type Topic } from './classify.ts';
 import { pickMany, pickOption, parseDegree, type MatchKind, type Opt } from './options.ts';
 import { countryDisplayName } from './places.ts';
 import { norm, words } from './text.ts';
@@ -127,12 +127,13 @@ function sortedEducation(p: Profile): EducationEntry[] {
 
 // ------------------------------------------------------------------ links
 
-function linkFor(p: Profile, kind: 'linkedin' | 'github' | 'twitter' | 'portfolio' | 'website'): string | null {
+function linkFor(p: Profile, kind: 'pro_profile' | 'github' | 'twitter' | 'portfolio' | 'website'): string | null {
   const links = p.personal.links;
   const host = (u: string): string => { try { return new URL(u).hostname.toLowerCase().replace(/^www\./, ''); } catch { return ''; } };
-  const social = (u: string): boolean => /(^|\.)(linkedin\.com|github\.com|twitter\.com|x\.com)$/.test(host(u));
+  const pro = (u: string): boolean => host(u) === `${PRO_SITE}.com` || host(u).endsWith(`.${PRO_SITE}.com`);
+  const social = (u: string): boolean => pro(u) || /(^|\.)(github\.com|twitter\.com|x\.com)$/.test(host(u));
   switch (kind) {
-    case 'linkedin': return links.find((l) => /(^|\.)linkedin\.com$/.test(host(l.url)))?.url ?? null;
+    case 'pro_profile': return links.find((l) => pro(l.url))?.url ?? null;
     case 'github': return links.find((l) => /(^|\.)github\.com$/.test(host(l.url)))?.url ?? null;
     case 'twitter': return links.find((l) => /(^|\.)(twitter\.com|x\.com)$/.test(host(l.url)))?.url ?? null;
     case 'portfolio':
@@ -300,13 +301,13 @@ function answerOne(f: FormField, c: Classification, ctx: AnswerContext, st: Stat
       if (isChoice(f) || f.combobox) return choose(f, 'location', `${me.city}|${me.region ?? ''}|${me.country ?? ''}`, null, 'City and state');
       return text([me.city, me.region].filter(Boolean).join(', '), 'City and state (from your profile)');
     }
-    case 'linkedin':
+    case 'pro_profile':
     case 'github':
     case 'twitter':
     case 'portfolio':
     case 'website': {
       const url = linkFor(p, c.topic);
-      const names = { linkedin: 'LinkedIn link', github: 'GitHub link', twitter: 'Twitter or X link', portfolio: 'portfolio link', website: 'website link' } as const;
+      const names = { pro_profile: 'professional profile link', github: 'GitHub link', twitter: 'Twitter or X link', portfolio: 'portfolio link', website: 'website link' } as const;
       if (!url) return missing(names[c.topic]);
       if (isChoice(f)) return note('no_option', 'This is a list, and a link is typed.');
       return text(url, names[c.topic].charAt(0).toUpperCase() + names[c.topic].slice(1));

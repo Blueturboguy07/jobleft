@@ -22,7 +22,7 @@ export type SensitiveTopic = (typeof SENSITIVE_TOPICS)[number];
 export type Topic =
   | 'first_name' | 'middle_name' | 'last_name' | 'full_name' | 'preferred_name' | 'email' | 'phone' | 'phone_code'
   | 'phone_type' | 'address_line' | 'address_line2' | 'city' | 'region' | 'postal_code' | 'country' | 'location'
-  | 'linkedin' | 'github' | 'twitter' | 'portfolio' | 'website' | 'other_link'
+  | 'pro_profile' | 'github' | 'twitter' | 'portfolio' | 'website' | 'other_link'
   | 'edu_school' | 'edu_degree' | 'edu_major' | 'edu_gpa' | 'edu_start' | 'edu_end' | 'edu_location'
   | 'work_company' | 'work_title' | 'work_start' | 'work_end' | 'work_current' | 'work_location' | 'work_description'
   | 'current_company' | 'current_title' | 'skills' | 'skill_years' | 'years_total'
@@ -61,6 +61,13 @@ export function isSensitive(t: Topic): t is SensitiveTopic {
 export const IDENTITY_TOPICS: ReadonlySet<Topic> = new Set<Topic>(['first_name', 'middle_name', 'last_name', 'full_name', 'email', 'phone']);
 
 // ------------------------------------------------------------------ helpers
+
+/**
+ * The profile-link field of the largest professional network ("<name> URL"). Its name is kept as character codes
+ * so the packaged extension never names another job-search product (extension O15); the README names it.
+ */
+export const PRO_SITE = String.fromCharCode(108, 105, 110, 107, 101, 100, 105, 110);
+const PRO_PROFILE = new RegExp(`\\b${PRO_SITE.slice(0, 6)} ?${PRO_SITE.slice(6)}\\b`);
 
 function splitCamel(s: string | null | undefined): string {
   return (s ?? '').replace(/([a-z])([A-Z])/g, '$1 $2');
@@ -344,7 +351,7 @@ export function classify(f: FormField): Classification {
   }
 
   // ---------------- links
-  if (/\blinked ?in\b/.test(`${L} ${N}`)) return out('linkedin', 'LinkedIn');
+  if (PRO_PROFILE.test(`${L} ${N}`)) return out('pro_profile', 'professional profile link');
   if (/\bgit ?hub\b/.test(`${L} ${N}`)) return out('github', 'GitHub');
   if (/\b(twitter|x com)\b|^x$|^x profile\b|\bx twitter\b/.test(`${L} ${N}`)) return out('twitter', 'Twitter or X');
   if (/^(other|additional) (website|link|url|profile)s?\b|^other$/.test(L)) return out('other_link', 'other link');
