@@ -324,3 +324,22 @@ test('O14: a source turned off gets no request, its jobs are hidden from the sou
     await assert.rejects(t.svc.update('nope', { enabled: true }), /no source called/);
   } finally { await t.done(); }
 });
+
+test('O9: remote jobs open to US applicants: US-only and worldwide by default, unstated regions only on request', async () => {
+  const t = await setup();
+  try {
+    await t.svc.update('remoteok', { enabled: true });
+    await t.svc.refresh({ ids: ['remoteok'] });
+    const titles = (q: Parameters<typeof feedJobs>[1]) => feedJobs(t.store.db, q).map((j) => j.title).sort();
+    const us = titles({ remote: true, openToUs: true });
+    assert.ok(us.includes('Registered Nurse Telehealth'), 'USA only');
+    assert.ok(us.includes('Senior Backend Engineer'), 'worldwide');
+    assert.ok(!us.includes('Customer Support Specialist'), 'Europe only never looks open to US applicants');
+    assert.ok(!us.includes('Frontend Engineer'), 'Germany only');
+    assert.ok(!us.includes('Data Annotator'), 'region not stated is left out by default');
+    assert.ok(titles({ remote: true, openToUs: true, includeUnknownRegion: true }).includes('Data Annotator'));
+    const unknown = feedJobs(t.store.db, { sourceId: 'remoteok' }).find((j) => j.title === 'Data Annotator')!;
+    assert.equal(unknown.remoteScope, null);
+    assert.equal(unknown.isUs, null);
+  } finally { await t.done(); }
+});

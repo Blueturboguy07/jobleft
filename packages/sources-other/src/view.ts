@@ -147,7 +147,9 @@ export interface FeedJobQuery {
   /** Only jobs this source lists (its posting is open) — or, with status 'closed' / 'all', ever listed. */
   sourceId?: string;
   status?: 'open' | 'closed' | 'all';
-  /** Remote jobs open to US applicants (US or worldwide stated); with includeUnknownRegion, also region not stated. */
+  /** Remote jobs only (work model remote, or a remote region stated). */
+  remote?: boolean;
+  /** Jobs open to US applicants (in the US, or remote with US, North America or worldwide stated); with includeUnknownRegion, also jobs whose region is not stated. */
   openToUs?: boolean;
   includeUnknownRegion?: boolean;
   limit?: number;
@@ -176,6 +178,7 @@ export function feedJobs(db: DatabaseSync, q: FeedJobQuery = {}): Job[] {
     const job = toJob(db, r, postings);
     const v = validate(JobSchema, job);
     if (!v.ok) throw new Error(`job ${job.id} does not match the Job contract: ${v.issues.map((i) => `${i.path} ${i.message}`).join('; ')}`);
+    if (q.remote && !(job.workModel === 'remote' || job.remoteScope !== null)) continue;
     if (q.openToUs) {
       const regions = job.remoteScope?.regions ?? [];
       const us = job.isUs === true || regions.some((x) => x === 'US' || x === 'WORLDWIDE' || x === 'NA');

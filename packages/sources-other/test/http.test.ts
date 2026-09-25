@@ -156,3 +156,11 @@ test('memory pacer spaces one host by at least MIN_GAP_MS and honours a longer c
   await p.wait('h', 0);
   assert.ok(Date.now() - t0 >= MIN_GAP_MS - 15);
 });
+
+test('stand-in mode: with a host map set, an unmapped host is never contacted live', async () => {
+  let calls = 0;
+  const fetchImpl = (async () => { calls++; return new Response('{}'); }) as typeof fetch;
+  const c = new FeedClient({ sourceId: 't', allowedHosts: ['feed.example', 'other.example'], pacer: noWait, fetchImpl, hostMap: { 'feed.example': 'http://127.0.0.1:9' } });
+  await assert.rejects(c.getText('https://other.example/x'), (e: unknown) => e instanceof FeedError && e.code === 'forbidden_host' && /stand-in mode/.test(e.message));
+  assert.equal(calls, 0);
+});

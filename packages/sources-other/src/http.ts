@@ -204,6 +204,10 @@ export class FeedClient implements FeedHttp {
     if (!this.allowed.has(host)) throw this.fail('forbidden_host', `refused to contact ${host}: not an approved host for this source`);
     if (this.offline) throw this.fail('offline', 'jobleft is offline (JOBLEFT_OFFLINE=1); nothing was sent');
     const mapped = this.hostMap[real.host.toLowerCase()] ?? this.hostMap[host];
+    // Stand-in mode: with a host map set, a host that has no stand-in is never contacted live (sources-other O15).
+    if (!mapped && Object.keys(this.hostMap).length > 0) {
+      throw this.fail('forbidden_host', `stand-in mode (JOBLEFT_HOST_MAP is set): ${host} has no stand-in, so nothing was sent`);
+    }
     const target = mapped ? new URL(mapped + real.pathname + real.search) : real;
     return { real, target };
   }

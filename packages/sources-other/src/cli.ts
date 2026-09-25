@@ -9,7 +9,7 @@
 //   refresh [id...] [--reason manual|schedule|launch] [--json]
 //                                         refresh now (manual) or as the scheduler would; each source obeys its limits
 //   due [--json]                          what the scheduler would run now (runs them)
-//   jobs [--source id] [--status open|closed|all] [--open-to-us] [--include-unknown-region] [--limit n] [--json]
+//   jobs [--source id] [--status open|closed|all] [--remote] [--open-to-us] [--include-unknown-region] [--limit n] [--json]
 //   export [--out file] [--source id] [--status open|closed|all]
 //                                         NDJSON, one contract Job per line with its sources, links and credits
 //   runs [--source id] [--limit n]        run history (outcome, counts, requests, problem)
@@ -150,7 +150,7 @@ async function main(): Promise<number> {
     case 'jobs': {
       const store = openStore();
       const status = (opt('status') ?? 'open') as 'open' | 'closed' | 'all';
-      const jobs = feedJobs(store.db, { sourceId: opt('source'), status, openToUs: flag('open-to-us'), includeUnknownRegion: flag('include-unknown-region'), limit: opt('limit') ? Number(opt('limit')) : undefined });
+      const jobs = feedJobs(store.db, { sourceId: opt('source'), status, remote: flag('remote'), openToUs: flag('open-to-us'), includeUnknownRegion: flag('include-unknown-region'), limit: opt('limit') ? Number(opt('limit')) : undefined });
       if (flag('json')) { console.log(JSON.stringify(jobs, null, 2)); store.close(); return 0; }
       for (const j of jobs) {
         const pay = j.pay ? `${j.pay.currency} ${j.pay.min ?? '?'}-${j.pay.max ?? '?'} per ${j.pay.period}` : 'pay not stated';
