@@ -1,0 +1,153 @@
+// Required years of experience (parsers O6): the lowest number that meets the requirement.
+// "Must be 18 years or older", "serving customers for over 50 years" and "vests over 4 years" are never read.
+import type { FactEvidence } from '@jobleft/contracts';
+import { cutOtherJobs, normalizeText, snippet, WORD_NUMBERS } from './text.ts';
+
+export interface YearsResult {
+  min: number | null;
+  max: number | null;
+  evidence: FactEvidence;
+}
+
+const NUMW = '(\\d{1,2}(?:\\.5)?|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|a|an|uno|dos|tres|cuatro|cinco|seis|diez|un|une|deux|trois|quatre|cinq|ein|eine|zwei|drei|vier|fünf|sechs|zehn|um|dois|três)';
+// "3+ years", "3-5 years", "3 to 5 years", "three (3) years", "at least 3 years", "3 years or more", "3 yrs".
+const MENTION = new RegExp(
+  `(?:(at\\s+least|minimum\\s+(?:of\\s+)?|min\\.?\\s*|a\\s+minimum\\s+of|no\\s+less\\s+than|more\\s+than|over|in\\s+excess\\s+of|upwards\\s+of|up\\s+to|mínimo(?:\\s+de)?|al\\s+menos|au\\s+moins|mindestens)\\s+)?` +
+  `\\b${NUMW}(?:\\s*\\(\\s*\\d{1,2}\\s*\\))?\\s*(\\+|plus)?\\s*(?:(?:-|–|to|a|à|bis|or)\\s*${NUMW}\\s*(\\+)?\\s*)?` +
+  `(?:full[- ]time\\s+|consecutive\\s+|calendar\\s+)?(years?|yrs?|yoe|años|anos|ans|années|jahre|jahren)(?![a-z])(\\s*(?:\\+|or\\s+more|or\\s+longer|or\\s+greater|and\\s+above|minimum|min\\.?))?`,
+  'gi',
+);
+
+/** Words after the number that show it is an experience requirement. */
+const EXP_AFTER = /^[^.;\n]{0,90}?\b(?:experience|experiences|exp\b|expertise|expérience|experiencia|experiência|erfahrung|berufserfahrung|working\b|work(?:ed)?\s+(?:in|with|as|at|on|for)\b|background|practice|practicing|track\s+record|hands[- ]on|in\s+(?:an?|the)\s+(?:[\w-]+\s+){0,3}(?:role|position|setting|environment|capacity|field|industry|function)|of\s+(?:[\w-]+\s+){0,3}(?:work|employment|leadership|management|supervis\w+|teaching|sales|driving|nursing|coding|programming|engineering|development|design|accounting|auditing|recruiting|consulting|research))/i;
+/** "yoe" and "5 years experience" need no more words. */
+const EXP_TIGHT = /^\s*(?:of\s+)?(?:(?:relevant|related|professional|progressive|prior|previous|recent|direct|post-?graduate|post-?licensure|paid|full[- ]time|industry|clinical|work|job)\s+)*(?:experience|exp\b|expérience|experiencia|experiência|erfahrung|berufserfahrung)/i;
+
+/** Things with years that are not an experience requirement. */
+const NOT_EXP_AFTER = /^\s*(?:of\s+age|old\b|or\s+older|of\s+(?:college|university|school|schooling|education|study|studies|coursework|post-?secondary|high\s+school|service\b(?!\s+experience)|history|operation|business|existence|growth)|in\s+(?:business|operation|a\s+row)|ago\b|consecutive|in\s+a\s+row|degree|college|program|contract|commitment|term|warranty|plan\b|vesting|cliff|guarantee|lease|agreement|residency\s+program|apprenticeship\s+program)/i;
+const NOT_EXP_LEAD = /(?:\b(?:age|aged|ages|older\s+than|be\s+at\s+least|must\s+be|vest\w*|vesting|over\s+the\s+next|within(?:\s+the)?(?:\s+(?:last|past|first|next))?|in\s+the\s+(?:last|past|next|first)|during\s+the\s+(?:last|past)|for\s+(?:the\s+)?(?:last|past)|every|each|after|once|since|founded|established|serving|served|been|history|anniversary|for\s+(?:over|more\s+than|nearly|almost|about)|renew\w*|valid\s+for|commit\w*\s+(?:to|for)|up\s+to)\s*$)|\b(?:our|we|we've|we're|team|company|firm|organization|founders?|clinicians|leaders|leadership|family[- ]owned|proudly)\b[^.;\n]{0,50}$/i;
+const PREFERRED = /\b(?:prefer(?:red|ably|ence)?|nice[- ]to[- ]have|a\s+plus|is\s+a\s+plus|bonus|ideally|desired|desirable|would\s+be\s+(?:great|nice|a\s+plus)|an?\s+asset|advantage(?:ous)?|plus\b|optional|deseable|souhaité|wünschenswert)\b/i;
+const PREF_HEADING = /^\s*(?:#+\s*)?(?:preferred|nice[- ]to[- ]haves?|bonus|desired|pluses|good[- ]to[- ]have|bonus\s+points|what\s+(?:would|will)\s+make\s+you\s+stand\s+out|additional\s+qualifications|preferred\s+(?:qualifications|skills|experience|requirements))\b/i;
+const REQ_HEADING = /^\s*(?:#+\s*)?(?:required|requirements|minimum|basic\s+qualifications|minimum\s+qualifications|must[- ]haves?|what\s+you(?:'ll)?\s+need|what\s+you\s+bring|qualifications|who\s+you\s+are|what\s+we(?:'re|\s+are)?\s+looking\s+for|about\s+you|skills\s+and\s+experience|experience)\b/i;
+const DEGREE = /\b(?:bachelor'?s?|master'?s?|mba|ph\.?d|doctorate|doctoral|associate'?s?\s+degree|high\s+school|ged|degree|b\.?s\.?|m\.?s\.?|b\.?a\.?|licen[cs]e|certification|diploma)\b/i;
+
+function num(s: string | undefined): number | null {
+  if (!s) return null;
+  const k = s.toLowerCase();
+  if (/^\d/.test(k)) return Math.floor(parseFloat(k));
+  const w = WORD_NUMBERS[k];
+  return w === undefined ? null : w;
+}
+
+interface Mention {
+  index: number;
+  end: number;
+  min: number;
+  max: number | null;
+  preferred: boolean;
+  sentence: number;
+  line: number;
+  degree: boolean;
+}
+
+function sentenceBounds(text: string): number[] {
+  // Start index of each sentence or line.
+  const starts = [0];
+  const re = /[.!?](?=\s+[A-Z(])|\n|;/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    // "U.S." and "e.g." are not sentence ends.
+    if (m[0] === '.' && /\b(?:[A-Z]|e\.g|i\.e|etc|vs|approx|min|max|yrs?|No)\.?$/.test(text.slice(Math.max(0, m.index - 5), m.index + 1))) continue;
+    starts.push(m.index + 1);
+  }
+  return starts;
+}
+
+function indexOfStart(starts: number[], i: number): number {
+  let lo = 0, hi = starts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (starts[mid] <= i) lo = mid; else hi = mid - 1;
+  }
+  return lo;
+}
+
+/**
+ * The years of experience a posting asks for, or null. Alternatives ("5 years, or 3 years with a master's degree")
+ * give the lowest; a preferred figure never replaces a required one.
+ */
+export function parseYearsRequired(input: string): YearsResult | null {
+  if (!input) return null;
+  const text = cutOtherJobs(normalizeText(input));
+  const sentStarts = sentenceBounds(text);
+  const lineStarts = [0];
+  for (let i = 0; i < text.length; i++) if (text[i] === '\n') lineStarts.push(i + 1);
+  const lines = text.split('\n');
+  // The heading each line sits under (required or preferred).
+  const lineKind: Array<'req' | 'pref' | null> = [];
+  let kind: 'req' | 'pref' | null = null;
+  for (const l of lines) {
+    const t = l.trim();
+    if (t.length <= 80 && PREF_HEADING.test(t)) kind = 'pref';
+    else if (t.length <= 80 && REQ_HEADING.test(t) && !PREFERRED.test(t)) kind = 'req';
+    lineKind.push(kind);
+  }
+  const mentions: Mention[] = [];
+  MENTION.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = MENTION.exec(text)) !== null) {
+    const idx = m.index, end = idx + m[0].length;
+    // The number must stand alone ("W2", "401k" and "H1B" are not years).
+    if (idx > 0 && /[A-Za-z0-9$€£]/.test(text[idx - 1]) && !m[1]) continue;
+    const qual = (m[1] ?? '').toLowerCase().trim();
+    let a = num(m[2]);
+    let b = num(m[4]);
+    if (a === null) continue;
+    // "a year" alone is a requirement only in "a year of experience"; "an" likewise.
+    const after = text.slice(end, end + 120);
+    const lead = text.slice(Math.max(0, idx - 60), idx);
+    if (NOT_EXP_AFTER.test(after)) continue;
+    if (NOT_EXP_LEAD.test(lead + (qual && /^(?:over|up to|more than)$/.test(qual) ? '' : ''))) {
+      // "candidates with over 5 years" is still a requirement.
+      if (!/\b(?:candidates?|applicants?|you|your|ideal|successful|must|should|require[sd]?|minimum|looking\s+for|seeking|have|has|bring|possess|with)\b[^.;\n]{0,40}$/i.test(lead)) continue;
+      if (/\b(?:our|we|team|company)\b[^.;\n]{0,50}$/i.test(lead) && !/\b(?:candidates?|you|your)\b/i.test(lead)) continue;
+    }
+    if (qual === 'up to') continue; // "up to 5 years" is never a minimum
+    if (!(EXP_TIGHT.test(after) || EXP_AFTER.test(after))) continue;
+    if (/\bage\b|\bold\b/i.test(after.slice(0, 20))) continue;
+    if (b !== null && b < a) { const t = a; a = b; b = t; }
+    if (qual === 'more than' || qual === 'over' || qual === 'in excess of' || qual === 'upwards of') b = null;
+    if (a > 30 || (b !== null && b > 40)) continue;
+    const s = indexOfStart(sentStarts, idx);
+    const line = indexOfStart(lineStarts, idx);
+    const lineText = lines[line] ?? '';
+    const sentText = text.slice(sentStarts[s], sentStarts[s + 1] ?? text.length);
+    const preferred = PREFERRED.test(sentText) || lineKind[line] === 'pref';
+    mentions.push({ index: idx, end, min: a, max: m[3] || m[5] || m[7] ? null : b, preferred, sentence: s, line, degree: DEGREE.test(lineText) });
+  }
+  if (!mentions.length) return null;
+  const required = mentions.filter((x) => !x.preferred);
+  const pool = required.length ? required : mentions;
+  // Alternatives: "or" between two mentions in one sentence, or lines keyed by degree ("Bachelor's and 4 years" /
+  // "Master's and 2 years") give the lowest. Everything else is a joint requirement and gives the highest.
+  const bySentence = new Map<number, Mention[]>();
+  for (const x of pool) bySentence.set(x.sentence, [...(bySentence.get(x.sentence) ?? []), x]);
+  const groups: Array<{ value: Mention; members: Mention[] }> = [];
+  for (const [, ms] of bySentence) {
+    if (ms.length === 1) { groups.push({ value: ms[0], members: ms }); continue; }
+    const between = text.slice(ms[0].end, ms[ms.length - 1].index);
+    const alt = /\bor\b|\bwith\s+an?\s+(?:master|bachelor|ph\.?d|advanced|graduate)|\((?:[^)]*\b(?:master|ph\.?d|bachelor|degree)\b)/i.test(between) || /\bor\b/i.test(text.slice(ms[0].index - 3, ms[ms.length - 1].end));
+    const pick = alt ? ms.reduce((p, c) => (c.min < p.min ? c : p)) : ms.reduce((p, c) => (c.min > p.min ? c : p));
+    groups.push({ value: pick, members: ms });
+  }
+  let chosen: Mention;
+  const degreeGroups = groups.filter((g) => g.members.every((x) => x.degree));
+  const orLines = groups.length > 1 && groups.every((g, i) => i === 0 || /^\s*(?:-\s*)?(?:or|OR)\b|\bor\s*$/m.test(text.slice(groups[i - 1].value.end, g.value.index + 3)));
+  if (groups.length > 1 && (degreeGroups.length === groups.length || orLines)) {
+    chosen = groups.map((g) => g.value).reduce((p, c) => (c.min < p.min ? c : p));
+  } else {
+    chosen = groups.map((g) => g.value).reduce((p, c) => (c.min > p.min ? c : p));
+  }
+  const evidence: FactEvidence = { source: 'description', text: snippet(text, chosen.index, chosen.end, 220) };
+  return { min: chosen.min, max: chosen.max, evidence };
+}
