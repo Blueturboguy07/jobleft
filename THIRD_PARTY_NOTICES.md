@@ -31,6 +31,12 @@ Rules (from the build rules):
 
 Local additions that are not in freehire (written new): the per-host pacer, the robots.txt parser and check, the never-crawl host list, the mass-close guard (`closeTooBroad`), the empty-streak rule, the level and pay parsers, the US-location heuristic and the SQLite store.
 
+The crawler lane (2026-09-25) added only code written new, with no copied third-party code and no new dependency: the
+scheduler, resumable runs, the node:http transport, conditional requests, the Retry-After and back-off rules, the
+confirmed-removal close rule, the place parser, the board-list parser, the contract `Job` mapping, the CLI and the mock
+board test kit (`packages/crawler/src`, `packages/crawler/testkit`). The idea of honouring `Retry-After` and of a
+64 MiB reply cap also appears in freehire (`internal/ingest/sources/http.go`); no code was taken from it.
+
 ### 1.2 Internship Machine (first party)
 
 - Source: the owner's own Python project (`~/Documents/internships`, `pipeline/normalize.py` and `pipeline/dedup.py`). First-party code, no third-party licence applies.

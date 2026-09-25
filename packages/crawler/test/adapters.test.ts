@@ -35,14 +35,20 @@ test('greenhouse: content arrives entity-encoded and is decoded; first_published
   assert.equal(n.isUs, true);
 });
 
-test('greenhouse: pay_input_ranges (cents, no period) is read when the API includes it', () => {
+test('greenhouse: pay_input_ranges keep their cents and the unit the range states; no unit stated means no board pay', () => {
   const j = mapGreenhouse({ id: 1, title: 'Cook', absolute_url: 'https://x/1', location: { name: 'Austin, TX' }, content: '',
-    pay_input_ranges: [{ min_cents: 1800, max_cents: 2200, currency_type: 'USD' }] }, gh);
+    pay_input_ranges: [{ title: 'Hourly pay range', min_cents: 1850, max_cents: 2275, currency_type: 'USD' }] }, gh);
   assert.ok(j);
-  assert.deepEqual(j.pay, { min: 18, max: 22, currency: 'USD', period: 'hour' });
+  assert.deepEqual(j.pay, { min: 18.5, max: 22.75, currency: 'USD', period: 'hour' });
   const y = mapGreenhouse({ id: 2, title: 'Analyst', absolute_url: 'https://x/2', location: { name: 'Austin, TX' }, content: '',
-    pay_input_ranges: [{ min_cents: 9000000, max_cents: 12000000, currency_type: 'USD' }] }, gh);
+    pay_input_ranges: [{ title: 'Annual base salary', min_cents: 9000000, max_cents: 12000000, currency_type: 'USD' }] }, gh);
   assert.deepEqual(y?.pay, { min: 90000, max: 120000, currency: 'USD', period: 'year' });
+  // Regression: a unit was guessed from the size of the figures ("Pay range", 45-55 USD became "per hour").
+  for (const [lo, hi] of [[4500, 5500], [15000, 20000], [6500000, 7500000]]) {
+    const u = mapGreenhouse({ id: 3, title: 'Clerk', absolute_url: 'https://x/3', location: { name: 'Austin, TX' }, content: '',
+      pay_input_ranges: [{ title: 'Pay range', blurb: '', min_cents: lo, max_cents: hi, currency_type: 'USD' }] }, gh);
+    assert.equal(u?.pay, null, `no unit stated for ${lo}-${hi}`);
+  }
 });
 
 test('lever: body is assembled from description + lists + additional; salaryRange, workplaceType, country, createdAt map across', async () => {
@@ -57,7 +63,7 @@ test('lever: body is assembled from description + lists + additional; salaryRang
   const jobs = await lever.fetchBoard(lv, getter(payload, seen));
   assert.equal(seen[0], 'https://api.lever.co/v0/postings/acme?mode=json');
   const j = jobs[0];
-  assert.deepEqual(j.pay, { min: 39, max: 52, currency: 'USD', period: 'hour' }); // freehire rounds, never truncates
+  assert.deepEqual(j.pay, { min: 38.5, max: 52, currency: 'USD', period: 'hour' }); // the board's own figures, cents kept
   assert.equal(j.workMode, 'onsite');
   assert.deepEqual(j.countries, ['US']);
   assert.equal(j.employmentType, 'full_time');

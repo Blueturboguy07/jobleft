@@ -1,4 +1,18 @@
-import type { PayPeriod, RawPay, WorkMode } from '../types.ts';
+import { nowMs } from '@jobleft/contracts';
+import type { PayPeriod, RawJob, RawPay, WorkMode } from '../types.ts';
+
+/**
+ * A listed entry the adapter could not map (no id). It is passed on so the crawl counts it as "listed but not
+ * stored" with a reason, and so a board that lists thousands of junk entries is seen for what it is.
+ */
+export function unmappable(entry: unknown): RawJob {
+  const o = entry && typeof entry === 'object' && !Array.isArray(entry) ? (entry as Record<string, unknown>) : {};
+  const title = typeof o.title === 'string' ? o.title : typeof o.text === 'string' ? o.text : '';
+  return {
+    externalId: '', url: '', applyUrl: '', title, company: '', location: '', descriptionHtml: '', remote: false, workMode: '',
+    countries: [], postedAt: null, employmentType: '', department: '', pay: null,
+  };
+}
 
 export function str(v: unknown): string { return typeof v === 'string' ? v : ''; }
 export function num(v: unknown): number | null {
@@ -24,10 +38,13 @@ export function workplaceTypeMode(t: string): WorkMode {
 
 export function workModeFromRemote(remote: boolean): WorkMode { return remote ? 'remote' : ''; }
 
-/** freehire `roundSalaryPart`: round; a non-positive value means "not set". */
+/**
+ * A board's pay figure as the board states it. A non-positive value means "not set". Cents are kept ($18.50 stays
+ * 18.5): only float noise from cent arithmetic (1850 / 100) is removed, to two decimals. Never rounded to whole units.
+ */
 export function roundSalaryPart(v: number | null): number | null {
   if (v === null || !(v > 0)) return null;
-  return Math.round(v);
+  return Math.round(v * 100) / 100;
 }
 
 /** freehire employment-type mapping by keyword containment (Lever, Greenhouse metadata). */
@@ -72,8 +89,8 @@ export function countryFromCode(code: string): string[] {
   return n ? [n] : [];
 }
 
-/** Date to ISO, or null. Future dates beyond 48h are dropped (freehire NotFuture). */
-export function isoDate(v: unknown, now = Date.now()): string | null {
+/** Date to ISO, or null. Future dates beyond 48h are dropped (freehire NotFuture). `now` honours JOBLEFT_NOW / JOBLEFT_CLOCK_OFFSET. */
+export function isoDate(v: unknown, now = nowMs()): string | null {
   let t: number;
   if (typeof v === 'number') t = v;
   else if (typeof v === 'string' && v.trim()) t = Date.parse(v);

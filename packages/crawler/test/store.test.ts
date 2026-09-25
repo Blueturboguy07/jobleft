@@ -45,25 +45,54 @@ test('store: an edited posting is updated in place and the full-text index follo
   assert.equal(s.count(), 1);
 });
 
-test('dedupe layer 1: a different identity with the same canonical URL is the same posting and is not stored twice', () => {
+// Changed by the crawler lane (outcome crawler O5: "two different jobs never merge"). The S1 rule merged two ids on
+// ONE board when they shared a page URL; some boards give every posting the same careers-page URL, so that rule lost
+// real jobs. Now a board's own ids are the identity, and a shared URL merges only postings from two routes.
+test('dedupe layer 1: the same canonical URL on ANOTHER board is the same posting: credited to the first, not stored twice', () => {
   const s = new Store(':memory:');
   assert.equal(s.upsertJob(job('a1'), T0).status, 'inserted');
-  const other = job('a2', { url: 'https://jobs.lever.co/acme/a1?utm_source=twitter' });
-  assert.equal(s.upsertJob(other, T0).status, 'dupUrl');
+  const other: BoardRef = { ats: 'lever', board: 'acme-careers', company: 'Acme Health' };
+  const same = job('zz9', { url: 'https://jobs.lever.co/acme/a1?utm_source=twitter' }, other);
+  assert.equal(s.upsertJob(same, T0).status, 'dupUrl');
   assert.equal(s.count(), 1);
+  const credits = s.db.prepare('SELECT board FROM job_sources ORDER BY board').all() as Array<{ board: string }>;
+  assert.deepEqual(credits.map((c) => c.board), ['acme', 'acme-careers'], 'both routes are credited');
 });
 
-test('dedupe layer 2: the same role in another city is stored, flagged duplicate_of the oldest open copy, and hidden from search', () => {
+test('dedupe layer 1 (O5): on ONE board, two ids that share a page URL are two different jobs', () => {
+  const s = new Store(':memory:');
+  assert.equal(s.upsertJob(job('a1', { url: 'https://acme.example/careers' }), T0).status, 'inserted');
+  assert.equal(s.upsertJob(job('a2', { url: 'https://acme.example/careers', title: 'Cashier' }), T0).status, 'inserted');
+  assert.equal(s.count(), 2);
+});
+
+// Changed by the crawler lane (outcome crawler O5: "two jobs with the same title in two cities merge, so the one in the
+// user's city disappears"). The S1 rule flagged every same-title posting as a duplicate and hid it from search.
+test('dedupe layer 2 (O5): the same title in other cities on one board is three jobs, all visible in search', () => {
   const s = new Store(':memory:');
   const r1 = s.upsertJob(job('a1', { location: 'Austin, TX' }), T0);
   const r2 = s.upsertJob(job('a2', { location: 'Dallas, TX' }), T0);
   const r3 = s.upsertJob(job('a3', { location: 'Houston, TX' }), T0);
-  assert.deepEqual([r1.dupRole, r2.dupRole, r3.dupRole], [false, true, true]);
-  assert.equal(s.count(), 3, 'no row is dropped: the city differs');
-  assert.equal(s.count('duplicate_of IS NOT NULL'), 2);
+  assert.deepEqual([r1.dupRole, r2.dupRole, r3.dupRole], [false, false, false]);
+  assert.equal(s.count(), 3);
+  assert.equal(s.count('duplicate_of IS NOT NULL'), 0);
+  assert.equal(s.search('nurse').length, 3, 'every city keeps its card');
+});
+
+test('dedupe layer 2: the same company, title and places on ANOTHER board is a repeat: stored, flagged and hidden from search', () => {
+  const s = new Store(':memory:');
+  const other: BoardRef = { ats: 'greenhouse', board: 'acmehealth', company: 'Acme Health' };
+  s.upsertJob(job('a1', { location: 'Austin, TX' }), T0);
+  const r = s.upsertJob(job('g1', { location: 'Austin, TX', url: 'https://boards.greenhouse.io/acmehealth/jobs/1' }, other), T0);
+  assert.equal(r.dupRole, true);
+  assert.equal(s.count(), 2, 'no row is dropped');
   const first = s.db.prepare("SELECT id FROM jobs WHERE job_id = 'a1'").get() as { id: number };
-  assert.equal(s.count('duplicate_of = ?', first.id), 2);
-  assert.equal(s.search('nurse').length, 1, 'search shows one card per role');
+  assert.equal(s.count('duplicate_of = ?', first.id), 1);
+  assert.equal(s.search('nurse').length, 1, 'search shows one card for the repeated role');
+  // When the first copy closes, the repeat stops hiding.
+  s.closeUnseenForBoard('lever', 'acme', T5, T5);
+  assert.equal(s.search('nurse').length, 1);
+  assert.equal(s.count('duplicate_of IS NOT NULL'), 0);
 });
 
 test('close: a posting unseen past the grace window is closed by the board sweep, a fresh one stays open', () => {

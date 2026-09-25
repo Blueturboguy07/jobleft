@@ -4,9 +4,10 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
-  "description": "Crawler core: the Source adapter contract, the polite HTTP client, the per-host pacer, robots.txt, dedupe, close-vanished logic and the crawl store.",
+  "description": "Crawler core: the Source adapter contract, the polite HTTP client, the per-host pacer, robots.txt, conditional requests, dedupe, close-vanished logic, the crawl store, the scheduler and the jobleft-crawl CLI.",
   "exports": {
     ".": "./src/index.ts",
+    "./testkit": "./testkit/mock-boards.ts",
     "./package.json": "./package.json"
   },
   "engines": {
@@ -15,6 +16,8 @@
   "scripts": {
     "test": "node --test \"test/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json",
+    "cli": "node src/cli.ts",
+    "mock-boards": "node testkit/mock-boards.ts",
     "crawl": "node src/cli.ts crawl",
     "verify": "node src/cli.ts verify",
     "report": "node src/cli.ts report",

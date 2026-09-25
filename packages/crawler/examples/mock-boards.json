@@ -1,0 +1,17 @@
+{
+  "acme-health": { "ats": "greenhouse", "jobs": [
+    { "id": 4101, "title": "Registered Nurse - ICU (Nights)", "location": ["Austin, TX", "Dallas, TX", "Houston, TX"], "postedAt": "2026-09-10T14:00:00Z",
+      "description": "<h2>About the role</h2><p>Care for critically ill patients.</p><h3>You have</h3><ul><li>An active RN license</li><li>BLS and ACLS</li></ul><p>Pay range: $42 - $58 per hour. $5,000 sign-on bonus.</p>" },
+    { "id": 4102, "title": "Medical Assistant", "location": "Austin, TX", "postedAt": "2026-08-01T14:00:00Z", "pay": { "min": 19, "max": 23, "period": "hour" }, "description": "<p>Room patients and take vitals.</p>" },
+    { "id": 4103, "title": "Director of Nursing", "location": "Dallas, TX", "description": "<p>Lead the nursing team. 401(k) match up to $6,000.</p>" }
+  ] },
+  "northwind-logistics": { "ats": "lever", "jobs": [
+    { "id": "nw-forklift-1", "title": "Forklift Operator - 2nd Shift", "location": "Reno, NV", "postedAt": "2026-09-20T00:00:00Z", "workplaceType": "OnSite", "commitment": "Full-time", "pay": { "min": 21, "max": 25, "period": "hour" }, "description": "<p>Move pallets safely.</p>" },
+    { "id": "nw-acct-1", "title": "Staff Accountant", "location": ["Denver, CO", "Remote - US"], "postedAt": "2026-07-15T00:00:00Z", "workplaceType": "Hybrid", "pay": { "min": 68000, "max": 82000, "period": "year" }, "description": "<p>Close the books every month.</p>" }
+  ] },
+  "brightline-energy": { "ats": "ashby", "jobs": [
+    { "id": "bl-elec-1", "title": "Journeyman Electrician", "location": "Phoenix, AZ", "postedAt": "2026-09-01T00:00:00Z", "workplaceType": "OnSite", "pay": { "min": 34, "max": 44, "period": "hour" }, "description": "<p>Install and repair solar systems.</p>" },
+    { "id": "bl-swe-1", "title": "Senior Software Engineer", "location": ["Remote - US"], "workplaceType": "Remote", "description": "<p>Build the grid software.</p>" }
+  ] },
+  "offline-co": { "ats": "greenhouse", "mode": "error500", "jobs": [] }
+}

@@ -1,0 +1,8 @@
+[
+  { "ats": "greenhouse", "board": "acme-health", "company": "Acme Health", "origin": "http://127.0.0.1:4010" },
+  { "ats": "lever", "board": "northwind-logistics", "company": "Northwind Logistics", "origin": "http://127.0.0.1:4010" },
+  { "ats": "ashby", "board": "brightline-energy", "company": "Brightline Energy", "origin": "http://127.0.0.1:4010" },
+  { "ats": "greenhouse", "board": "offline-co", "company": "Offline Co", "origin": "http://127.0.0.1:4010" },
+  { "url": "https://www.linkedin.com/jobs/view/4000000001" },
+  { "url": "https://acme.wd5.myworkdayjobs.com/en-US/External" }
+]
