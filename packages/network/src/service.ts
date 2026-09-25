@@ -118,6 +118,8 @@ export class NetworkService {
     this.db.exec('PRAGMA secure_delete = ON');
     migrateNetwork(this.db, new Date(this.nowFn()).toISOString());
     this.rekeyIfNeeded();
+    // A delete that another writer kept from emptying the log is finished here, at the next start.
+    checkpoint(this.db, 1);
   }
 
   private nowIso(): string { return new Date(this.nowFn()).toISOString(); }
@@ -461,7 +463,6 @@ export class NetworkService {
     if (sets.length) {
       sets.push('updated_at = ?'); args.push(this.nowIso());
       this.db.prepare(`UPDATE network_contacts SET ${sets.join(', ')} WHERE id = ?`).run(...args, id);
-      checkpoint(this.db);
     }
     return this.get(id)!;
   }
@@ -534,10 +535,13 @@ export class NetworkService {
 
   // ---------------------------------------------------------------- deleting
 
+  /** true when the last delete also emptied the write-ahead log (false only when another writer kept it busy). */
+  lastDeleteCleanedLog = true;
+
   delete(id: string): boolean {
     const r = this.db.prepare('DELETE FROM network_contacts WHERE id = ?').run(id);
     this.counts = null;
-    checkpoint(this.db);
+    this.lastDeleteCleanedLog = checkpoint(this.db);
     return Number(r.changes) > 0;
   }
 
@@ -549,7 +553,7 @@ export class NetworkService {
       this.db.prepare("DELETE FROM network_meta WHERE key <> 'company_key_fingerprint'").run();
     });
     this.counts = null;
-    checkpoint(this.db);
+    this.lastDeleteCleanedLog = checkpoint(this.db);
     return n;
   }
 

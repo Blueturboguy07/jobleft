@@ -405,7 +405,14 @@
         el('p', {}, `This deletes all ${plural(status.contacts, 'person', 'people')} with every note, stage, date and plan entry. Your own Connections.csv is not touched. Job cards stop showing "You know N people".`),
         el('div', { class: 'row' }, confirmBox, el('button', { class: 'danger', onclick: async () => {
           if (confirmBox.value !== 'DELETE') { toast('Type DELETE to confirm.'); return; }
-          try { const r = await api('DELETE', '/api/v1/network'); toast(`Deleted ${plural(r.deleted, 'person', 'people')}.`); go('privacy'); main.prepend(el('div', { class: 'box ok', role: 'status' }, `The delete is complete: ${plural(r.deleted, 'person', 'people')} and everything about them are gone from jobleft.`)); } catch (e) { toast(e.message); }
+          try {
+            const r = await api('DELETE', '/api/v1/network');
+            toast(`Deleted ${plural(r.deleted, 'person', 'people')}.`);
+            await go('privacy');
+            main.prepend(r.logCleared === false
+              ? el('div', { class: 'box warn', role: 'status' }, `Deleted ${plural(r.deleted, 'person', 'people')}. Another task was writing to the database, so one internal file is emptied at the next start of jobleft.`)
+              : el('div', { class: 'box ok', role: 'status' }, `The delete is complete: ${plural(r.deleted, 'person', 'people')} and everything about them are gone from jobleft.`));
+          } catch (e) { toast(e.message); }
         } }, 'Delete all network data'))));
   }
 

@@ -95,9 +95,20 @@ export function openNetworkDatabase(path: string): DatabaseSync {
   return db;
 }
 
-/** Empties the write-ahead log into the database file and truncates it, so deleted rows leave no old copy there. */
-export function checkpoint(db: DatabaseSync): void {
-  try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* not in WAL mode, or busy: the next checkpoint does it */ }
+/**
+ * Empties the write-ahead log into the database file and truncates it, so deleted rows leave no old copy there.
+ * Another connection that is writing can make it busy: it tries again a few times. Returns true when the log is empty
+ * (or the database is not in WAL mode).
+ */
+export function checkpoint(db: DatabaseSync, tries = 5): boolean {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const r = db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get() as { busy: number; log: number; checkpointed: number } | undefined;
+      if (!r || r.busy === 0) return true;
+    } catch { /* busy or locked: wait and try again */ }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+  }
+  return false;
 }
 
 export interface ContactRow {

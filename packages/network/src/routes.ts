@@ -142,8 +142,11 @@ export async function handleNetworkRoute(name: NetworkRouteName, input: NetworkR
         if (!s.delete(input.params.contactId!)) throw new NetworkApiError('not_found', 'No such contact.');
         return { ok: true };
       }
-      case 'deleteNetwork':
-        return { ok: true, deleted: s.deleteAll() };
+      case 'deleteNetwork': {
+        const deleted = s.deleteAll();
+        // logCleared false = another writer kept the database log busy; the next start finishes the job.
+        return { ok: true, deleted, logCleared: s.lastDeleteCleanedLog };
+      }
       case 'networkCompanies':
         return s.companies();
       case 'explainCompanyMatch':

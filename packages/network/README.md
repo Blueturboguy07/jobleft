@@ -375,7 +375,9 @@ shasum /private/tmp/jl-demo-connections.csv     # the same as before
 file was not touched." After that, `jn list --q Quill` finds no one and no job card says "You know". Deletes are
 real: the database overwrites deleted text with zeros (`secure_delete`) and empties its write-ahead log, so a byte
 search of every file in the data folder finds nothing, also while `jn serve` is running. No draft, note history or
-search index is kept anywhere else.
+search index is kept anywhere else. `DELETE /api/v1/network` answers `{"ok":true,"deleted":31,"logCleared":true}`;
+`logCleared` is false only when another program kept the database busy during the delete (the screens then say so,
+and the next start finishes the job).
 
 ### O11. Other web pages cannot read the network
 

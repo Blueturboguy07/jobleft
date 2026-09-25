@@ -164,7 +164,7 @@ test('the dev server writes no network data outside the database, and delete-all
   await withServer(async (s, api) => {
     await api('POST', '/api/v1/network/import', undefined, { type: 'text/csv', data: demoFixture(NOW).text });
     const r = await api('DELETE', '/api/v1/network');
-    assert.deepEqual(r.body, { ok: true, deleted: 31 });
+    assert.deepEqual(r.body, { ok: true, deleted: 31, logCleared: true });
     const feed = (await api('POST', '/api/v1/network-dev/jobs', { title: 'Backend Engineer', company: 'Stripe' })).body;
     assert.equal((await api('GET', `/api/v1/network-dev/jobs/${encodeURIComponent(feed.id)}`)).body.networkCount, null);
     const home = join(s.service.db.location()!, '..', '..');
