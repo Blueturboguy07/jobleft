@@ -1,7 +1,7 @@
 // App-wide reads shared by many screens (profile, AI provider, publik balance, tracker counts, crawl progress,
 // notifications) and the feed state (filter, sort, words) that survives screen switches and relaunches.
 
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import type { AiSettings, CrawlProgress, JobFilter, JobSort, Notification, Profile, PublikConnection, TrackerList } from '@jobleft/contracts';
 import { call } from './api.ts';
 import { invalidate, load, useApi } from './data.ts';
@@ -10,8 +10,8 @@ import { cleanFilter } from '../lib/filters.ts';
 export const useProfile = () => useApi<Profile>('profile', () => call('getProfile'));
 export const useAiSettings = () => useApi<AiSettings>('ai:settings', () => call('getAiSettings'));
 export const usePublik = (enabled: boolean) => useApi<PublikConnection>(enabled ? 'ai:publik' : null, () => call('getPublik'));
-export const useTrackerCounts = () => useApi<TrackerList['counts']>('tracker:counts', async () => (await call('listTracker', { query: { view: 'hidden' } })).counts);
-export const useNotifications = () => useApi<Notification[]>('notifications', () => call('listNotifications'));
+export const useTrackerCounts = () => useApi<TrackerList['counts']>('tracker:counts', async () => (await call('listTracker', { query: { view: 'hidden' } })).counts, { staleMs: 3000 });
+export const useNotifications = () => useApi<Notification[]>('notifications', () => call('listNotifications'), { staleMs: 3000 });
 
 /** true when the profile has anything that the match score can use. */
 export function profileIsSet(p: Profile | undefined): boolean {
@@ -24,19 +24,39 @@ export function displayName(p: Profile | undefined): string | null {
   return n || null;
 }
 
-/** Polls the crawl progress: every 2 s while a refresh runs, every 30 s otherwise. */
+/** The refresh progress (read by the feed, the dashboard and settings). Polling is done once, by useCrawlWatcher. */
 export function useCrawl(): { progress: CrawlProgress | undefined; error: boolean } {
+  const s = useApi<CrawlProgress>('crawl', () => call('crawlStatus'));
+  return { progress: s.data, error: !!s.error };
+}
+
+/**
+ * Called once by the app root, on every screen: polls the refresh progress (every 2 s while a refresh runs, every 5 s
+ * otherwise) and, when a refresh ends, reloads everything that lists jobs, so badges and lists never keep old numbers.
+ */
+export function useCrawlWatcher(): void {
   const s = useApi<CrawlProgress>('crawl', () => call('crawlStatus'));
   const running = s.data?.running ?? false;
   useEffect(() => {
-    const t = setInterval(() => { void load('crawl'); }, running ? 2000 : 30000);
+    const t = setInterval(() => { void load('crawl'); }, running ? 2000 : 5000);
     return () => clearInterval(t);
   }, [running]);
+  // coming back to this window (from another app or after sleep): everything on screen is read again
   useEffect(() => {
-    // when a refresh ends, everything that lists jobs is reloaded
-    if (!running && s.data?.lastRun) invalidate('jobs:', 'job:', 'match:', 'tracker', 'dashboard', 'notifications');
-  }, [running, s.data?.lastRun?.finishedAt]);
-  return { progress: s.data, error: !!s.error };
+    const again = () => { if (document.visibilityState === 'visible') invalidate(''); };
+    window.addEventListener('focus', again);
+    document.addEventListener('visibilitychange', again);
+    return () => { window.removeEventListener('focus', again); document.removeEventListener('visibilitychange', again); };
+  }, []);
+  const prevRunning = useRef(running);
+  useEffect(() => {
+    if (prevRunning.current && !running) invalidate('jobs:', 'job:', 'match:', 'tracker', 'dashboard', 'notifications', 'boards', 'sources');
+    prevRunning.current = running;
+  }, [running]);
+  useEffect(() => {
+    // a refresh that finished while this window was closed or asleep
+    if (!running && s.data?.lastRun) invalidate('tracker', 'dashboard', 'notifications');
+  }, [s.data?.lastRun?.finishedAt]);
 }
 
 // ---------------------------------------------------------------- feed state

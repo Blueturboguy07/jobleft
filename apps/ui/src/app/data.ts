@@ -10,6 +10,7 @@ interface Entry {
   error: UiError | null;
   loading: boolean;
   loaded: boolean;
+  loadedAt: number;
   seq: number;
   fetcher: (() => Promise<unknown>) | null;
   subs: Set<() => void>;
@@ -28,7 +29,7 @@ const cache = new Map<string, Entry>();
 function entry(key: string): Entry {
   let e = cache.get(key);
   if (!e) {
-    e = { data: undefined, error: null, loading: false, loaded: false, seq: 0, fetcher: null, subs: new Set(), snapshot: { data: undefined, error: null, loading: false, loaded: false } };
+    e = { data: undefined, error: null, loading: false, loaded: false, loadedAt: 0, seq: 0, fetcher: null, subs: new Set(), snapshot: { data: undefined, error: null, loading: false, loaded: false } };
     cache.set(key, e);
   }
   return e;
@@ -46,16 +47,23 @@ export function load(key: string): Promise<void> {
   e.loading = true;
   emit(e);
   return e.fetcher().then(
-    (data) => { if (seq !== e.seq) return; e.data = data; e.error = null; e.loading = false; e.loaded = true; emit(e); },
+    (data) => { if (seq !== e.seq) return; e.data = data; e.error = null; e.loading = false; e.loaded = true; e.loadedAt = Date.now(); emit(e); },
     (err) => { if (seq !== e.seq) return; e.error = toUiError(err); e.loading = false; e.loaded = true; emit(e); },
   );
 }
 
+/** Cached data older than this is read again in the background when a screen that shows it opens. */
+const STALE_MS = 4000;
+/** Pure results that only change when the profile or the job changes (those callers invalidate them). */
+const STABLE = /^(match:|gaps:|resume:fit:|network:rank:|letters:)/;
+
 /**
- * Reads `key` with `fetcher`. Pass null as the key to skip. With `revalidate`, data that is already cached is shown at
- * once and read again in the background every time the screen opens (a job's detail must never show an old status).
+ * Reads `key` with `fetcher`. Pass null as the key to skip. Data that is already cached is shown at once, and read
+ * again in the background when it is older than `staleMs` (default 4 s; lists and counts that other screens, a refresh
+ * or the browser extension can change must not stay old). With `revalidate` it is read again every time the screen
+ * opens (a job's detail must never show an old status).
  */
-export function useApi<T>(key: string | null, fetcher: () => Promise<T>, opts: { revalidate?: boolean } = {}): Snapshot<T> & { reload: () => Promise<void> } {
+export function useApi<T>(key: string | null, fetcher: () => Promise<T>, opts: { revalidate?: boolean; staleMs?: number } = {}): Snapshot<T> & { reload: () => Promise<void> } {
   const k = key ?? '__none__';
   const e = entry(k);
   if (key) e.fetcher = fetcher as () => Promise<unknown>;
@@ -64,7 +72,8 @@ export function useApi<T>(key: string | null, fetcher: () => Promise<T>, opts: {
   useEffect(() => {
     if (!key) return;
     const en = entry(key);
-    if (!en.loading && (!en.loaded || opts.revalidate)) void load(key);
+    const stale = opts.staleMs ?? (STABLE.test(key) ? Infinity : STALE_MS);
+    if (!en.loading && (!en.loaded || opts.revalidate || Date.now() - en.loadedAt > stale)) void load(key);
   }, [key]);
   const reload = useCallback(() => (key ? load(key) : Promise.resolve()), [key]);
   return { ...(snap as Snapshot<T>), reload };

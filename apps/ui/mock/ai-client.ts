@@ -5,7 +5,6 @@
 //   custom  -> any OpenAI-compatible URL the person typed (the mock refuses non-loopback URLs: no live calls)
 //   own_key -> refused in the mock: it never calls a real AI vendor
 
-import { networkInterfaces } from 'node:os';
 import type { MockState } from './state.ts';
 import { PORTS } from './util.ts';
 
@@ -34,12 +33,12 @@ export function isLoopback(url: string): boolean {
   }
 }
 
-/** true when the computer has no network interface other than loopback, or the ctl offline switch is on. */
+/**
+ * true only when the "offline" switch is on (node mock/ctl.ts offline on). Everything the mock talks to lives on
+ * this computer (127.0.0.1), so a computer with no network at all still runs the whole demo.
+ */
 export function isOffline(state: MockState): boolean {
-  if (state.offlineSwitch) return true;
-  const nets = networkInterfaces();
-  for (const list of Object.values(nets)) for (const n of list ?? []) if (!n.internal && n.family === 'IPv4') return false;
-  return true;
+  return state.offlineSwitch;
 }
 
 /** Removes the word "credit(s)" from text that came from another service (the app says "balance", never "credits"). */

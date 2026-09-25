@@ -31,6 +31,8 @@ export interface Page {
   press(name: string, shift?: boolean): Promise<void>;
   /** Clicks the first visible element (button, link, tab, menu item) whose text or aria-label equals `text`. */
   clickText(text: string, scope?: string): Promise<boolean>;
+  /** Opens the Ant Design select whose search input has this aria-label (a real mouse press on it). */
+  openSelect(ariaLabel: string): Promise<boolean>;
   /** Pretends the network is off for this page (the local API on 127.0.0.1 is unreachable too). */
   emulateOffline(offline: boolean): Promise<void>;
 }
@@ -111,9 +113,10 @@ export async function launch(): Promise<Browser> {
         },
         async clickText(text, scope = 'body') {
           const box = await page.eval<{ x: number; y: number } | null>(`(() => {
-            const root = document.querySelector(${JSON.stringify(scope)}) || document.body;
+            const roots = [...document.querySelectorAll(${JSON.stringify(scope)})];
+            if (!roots.length) roots.push(document.body);
             const want = ${JSON.stringify(text)};
-            const cands = [...root.querySelectorAll('button, a, [role=tab], [role=menuitem], [role=button], [role=radio], label, .ant-select-item, .ant-dropdown-menu-item, li[role=menuitem]')];
+            const cands = roots.flatMap((root) => [...root.querySelectorAll('button, a, [role=tab], [role=menuitem], [role=button], [role=radio], label, .ant-select-item, .ant-dropdown-menu-item, li[role=menuitem], .ant-segmented-item')]);
             for (const e of cands) {
               const r = e.getBoundingClientRect(); const st = getComputedStyle(e);
               if (r.width <= 0 || r.height <= 0 || st.visibility === 'hidden' || e.closest('[inert],[aria-hidden=true]')) continue;
@@ -121,6 +124,12 @@ export async function launch(): Promise<Browser> {
               if (t.includes(want.toLowerCase())) { e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; }
             }
             return null; })()`);
+          if (!box) return false;
+          for (const type of ['mousePressed', 'mouseReleased']) await s('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 });
+          return true;
+        },
+        async openSelect(ariaLabel) {
+          const box = await page.eval<{ x: number; y: number } | null>(`(() => { const i = [...document.querySelectorAll('input[aria-label]')].find((x) => x.getAttribute('aria-label') === ${JSON.stringify(ariaLabel)}); if (!i) return null; const sel = i.closest('.ant-select'); sel.scrollIntoView({ block: 'center' }); const r = sel.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
           if (!box) return false;
           for (const type of ['mousePressed', 'mouseReleased']) await s('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 });
           return true;

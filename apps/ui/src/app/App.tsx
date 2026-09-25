@@ -19,7 +19,7 @@ import { SettingsScreen } from '../screens/Settings.tsx';
 import { TrackerScreen } from '../screens/Tracker.tsx';
 import { hasToken } from './api.ts';
 import { navigate, useRoute } from './router.ts';
-import { profileIsSet, useProfile } from './session.ts';
+import { profileIsSet, useCrawlWatcher, useProfile } from './session.ts';
 
 function NoToken() {
   return (
@@ -41,6 +41,7 @@ const WINDOW_TITLES: Record<ScreenId, string> = {
 export function App() {
   const route = useRoute();
   const profile = useProfile();
+  useCrawlWatcher();
   const gateChecked = useRef(false);
 
   // first run: an empty profile opens onboarding once (the person can skip it for good)

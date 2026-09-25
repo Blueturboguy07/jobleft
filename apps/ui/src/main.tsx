@@ -24,7 +24,7 @@ initToken();
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ConfigProvider theme={THEME}>
-      <AntApp message={{ maxCount: 3, top: 72 }}>
+      <AntApp message={{ maxCount: 3 }}>
         <Bridge />
         <App />
       </AntApp>

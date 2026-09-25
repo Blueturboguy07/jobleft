@@ -160,7 +160,7 @@ export function ConnectionBanner() {
     return () => { alive = false; clearInterval(t); window.removeEventListener('online', on); window.removeEventListener('offline', off); };
   }, [local]);
   if (!local) return <Alert className="jl-banner" type="error" banner showIcon message="jobleft's local service is not answering. Your data is safe on this Mac; jobleft keeps trying to reconnect." />;
-  if (!online) return <Alert className="jl-banner" type="warning" banner showIcon message="This Mac is offline. Saved jobs, the tracker, resumes and your profile still work. Refreshes and online AI steps wait until you are back online." />;
+  if (!online) return <Alert className="jl-banner" type="warning" banner showIcon message="This Mac reports no internet connection. Your saved jobs, tracker, resumes and profile still work. Steps that need the internet can fail until it is back." />;
   return null;
 }
 

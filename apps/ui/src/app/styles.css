@@ -313,3 +313,6 @@ button.jl-kpi:hover { box-shadow: inset 0 0 0 1px #9AA0A6; }
 .ant-tag.ant-tag-orange, .ant-tag.ant-tag-gold, .ant-tag.ant-tag-warning { color: #7A4500 !important; background: #FFF3DC !important; border-color: #F0CB86 !important; }
 .ant-tag.ant-tag-red, .ant-tag.ant-tag-error { color: #8F1A20 !important; background: #FDECEE !important; border-color: #F3C4C7 !important; }
 .ant-tag.ant-tag-blue, .ant-tag.ant-tag-processing { color: #164A96 !important; background: #E8F0FC !important; border-color: #B5CDF2 !important; }
+
+/* toasts sit at the bottom of the window, so they never cover the controls at the top (filters, actions, tabs) */
+.ant-message { top: auto !important; bottom: 20px; }

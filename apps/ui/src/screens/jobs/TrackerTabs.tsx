@@ -21,7 +21,7 @@ import { GAP, ROW } from './Feed.tsx';
 type Item = TrackerList['items'][number];
 
 export function useTrackerView(view: TrackerView, status?: TrackerStatus) {
-  return useApi<TrackerList>(`tracker:list:${view}:${status ?? ''}`, () => call('listTracker', { query: { view, ...(status ? { status } : {}) } }));
+  return useApi<TrackerList>(`tracker:list:${view}:${status ?? ''}`, () => call('listTracker', { query: { view, ...(status ? { status } : {}) } }), { staleMs: 2000 });
 }
 
 /** A tracked job card: the match comes from the same route as the detail view, so the numbers agree. */

@@ -49,6 +49,7 @@ start('boards', 'boards-server.ts', ['--home', home]);
 start('publik', 'publik.ts', ['--dir', join(home, 'publik-standin'), ...(args.balance !== undefined ? ['--balance', String(args.balance)] : []), ...(args.price !== undefined ? ['--price', String(args.price)] : []), ...(args['legacy-wording'] ? ['--legacy-wording'] : [])]);
 start('ai', 'ai.ts', []);
 setTimeout(() => {
+  if (stopping) return;
   start('api', 'server.ts', [...pass.filter((a) => a !== '--home' && a !== home && a !== String(args.home)), '--home', home]);
   const pids = Object.fromEntries([...children].map(([k, c]) => [k, c.pid]));
   writeFileSync(join(home, 'run', 'demo.json'), JSON.stringify({ runner: process.pid, pids, home }), { mode: 0o600 });
