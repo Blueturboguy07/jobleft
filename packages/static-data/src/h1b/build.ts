@@ -98,6 +98,12 @@ function top<K>(m: Map<K, number>): K | null {
   return best;
 }
 
+/** The build time: SOURCE_DATE_EPOCH (seconds) when set, so a rebuild from the same files gives the same bytes. */
+export function buildTime(): string {
+  const e = process.env.SOURCE_DATE_EPOCH;
+  return e && /^\d+$/.test(e) ? new Date(Number(e) * 1000).toISOString() : new Date().toISOString();
+}
+
 export async function sha256File(path: string): Promise<string> {
   const h = createHash('sha256');
   for await (const chunk of createReadStream(path, { highWaterMark: 1 << 20 })) h.update(chunk as Buffer);
@@ -326,7 +332,7 @@ export async function buildH1bTable(opts: BuildH1bOptions): Promise<BuildH1bResu
     name: 'H-1B employer filings (US Department of Labor LCA disclosure data)',
     version: opts.version ?? `FY${last.fq.fiscalYear}Q${lastQ}`,
     sequence: opts.sequence ?? last.fq.fiscalYear * 100 + lastQ * 10,
-    builtAt: opts.builtAt ?? new Date().toISOString(),
+    builtAt: opts.builtAt ?? buildTime(),
     keyVersion: COMPANY_KEY_VERSION,
     dataThrough,
     window: { from: windowFrom, to: dataThrough },

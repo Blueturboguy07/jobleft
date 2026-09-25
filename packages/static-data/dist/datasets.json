@@ -1,0 +1,33 @@
+{
+  "format": "jobleft-datasets/1",
+  "datasets": [
+    {
+      "id": "h1b-lca",
+      "name": "H-1B employer filings (US Department of Labor LCA disclosure data)",
+      "file": "h1b-lca.json.gz",
+      "sha256": "534a70cab7a3ee496335b268598ad622137e3d2cf28d2b0958c1f339c00b5ec2",
+      "bytes": 3640502,
+      "version": "FY2026Q3",
+      "sequence": 202630,
+      "dataThrough": "2026-06-30",
+      "licence": "US government work: public domain in the United States (17 U.S.C. 105). No licence terms are stated by the source.",
+      "attribution": "Source: US Department of Labor, Employment and Training Administration, Office of Foreign Labor Certification, LCA Programs (H-1B, H-1B1, E-3) disclosure data. jobleft counts certified H-1B rows only; DOL does not endorse jobleft.",
+      "sourceUrl": "https://www.dol.gov/agencies/eta/foreign-labor/performance",
+      "builtAt": "2026-09-25T00:00:00.000Z"
+    },
+    {
+      "id": "places",
+      "name": "Places: US places (USGS GNIS) and world cities (Natural Earth)",
+      "file": "places.json.gz",
+      "sha256": "7886fa086e242bc1a74a233bbfdbb7a722560e5ce62f5d2443f60664670adc2b",
+      "bytes": 3108075,
+      "version": "2026-09-25",
+      "sequence": 20260925,
+      "dataThrough": "2026-09-02",
+      "licence": "Public domain (USGS GNIS; Natural Earth)",
+      "attribution": "US places: USGS Geographic Names Information System (GNIS). World cities: Made with Natural Earth (naturalearthdata.com). Both are public domain; the credit is given as a courtesy.",
+      "sourceUrl": "https://www.usgs.gov/tools/geographic-names-information-system-gnis",
+      "builtAt": "2026-09-25T00:00:00.000Z"
+    }
+  ]
+}

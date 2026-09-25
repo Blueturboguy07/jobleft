@@ -1,0 +1,38 @@
+{
+  "usPlaces": 174354,
+  "skippedHistorical": 15165,
+  "skippedBalance": 8,
+  "worldPlaces": 6561,
+  "usPopulationFromNaturalEarth": 763,
+  "aliases": 27,
+  "aliasesMissing": [],
+  "sources": [
+    {
+      "id": "usgs-gnis-populated-places",
+      "name": "USGS Geographic Names Information System (GNIS), Populated Places national file",
+      "url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/GeographicNames/Topical/PopulatedPlaces_National_Text.zip",
+      "file": "PopulatedPlaces_National_Text.zip",
+      "sha256": "919fac887628b8547ec1b24fae319522a9481a56909c3914d1e0a2b56783147c",
+      "bytes": 6192581,
+      "licence": "US government work, public domain in the US"
+    },
+    {
+      "id": "usgs-gnis-federal-codes",
+      "name": "USGS GNIS Federal Codes national file (Census class of each place)",
+      "url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/GeographicNames/FederalCodes/FedCodes_National_Text.zip",
+      "file": "FedCodes_National_Text.zip",
+      "sha256": "9b370cfccf88ef511fac55f0d16d6dcba626fb4257fe0ffa5c17b5704e2a5dbd",
+      "bytes": 7080179,
+      "licence": "US government work, public domain in the US"
+    },
+    {
+      "id": "natural-earth-populated-places",
+      "name": "Natural Earth 1:10m Populated Places (simple)",
+      "url": "https://naciscdn.org/naturalearth/10m/cultural/ne_10m_populated_places_simple.zip",
+      "file": "ne_10m_populated_places_simple.zip",
+      "sha256": "2963ee08f7743f13f37d5243acd77a2f7a510e26a36c7e04b920f1b381f2b251",
+      "bytes": 652145,
+      "licence": "Public domain (Natural Earth)"
+    }
+  ]
+}

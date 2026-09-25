@@ -17,6 +17,7 @@ import { CA_PROVINCES, US_STATES } from './regions.ts';
 import { normPlace } from './normalize.ts';
 import { DATA_DIR } from '../paths.ts';
 import { writeFileAtomic } from '../datasets/store.ts';
+import { buildTime } from '../h1b/build.ts';
 
 export const PLACES_FORMAT = 'jobleft-places/1';
 export const PLACES_DATASET_ID = 'places';
@@ -212,7 +213,7 @@ export async function buildPlacesTable(opts: BuildPlacesOptions): Promise<{ path
   report.aliases = aliases.length;
   report.aliasesMissing = missing;
 
-  const builtAt = opts.builtAt ?? new Date().toISOString();
+  const builtAt = opts.builtAt ?? buildTime();
   const version = builtAt.slice(0, 10);
   const meta: PlacesMeta = {
     id: PLACES_DATASET_ID,
