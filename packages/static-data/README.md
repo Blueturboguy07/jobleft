@@ -222,7 +222,7 @@ node packages/static-data/src/cli.ts datasets | head -7
 
 | Mode | `update` prints | After it |
 |---|---|---|
-| `truncated` | `FAILED ... the download stopped after 1,902,044 of 3,804,089 bytes. The data in use has not changed.` | Same date and counts; error listed |
+| `truncated` | `FAILED ... the download stopped after N of M bytes. The data in use has not changed.` (about half) | Same date and counts; error listed |
 | `tampered` | `REFUSED ... does not match the sha256 in the signed manifest (changed bytes)` | Same |
 | `badsig` | `FAILED ... the release signature does not verify` | Same |
 | `older` | `REFUSED ... is older than the data in use ...; a downgrade is never installed` | Same |
@@ -283,7 +283,7 @@ and the table carries the GeoNames attribution.
 ## 7. Tests
 
 ```sh
-pnpm --filter @jobleft/static-data test        # 28 tests, about 12 s
+pnpm --filter @jobleft/static-data test        # 29 tests, about 12 s
 pnpm --filter @jobleft/static-data typecheck
 ```
 

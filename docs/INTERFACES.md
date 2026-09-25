@@ -799,7 +799,7 @@ CLI (planned): `jobleft-store import-jobs <file.ndjson>` (the documented import 
 
 ### `@jobleft/static-data`
 
-Status: **Built** (lane static-data, 28 tests; `loadSkills` and `loadDirectoryRows` are still stubs, outside this
+Status: **Built** (lane static-data, 29 tests; `loadSkills` and `loadDirectoryRows` are still stubs, outside this
 lane). Purpose: the shipped datasets and lookups, `companyKey`, company facts and signed dataset releases. Owns: tables
 `company_facts` and `company_fact_labels` (migrations recorded in `schema_migrations` as owner `static-data`); routes
 `h1bLookup`, `placeLookup`, `getCompany`, `refreshCompany`, `listDatasets`, `updateDatasets`. Built datasets ship in
