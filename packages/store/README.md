@@ -312,6 +312,12 @@ capped at 64 MB; the fit model (about 300 MB) is loaded only while it works and 
   H-1B history comes from company fact lines, and places match by text.
 - `match` (percent and band) and `networkCount` in results are filled by other lanes in the app, null here.
 - Measured on one Mac under load; the 16 GB base Mac was not available.
+- Fit quality, measured with 30 hand-written profile and target pairs hidden among 10,000 synthetic jobs
+  (`JOBLEFT_TEST_MODEL_DIR=<model folder> JOBLEFT_TEST_FIT_SIZE=10000 pnpm --filter @jobleft/store test`): 24 of 30
+  targets in the first 10. The misses were fields where many synthetic jobs repeat the profile's own words
+  ("forklift", "Kubernetes", "Zendesk") and so rank above a target written with other words.
+- Bulk writes are about 4,000 jobs a second with realistic descriptions, not the 70,000 a second the spike measured
+  with 400-character summaries: indexing every word of a 4,500-character description is most of the cost.
 
 ## 14. Development
 
