@@ -100,8 +100,9 @@ export function clip(s: string, max = 500): string {
 }
 
 /** Index of the start of the sentence or line that holds `i`. */
-export function clauseStart(text: string, i: number, stops = /[.!?;\n•|]/): number {
-  for (let k = i - 1; k >= 0; k--) {
+export function clauseStart(text: string, i: number, stops = /[.!?;\n•|]/, maxBack = 400): number {
+  const floor = Math.max(0, i - maxBack);
+  for (let k = i - 1; k >= floor; k--) {
     const c = text[k];
     if (stops.test(c)) {
       // "U.S." and decimals are not sentence ends.
@@ -110,12 +111,13 @@ export function clauseStart(text: string, i: number, stops = /[.!?;\n•|]/): nu
       return k + 1;
     }
   }
-  return 0;
+  return floor;
 }
 
 /** Index just past the end of the sentence or line that holds `i`. */
-export function clauseEnd(text: string, i: number, stops = /[.!?;\n•|]/): number {
-  for (let k = i; k < text.length; k++) {
+export function clauseEnd(text: string, i: number, stops = /[.!?;\n•|]/, maxAhead = 400): number {
+  const ceil = Math.min(text.length, i + maxAhead);
+  for (let k = i; k < ceil; k++) {
     const c = text[k];
     if (stops.test(c)) {
       if (c === '.' && k > 0 && /[A-Za-z0-9]/.test(text[k - 1]) && k + 1 < text.length && /[A-Za-z0-9]/.test(text[k + 1])) continue;
@@ -123,7 +125,7 @@ export function clauseEnd(text: string, i: number, stops = /[.!?;\n•|]/): numb
       return k;
     }
   }
-  return text.length;
+  return ceil;
 }
 
 /** Word numbers used in requirements ("three years"). */

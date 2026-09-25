@@ -493,7 +493,9 @@ function buildCandidates(text: string, opts: PayParseOptions): Cand[] {
       const back = text.slice(Math.max(0, start - 250), start);
       const next = text.slice(end, end + 60);
       const cueBack = lastMatch(PAY_CUE, back), exBack = lastMatch(STRONG_EXCL, back);
-      wide = (!!cueBack && (!exBack || exBack.at < cueBack.at)) || /^[\s.)]*(?:the\s+)?(?:\w+\s+)?(?:base\s+)?(?:salary|pay|compensation)\b/i.test(next);
+      wide = (!!cueBack && (!exBack || exBack.at < cueBack.at)) || /^[\s.)]*(?:the\s+)?(?:\w+\s+)?(?:base\s+)?(?:salary|pay|compensation)\b/i.test(next)
+        // "US Zone 2: $206,125 - $242,500", "Tier B: $90K - $110K": a pay-zone label right before a salary-size range.
+        || (!!b && /\b(?:zone|tier|band|geo|region|location|market|level|grade)\s*[\w-]{0,4}\s*:\s*$/i.test(text.slice(Math.max(0, start - 30), start)));
       if (wide && (vb ?? va) / (CURRENCY_SCALE[currency] ?? 1) < 20000) wide = false;
     }
     if (!explicit) {

@@ -97,7 +97,7 @@ export function parseYearsRequired(input: string): YearsResult | null {
   const mentions: Mention[] = [];
   MENTION.lastIndex = 0;
   let m: RegExpExecArray | null;
-  while ((m = MENTION.exec(text)) !== null) {
+  while ((m = MENTION.exec(text)) !== null && mentions.length < 300) {
     const idx = m.index, end = idx + m[0].length;
     // The number must stand alone ("W2", "401k" and "H1B" are not years).
     if (idx > 0 && /[A-Za-z0-9$€£]/.test(text[idx - 1]) && !m[1]) continue;
@@ -127,19 +127,27 @@ export function parseYearsRequired(input: string): YearsResult | null {
   }
   if (!mentions.length) return null;
   // "5+ years of experience, or 3 years with an MBA": an alternative in the same sentence needs no experience words.
-  for (const base of [...mentions]) {
-    const sStart = sentStarts[base.sentence], sEnd = sentStarts[base.sentence + 1] ?? text.length;
+  // Once per sentence, and only near the mentions, so a long text with no sentence breaks stays fast.
+  const seenEnds = new Set(mentions.map((x) => x.end));
+  const bySent = new Map<number, Mention>();
+  for (const x of mentions) if (!bySent.has(x.sentence)) bySent.set(x.sentence, x);
+  const alt = new RegExp(`\\b(?:or|alternatively|otherwise)\\s+(?:with\\s+)?(?:an?\\s+)?(?:[\\w'-]+\\s+){0,4}?${NUMW}\\s*(\\+)?\\s*(?:years?|yrs?)\\b`, 'gi');
+  let added = 0;
+  for (const base of bySent.values()) {
+    const sStart = Math.max(sentStarts[base.sentence], base.index - 400);
+    const sEnd = Math.min(sentStarts[base.sentence + 1] ?? text.length, base.end + 400);
     const sent = text.slice(sStart, sEnd);
-    const alt = new RegExp(`\\b(?:or|alternatively|otherwise)\\s+(?:with\\s+)?(?:an?\\s+)?(?:[\\w'-]+\\s+){0,4}?${NUMW}\\s*(\\+)?\\s*(?:years?|yrs?)\\b`, 'gi');
+    alt.lastIndex = 0;
     let am: RegExpExecArray | null;
-    while ((am = alt.exec(sent)) !== null) {
+    while ((am = alt.exec(sent)) !== null && added < 50) {
       const at = sStart + am.index + am[0].length;
-      if (mentions.some((x) => Math.abs(x.end - at) < 3 || (x.index <= at && x.end >= at))) continue;
+      if (seenEnds.has(at) || mentions.some((x) => x.index <= at && x.end >= at)) continue;
       const v = num(am[1]);
       if (v === null || v > 30) continue;
-      const tail = text.slice(at, at + 60);
-      if (NOT_EXP_AFTER.test(tail)) continue;
+      if (NOT_EXP_AFTER.test(text.slice(at, at + 60))) continue;
       mentions.push({ ...base, index: sStart + am.index, end: at, min: v, max: null });
+      seenEnds.add(at);
+      added++;
     }
   }
   const required = mentions.filter((x) => !x.preferred);
