@@ -7,7 +7,7 @@
 // * A failed, empty, cut-off or strange reply never closes anything. Only a complete, clean reading of a board that
 //   lists its whole board in one answer can mark postings missing; a second reading must confirm before any closes.
 
-import { normalizeJob, skipReason } from './job.ts';
+import { NORMALIZER_VERSION, normalizeJob, skipReason } from './job.ts';
 import { AbortedError, NotFoundError, NotModifiedError } from './http.ts';
 import type { BoardHttp, BoardHttpOptions } from './http.ts';
 import { BoardDeadlineError, TooManyJobsError, describeFailure } from './failures.ts';
@@ -316,7 +316,10 @@ export async function crawl(input: BoardRef[], opts: CrawlOptions): Promise<RunR
     const ac = new AbortController();
     const onAbort = () => ac.abort();
     opts.signal?.addEventListener('abort', onAbort);
-    const validators = !confirm && source.conditional ? store.getValidators(b.ats, b.board) : null;
+    // Validators are tied to the normalisation rules: after an upgrade the next reading is a full one.
+    const normTag = `#normalizer=${NORMALIZER_VERSION}`;
+    const stored = !confirm && source.conditional ? store.getValidators(b.ats, b.board) : null;
+    const validators = stored && stored.url.endsWith(normTag) ? { ...stored, url: stored.url.slice(0, -normTag.length) } : null;
     // A board that failed last time is asked once, without retries: a failing board costs its host less and less.
     const failedBefore = (store.getBoard(b.ats, b.board)?.consecutive_failures ?? 0) > 0;
     const bh = http.forBoard ? http.forBoard({ origin: b.origin ?? null, validators, signal: ac.signal, retries: failedBefore ? 0 : undefined }) : null;
@@ -379,7 +382,10 @@ export async function crawl(input: BoardRef[], opts: CrawlOptions): Promise<RunR
           r.closeHeld = reading.held;
           r.missing = reading.missing;
           newlyMissing = reading.newlyMissing;
-          if (!confirm) store.setValidators(b.ats, b.board, bh && source.conditional && !reading.held ? bh.validators : null);
+          if (!confirm) {
+            const v = bh && source.conditional && !reading.held ? bh.validators : null;
+            store.setValidators(b.ats, b.board, v ? { ...v, url: v.url + normTag } : null);
+          }
         } else {
           if (!confirm) store.setValidators(b.ats, b.board, null);
           if (!confirm && !boardListedAnyPosting(r.stats)) {

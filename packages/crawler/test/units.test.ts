@@ -38,6 +38,17 @@ test('places: every place is kept in its own words; parts are filled only when p
   assert.equal(workModelOf('hybrid', ['Austin, TX']).workModel, 'hybrid');
 });
 
+test('greenhouse offices: used only when the location is empty or generic, and only when they read as places', async () => {
+  const { mapGreenhouse } = await import('../src/sources/greenhouse.ts');
+  const j = mapGreenhouse({ id: 1, title: 'Teacher', absolute_url: 'https://x.example/1', location: { name: 'Multiple Locations' },
+    offices: [{ name: '2026-2027 Openings' }, { name: 'Denver', location: 'Denver, CO, United States' }, { name: 'Brooke Charter Schools' }] },
+    { ats: 'greenhouse', board: 'b', company: 'B' })!;
+  assert.deepEqual(j.places, ['Denver, CO, United States']);
+  const k = mapGreenhouse({ id: 2, title: 'Teacher', absolute_url: 'https://x.example/2', location: { name: 'Boston, MA' }, offices: [{ name: 'Immediate Openings' }] },
+    { ats: 'greenhouse', board: 'b', company: 'B' })!;
+  assert.deepEqual(k.places, ['Boston, MA']);
+});
+
 test('board lists: links are recognised without a request; the same board twice is kept once; bad entries say why', () => {
   assert.deepEqual(boardFromUrl('https://job-boards.greenhouse.io/acme/jobs/4001'), { ats: 'greenhouse', board: 'acme' });
   assert.deepEqual(boardFromUrl('https://jobs.eu.lever.co/beta/abc'), { ats: 'lever', board: 'beta', region: 'eu' });

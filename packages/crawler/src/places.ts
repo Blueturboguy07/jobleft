@@ -94,7 +94,7 @@ export function parsePlace(text: string): Place {
     if (countries.length === 1) place.country = countries[0]!;
     return place;
   }
-  const core = stripDecor(t);
+  const core = stripDecor(t).replace(/\s*\((hq|headquarters|head office|main office|office|campus)\)\s*$/i, '');
   const parts = core.split(',').map((p) => p.trim()).filter(Boolean);
   if (parts.length === 1) {
     const c = countryOf(parts[0]!);
@@ -109,7 +109,7 @@ export function parsePlace(text: string): Place {
   const regionText = rest.length >= 2 ? rest[rest.length - 1]! : null;
   let region: string | null = null;
   if (regionText) {
-    const up = regionText.toUpperCase();
+    const up = regionText.toUpperCase().replace(/\./g, '');
     const low = regionText.toLowerCase();
     if (US_STATES[up] && (!country || country === 'US')) { region = up; country = 'US'; }
     else if (US_STATE_BY_NAME[low] && (!country || country === 'US')) { region = US_STATE_BY_NAME[low]!; country = 'US'; }

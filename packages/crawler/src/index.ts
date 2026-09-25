@@ -51,7 +51,7 @@ export {
   canonicalizeUrl, cleanText, contentHash, dedupHash, dedupeBatch, normalizeCompany, normalizeTitle, partitionNew,
 } from './normalize.ts';
 export type { CanonOptions, DedupeItem, TitleOptions } from './normalize.ts';
-export { httpUrl, normalizeJob, roleKeyOf, skipReason } from './job.ts';
+export { NORMALIZER_VERSION, httpUrl, normalizeJob, roleKeyOf, skipReason } from './job.ts';
 export { isGenericPlace, parsePlace, remoteRegions, splitPlaces, workModelOf } from './places.ts';
 export type { WorkModelFact } from './places.ts';
 

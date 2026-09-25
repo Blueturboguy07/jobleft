@@ -5,12 +5,13 @@
 //     separately and is never shown as the posted date
 //   * `pay_input_ranges` is read when the API includes it (needs pay_transparency=true, see PAY_QUERY); its unit is
 //     taken from the range's own text, and a figure whose unit cannot be told is not shown
-//   * every place: `location.name` split on ";" and "|", plus the offices when the location is generic
+//   * every place: `location.name` split on ";" and "|"; the offices only when the location is empty or generic, and
+//     only offices that read as places
 //   * the reply must be a job list; `meta.total` larger than the list means the reply was cut short (the board fails)
 //   * no second request for the company "about us" text
 import type { PayPeriod } from '@jobleft/parsers';
 import { NotJobDataError } from '../http.ts';
-import { isGenericPlace, splitPlaces } from '../places.ts';
+import { isGenericPlace, parsePlace, splitPlaces } from '../places.ts';
 import type { BoardRef, HttpGetter, RawJob, Source } from '../types.ts';
 import { arr, employmentTypeFromText, isoDate, isRemote, makePay, num, obj, str, unmappable, workModeFromRemote } from './util.ts';
 
@@ -48,17 +49,13 @@ export function mapGreenhouse(j: Record<string, unknown>, board: BoardRef): RawJ
   if (id === undefined || id === null || (typeof id !== 'string' && typeof id !== 'number')) return null;
   const locationName = str(obj(j.location).name);
   let places = splitPlaces(locationName).filter((p) => !isGenericPlace(p));
-  const offices = arr(j.offices).map((o) => {
-    const oo = obj(o);
-    return str(oo.location) || str(oo.name);
-  }).filter(Boolean);
-  if (places.length === 0) places = offices.filter((o) => !isGenericPlace(o));
-  else {
-    for (const o of offices) {
-      const low = o.toLowerCase();
-      const covered = places.some((p) => p.toLowerCase().includes(low) || low.includes(p.toLowerCase().split(',')[0]!.trim()));
-      if (!covered && !isGenericPlace(o)) places.push(o);
-    }
+  if (places.length === 0) {
+    // No usable location: the offices, but only what reads as a place (some boards use offices as categories,
+    // e.g. "2026-2027 Openings"; those are never shown as places).
+    places = arr(j.offices).map((o) => {
+      const oo = obj(o);
+      return str(oo.location) || str(oo.name);
+    }).filter((o) => o && !isGenericPlace(o)).filter((o) => { const p = parsePlace(o); return p.city !== null || p.country !== null; });
   }
   const location = places.length > 0 ? places.join('; ') : locationName;
   const departments = arr(j.departments).map((d) => str(obj(d).name)).filter(Boolean);
