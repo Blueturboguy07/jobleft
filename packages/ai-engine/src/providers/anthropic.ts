@@ -150,7 +150,7 @@ export class AnthropicDriver implements ProviderDriver {
       yield { type: 'done', incomplete: true, costMicros: null, reason: { code: 'provider_error', message: 'Anthropic stopped before the end of the answer. The part already shown is incomplete.' } };
       return;
     }
-    if (stopReason === 'max_tokens') {
+    if (stopReason === 'max_tokens' && (emitted > 0 || toolCalls > 0 || !thinkingSeen)) {
       yield { type: 'done', incomplete: true, costMicros: null, reason: { code: 'bad_answer', message: 'The answer reached the length limit and was cut off. The part already shown is incomplete.' } };
       return;
     }

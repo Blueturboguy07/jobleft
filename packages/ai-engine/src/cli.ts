@@ -201,7 +201,8 @@ async function chat(engine: AiEngine, home: string, text: string): Promise<numbe
       keepUnsent(home, text, 'cancelled');
       return 130;
     }
-    out(`Not sent: ${err.message}`);
+    const answered = ['timeout', 'provider_error', 'bad_answer', 'not_ai_server'].includes(err.code);
+    out(`${answered ? 'No answer' : 'Not sent'}: ${err.message}`);
     if (err.topUpUrl) out(`${err.code === 'needs_claim' ? 'Link this computer' : 'Add money'}: ${err.topUpUrl}`);
     keepUnsent(home, text, err.message);
     out('Your message is kept. Send it again with: jobleft-ai chat --resend');

@@ -234,6 +234,9 @@ export class OpenAiDriver implements ProviderDriver {
 
 function finish(reason: unknown, gotContent: boolean, thinkingSeen: boolean, cost: number | null): AiChunk {
   const r = typeof reason === 'string' ? reason : null;
+  if (!gotContent && thinkingSeen) {
+    return { type: 'done', incomplete: true, costMicros: cost, reason: { code: 'bad_answer', message: 'The model spent its whole answer on thinking and gave no reply. Try again, or choose a model that does not think first.' } };
+  }
   if (r === 'length' || r === 'max_tokens') {
     return { type: 'done', incomplete: true, costMicros: cost, reason: { code: 'bad_answer', message: 'The answer reached the length limit and was cut off. The part already shown is incomplete.' } };
   }

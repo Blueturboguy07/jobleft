@@ -178,7 +178,7 @@ export class OllamaDriver implements ProviderDriver {
       yield { type: 'done', incomplete: true, costMicros: null, reason: { code: 'provider_error', message: `${this.label} stopped before the end of the answer. The part already shown is incomplete.` } };
       return;
     }
-    if (doneReason === 'length') {
+    if (doneReason === 'length' && (emitted > 0 || toolCalls > 0 || !(thinkingSeen || stripper.dropped > 0))) {
       yield { type: 'done', incomplete: true, costMicros: null, reason: { code: 'bad_answer', message: 'The answer reached the length limit and was cut off. The part already shown is incomplete.' } };
       return;
     }

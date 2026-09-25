@@ -9,7 +9,8 @@ import https from 'node:https';
 import { AiError } from './errors.ts';
 
 export const DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
-export const DEFAULT_IDLE_TIMEOUT_MS = 120_000;
+/** Silence limit: 110 s, so a silent provider ends well inside 2 minutes (ai-engine O4). */
+export const DEFAULT_IDLE_TIMEOUT_MS = 110_000;
 /** Largest non-streamed body read into memory. */
 export const MAX_BODY_BYTES = 8 * 1024 * 1024;
 

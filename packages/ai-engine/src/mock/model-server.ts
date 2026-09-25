@@ -7,7 +7,7 @@
 
 import http from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
-import { answerFor, instanceOf, lastUserText, pieces, readBody, RequestLog, schemaFromRequest, sendJson, sleep } from './common.ts';
+import { answerFor, lastUserText, pieces, readBody, RequestLog, sendJson, sleep } from './common.ts';
 
 export const MODEL_MODES = [
   'ok', 'slow', 'stall', 'stall-after-headers', 'half', 'refuse-key', 'model-not-found', 'html', 'broken', 'empty',
@@ -68,7 +68,7 @@ export async function startMockModelServer(opts: MockModelOptions = {}): Promise
 
   const keyOk = (req: http.IncomingMessage, anthropic: boolean): boolean => {
     if (!key) return true;
-    if (anthropic) return req.headers['x-api-key'] === key;
+    if (anthropic || req.headers['anthropic-version']) return req.headers['x-api-key'] === key;
     return req.headers.authorization === `Bearer ${key}`;
   };
   const givenKey = (req: http.IncomingMessage): string => {
@@ -164,8 +164,6 @@ export async function startMockModelServer(opts: MockModelOptions = {}): Promise
     if (mode === 'cutoff') { parts = parts.slice(0, Math.max(1, Math.floor(parts.length / 2))); finish = 'length'; }
     if (mode === 'think-only') finish = 'length';
     const stream = ollama ? json.stream !== false : json.stream === true;
-    const schema = schemaFromRequest(json);
-    void schema; void instanceOf;
 
     if (!stream) {
       if (mode === 'half' || mode === 'broken') { req.socket.destroy(); return; }
