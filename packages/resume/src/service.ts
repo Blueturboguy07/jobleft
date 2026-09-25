@@ -428,6 +428,10 @@ export class ResumeService {
 
   async exportCoverLetter(id: string, format: 'pdf' | 'docx'): Promise<ExportedFile> {
     const r = this.#letterRow(id);
+    if (!r.ready) {
+      const v = JSON.parse(r.violations_json) as Array<{ fact: string }>;
+      throw new ResumeError('conflict', `This letter is not ready: it holds ${v.length === 1 ? 'a fact' : 'facts'} that ${v.length === 1 ? 'is' : 'are'} not in your profile (${v.slice(0, 5).map((x) => `"${x.fact}"`).join(', ')}). Remove ${v.length === 1 ? 'it' : 'them'}, or add ${v.length === 1 ? 'it' : 'them'} to your profile first, then export.`, { violations: v });
+    }
     const job = this.#o.job(r.job_id);
     const base = safeFileName(`Cover_letter_${job?.company ?? 'job'}`);
     if (format === 'pdf') return { fileName: `${base}.pdf`, mimeType: 'application/pdf', bytes: renderLetterPdf(r.text), leftOut: [] };

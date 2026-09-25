@@ -177,6 +177,8 @@ test('cover letters: right company and role, edits by request keep the truth rul
     const hand = await s.svc.updateCoverLetter(la.id, { text: rust.text.replace('Sincerely', 'I also know Rust and Kubernetes.\n\nSincerely') });
     assert.equal(hand.ready, false);
     assert.ok(hand.violations.some((v) => v.fact === 'Rust'));
+    await assert.rejects(s.svc.exportCoverLetter(la.id, 'pdf'), /not ready/);
+    await s.svc.updateCoverLetter(la.id, { text: rust.text });
     const pdf = await s.svc.exportCoverLetter(la.id, 'pdf');
     assert.equal((await readPdf(pdf.bytes)).pages.length, 1);
   } finally { s.done(); }

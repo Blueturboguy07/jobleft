@@ -121,8 +121,8 @@ with only c1.
 **O8 Cover letters.** `jr letter create <jobId> <resumeId>` for two jobs: each names only its own company and role.
 `jr letter edit <letterId> --ask "make it shorter"`, `--ask "mention my project"` (adds Ledger Lite from the profile),
 `--ask "say I know Rust"` (refused: "Not done: Rust is not in your profile"; shown as a gap). A hand edit with
-`--text-file` that adds a fact is saved as NOT READY with the facts listed. `jr letter export` makes one page, or
-refuses a letter that is too long.
+`--text-file` that adds a fact is saved as NOT READY with the facts listed, and `jr letter export` refuses it until
+the fact is gone. `jr letter export` makes one page, or refuses a letter that is too long.
 
 **O9 One-page PDF.** `jr export <id> --format pdf --out /private/tmp/r.pdf`, then `pdfinfo` says 1 page and
 `pdftotext` gives the name, email and headings in order (dates sit on their own line under each entry). For a very long
