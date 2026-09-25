@@ -69,14 +69,15 @@ export function comparePlace(job: Place, want: PlaceQuery, distanceMiles?: (a: P
     const d = distanceMiles(job, want);
     if (d !== null) return d <= Math.max(want.radiusMiles ?? 0, 10) ? 'match' : 'different';
   }
+  const known = (r: string | null) => !!r && (!!US_STATES[r] || /^[A-Z]{2}$/.test(r));
   if (!w.city && w.region) {
-    if (!jobRegion) return 'unknown';
+    if (!known(jobRegion) || !known(w.region)) return jobRegion === w.region && jobRegion ? 'match' : 'unknown';
     return jobRegion === w.region ? 'match' : 'different';
   }
   if (!jobCity && !jobRegion) return 'unknown';
   const wCity = cityKey(w.city);
   if (wCity && jobCity === wCity && (!w.region || !jobRegion || jobRegion === w.region)) return 'match';
-  if (w.region && jobRegion) return jobRegion === w.region ? ((want.radiusMiles ?? 0) > 0 ? 'same_region_unknown_distance' : 'different') : 'different';
+  if (w.region && jobRegion && known(w.region) && known(jobRegion)) return jobRegion === w.region ? ((want.radiusMiles ?? 0) > 0 ? 'same_region_unknown_distance' : 'different') : 'different';
   return 'unknown';
 }
 

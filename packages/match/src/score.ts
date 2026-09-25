@@ -771,10 +771,12 @@ function evaluateDealBreakers(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, 
     } else checks.push({ kind: 'work_model', state: 'ok', message: `This job is ${MODEL_WORD[jf.workModel]}, as you want.`, quote: jf.workModelEvidence });
   }
 
-  // Location (only for work that needs presence).
+  // Location (only for work that needs presence). A posting that also offers remote work ("Austin, TX or Remote")
+  // never breaks a place preference of a person open to remote work.
   const wantPlaces = prefs.places.filter((p) => p.text.trim());
   const wantCountries = prefs.countries;
-  if (jf.workModel !== 'remote') {
+  const remoteOption = jf.workModel !== 'onsite' && !!job.remoteScope && (!prefs.workModels.length || prefs.workModels.includes('remote'));
+  if (jf.workModel !== 'remote' && !remoteOption) {
     const places = job.places.filter((p) => p.city || p.region || p.country);
     if (!places.length) {
       if (wantPlaces.length) checks.push({ kind: 'location', state: 'not_stated', message: 'The posting does not state where the job is.', quote: null });
@@ -800,6 +802,8 @@ function evaluateDealBreakers(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, 
         }
       }
     }
+  } else if (remoteOption && jf.workModel !== 'remote') {
+    checks.push({ kind: 'location', state: 'ok', message: `This job can be done remotely (${q(job.remoteScope!.text)}).`, quote: job.remoteScope!.text });
   } else if (job.remoteScope && wantCountries.length) {
     const regions = job.remoteScope.regions.map((r) => r.toUpperCase());
     if (regions.length && !regions.includes('WORLDWIDE') && !wantCountries.some((c) => regions.includes(c)) && !(regions.includes('NA') && wantCountries.some((c) => c === 'US' || c === 'CA' || c === 'MX')) && !(regions.includes('EU') && wantCountries.some((c) => EU.has(c)))) {

@@ -328,7 +328,8 @@ export function quoteAround(text: string, start: number, end: number, max = 160)
   let s = sentStartRel >= 0 ? lineStart + sentStartRel + 2 : lineStart;
   const after = text.slice(end, lineEnd);
   const m = /[.;!?](\s|$)/.exec(after);
-  let e = m ? end + m.index + 1 : lineEnd;
+  const endsSentence = /[.;!?]$/.test(text.slice(start, end));
+  let e = endsSentence ? end : m ? end + m.index + 1 : lineEnd;
   if (e - s > max) {
     const room = Math.max(0, max - (end - start));
     s = Math.max(s, start - Math.floor(room / 2));

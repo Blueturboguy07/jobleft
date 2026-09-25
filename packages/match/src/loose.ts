@@ -57,7 +57,9 @@ export function looseJob(input: LooseJob | Job): Job {
   if (!x || typeof x.title !== 'string' || !x.title.trim()) throw new Error('a job needs at least a "title"');
   const description = x.description ?? (x.html ? htmlToText(x.html) : '');
   const company = (x.company ?? '').trim() || 'Company not stated';
-  const locs = Array.isArray(x.location) ? x.location : x.location ? x.location.split(/\s*;\s*|\s+\|\s+/) : [];
+  // "Austin, TX or Remote (US)", "Austin, TX / Dallas, TX", "Austin, TX; Remote".
+  const locs = (Array.isArray(x.location) ? x.location : x.location ? [x.location] : [])
+    .flatMap((l) => l.split(/\s*;\s*|\s+\|\s+|\s+or\s+|\s+\/\s+|\s+&\s+(?=remote)/i));
   const places: Place[] = [];
   let remoteText: string | null = null;
   for (const l of locs) {
@@ -69,6 +71,8 @@ export function looseJob(input: LooseJob | Job): Job {
   }
   let workModel: WorkModel | null = x.workModel ?? null;
   if (!workModel && remoteText && !places.length) workModel = 'remote';
+  // A place or remote: the person may choose, so the work model is left unstated and the remote option is kept.
+  if (!workModel && remoteText && places.length && /\bhybrid\b/i.test(remoteText)) workModel = 'hybrid';
   if (!workModel && locs.some((l) => /\bhybrid\b/i.test(l))) workModel = 'hybrid';
   if (!workModel && locs.some((l) => /\b(on-?site|in[- ]office)\b/i.test(l))) workModel = 'onsite';
   const remoteScope = remoteText ? { regions: /\b(us|usa|united states|u\.s\.)\b/i.test(remoteText) ? ['US'] : /\b(anywhere|worldwide|global)\b/i.test(remoteText) ? ['WORLDWIDE'] : [], text: remoteText } : null;

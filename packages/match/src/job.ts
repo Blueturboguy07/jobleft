@@ -177,6 +177,16 @@ const IC_MANAGER = /\b(account|product|project|program|case|property|community|s
  * is not a people manager; an executive chef runs a kitchen team; a sous chef leads one.
  */
 export function levelOfTitle(title: string): Level | null {
+  // "Software Engineer II, Payments Platform": read each part of the title; the first part that states a level wins.
+  const parts = title.split(/\s[-–—|/]\s|[,(]|\s[-–—]|[-–—]\s/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length > 1) {
+    for (const p of parts) { const l = levelOfTitlePart(p); if (l) return l; }
+    return null;
+  }
+  return levelOfTitlePart(title);
+}
+
+function levelOfTitlePart(title: string): Level | null {
   // "Executive Assistant to the CEO", "Assistant to the Director": the person supported is not the job's level.
   const t = title.trim().replace(/\s+(to|for|supporting|reporting to)\s+(the\s+)?(ceo|cfo|coo|cto|president|founder|vp|vice president|director|chief\b.*|executive team|leadership team|partners?|owner|head of\b.*|svp|evp)\b.*$/i, '');
   if (/\b(executive chef|head chef|chef de cuisine|culinary director)\b/i.test(t)) return 'manager';
@@ -272,11 +282,12 @@ export function readJob(job: Job, company: Company | null): JobFacts {
   const items = new Map<string, JobSkillItem>();
   if (language !== 'other') {
     const all = scanSkills(a.live);
-    // "LCSW, LPC or LMFT" is one item that any of the three meets.
+    // "LCSW, LPC or LMFT" and "TypeScript or Go" are one item that any of them meets.
     const altOf = new Map<number, string>();
-    for (const run of credentialRuns(a.text, all.filter((m) => SKILLS.get(m.id)?.kind === 'cred'))) {
-      if (!run.alternative) continue;
-      const key = `alt:${run.ids.join('|')}`;
+    const runsOf = (ms: typeof all) => credentialRuns(a.text, ms);
+    for (const run of [...runsOf(all.filter((m) => SKILLS.get(m.id)?.kind === 'cred')), ...runsOf(all.filter((m) => SKILLS.get(m.id)?.kind !== 'cred'))]) {
+      if (!run.alternative || new Set(run.ids).size < 2) continue;
+      const key = `alt:${[...new Set(run.ids)].join('|')}`;
       for (const m of all) if (m.start >= run.start && m.end <= run.end) altOf.set(m.start, key);
     }
     const tokAt = new Map(a.live.map((t) => [t.start, t]));
