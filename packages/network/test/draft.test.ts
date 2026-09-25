@@ -115,3 +115,14 @@ test('prompt injection in a title is sent as data and a resulting false claim is
   assert.equal(d.ready, false);
   assert.ok(d.warnings.some((w) => /shared past/.test(w)));
 });
+
+test('O8: an email or a link inside a title or company never reaches the provider', async () => {
+  const seen: AiRequest[] = [];
+  const odd = contact({ id: 'c_o', firstName: 'Odd', lastName: 'Row', position: 'Recruiter - write to odd.row@example.com or see https://odd.example/cv', company: 'www.odd-example.com' });
+  await draftOutreach({ contact: odd, job: null, profileSummary: summary, variant: 'short', ai: fakeAi('Hi Odd, would you be open to a short chat?', seen) });
+  const body = JSON.stringify(seen[0]!.messages);
+  assert.ok(!body.includes('odd.row@example.com'));
+  assert.ok(!body.includes('https://odd.example'));
+  assert.ok(!body.includes('www.odd-example.com'));
+  assert.ok(body.includes('[email removed]'));
+});

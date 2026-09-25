@@ -106,7 +106,7 @@ export {
 export { readTitle, type Seniority, type Field, type TitleFacts } from './titles.ts';
 export { scoreContact, RANK_POINTS } from './rank.ts';
 export {
-  profileSummary, draftFacts, draftMessages, checkDraft, cleanDraftText, templateDraft, draftFromTemplate,
+  profileSummary, draftFacts, draftMessages, checkDraft, redactContactDetails, cleanDraftText, templateDraft, draftFromTemplate,
   SHORT_CHAR_LIMIT, LONG_CHAR_LIMIT, type DraftFacts, type DraftVariant,
 } from './draft.ts';
 export { NetworkError, type NetworkContactView, type CompanyGroup, type MatchExplanation, type PlanEntry, type ListQuery } from './service.ts';

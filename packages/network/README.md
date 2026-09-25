@@ -322,7 +322,8 @@ curl -s http://127.0.0.1:4031/__admin/log     # after a draft: the request bodie
 
 A request holds the contact's first name, last name, title and company, the job's title and company, and a short
 summary of you ("Name: Jordan Testwell. Current role: ... Skills: ..."). It never holds another person, an email
-address, a profile link or your own contact details.
+address, a profile link or your own contact details. If a title or company in your file itself holds an email address
+or a link, the request carries "[email removed]" or "[link removed]" in its place.
 
 Before the first draft to a remote provider (publik or a custom address), you must confirm. CLI: it shows what goes
 where and asks `Send to publik (stand-in at 127.0.0.1:4032)? [y/N]` (or add `--yes`). Screens: the draft window
@@ -496,7 +497,7 @@ than one person, the command lists the ids and does nothing.
 ## 10. Tests
 
 ```sh
-pnpm --filter @jobleft/network test          # 51 unit and route tests (node --test "test/*.test.ts")
+pnpm --filter @jobleft/network test          # 52 unit and route tests (node --test "test/*.test.ts")
 pnpm --filter @jobleft/network typecheck     # tsc, no output files
 node evals/network/csv-fixtures/run.ts       # probe for O1 and O4: 96 labelled checks, prints one JSON line
 node packages/network/scripts/ui-check.ts    # headless Chrome walk through the screens (19 checks), screenshots in /private/tmp/jobleft-network-ui

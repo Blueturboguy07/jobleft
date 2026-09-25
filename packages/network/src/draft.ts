@@ -55,12 +55,20 @@ export function senderFromSummary(summary: string): { firstName: string | null; 
   return { firstName: words[0] ?? null, lastName: words.length > 1 ? words.slice(1).join(' ') : null };
 }
 
+/** Removes email addresses and links from a fact, so a draft request never carries one (network O8). */
+export function redactContactDetails(s: string): string {
+  return s
+    .replace(/[^\s@<>()"',;]+@[^\s@<>()"',;]+\.[a-z]{2,}/gi, '[email removed]')
+    .replace(/\bhttps?:\/\/\S+|\bwww\.\S+|\blinkedin\.com\/\S*/gi, '[link removed]');
+}
+
 export function draftFacts(input: { contact: NetworkContact; job: Job | null; profileSummary: string; variant: DraftVariant }): DraftFacts {
   const c = input.contact;
+  const r = (v: string | null) => (v === null ? null : redactContactDetails(v));
   return {
-    contact: { firstName: c.firstName, lastName: c.lastName, title: c.position, company: c.company },
-    job: input.job ? { title: input.job.title, company: input.job.company } : null,
-    aboutMe: input.profileSummary.slice(0, 600),
+    contact: { firstName: redactContactDetails(c.firstName), lastName: redactContactDetails(c.lastName), title: r(c.position), company: r(c.company) },
+    job: input.job ? { title: redactContactDetails(input.job.title), company: redactContactDetails(input.job.company) } : null,
+    aboutMe: redactContactDetails(input.profileSummary.slice(0, 600)),
     sender: senderFromSummary(input.profileSummary),
     variant: input.variant,
     charLimit: input.variant === 'short' ? SHORT_CHAR_LIMIT : LONG_CHAR_LIMIT,
