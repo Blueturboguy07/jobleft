@@ -162,7 +162,7 @@ export function findDegrees(text: string): Mention[] {
       re.lastIndex = 0;
       for (const m of text.matchAll(re)) {
         const start = m.index!;
-        let end = start + m[0].length;
+        const end = start + m[0].length;
         // The field: "in Computer Science", "of Science in X", ", Computer Science".
         const rest = text.slice(end, end + 80);
         const fm = /^(?:\s+of\s+[A-Z][a-z]+)?(?:\s+in|\s*,)\s+((?:[A-Z][\p{L}&]*|and|of)(?:\s+(?:[A-Z][\p{L}&]*|and|of)){0,5})/u.exec(rest);
@@ -174,7 +174,6 @@ export function findDegrees(text: string): Mention[] {
         const ofm = /^bachelor of |^master of |^associate of |^doctor of /i.exec(m[0]);
         if (ofm && !field) field = m[0].slice(ofm[0].length);
         out.push({ kind: 'degree', text: m[0], key: d.level, level: d.level, field, start, end });
-        void end;
       }
     }
   }
@@ -269,10 +268,9 @@ export function findDurations(text: string): Mention[] {
     const unit = m[4]!.toLowerCase();
     // "a year" or "one month" inside ordinary prose ("once a year") is not a claim; keep numbers and "N years".
     if ((qty === 'a' || qty === 'an') && !/decade/.test(unit) && !m[1]) continue;
-    let years = unit.startsWith('decade') ? n * 10 : unit.startsWith('y') ? n : n / 12;
+    const years = unit.startsWith('decade') ? n * 10 : unit.startsWith('y') ? n : n / 12;
     const plus = !!(m[3] || m[5] || (m[1] && /over|more than|at least/i.test(m[1])));
     out.push({ kind: 'duration', text: m[0].trim(), key: `${years}${plus ? '+' : ''}`, years, value: n, start: m.index!, end: m.index! + m[0].trimEnd().length, unit: 'plain' });
-    years = 0;
   }
   const decade = /\ba decade\b/gi;
   for (const m of text.matchAll(decade)) out.push({ kind: 'duration', text: m[0], key: '10', years: 10, start: m.index!, end: m.index! + m[0].length });
@@ -475,8 +473,7 @@ export interface FactScan {
 
 function mask(text: string, ms: Mention[]): string {
   if (!ms.length) return text;
-  const chars = [...text];
-  // Work on UTF-16 indexes: rebuild with a simple loop.
+  // Mentions carry UTF-16 indexes; each one is replaced by the same number of spaces, so later indexes still line up.
   let out = '';
   let i = 0;
   const sorted = [...ms].sort((a, b) => a.start - b.start);
@@ -486,7 +483,6 @@ function mask(text: string, ms: Mention[]): string {
     i = m.end;
   }
   out += text.slice(i);
-  void chars;
   return out;
 }
 

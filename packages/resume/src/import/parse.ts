@@ -439,7 +439,7 @@ function parseCerts(lines: SrcLine[]): ProfileInput['certifications'] {
 
 // ------------------------------------------------------------------------------------------------ main
 
-export function parseLines(lines: SrcLine[], opts: { source: 'pdf' | 'docx' | 'text' }): ParseResult {
+export function parseLines(lines: SrcLine[], _opts: { source: 'pdf' | 'docx' | 'text' }): ParseResult {
   const warnings: string[] = [];
   const unreadSections: string[] = [];
   const marked = markHeadings(lines);
@@ -571,7 +571,6 @@ export function parseLines(lines: SrcLine[], opts: { source: 'pdf' | 'docx' | 't
     if (parts.length > 1) profile.personal.lastName = parts[parts.length - 1]!;
     if (parts.length > 2) profile.personal.middleName = parts.slice(1, -1).join(' ');
   }
-  void opts;
   // Bullets as the file shows them (under jobs, degrees and projects; a "GPA: 3.7" bullet counts too).
   const bullets = sourceBullets;
   return { profile, unreadSections, warnings, counts: { jobs: work.length, bullets, skills: skills.length, education: education.length } };

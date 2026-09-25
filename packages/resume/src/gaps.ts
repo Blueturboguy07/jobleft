@@ -6,7 +6,7 @@ import type { Job, KeywordGapReport, Profile, ResumeDocument } from '@jobleft/co
 import type { SkillDictionary } from '@jobleft/static-data';
 import { documentText } from './document.ts';
 import { canonicalSkill, findCertifications, findDegrees, findSkills, isCaseSensitiveForm, skillForms } from './facts.ts';
-import { CERTS, DEGREE_LEVELS, SKILLS } from './lexicon.ts';
+import { CERTS, DEGREE_LEVELS } from './lexicon.ts';
 import { profileTexts } from './truth.ts';
 import { termRegExp } from './text.ts';
 
@@ -96,7 +96,6 @@ export function jobTerms(job: Job, skills: SkillDictionary): JobTerm[] {
   if (job.statements.clearanceRequired === true && !seen.has('security clearance')) {
     add(text.length + 2, { term: 'Security clearance', key: 'security clearance', kind: 'certification', forms: formsFor('Security clearance', dict) });
   }
-  void SKILLS;
   return found.sort((a, b) => a.at - b.at).map((f) => f.t);
 }
 
