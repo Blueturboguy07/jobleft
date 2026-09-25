@@ -271,10 +271,9 @@ export function readJob(job: Job, company: Company | null): JobFacts {
   if (level && levelFromTitle(job.title) === level && t !== level) { level = t; levelSource = t ? 'title' : null; levelEvidence = t ? job.title : null; }
   if (t && !level) { level = t; levelSource = 'title'; levelEvidence = job.title; }
   if (!level && job.employmentType === 'internship') { level = 'intern'; levelSource = 'employment_type'; levelEvidence = 'internship'; }
-  if (!level && years && years.importance === 'required') {
-    const y = levelFromYears(years.detail.minYears ?? null);
-    if (y) { level = y; levelSource = 'years'; levelEvidence = years.quote; }
-  }
+  // A level is never inferred from the years a posting asks for: "3+ years" is a minimum, not a level, and the
+  // view shows "not stated" rather than a guess.
+  void levelFromYears;
 
   const wm = readWorkModel(job, a);
   const et = readEmploymentType(job, a);
