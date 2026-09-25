@@ -1,0 +1,74 @@
+[
+ {
+  "id": "7000000001",
+  "title": "Staff Data Engineer",
+  "first_published_at": "2026-09-10T15:00:00.000Z",
+  "created_at": "2026-09-09T15:00:00.000Z",
+  "updated_at": "2026-09-11T15:00:00.000Z",
+  "content": "<h2>About</h2><p>Remote across the US.</p>",
+  "content_plain": "About\nRemote across the US.",
+  "departments": [
+   {
+    "id": "1",
+    "name": "Data",
+    "parent_id": null,
+    "child_ids": []
+   }
+  ],
+  "offices": [],
+  "absolute_url": "https://jobs.gem.com/acme-demo/7000000001",
+  "location": {
+   "name": "Remote, United States"
+  },
+  "location_type": "remote",
+  "employment_type": "full_time",
+  "requisition_id": "R1"
+ },
+ {
+  "id": "7000000002",
+  "title": "Delivery Driver",
+  "created_at": "2026-09-09T15:00:00.000Z",
+  "content": "<p>Pay: $22 - $26 per hour. Class C licence.</p>",
+  "content_plain": "Pay: $22 - $26 per hour.",
+  "departments": [],
+  "offices": [
+   {
+    "id": "5",
+    "name": "Denver",
+    "location": {
+     "name": "Denver, Colorado, United States"
+    }
+   }
+  ],
+  "absolute_url": "https://jobs.gem.com/acme-demo/7000000002",
+  "location": {
+   "name": ""
+  },
+  "location_type": "in_office",
+  "employment_type": "part_time",
+  "requisition_id": "R2"
+ },
+ {
+  "id": "7000000003",
+  "title": "Registered Nurse (ICU)",
+  "first_published_at": "2026-09-15T08:00:00.000Z",
+  "content": "",
+  "content_plain": "Care for patients.\nNight shifts <3 per week.",
+  "departments": [
+   {
+    "id": "2",
+    "name": "Clinical",
+    "parent_id": null,
+    "child_ids": []
+   }
+  ],
+  "offices": [],
+  "absolute_url": "https://jobs.gem.com/acme-demo/7000000003",
+  "location": {
+   "name": "Montréal, Québec, Canada"
+  },
+  "location_type": "hybrid",
+  "employment_type": "temporary",
+  "requisition_id": "R3"
+ }
+]

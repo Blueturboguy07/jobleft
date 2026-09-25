@@ -1,7 +1,10 @@
 // Crawl health in plain words: per board and per ATS, from the crawler's run report and its store.
 // Counts are jobs, never requests. A board that gave jobs before and now gives no readable job is flagged.
 
+import type { AtsId } from '@jobleft/contracts';
 import type { RunReport, Store } from '@jobleft/crawler';
+import { atsName } from './detect.ts';
+import { notCrawledReason } from './source-list.ts';
 
 /** One short plain reason for a failed board, from the crawler's `${name}: ${message}` error text. */
 export function plainReason(error: string | null | undefined): string | null {
@@ -106,7 +109,9 @@ export function buildHealthReport(run: RunReport, store: Store): HealthReport {
       board: r.board,
       company: r.company,
       status: r.status,
-      reason: r.status === 'ok' ? null : plainReason(r.error),
+      reason: r.status === 'ok' ? null : /^no adapter for ATS/.test(r.error ?? '')
+        ? `jobleft does not crawl ${atsName(r.ats)}${notCrawledReason(r.ats as AtsId) ? `: ${notCrawledReason(r.ats as AtsId)}` : ''} Nothing was sent.`
+        : plainReason(r.error),
       flag,
       lastCheckedAt: row?.last_attempt_at ?? null,
       lastSuccessAt: row?.last_success_at ?? null,

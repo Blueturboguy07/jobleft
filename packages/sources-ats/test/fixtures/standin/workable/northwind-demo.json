@@ -1,0 +1,75 @@
+{
+ "name": "Northwind Demo Labs",
+ "description": "<p>A made-up employer for jobleft tests.</p>",
+ "jobs": [
+  {
+   "title": "Senior Backend Engineer",
+   "shortcode": "NWD0000001",
+   "code": "",
+   "employment_type": "Full-time",
+   "telecommuting": true,
+   "department": "Engineering",
+   "url": "https://apply.workable.com/northwind-demo/j/NWD0000001/",
+   "shortlink": "https://apply.workable.com/j/NWD0000001",
+   "application_url": "https://apply.workable.com/northwind-demo/j/NWD0000001/apply/",
+   "published_on": "2026-09-01",
+   "created_at": "2026-08-30",
+   "country": "United States",
+   "city": "Austin",
+   "state": "Texas",
+   "locations": [
+    {
+     "country": "United States",
+     "countryCode": "US",
+     "city": "Austin",
+     "region": "Texas",
+     "hidden": false
+    }
+   ],
+   "description": "<p>Pay: $120,000 - $150,000 per year.</p><ul><li>Go</li><li>SQL</li></ul>"
+  },
+  {
+   "title": "Night Shift Nurse <script>alert(1)</script>",
+   "shortcode": "NWD0000002",
+   "code": "",
+   "employment_type": "",
+   "telecommuting": false,
+   "department": "",
+   "url": "https://apply.workable.com/northwind-demo/j/NWD0000002/",
+   "shortlink": "https://apply.workable.com/j/NWD0000002",
+   "application_url": "javascript:alert(1)",
+   "country": "",
+   "city": "",
+   "state": "",
+   "locations": [],
+   "description": "<p>Build things.</p><script>fetch(\"http://127.0.0.1:9/log?s=script\")</script><img src=\"http://127.0.0.1:9/log?s=img\" onerror=\"fetch('http://127.0.0.1:9/log?s=onerror')\"><p><a href=\"javascript:fetch('http://127.0.0.1:9/log?s=js')\">Apply here</a></p><iframe src=\"http://127.0.0.1:9/log?s=iframe\"></iframe>"
+  },
+  {
+   "title": "R&amp;D Technician",
+   "shortcode": "NWD0000003",
+   "code": "",
+   "employment_type": "Part-time",
+   "telecommuting": false,
+   "workplace_type": "hybrid",
+   "department": "Research",
+   "url": "https://apply.workable.com/northwind-demo/j/NWD0000003/",
+   "shortlink": "https://apply.workable.com/j/NWD0000003",
+   "application_url": "https://apply.workable.com/northwind-demo/j/NWD0000003/apply/",
+   "published_on": "2026-09-20",
+   "created_at": "2026-09-20",
+   "country": "Switzerland",
+   "city": "Zürich",
+   "state": "Zürich",
+   "locations": [
+    {
+     "country": "Switzerland",
+     "countryCode": "CH",
+     "city": "Zürich",
+     "region": "Zürich",
+     "hidden": false
+    }
+   ],
+   "description": "<p>Caf&eacute; &amp; lab work in Z&uuml;rich.</p>"
+  }
+ ]
+}

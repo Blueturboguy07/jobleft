@@ -1,0 +1,2130 @@
+{
+ "offers": [
+  {
+   "options_photo": "off",
+   "title": "Support Experience Guide",
+   "country": "Türkiye",
+   "locations_question_required": true,
+   "position": 1604,
+   "options_title": "off",
+   "options_cv": "off",
+   "requirements": "<ul><li><p>You’re curious by nature: you look for ways to improve how things work, not just how to get through the queue.</p></li><li><p>You’re calm under pressure, with a positive, solution-driven mindset when things get hectic.</p></li><li><p>You're comfortable being measured on KPIs and performance metrics.</p></li><li><p>You’re a teamplayer: steady, thoughtful, and proactive: the person others know they can count on.</p></li><li><p>You’re fully and perfectly comfortable speaking and writing in English.</p></li><li><p>You’re tech-savy and comfortable with new tools.</p></li><li><p>You see AI as an opportunity to actively look for ways to use it to work faster and better.</p></li><li><p>You’re available to cover morning, evening, and night shifts on weekdays, and on weekends.</p><p style=\"min-height: 1.7em;\"></p></li></ul><p><strong>Your space to perform</strong></p><p>🤟 Great, international colleagues who share your mindset<br>👩‍💻 Hybrid setup: after 3 months in-office, work 2 days remote, 3 days in-office weekly.<br>📚 We support growth with bunq Academy and €1500 annual learning budget<br>🇧🇬 Flex Benefits: €70 monthly budget via Re: benefit, offering access to 150+ perks tailored to your lifestyle.<br>🧳 Digital Nomad Program: After your first year, enjoy up to 20 days per year to work while traveling, combining flexibility with strong team collaboration<br>🚀 We reward tenure with a dedicated travel budget: €1.5k after 2 years and €3k after 4 years to visit another core office.<br>💻 A MacBook so you can Get Shit Done with us<br>🥦 Delicious lunches from our fabulous in-house chefs with vegan and vegetarian options<br>⚕️ Private health insurance, just in case<br>🍻 Friday drinks and other celebrations - bunq style</p><p style=\"min-height: 1.7em;\"></p><p><em>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace.</em></p><p>Curious to see how we make life easy? - try the <em><a rel=\"noopener\" target=\"_blank\" href=\"https://app.adjust.com/1tyd4x67?fallback=https%3A%2F%2Fwww.bunq.com%2F&redirect_macos=https%3A%2F%2Fwww.bunq.com%2F\">bunq app</a></em>, it only takes 5 minutes to sign up.</p>",
+   "options_salutation": "off",
+   "options_phone": "required",
+   "published_at": "2026-09-23 09:10:19 UTC",
+   "country_code": "TR",
+   "company_name": "bunq",
+   "options_cover_letter": "off",
+   "location_question_visible": true,
+   "updated_at": "2026-09-24 08:42:26 UTC",
+   "max_hours_per_week": "40",
+   "locations": [
+    {
+     "id": 39977,
+     "name": "Istanbul",
+     "state": "İstanbul",
+     "country": "Türkiye",
+     "city": "İstanbul",
+     "translations": {
+      "en": {
+       "name": "Istanbul",
+       "city": "İstanbul",
+       "postal_code": null,
+       "street": null,
+       "note": null
+      }
+     },
+     "country_code": "TR",
+     "state_code": "34",
+     "postal_code": null,
+     "street": null,
+     "note": null
+    },
+    {
+     "id": 39967,
+     "name": "Sofia",
+     "state": "Sofia (stolitsa)",
+     "country": "Bulgaria",
+     "city": "Sofia",
+     "translations": {
+      "en": {
+       "name": "Sofia",
+       "city": "Sofia",
+       "postal_code": null,
+       "street": null,
+       "note": null
+      }
+     },
+     "country_code": "BG",
+     "state_code": "22",
+     "postal_code": null,
+     "street": null,
+     "note": null
+    }
+   ],
+   "open_questions": [
+    {
+     "id": 4388728,
+     "position": 1,
+     "options": {},
+     "required": true,
+     "body": "What country do you currently live in?",
+     "kind": "string",
+     "translations": {
+      "en": {
+       "body": "What country do you currently live in?"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4388729,
+     "position": 2,
+     "options": {},
+     "required": false,
+     "body": "<p>💡 Each country has different rules for eligibility to work without requiring sponsorship.</p>\n<p><br /></p>\n<p>🇧🇬 <strong>Bulgaria</strong>: You must have the legal right to work in Bulgaria without needing a company-sponsored visa.  </p>\n<p>🇹🇷 <strong>Turkey</strong>: You must be a Turkish citizen, hold a Turquoise Card, refugee status, or a permanent residency/work permit (student/family/temporary residencies are not eligible to work without company sponsorship).</p>\n<p><br /><strong>For this role, we are <em>not</em> sponsoring visas at the moment. But take a look at <strong><a target=\"_blank\" href=\"http://careers.bunq.com/\" rel=\"noopener\">careers.bunq.com</a> </strong>- you might find another exciting role that’s a great fit! <strong>🌈</strong></strong><strong><br /></strong><br /></p>\n",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p>💡 Each country has different rules for eligibility to work without requiring sponsorship.</p>\n<p><br /></p>\n<p>🇧🇬 <strong>Bulgaria</strong>: You must have the legal right to work in Bulgaria without needing a company-sponsored visa.  </p>\n<p>🇹🇷 <strong>Turkey</strong>: You must be a Turkish citizen, hold a Turquoise Card, refugee status, or a permanent residency/work permit (student/family/temporary residencies are not eligible to work without company sponsorship).</p>\n<p><br /><strong>For this role, we are <em>not</em> sponsoring visas at the moment. But take a look at <strong><a target=\"_blank\" href=\"http://careers.bunq.com/\" rel=\"noopener\">careers.bunq.com</a> </strong>- you might find another exciting role that’s a great fit! <strong>🌈</strong></strong><strong><br /></strong><br /></p>\n"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4388730,
+     "position": 3,
+     "options": {},
+     "required": true,
+     "body": "Which visa situation fits you best? Please choose according to the office you are applying for: Amsterdam (NL), Istanbul (TR), Sofia (BG).",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "Which visa situation fits you best? Please choose according to the office you are applying for: Amsterdam (NL), Istanbul (TR), Sofia (BG)."
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6756454,
+       "position": 0,
+       "body": "TR: I am Turkish citizen",
+       "translations": {
+        "en": {
+         "body": "TR: I am Turkish citizen"
+        }
+       }
+      },
+      {
+       "id": 6756455,
+       "position": 1,
+       "body": "TR: I have a Turkish permanent residency / working permit / Turquoise Card / official refugee or subsidiary protection status",
+       "translations": {
+        "en": {
+         "body": "TR: I have a Turkish permanent residency / working permit / Turquoise Card / official refugee or subsidiary protection status"
+        }
+       }
+      },
+      {
+       "id": 6756456,
+       "position": 2,
+       "body": "TR: I need visa sponsorship / I have a short-term, long-term, family or student permit",
+       "translations": {
+        "en": {
+         "body": "TR: I need visa sponsorship / I have a short-term, long-term, family or student permit"
+        }
+       }
+      },
+      {
+       "id": 6756457,
+       "position": 3,
+       "body": "BG: I do not require visa sponsorship",
+       "translations": {
+        "en": {
+         "body": "BG: I do not require visa sponsorship"
+        }
+       }
+      },
+      {
+       "id": 6756458,
+       "position": 4,
+       "body": "BG: I require visa sponsorship",
+       "translations": {
+        "en": {
+         "body": "BG: I require visa sponsorship"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4388731,
+     "position": 4,
+     "options": {},
+     "required": false,
+     "body": "<p><strong>💡 Important Info: At bunq, our working language is English. Fluency in both writing and speaking English is a must for all roles in all locations.</strong></p>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p><strong>💡 Important Info: At bunq, our working language is English. Fluency in both writing and speaking English is a must for all roles in all locations.</strong></p>"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4388732,
+     "position": 5,
+     "options": {},
+     "required": true,
+     "body": "How do you assess your writing and speaking English skills?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "How do you assess your writing and speaking English skills?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6756459,
+       "position": 0,
+       "body": "Beginner",
+       "translations": {
+        "en": {
+         "body": "Beginner"
+        }
+       }
+      },
+      {
+       "id": 6756460,
+       "position": 1,
+       "body": "Intermediate",
+       "translations": {
+        "en": {
+         "body": "Intermediate"
+        }
+       }
+      },
+      {
+       "id": 6756461,
+       "position": 2,
+       "body": "Upper Intermediate",
+       "translations": {
+        "en": {
+         "body": "Upper Intermediate"
+        }
+       }
+      },
+      {
+       "id": 6756462,
+       "position": 3,
+       "body": "Advanced",
+       "translations": {
+        "en": {
+         "body": "Advanced"
+        }
+       }
+      },
+      {
+       "id": 6756463,
+       "position": 4,
+       "body": "Native",
+       "translations": {
+        "en": {
+         "body": "Native"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4388733,
+     "position": 6,
+     "options": {},
+     "required": false,
+     "body": "<p><strong>💡 If successful in the hiring process, the contractual arrangement would look like this: <br /> <br />🇹🇷 Turkey: A first contract of 9 months, extended with a second contract of 12 months, <strong>followed by</strong> an indefinite contract. <br />🇧🇬 Bulgaria: an indefinite contract with 6 months probation. <br /><br />💡 For the first 3 months, all new hires are required to be in the office 5 days a week to complete the onboarding process, get to know everyone, and immerse <strong>themselves in the culture of bunq. After that, the work arrangement will be hybrid, with 3 days in the office and 2 days working from home.<br /></strong></strong></p>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p><strong>💡 If successful in the hiring process, the contractual arrangement would look like this: <br /> <br />🇹🇷 Turkey: A first contract of 9 months, extended with a second contract of 12 months, <strong>followed by</strong> an indefinite contract. <br />🇧🇬 Bulgaria: an indefinite contract with 6 months probation. <br /><br />💡 For the first 3 months, all new hires are required to be in the office 5 days a week to complete the onboarding process, get to know everyone, and immerse <strong>themselves in the culture of bunq. After that, the work arrangement will be hybrid, with 3 days in the office and 2 days working from home.<br /></strong></strong></p>"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4388746,
+     "position": 7,
+     "options": {},
+     "required": false,
+     "body": "<p><strong><strong><strong>💡 </strong>Our standard working hours are from 09:00 to 18:00. This ensures that everyone is available and can rely on each other during this time. </strong></strong></p>\n<p><br /></p>\n<p><strong><strong>👉 For this position, after your onboarding period, you will move into a rotating shift structure, including weekends. Your main working hours will be distributed for a whole month with the following hours, in Central European Time: </strong></strong></p>\n<p><br /></p>\n<ul><li><strong><strong>05-14 AMS</strong></strong></li><li><strong><strong>08-17 AMS</strong></strong></li><li><strong><strong>11-20 AMS</strong></strong></li><li><strong><strong>14-23 AMS</strong></strong></li><li><strong><strong>21-05 AMS</strong></strong></li></ul>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p><strong><strong><strong>💡 </strong>Our standard working hours are from 09:00 to 18:00. This ensures that everyone is available and can rely on each other during this time. </strong></strong></p>\n<p><br /></p>\n<p><strong><strong>👉 For this position, after your onboarding period, you will move into a rotating shift structure, including weekends. Your main working hours will be distributed for a whole month with the following hours, in Central European Time: </strong></strong></p>\n<p><br /></p>\n<ul><li><strong><strong>05-14 AMS</strong></strong></li><li><strong><strong>08-17 AMS</strong></strong></li><li><strong><strong>11-20 AMS</strong></strong></li><li><strong><strong>14-23 AMS</strong></strong></li><li><strong><strong>21-05 AMS</strong></strong></li></ul>"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4388734,
+     "position": 8,
+     "options": {},
+     "required": true,
+     "body": "Do you agree and confirm with the above mentioned terms (contract duration, hybrid way of working, and standard working hours)?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "Do you agree and confirm with the above mentioned terms (contract duration, hybrid way of working, and standard working hours)?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6756464,
+       "position": 0,
+       "body": "Yes, I agree with the proposed setup.",
+       "translations": {
+        "en": {
+         "body": "Yes, I agree with the proposed setup."
+        }
+       }
+      },
+      {
+       "id": 6756465,
+       "position": 1,
+       "body": "No, I do not agree with the initial in-office and then hybrid setup",
+       "translations": {
+        "en": {
+         "body": "No, I do not agree with the initial in-office and then hybrid setup"
+        }
+       }
+      },
+      {
+       "id": 6756466,
+       "position": 2,
+       "body": "No, I do not agree with the contract duration / setup",
+       "translations": {
+        "en": {
+         "body": "No, I do not agree with the contract duration / setup"
+        }
+       }
+      },
+      {
+       "id": 6756467,
+       "position": 3,
+       "body": "No, I do not agree with the working hours setup",
+       "translations": {
+        "en": {
+         "body": "No, I do not agree with the working hours setup"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4388753,
+     "position": 9,
+     "options": {},
+     "required": true,
+     "body": "For this role, the salary band is fixed between the range of 1671 to 1710 gross EUR per month. Would that align with your expectations?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "For this role, the salary band is fixed between the range of 1671 to 1710 gross EUR per month. Would that align with your expectations?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6756516,
+       "position": 0,
+       "body": "Yes",
+       "translations": {
+        "en": {
+         "body": "Yes"
+        }
+       }
+      },
+      {
+       "id": 6756517,
+       "position": 1,
+       "body": "No",
+       "translations": {
+        "en": {
+         "body": "No"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4388737,
+     "position": 10,
+     "options": {},
+     "required": true,
+     "body": "Have you previously worked at bunq?",
+     "kind": "boolean",
+     "translations": {
+      "en": {
+       "body": "Have you previously worked at bunq?"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4388738,
+     "position": 11,
+     "options": {},
+     "required": false,
+     "body": "<p><em>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace</em></p>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p><em>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace</em></p>"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4388740,
+     "position": 12,
+     "options": {},
+     "required": true,
+     "body": "Which of the following statements best describes your approach to using AI in a professional context?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "Which of the following statements best describes your approach to using AI in a professional context?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6756477,
+       "position": 0,
+       "body": "I have limited to no experience with AI tools and am not yet convinced of their practical benefits in a work environment.",
+       "translations": {
+        "en": {
+         "body": "I have limited to no experience with AI tools and am not yet convinced of their practical benefits in a work environment."
+        }
+       }
+      },
+      {
+       "id": 6756478,
+       "position": 1,
+       "body": "I consistently use AI tools to improve my personal efficiency, validate the quality of my own work, and build simple automations for my individual tasks.",
+       "translations": {
+        "en": {
+         "body": "I consistently use AI tools to improve my personal efficiency, validate the quality of my own work, and build simple automations for my individual tasks."
+        }
+       }
+      },
+      {
+       "id": 6756479,
+       "position": 2,
+       "body": "I proactively improve team efficiency by designing, building, and maintaining multi-step automated workflows, and I actively share these solutions with my team.",
+       "translations": {
+        "en": {
+         "body": "I proactively improve team efficiency by designing, building, and maintaining multi-step automated workflows, and I actively share these solutions with my team."
+        }
+       }
+      },
+      {
+       "id": 6756480,
+       "position": 3,
+       "body": "I strategically redesign core operations by architecting scalable AI systems, coaching others to raise their AI skills, and identifying work that can be entirely eliminated by AI.",
+       "translations": {
+        "en": {
+         "body": "I strategically redesign core operations by architecting scalable AI systems, coaching others to raise their AI skills, and identifying work that can be entirely eliminated by AI."
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4388801,
+     "position": 13,
+     "options": {},
+     "required": true,
+     "body": "A user reaches out clearly frustrated: Finn couldn't resolve their issue, and this is the third time they've had a similar problem. What's your first move?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "A user reaches out clearly frustrated: Finn couldn't resolve their issue, and this is the third time they've had a similar problem. What's your first move?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6756624,
+       "position": 0,
+       "body": "Acknowledge their frustration, resolve the immediate issue, and flag the recurring pattern so the root cause gets fixed",
+       "translations": {
+        "en": {
+         "body": "Acknowledge their frustration, resolve the immediate issue, and flag the recurring pattern so the root cause gets fixed"
+        }
+       }
+      },
+      {
+       "id": 6756625,
+       "position": 1,
+       "body": "Escalate to a Team Lead without responding to the Eva first to find the solution together",
+       "translations": {
+        "en": {
+         "body": "Escalate to a Team Lead without responding to the Eva first to find the solution together"
+        }
+       }
+      },
+      {
+       "id": 6756626,
+       "position": 2,
+       "body": "Explain that Finn is still learning and ask them to be patient",
+       "translations": {
+        "en": {
+         "body": "Explain that Finn is still learning and ask them to be patient"
+        }
+       }
+      },
+      {
+       "id": 6756627,
+       "position": 3,
+       "body": "Apologize, resolve the immediate issue, and close the ticket",
+       "translations": {
+        "en": {
+         "body": "Apologize, resolve the immediate issue, and close the ticket"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4388745,
+     "position": 14,
+     "options": {},
+     "required": true,
+     "body": "How did you first hear about this role?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "How did you first hear about this role?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6756497,
+       "position": 0,
+       "body": "I found it myself on bunq's careers website",
+       "translations": {
+        "en": {
+         "body": "I found it myself on bunq's careers website"
+        }
+       }
+      },
+      {
+       "id": 6756498,
+       "position": 1,
+       "body": "A current bunq employee told me about it",
+       "translations": {
+        "en": {
+         "body": "A current bunq employee told me about it"
+        }
+       }
+      },
+      {
+       "id": 6756499,
+       "position": 2,
+       "body": "A former bunq employee referred me",
+       "translations": {
+        "en": {
+         "body": "A former bunq employee referred me"
+        }
+       }
+      },
+      {
+       "id": 6756500,
+       "position": 3,
+       "body": "A bunq recruiter reached out to me",
+       "translations": {
+        "en": {
+         "body": "A bunq recruiter reached out to me"
+        }
+       }
+      },
+      {
+       "id": 6756501,
+       "position": 4,
+       "body": "A job portal (LinkedIn, Glassdoor, Indeed, Google Jobs)",
+       "translations": {
+        "en": {
+         "body": "A job portal (LinkedIn, Glassdoor, Indeed, Google Jobs)"
+        }
+       }
+      },
+      {
+       "id": 6756502,
+       "position": 5,
+       "body": "A social media post (LinkedIn, Instagram, Facebook, YouTube, X)",
+       "translations": {
+        "en": {
+         "body": "A social media post (LinkedIn, Instagram, Facebook, YouTube, X)"
+        }
+       }
+      },
+      {
+       "id": 6756503,
+       "position": 6,
+       "body": "News or media coverage",
+       "translations": {
+        "en": {
+         "body": "News or media coverage"
+        }
+       }
+      },
+      {
+       "id": 6756504,
+       "position": 7,
+       "body": "At an event where bunq was present",
+       "translations": {
+        "en": {
+         "body": "At an event where bunq was present"
+        }
+       }
+      },
+      {
+       "id": 6756505,
+       "position": 8,
+       "body": "Through my university (ad, newsletter, event)",
+       "translations": {
+        "en": {
+         "body": "Through my university (ad, newsletter, event)"
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "postal_code": null,
+   "sharing_title": "Support Experience Guide",
+   "guid": "ana7n",
+   "created_at": "2026-09-23 08:29:55 UTC",
+   "location": "İstanbul, İstanbul, Türkiye",
+   "sharing_description": "As a Support Experience Guide, you're the human expert who steps in when our AI agent Finn needs a helping hand. You don't just fix problems; you make our users feel heard and build trust that lasts. ",
+   "close_at": null,
+   "experience_code": "entry_level",
+   "mailbox_email": "job.ana7n@bunq.recruitee.com",
+   "careers_apply_url": "https://careers.bunq.com/o/support-experience-guide-3/c/new",
+   "highlight": null,
+   "dynamic_fields": [],
+   "translations": {
+    "en": {
+     "description": "<p style=\"text-align:start;\">As a Support Experience Guide, you're the human expert who steps in when our AI agent Finn needs a helping hand. You don't just fix problems; you make our users feel heard and build trust that lasts. Every interaction isn't just a closed ticket, it's a lesson that makes Finn smarter for next time. Finn is smart, but you're the genius behind the curtain 🤖✨</p><p style=\"text-align:start;min-height: 1.7em;\"></p><h4 style=\"text-align:start;\"><strong>Take Ownership:</strong></h4><ul><li><p>Make sure every user feels supported, understood, and never left behind: you'll take over escalated conversations that Finn (our AI assistant) hands off to a human.</p></li><li><p>Get to the root cause of why users needed to reach out at all, and drive fixes that remove the underlying problem: not just close the ticket.</p></li><li><p>Make Finn smarter after every interaction: spot where it fell short, and feed that back so the next Eva gets a better answer.</p></li></ul>",
+     "title": "Support Experience Guide",
+     "highlight": null,
+     "requirements": "<ul><li><p>You’re curious by nature: you look for ways to improve how things work, not just how to get through the queue.</p></li><li><p>You’re calm under pressure, with a positive, solution-driven mindset when things get hectic.</p></li><li><p>You're comfortable being measured on KPIs and performance metrics.</p></li><li><p>You’re a teamplayer: steady, thoughtful, and proactive: the person others know they can count on.</p></li><li><p>You’re fully and perfectly comfortable speaking and writing in English.</p></li><li><p>You’re tech-savy and comfortable with new tools.</p></li><li><p>You see AI as an opportunity to actively look for ways to use it to work faster and better.</p></li><li><p>You’re available to cover morning, evening, and night shifts on weekdays, and on weekends.</p><p style=\"min-height: 1.7em;\"></p></li></ul><p><strong>Your space to perform</strong></p><p>🤟 Great, international colleagues who share your mindset<br>👩‍💻 Hybrid setup: after 3 months in-office, work 2 days remote, 3 days in-office weekly.<br>📚 We support growth with bunq Academy and €1500 annual learning budget<br>🇧🇬 Flex Benefits: €70 monthly budget via Re: benefit, offering access to 150+ perks tailored to your lifestyle.<br>🧳 Digital Nomad Program: After your first year, enjoy up to 20 days per year to work while traveling, combining flexibility with strong team collaboration<br>🚀 We reward tenure with a dedicated travel budget: €1.5k after 2 years and €3k after 4 years to visit another core office.<br>💻 A MacBook so you can Get Shit Done with us<br>🥦 Delicious lunches from our fabulous in-house chefs with vegan and vegetarian options<br>⚕️ Private health insurance, just in case<br>🍻 Friday drinks and other celebrations - bunq style</p><p style=\"min-height: 1.7em;\"></p><p><em>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace.</em></p><p>Curious to see how we make life easy? - try the <em><a rel=\"noopener\" target=\"_blank\" href=\"https://app.adjust.com/1tyd4x67?fallback=https%3A%2F%2Fwww.bunq.com%2F&redirect_macos=https%3A%2F%2Fwww.bunq.com%2F\">bunq app</a></em>, it only takes 5 minutes to sign up.</p>",
+     "sharing_image": null,
+     "locations_question": "What is your preferred work location?",
+     "sharing_description": "As a Support Experience Guide, you're the human expert who steps in when our AI agent Finn needs a helping hand. You don't just fix problems; you make our users feel heard and build trust that lasts. ",
+     "sharing_title": "Support Experience Guide"
+    }
+   },
+   "on_site": false,
+   "employment_type_code": "fulltime_permanent",
+   "city": "İstanbul",
+   "description": "<p style=\"text-align:start;\">As a Support Experience Guide, you're the human expert who steps in when our AI agent Finn needs a helping hand. You don't just fix problems; you make our users feel heard and build trust that lasts. Every interaction isn't just a closed ticket, it's a lesson that makes Finn smarter for next time. Finn is smart, but you're the genius behind the curtain 🤖✨</p><p style=\"text-align:start;min-height: 1.7em;\"></p><h4 style=\"text-align:start;\"><strong>Take Ownership:</strong></h4><ul><li><p>Make sure every user feels supported, understood, and never left behind: you'll take over escalated conversations that Finn (our AI assistant) hands off to a human.</p></li><li><p>Get to the root cause of why users needed to reach out at all, and drive fixes that remove the underlying problem: not just close the ticket.</p></li><li><p>Make Finn smarter after every interaction: spot where it fell short, and feed that back so the next Eva gets a better answer.</p></li></ul>",
+   "state_name": "İstanbul",
+   "category_code": "banking",
+   "locations_question_type": "single_choice",
+   "min_hours_per_week": "40",
+   "careers_url": "https://careers.bunq.com/o/support-experience-guide-3",
+   "remote": false,
+   "hybrid": true,
+   "min_hours": 40,
+   "id": 2755994,
+   "department": "Support & Operations",
+   "locations_question": "What is your preferred work location?",
+   "max_hours": 40,
+   "salary": {
+    "max": null,
+    "min": null,
+    "period": null,
+    "currency": null
+   },
+   "education_code": "bachelor_degree",
+   "sharing_image": null,
+   "status": "published",
+   "slug": "support-experience-guide-3",
+   "cover_image": null,
+   "state_code": "34",
+   "tags": []
+  },
+  {
+   "options_photo": "off",
+   "title": "SOS Hotline Support Guide",
+   "country": "Türkiye",
+   "locations_question_required": true,
+   "position": 1602,
+   "options_title": "off",
+   "options_cv": "off",
+   "requirements": "<p>• You maintain unwavering composure and empathy in high-pressure, sensitive situations, acting as a stable and reassuring presence for users in distress.<br>• You are a natural at turning friction into flow. You have a background in handling sensitive and urgent issues with a calm and structured approach.<br>• You are naturally curious and adept at digging deep to uncover the root cause of an issue, not just treating the symptoms.<br>• You have a close-to-native or native command of English. Your communication is clear, concise, and empathetic.<br>• You have prior experience in a high-pressure environment like a contact center, technical support, or an incident response team, preferably within fintech or financial services.<br>• You are ready to work on a 24/7 shift schedule, including weekends, nights, and holidays.</p><p style=\"min-height: 1.7em;\"></p><p><strong>Your space to perform</strong></p><p>🤟 Great, international colleagues who share your mindset<br>👩‍💻 Hybrid setup: after 3 months in-office, work 2 days remote, 3 days in-office weekly.<br>📚 We support growth with bunq Academy and €1500 annual learning budget<br>🇧🇬 Flex Benefits: €70 monthly budget via Re: benefit, offering access to 150+ perks tailored to your lifestyle.<br>🧳 Digital Nomad Program: After your first year, enjoy up to 20 days per year to work while traveling, combining flexibility with strong team collaboration<br>🚀 We reward tenure with a dedicated travel budget: €1.5k after 2 years and €3k after 4 years to visit another core office.<br>💻 A MacBook so you can Get Shit Done with us<br>🥦 Delicious lunches from our fabulous in-house chefs with vegan and vegetarian options<br>⚕️ Private health insurance, just in case<br>🍻 Friday drinks and other celebrations - bunq style</p><p><br><em>Curious to see how we make life easy? - try the <u><a rel=\"noopener\" target=\"_blank\" href=\"https://app.adjust.com/1tyd4x67?fallback=https%3A%2F%2Fwww.bunq.com%2F&redirect_macos=https%3A%2F%2Fwww.bunq.com%2F\">bunq app</a></u>, it only takes 5 minutes to sign up</em></p><p><em>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace.</em></p>",
+   "options_salutation": "off",
+   "options_phone": "required",
+   "published_at": "2026-09-22 08:22:59 UTC",
+   "country_code": "TR",
+   "company_name": "bunq",
+   "options_cover_letter": "off",
+   "location_question_visible": true,
+   "updated_at": "2026-09-22 10:57:18 UTC",
+   "max_hours_per_week": "40",
+   "locations": [
+    {
+     "id": 39977,
+     "name": "Istanbul",
+     "state": "İstanbul",
+     "country": "Türkiye",
+     "city": "İstanbul",
+     "translations": {
+      "en": {
+       "name": "Istanbul",
+       "city": "İstanbul",
+       "postal_code": null,
+       "street": null,
+       "note": null
+      }
+     },
+     "country_code": "TR",
+     "state_code": "34",
+     "postal_code": null,
+     "street": null,
+     "note": null
+    },
+    {
+     "id": 39967,
+     "name": "Sofia",
+     "state": "Sofia (stolitsa)",
+     "country": "Bulgaria",
+     "city": "Sofia",
+     "translations": {
+      "en": {
+       "name": "Sofia",
+       "city": "Sofia",
+       "postal_code": null,
+       "street": null,
+       "note": null
+      }
+     },
+     "country_code": "BG",
+     "state_code": "22",
+     "postal_code": null,
+     "street": null,
+     "note": null
+    }
+   ],
+   "open_questions": [
+    {
+     "id": 4385252,
+     "position": 1,
+     "options": {},
+     "required": true,
+     "body": "What country do you currently live in?",
+     "kind": "string",
+     "translations": {
+      "en": {
+       "body": "What country do you currently live in?"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4385253,
+     "position": 2,
+     "options": {},
+     "required": false,
+     "body": "<p>💡 Each country has different rules for eligibility to work without requiring sponsorship.<br /><br /></p>\n<p>🇧🇬 <strong>Bulgaria</strong>: You must have the legal right to work in Bulgaria without needing a company-sponsored visa.  </p>\n<p>🇹🇷 <strong>Turkey</strong>: You must be a Turkish citizen, hold a Turquoise Card, refugee status, or a permanent residency/work permit (student/family/temporary residencies are not eligible to work without company sponsorship).</p>\n<p><br /><strong>For this role, we are <em>not</em> sponsoring work visas/permits at the moment. But take a look at <strong><a target=\"_blank\" href=\"http://careers.bunq.com/\" rel=\"noopener\">careers.bunq.com</a> </strong>- you might find another exciting role that’s a great fit! <strong>🌈</strong></strong><strong><br /></strong><br /></p>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p>💡 Each country has different rules for eligibility to work without requiring sponsorship.<br /><br /></p>\n<p>🇧🇬 <strong>Bulgaria</strong>: You must have the legal right to work in Bulgaria without needing a company-sponsored visa.  </p>\n<p>🇹🇷 <strong>Turkey</strong>: You must be a Turkish citizen, hold a Turquoise Card, refugee status, or a permanent residency/work permit (student/family/temporary residencies are not eligible to work without company sponsorship).</p>\n<p><br /><strong>For this role, we are <em>not</em> sponsoring work visas/permits at the moment. But take a look at <strong><a target=\"_blank\" href=\"http://careers.bunq.com/\" rel=\"noopener\">careers.bunq.com</a> </strong>- you might find another exciting role that’s a great fit! <strong>🌈</strong></strong><strong><br /></strong><br /></p>"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4385254,
+     "position": 3,
+     "options": {},
+     "required": true,
+     "body": "Which visa situation fits you best? Please choose according to the office you are applying for: Amsterdam (NL), Istanbul (TR), Sofia (BG).",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "Which visa situation fits you best? Please choose according to the office you are applying for: Amsterdam (NL), Istanbul (TR), Sofia (BG)."
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6750840,
+       "position": 0,
+       "body": "TR: I am Turkish citizen",
+       "translations": {
+        "en": {
+         "body": "TR: I am Turkish citizen"
+        }
+       }
+      },
+      {
+       "id": 6750841,
+       "position": 1,
+       "body": "TR: I have a Turkish permanent residency / working permit / Turquoise Card / official refugee or subsidiary protection status",
+       "translations": {
+        "en": {
+         "body": "TR: I have a Turkish permanent residency / working permit / Turquoise Card / official refugee or subsidiary protection status"
+        }
+       }
+      },
+      {
+       "id": 6750842,
+       "position": 2,
+       "body": "TR: I need visa sponsorship / I have a short-term, long-term, family permit or student permit",
+       "translations": {
+        "en": {
+         "body": "TR: I need visa sponsorship / I have a short-term, long-term, family permit or student permit"
+        }
+       }
+      },
+      {
+       "id": 6750843,
+       "position": 3,
+       "body": "BG: I do not require visa sponsorship",
+       "translations": {
+        "en": {
+         "body": "BG: I do not require visa sponsorship"
+        }
+       }
+      },
+      {
+       "id": 6750844,
+       "position": 4,
+       "body": "BG: I require visa sponsorship",
+       "translations": {
+        "en": {
+         "body": "BG: I require visa sponsorship"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4385255,
+     "position": 4,
+     "options": {},
+     "required": false,
+     "body": "<p><strong>💡 Important Info: At bunq, our working language is <u>English</u>. Fluency in both writing and speaking English is a must for all roles in all locations.</strong></p>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p><strong>💡 Important Info: At bunq, our working language is <u>English</u>. Fluency in both writing and speaking English is a must for all roles in all locations.</strong></p>"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4385256,
+     "position": 5,
+     "options": {},
+     "required": true,
+     "body": "How do you assess your writing and speaking English skills?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "How do you assess your writing and speaking English skills?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6750845,
+       "position": 0,
+       "body": "Beginner",
+       "translations": {
+        "en": {
+         "body": "Beginner"
+        }
+       }
+      },
+      {
+       "id": 6750846,
+       "position": 1,
+       "body": "Intermediate",
+       "translations": {
+        "en": {
+         "body": "Intermediate"
+        }
+       }
+      },
+      {
+       "id": 6750847,
+       "position": 2,
+       "body": "Upper Intermediate",
+       "translations": {
+        "en": {
+         "body": "Upper Intermediate"
+        }
+       }
+      },
+      {
+       "id": 6750848,
+       "position": 3,
+       "body": "Advanced",
+       "translations": {
+        "en": {
+         "body": "Advanced"
+        }
+       }
+      },
+      {
+       "id": 6750849,
+       "position": 4,
+       "body": "Native",
+       "translations": {
+        "en": {
+         "body": "Native"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4385257,
+     "position": 6,
+     "options": {},
+     "required": false,
+     "body": "<p><strong>💡 If you are successful in the hiring process, the contractual arrangement will look like this: <br /> <br />🇹🇷 Turkey: A first contract of 9 months, extended with a second contract of 12 months, <strong>followed by</strong> an indefinite contract. <br />🇧🇬 Bulgaria: an indefinite contract. <br /><br />💡 For the first 1 month, all new hires are required to be in the office 5 days a week to complete the onboarding process, get to know everyone, and immerse <strong>themselves in the culture of bunq. After that, the work arrangement will be hybrid, with 3 days in the office and 2 days working from home.<br /></strong></strong></p>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p><strong>💡 If you are successful in the hiring process, the contractual arrangement will look like this: <br /> <br />🇹🇷 Turkey: A first contract of 9 months, extended with a second contract of 12 months, <strong>followed by</strong> an indefinite contract. <br />🇧🇬 Bulgaria: an indefinite contract. <br /><br />💡 For the first 1 month, all new hires are required to be in the office 5 days a week to complete the onboarding process, get to know everyone, and immerse <strong>themselves in the culture of bunq. After that, the work arrangement will be hybrid, with 3 days in the office and 2 days working from home.<br /></strong></strong></p>"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4385275,
+     "position": 7,
+     "options": {},
+     "required": false,
+     "body": "<p><strong><strong><strong>💡 </strong>Our standard working hours are from 09:00 to 18:00. This ensures that everyone is available and can rely on each other during this time. </strong></strong></p>\n<p><strong><strong><br /></strong></strong></p>\n<p><strong><strong>👉 For this position, after your onboarding period, you will move into a rotating shift structure, including weekends. Your main working hours will be distributed for a whole month with the following hours, in Central European Time: </strong></strong></p>\n<p><strong><strong><br /></strong></strong></p><ul><li><strong><strong>05-14 AMS</strong></strong></li><li><strong><strong>08-17 AMS</strong></strong></li><li><strong><strong>11-20 AMS</strong></strong></li><li><strong><strong>12-21 AMS</strong></strong></li><li><strong><strong>14-23 AMS</strong></strong></li><li><strong><strong>21-05 AMS</strong></strong></li></ul>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p><strong><strong><strong>💡 </strong>Our standard working hours are from 09:00 to 18:00. This ensures that everyone is available and can rely on each other during this time. </strong></strong></p>\n<p><strong><strong><br /></strong></strong></p>\n<p><strong><strong>👉 For this position, after your onboarding period, you will move into a rotating shift structure, including weekends. Your main working hours will be distributed for a whole month with the following hours, in Central European Time: </strong></strong></p>\n<p><strong><strong><br /></strong></strong></p><ul><li><strong><strong>05-14 AMS</strong></strong></li><li><strong><strong>08-17 AMS</strong></strong></li><li><strong><strong>11-20 AMS</strong></strong></li><li><strong><strong>12-21 AMS</strong></strong></li><li><strong><strong>14-23 AMS</strong></strong></li><li><strong><strong>21-05 AMS</strong></strong></li></ul>"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4385258,
+     "position": 8,
+     "options": {},
+     "required": true,
+     "body": "Do you agree and confirm with the above mentioned terms (contract duration, hybrid way of working, and working hours)?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "Do you agree and confirm with the above mentioned terms (contract duration, hybrid way of working, and working hours)?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6750850,
+       "position": 0,
+       "body": "Yes, I agree with the proposed setup.",
+       "translations": {
+        "en": {
+         "body": "Yes, I agree with the proposed setup."
+        }
+       }
+      },
+      {
+       "id": 6750851,
+       "position": 1,
+       "body": "No, I do not agree with the initial in-office and then hybrid setup",
+       "translations": {
+        "en": {
+         "body": "No, I do not agree with the initial in-office and then hybrid setup"
+        }
+       }
+      },
+      {
+       "id": 6750852,
+       "position": 2,
+       "body": "No, I do not agree with the contract duration / setup",
+       "translations": {
+        "en": {
+         "body": "No, I do not agree with the contract duration / setup"
+        }
+       }
+      },
+      {
+       "id": 6750853,
+       "position": 3,
+       "body": "No, I do not agree with the working hours setup",
+       "translations": {
+        "en": {
+         "body": "No, I do not agree with the working hours setup"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4385900,
+     "position": 9,
+     "options": {},
+     "required": true,
+     "body": "For this role, the salary band is fixed between the range of 1930 to 1974 gross EUR per month. Would that align with your expectations?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "For this role, the salary band is fixed between the range of 1930 to 1974 gross EUR per month. Would that align with your expectations?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6751848,
+       "position": 0,
+       "body": "Yes",
+       "translations": {
+        "en": {
+         "body": "Yes"
+        }
+       }
+      },
+      {
+       "id": 6751849,
+       "position": 1,
+       "body": "No",
+       "translations": {
+        "en": {
+         "body": "No"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4385259,
+     "position": 10,
+     "options": {},
+     "required": true,
+     "body": "What are your salary expectations? (gross, monthly, in EUR)",
+     "kind": "string",
+     "translations": {
+      "en": {
+       "body": "What are your salary expectations? (gross, monthly, in EUR)"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4385260,
+     "position": 11,
+     "options": {},
+     "required": false,
+     "body": "<p>Please double check if the salary expectations is the <strong>monthly </strong><strong>gross</strong> amount, in <strong>EUR</strong>!</p>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p>Please double check if the salary expectations is the <strong>monthly </strong><strong>gross</strong> amount, in <strong>EUR</strong>!</p>"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4385261,
+     "position": 12,
+     "options": {},
+     "required": true,
+     "body": "Have you previously worked at bunq?",
+     "kind": "boolean",
+     "translations": {
+      "en": {
+       "body": "Have you previously worked at bunq?"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4385262,
+     "position": 13,
+     "options": {},
+     "required": false,
+     "body": "<p><em>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace.</em></p>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p><em>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace.</em></p>"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4385263,
+     "position": 14,
+     "options": {},
+     "required": true,
+     "body": "How do you usually approach your work, its impact, and solving challenges?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "How do you usually approach your work, its impact, and solving challenges?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6750856,
+       "position": 0,
+       "body": "I don’t have formal work experience yet, but I’ve practiced through studies or small projects",
+       "translations": {
+        "en": {
+         "body": "I don’t have formal work experience yet, but I’ve practiced through studies or small projects"
+        }
+       }
+      },
+      {
+       "id": 6750857,
+       "position": 1,
+       "body": "I successfully handle defined tasks, follow processes, and ask for guidance when needed",
+       "translations": {
+        "en": {
+         "body": "I successfully handle defined tasks, follow processes, and ask for guidance when needed"
+        }
+       }
+      },
+      {
+       "id": 6750858,
+       "position": 2,
+       "body": "I work mostly on my own, support team goals, and deal with common issues",
+       "translations": {
+        "en": {
+         "body": "I work mostly on my own, support team goals, and deal with common issues"
+        }
+       }
+      },
+      {
+       "id": 6750859,
+       "position": 3,
+       "body": "I deliver projects from start to finish, tie my work to team results, and suggest fixes",
+       "translations": {
+        "en": {
+         "body": "I deliver projects from start to finish, tie my work to team results, and suggest fixes"
+        }
+       }
+      },
+      {
+       "id": 6750860,
+       "position": 4,
+       "body": "I turn bigger goals into initiatives, improve how we work, and prevent problems",
+       "translations": {
+        "en": {
+         "body": "I turn bigger goals into initiatives, improve how we work, and prevent problems"
+        }
+       }
+      },
+      {
+       "id": 6750861,
+       "position": 5,
+       "body": "I lead projects across teams, align people, and create tools that help others solve problems faster",
+       "translations": {
+        "en": {
+         "body": "I lead projects across teams, align people, and create tools that help others solve problems faster"
+        }
+       }
+      },
+      {
+       "id": 6750862,
+       "position": 6,
+       "body": "I redesign systems across departments, focus on long-term goals, and drive strategic change",
+       "translations": {
+        "en": {
+         "body": "I redesign systems across departments, focus on long-term goals, and drive strategic change"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4385312,
+     "position": 15,
+     "options": {},
+     "required": true,
+     "body": "A user calls our SOS Hotline, extremely upset and shouting, because they believe fraud has drained their account and they need the money back today for rent. What's your first move?",
+     "kind": "multi_choice",
+     "translations": {
+      "en": {
+       "body": "A user calls our SOS Hotline, extremely upset and shouting, because they believe fraud has drained their account and they need the money back today for rent. What's your first move?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6750939,
+       "position": 0,
+       "body": "Firmly ask them to lower their voice before you can continue helping",
+       "translations": {
+        "en": {
+         "body": "Firmly ask them to lower their voice before you can continue helping"
+        }
+       }
+      },
+      {
+       "id": 6750940,
+       "position": 1,
+       "body": "Calmly acknowledge their distress, confirm you understand the urgency, and walk them through what you can check right now",
+       "translations": {
+        "en": {
+         "body": "Calmly acknowledge their distress, confirm you understand the urgency, and walk them through what you can check right now"
+        }
+       }
+      },
+      {
+       "id": 6750941,
+       "position": 2,
+       "body": "Empathize briefly, then focus on isolating the facts you need to act, while managing their emotion in parallel",
+       "translations": {
+        "en": {
+         "body": "Empathize briefly, then focus on isolating the facts you need to act, while managing their emotion in parallel"
+        }
+       }
+      },
+      {
+       "id": 6750942,
+       "position": 3,
+       "body": "Reassure them it will be fine and immediately start explaining the standard fraud process",
+       "translations": {
+        "en": {
+         "body": "Reassure them it will be fine and immediately start explaining the standard fraud process"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4385264,
+     "position": 16,
+     "options": {},
+     "required": true,
+     "body": "Which of the following statements best describes your approach to using AI in a professional context?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "Which of the following statements best describes your approach to using AI in a professional context?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6750863,
+       "position": 0,
+       "body": "I have limited to no experience with AI tools and am not yet convinced of their practical benefits in a work environment.",
+       "translations": {
+        "en": {
+         "body": "I have limited to no experience with AI tools and am not yet convinced of their practical benefits in a work environment."
+        }
+       }
+      },
+      {
+       "id": 6750864,
+       "position": 1,
+       "body": "I consistently use AI tools to improve my personal efficiency, validate the quality of my own work, and build simple automations for my individual tasks.",
+       "translations": {
+        "en": {
+         "body": "I consistently use AI tools to improve my personal efficiency, validate the quality of my own work, and build simple automations for my individual tasks."
+        }
+       }
+      },
+      {
+       "id": 6750865,
+       "position": 2,
+       "body": "I proactively improve team efficiency by designing, building, and maintaining multi-step automated workflows, and I actively share these solutions with my team.",
+       "translations": {
+        "en": {
+         "body": "I proactively improve team efficiency by designing, building, and maintaining multi-step automated workflows, and I actively share these solutions with my team."
+        }
+       }
+      },
+      {
+       "id": 6750866,
+       "position": 3,
+       "body": "I strategically redesign core operations by architecting scalable AI systems, coaching others to raise their AI skills, and identifying work that can be entirely eliminated by AI.",
+       "translations": {
+        "en": {
+         "body": "I strategically redesign core operations by architecting scalable AI systems, coaching others to raise their AI skills, and identifying work that can be entirely eliminated by AI."
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4385269,
+     "position": 17,
+     "options": {},
+     "required": true,
+     "body": "How did you first hear about this role?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "How did you first hear about this role?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6750883,
+       "position": 0,
+       "body": "I found it myself on bunq's careers website",
+       "translations": {
+        "en": {
+         "body": "I found it myself on bunq's careers website"
+        }
+       }
+      },
+      {
+       "id": 6750884,
+       "position": 1,
+       "body": "A current bunq employee told me about it",
+       "translations": {
+        "en": {
+         "body": "A current bunq employee told me about it"
+        }
+       }
+      },
+      {
+       "id": 6750885,
+       "position": 2,
+       "body": "A former bunq employee referred me",
+       "translations": {
+        "en": {
+         "body": "A former bunq employee referred me"
+        }
+       }
+      },
+      {
+       "id": 6750886,
+       "position": 3,
+       "body": "A bunq recruiter reached out to me",
+       "translations": {
+        "en": {
+         "body": "A bunq recruiter reached out to me"
+        }
+       }
+      },
+      {
+       "id": 6750887,
+       "position": 4,
+       "body": "A job portal (LinkedIn, Glassdoor, Indeed, Google Jobs)",
+       "translations": {
+        "en": {
+         "body": "A job portal (LinkedIn, Glassdoor, Indeed, Google Jobs)"
+        }
+       }
+      },
+      {
+       "id": 6750888,
+       "position": 5,
+       "body": "A social media post (LinkedIn, Instagram, Facebook, YouTube, X)",
+       "translations": {
+        "en": {
+         "body": "A social media post (LinkedIn, Instagram, Facebook, YouTube, X)"
+        }
+       }
+      },
+      {
+       "id": 6750889,
+       "position": 6,
+       "body": "News or media coverage",
+       "translations": {
+        "en": {
+         "body": "News or media coverage"
+        }
+       }
+      },
+      {
+       "id": 6750890,
+       "position": 7,
+       "body": "At an event where bunq was present",
+       "translations": {
+        "en": {
+         "body": "At an event where bunq was present"
+        }
+       }
+      },
+      {
+       "id": 6750891,
+       "position": 8,
+       "body": "Through my university (ad, newsletter, event)",
+       "translations": {
+        "en": {
+         "body": "Through my university (ad, newsletter, event)"
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "postal_code": null,
+   "sharing_title": "SOS Hotline Support Guide",
+   "guid": "udyvg",
+   "created_at": "2026-09-22 07:46:31 UTC",
+   "location": "İstanbul, İstanbul, Türkiye",
+   "sharing_description": "At bunq, we're not just building a bank; we're reshaping how people experience financial freedom. We believe that when our users face an urgent situation, they deserve immediate, reliable support that",
+   "close_at": null,
+   "experience_code": "entry_level",
+   "mailbox_email": "job.udyvg@bunq.recruitee.com",
+   "careers_apply_url": "https://careers.bunq.com/o/sos-hotline-support-guide-1/c/new",
+   "highlight": null,
+   "dynamic_fields": [],
+   "translations": {
+    "en": {
+     "description": "<p>At bunq, we're not just building a bank; we're reshaping how people experience financial freedom. We believe that when our users face an urgent situation, they deserve immediate, reliable support that provides total peace of mind. As an SOS Hotline Support Guide, you’ll be the calm in the storm, embodying our philosophy by taking ownership, cutting through confusion, and restoring trust when it matters most.</p><p><br><strong>Take Ownership</strong><br>As an SOS Hotline Support Guide, you will play a critical role in managing our most urgent user interactions, ensuring their safety, security, and peace of mind. You won't just follow a script; you'll be a lifeline 🌟 </p><ul><li><p>Take immediate ownership of our 24/7 SOS Hotline, acting as the first point of contact and mastering crisis de-escalation to guide users from panic to a feeling of security.</p></li><li><p>Serve as the single source of truth by using strong analytical and investigative skills to troubleshoot complex problems, get to the root cause, and deliver swift, definitive resolutions.</p></li><li><p>Seamlessly connect urgent user needs with our internal processes, ensuring a reassuring and efficient experience without exposing the complexity behind the scenes.</p></li><li><p>Identify, analyze, and escalate systemic issues you encounter, acting as our first line of defense to protect our entire user base and prevent future problems.</p></li></ul>",
+     "title": "SOS Hotline Support Guide",
+     "highlight": null,
+     "requirements": "<p>• You maintain unwavering composure and empathy in high-pressure, sensitive situations, acting as a stable and reassuring presence for users in distress.<br>• You are a natural at turning friction into flow. You have a background in handling sensitive and urgent issues with a calm and structured approach.<br>• You are naturally curious and adept at digging deep to uncover the root cause of an issue, not just treating the symptoms.<br>• You have a close-to-native or native command of English. Your communication is clear, concise, and empathetic.<br>• You have prior experience in a high-pressure environment like a contact center, technical support, or an incident response team, preferably within fintech or financial services.<br>• You are ready to work on a 24/7 shift schedule, including weekends, nights, and holidays.</p><p style=\"min-height: 1.7em;\"></p><p><strong>Your space to perform</strong></p><p>🤟 Great, international colleagues who share your mindset<br>👩‍💻 Hybrid setup: after 3 months in-office, work 2 days remote, 3 days in-office weekly.<br>📚 We support growth with bunq Academy and €1500 annual learning budget<br>🇧🇬 Flex Benefits: €70 monthly budget via Re: benefit, offering access to 150+ perks tailored to your lifestyle.<br>🧳 Digital Nomad Program: After your first year, enjoy up to 20 days per year to work while traveling, combining flexibility with strong team collaboration<br>🚀 We reward tenure with a dedicated travel budget: €1.5k after 2 years and €3k after 4 years to visit another core office.<br>💻 A MacBook so you can Get Shit Done with us<br>🥦 Delicious lunches from our fabulous in-house chefs with vegan and vegetarian options<br>⚕️ Private health insurance, just in case<br>🍻 Friday drinks and other celebrations - bunq style</p><p><br><em>Curious to see how we make life easy? - try the <u><a rel=\"noopener\" target=\"_blank\" href=\"https://app.adjust.com/1tyd4x67?fallback=https%3A%2F%2Fwww.bunq.com%2F&redirect_macos=https%3A%2F%2Fwww.bunq.com%2F\">bunq app</a></u>, it only takes 5 minutes to sign up</em></p><p><em>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace.</em></p>",
+     "sharing_image": null,
+     "locations_question": "What is your preferred work location?",
+     "sharing_description": "At bunq, we're not just building a bank; we're reshaping how people experience financial freedom. We believe that when our users face an urgent situation, they deserve immediate, reliable support that",
+     "sharing_title": "SOS Hotline Support Guide"
+    }
+   },
+   "on_site": false,
+   "employment_type_code": "fulltime_permanent",
+   "city": "İstanbul",
+   "description": "<p>At bunq, we're not just building a bank; we're reshaping how people experience financial freedom. We believe that when our users face an urgent situation, they deserve immediate, reliable support that provides total peace of mind. As an SOS Hotline Support Guide, you’ll be the calm in the storm, embodying our philosophy by taking ownership, cutting through confusion, and restoring trust when it matters most.</p><p><br><strong>Take Ownership</strong><br>As an SOS Hotline Support Guide, you will play a critical role in managing our most urgent user interactions, ensuring their safety, security, and peace of mind. You won't just follow a script; you'll be a lifeline 🌟 </p><ul><li><p>Take immediate ownership of our 24/7 SOS Hotline, acting as the first point of contact and mastering crisis de-escalation to guide users from panic to a feeling of security.</p></li><li><p>Serve as the single source of truth by using strong analytical and investigative skills to troubleshoot complex problems, get to the root cause, and deliver swift, definitive resolutions.</p></li><li><p>Seamlessly connect urgent user needs with our internal processes, ensuring a reassuring and efficient experience without exposing the complexity behind the scenes.</p></li><li><p>Identify, analyze, and escalate systemic issues you encounter, acting as our first line of defense to protect our entire user base and prevent future problems.</p></li></ul>",
+   "state_name": "İstanbul",
+   "category_code": "banking",
+   "locations_question_type": "single_choice",
+   "min_hours_per_week": "40",
+   "careers_url": "https://careers.bunq.com/o/sos-hotline-support-guide-1",
+   "remote": false,
+   "hybrid": true,
+   "min_hours": 40,
+   "id": 2754503,
+   "department": "Support & Operations",
+   "locations_question": "What is your preferred work location?",
+   "max_hours": 40,
+   "salary": {
+    "max": null,
+    "min": null,
+    "period": null,
+    "currency": null
+   },
+   "education_code": "bachelor_degree",
+   "sharing_image": null,
+   "status": "published",
+   "slug": "sos-hotline-support-guide-1",
+   "cover_image": null,
+   "state_code": "34",
+   "tags": [
+    "E2",
+    "Operations",
+    "Promise Keeper"
+   ]
+  },
+  {
+   "options_photo": "off",
+   "title": "Fraud Operations Analyst - Night Shift",
+   "country": "Türkiye",
+   "locations_question_required": true,
+   "position": 1595,
+   "options_title": "off",
+   "options_cv": "off",
+   "requirements": "<ul><li><p>You have knowledge of fraud monitoring and prevention</p></li><li><p>You have a close eye for detail: you notice the subtle behavioral and contextual clues</p></li><li><p>You always think from the user’s perspective first, have empathy, and understand how to protect their interests</p></li><li><p>You're comfortable using AI tools to work faster and smarter, and you can spot when an AI-based tool is being used against us</p></li><li><p>We'd love it if you already have knowledge of KYC and PayOps</p></li><li><p>You're an excellent communicator and speak English fluently</p></li></ul><p style=\"min-height: 1.7em;\"></p><p><strong>Your space to perform</strong></p><p>🤟 Great, international colleagues who share your mindset<br>👩‍💻 Hybrid setup: after 3 months in-office, work 2 days remote, 3 days in-office weekly.<br>📚 We support growth with bunq Academy and €1500 annual learning budget<br>🇧🇬 Flex Benefits: €70 monthly budget via Re: benefit, offering access to 150+ perks tailored to your lifestyle.<br>🧳 Digital Nomad Program: After your first year, enjoy up to 20 days per year to work while traveling, combining flexibility with strong team collaboration<br>🚀 We reward tenure with a dedicated travel budget: €1.5k after 2 years and €3k after 4 years to visit another core office.<br>💻 A MacBook so you can Get Shit Done with us<br>🥦 Delicious lunches from our fabulous in-house chefs with vegan and vegetarian options<br>⚕️ Private health insurance, just in case<br>🍻 Friday drinks and other celebrations - bunq style</p><p style=\"min-height: 1.7em;\"></p><p>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace.</p><p>Curious to see how we make life easy? — try the <a rel=\"noopener\" target=\"_blank\" href=\"https://app.adjust.com/1tyd4x67?fallback=https%3A%2F%2Fwww.bunq.com%2F&redirect_macos=https%3A%2F%2Fwww.bunq.com%2F\">bunq app</a>, it only takes 5 minutes to sign up.</p>",
+   "options_salutation": "off",
+   "options_phone": "required",
+   "published_at": "2026-09-15 08:11:57 UTC",
+   "country_code": "TR",
+   "company_name": "bunq",
+   "options_cover_letter": "off",
+   "location_question_visible": true,
+   "updated_at": "2026-09-15 08:14:09 UTC",
+   "max_hours_per_week": "40",
+   "locations": [
+    {
+     "id": 39977,
+     "name": "Istanbul",
+     "state": "İstanbul",
+     "country": "Türkiye",
+     "city": "İstanbul",
+     "translations": {
+      "en": {
+       "name": "Istanbul",
+       "city": "İstanbul",
+       "postal_code": null,
+       "street": null,
+       "note": null
+      }
+     },
+     "country_code": "TR",
+     "state_code": "34",
+     "postal_code": null,
+     "street": null,
+     "note": null
+    },
+    {
+     "id": 39967,
+     "name": "Sofia",
+     "state": "Sofia (stolitsa)",
+     "country": "Bulgaria",
+     "city": "Sofia",
+     "translations": {
+      "en": {
+       "name": "Sofia",
+       "city": "Sofia",
+       "postal_code": null,
+       "street": null,
+       "note": null
+      }
+     },
+     "country_code": "BG",
+     "state_code": "22",
+     "postal_code": null,
+     "street": null,
+     "note": null
+    }
+   ],
+   "open_questions": [
+    {
+     "id": 4371166,
+     "position": 1,
+     "options": {},
+     "required": true,
+     "body": "What city do you currently live in?",
+     "kind": "string",
+     "translations": {
+      "en": {
+       "body": "What city do you currently live in?"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4371167,
+     "position": 2,
+     "options": {},
+     "required": false,
+     "body": "<p>💡 Each country has different rules for eligibility to work without requiring sponsorship.</p>\n<p><br /></p>\n<p>🇧🇬 <strong>Bulgaria</strong>: You must have the legal right to work in Bulgaria without needing a company-sponsored visa.  </p>\n<p>🇹🇷 <strong>Turkey</strong>: You must be a Turkish citizen, hold a Turquoise Card, refugee status, or a permanent residency/work permit (student/family/temporary residencies are not eligible to work without company sponsorship).</p>\n<p><br /><strong>For this role, we are not sponsoring work permits or work visas at the moment. But take a look at <strong><a target=\"_blank\" href=\"http://careers.bunq.com/\" rel=\"noopener\">careers.bunq.com</a> </strong>- you might find another exciting role that’s a great fit! <strong>🌈</strong></strong><strong><br /></strong><br /></p>\n",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p>💡 Each country has different rules for eligibility to work without requiring sponsorship.</p>\n<p><br /></p>\n<p>🇧🇬 <strong>Bulgaria</strong>: You must have the legal right to work in Bulgaria without needing a company-sponsored visa.  </p>\n<p>🇹🇷 <strong>Turkey</strong>: You must be a Turkish citizen, hold a Turquoise Card, refugee status, or a permanent residency/work permit (student/family/temporary residencies are not eligible to work without company sponsorship).</p>\n<p><br /><strong>For this role, we are not sponsoring work permits or work visas at the moment. But take a look at <strong><a target=\"_blank\" href=\"http://careers.bunq.com/\" rel=\"noopener\">careers.bunq.com</a> </strong>- you might find another exciting role that’s a great fit! <strong>🌈</strong></strong><strong><br /></strong><br /></p>\n"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4371168,
+     "position": 3,
+     "options": {},
+     "required": true,
+     "body": "Which visa situation fits you best? Please choose according to the office you are applying for: Istanbul (TR), Sofia (BG).",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "Which visa situation fits you best? Please choose according to the office you are applying for: Istanbul (TR), Sofia (BG)."
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6729028,
+       "position": 0,
+       "body": "TR: I am Turkish citizen",
+       "translations": {
+        "en": {
+         "body": "TR: I am Turkish citizen"
+        }
+       }
+      },
+      {
+       "id": 6729029,
+       "position": 1,
+       "body": "TR: I have a Turkish permanent residency / working permit / Turquoise Card / official refugee or subsidiary protection status",
+       "translations": {
+        "en": {
+         "body": "TR: I have a Turkish permanent residency / working permit / Turquoise Card / official refugee or subsidiary protection status"
+        }
+       }
+      },
+      {
+       "id": 6729030,
+       "position": 2,
+       "body": "TR: I need visa sponsorship / I have a short-term, long-term, family or student permit",
+       "translations": {
+        "en": {
+         "body": "TR: I need visa sponsorship / I have a short-term, long-term, family or student permit"
+        }
+       }
+      },
+      {
+       "id": 6729031,
+       "position": 3,
+       "body": "BG: I do not require visa sponsorship",
+       "translations": {
+        "en": {
+         "body": "BG: I do not require visa sponsorship"
+        }
+       }
+      },
+      {
+       "id": 6729032,
+       "position": 4,
+       "body": "BG: I require visa sponsorship",
+       "translations": {
+        "en": {
+         "body": "BG: I require visa sponsorship"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4371169,
+     "position": 4,
+     "options": {},
+     "required": false,
+     "body": "<p><strong>💡 Important Info: At bunq, our working language is English. Fluency in both writing and speaking English is a must for all roles in all locations.</strong></p>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p><strong>💡 Important Info: At bunq, our working language is English. Fluency in both writing and speaking English is a must for all roles in all locations.</strong></p>"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4371170,
+     "position": 5,
+     "options": {},
+     "required": true,
+     "body": "How do you assess your writing and speaking English skills?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "How do you assess your writing and speaking English skills?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6729033,
+       "position": 0,
+       "body": "Beginner",
+       "translations": {
+        "en": {
+         "body": "Beginner"
+        }
+       }
+      },
+      {
+       "id": 6729034,
+       "position": 1,
+       "body": "Intermediate",
+       "translations": {
+        "en": {
+         "body": "Intermediate"
+        }
+       }
+      },
+      {
+       "id": 6729035,
+       "position": 2,
+       "body": "Upper Intermediate",
+       "translations": {
+        "en": {
+         "body": "Upper Intermediate"
+        }
+       }
+      },
+      {
+       "id": 6729036,
+       "position": 3,
+       "body": "Advanced",
+       "translations": {
+        "en": {
+         "body": "Advanced"
+        }
+       }
+      },
+      {
+       "id": 6729037,
+       "position": 4,
+       "body": "Native",
+       "translations": {
+        "en": {
+         "body": "Native"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4371171,
+     "position": 6,
+     "options": {},
+     "required": false,
+     "body": "<p><strong>💡 If successful in the hiring process, the contractual arrangement would look like this: <br /><br />🇹🇷 Turkey: A first contract of 9 months, extended with a second contract of 12 months, <strong>followed by</strong> an indefinite contract. <br />🇧🇬 Bulgaria: an indefinite contract. <strong><br /></strong></strong></p>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p><strong>💡 If successful in the hiring process, the contractual arrangement would look like this: <br /><br />🇹🇷 Turkey: A first contract of 9 months, extended with a second contract of 12 months, <strong>followed by</strong> an indefinite contract. <br />🇧🇬 Bulgaria: an indefinite contract. <strong><br /></strong></strong></p>"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4371172,
+     "position": 7,
+     "options": {},
+     "required": false,
+     "body": "<p><strong>💡 For the first 3 months, all new hires are required to be in the office 5 days a week to complete the onboarding process, get to know everyone, and immerse <strong>themselves in the culture of bunq. After that, the work arrangement will be hybrid, with 3 days in the office and 2 days working from home.<br /><br /><strong>💡 </strong>Our standard working hours are from 09:00 to 18:00. This ensures that everyone is available and can rely on each other during this time.</strong></strong></p>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p><strong>💡 For the first 3 months, all new hires are required to be in the office 5 days a week to complete the onboarding process, get to know everyone, and immerse <strong>themselves in the culture of bunq. After that, the work arrangement will be hybrid, with 3 days in the office and 2 days working from home.<br /><br /><strong>💡 </strong>Our standard working hours are from 09:00 to 18:00. This ensures that everyone is available and can rely on each other during this time.</strong></strong></p>"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4371177,
+     "position": 8,
+     "options": {},
+     "required": true,
+     "body": "Fraudsters never sleep. That's why this role is a night shift role, working mostly from 23:00 to 07:00. You'll work up most 12 night shifts per month, and the rest will be a 09:00-18:00. You'll be compensated accordingly. Would you commit to these working hours?",
+     "kind": "boolean",
+     "translations": {
+      "en": {
+       "body": "Fraudsters never sleep. That's why this role is a night shift role, working mostly from 23:00 to 07:00. You'll work up most 12 night shifts per month, and the rest will be a 09:00-18:00. You'll be compensated accordingly. Would you commit to these working hours?"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4371173,
+     "position": 9,
+     "options": {},
+     "required": true,
+     "body": "Do you agree and confirm with the above mentioned terms (contract duration, hybrid way of working, and standard working hours)?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "Do you agree and confirm with the above mentioned terms (contract duration, hybrid way of working, and standard working hours)?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6729038,
+       "position": 0,
+       "body": "Yes, I agree with the proposed setup.",
+       "translations": {
+        "en": {
+         "body": "Yes, I agree with the proposed setup."
+        }
+       }
+      },
+      {
+       "id": 6729039,
+       "position": 1,
+       "body": "No, I do not agree with the initial in-office and then hybrid setup",
+       "translations": {
+        "en": {
+         "body": "No, I do not agree with the initial in-office and then hybrid setup"
+        }
+       }
+      },
+      {
+       "id": 6729040,
+       "position": 2,
+       "body": "No, I do not agree with the contract duration / setup",
+       "translations": {
+        "en": {
+         "body": "No, I do not agree with the contract duration / setup"
+        }
+       }
+      },
+      {
+       "id": 6729041,
+       "position": 3,
+       "body": "No, I do not agree with the working hours setup",
+       "translations": {
+        "en": {
+         "body": "No, I do not agree with the working hours setup"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4371174,
+     "position": 10,
+     "options": {},
+     "required": true,
+     "body": "What are your salary expectations? (gross, monthly, in EUR)",
+     "kind": "string",
+     "translations": {
+      "en": {
+       "body": "What are your salary expectations? (gross, monthly, in EUR)"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4371175,
+     "position": 11,
+     "options": {},
+     "required": true,
+     "body": "Have you previously worked at bunq?",
+     "kind": "boolean",
+     "translations": {
+      "en": {
+       "body": "Have you previously worked at bunq?"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4371176,
+     "position": 12,
+     "options": {},
+     "required": true,
+     "body": "The salary range for this position is between the range of €1671 to €1710 gross monthly. Would this align with your expectations? ",
+     "kind": "boolean",
+     "translations": {
+      "en": {
+       "body": "The salary range for this position is between the range of €1671 to €1710 gross monthly. Would this align with your expectations? "
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4371178,
+     "position": 13,
+     "options": {},
+     "required": true,
+     "body": "How do you usually approach your work, its impact, and solving challenges?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "How do you usually approach your work, its impact, and solving challenges?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6729048,
+       "position": 0,
+       "body": "I don’t have formal work experience yet, but I’ve practiced through studies or small projects",
+       "translations": {
+        "en": {
+         "body": "I don’t have formal work experience yet, but I’ve practiced through studies or small projects"
+        }
+       }
+      },
+      {
+       "id": 6729049,
+       "position": 1,
+       "body": "I successfully handle defined tasks, follow processes, and ask for guidance when needed",
+       "translations": {
+        "en": {
+         "body": "I successfully handle defined tasks, follow processes, and ask for guidance when needed"
+        }
+       }
+      },
+      {
+       "id": 6729050,
+       "position": 2,
+       "body": "I work mostly on my own, support team goals, and deal with common issues",
+       "translations": {
+        "en": {
+         "body": "I work mostly on my own, support team goals, and deal with common issues"
+        }
+       }
+      },
+      {
+       "id": 6729051,
+       "position": 3,
+       "body": "I deliver projects from start to finish, tie my work to team results, and suggest fixes",
+       "translations": {
+        "en": {
+         "body": "I deliver projects from start to finish, tie my work to team results, and suggest fixes"
+        }
+       }
+      },
+      {
+       "id": 6729052,
+       "position": 4,
+       "body": "I turn bigger goals into initiatives, improve how we work, and prevent problems",
+       "translations": {
+        "en": {
+         "body": "I turn bigger goals into initiatives, improve how we work, and prevent problems"
+        }
+       }
+      },
+      {
+       "id": 6729053,
+       "position": 5,
+       "body": "I lead projects across teams, align people, and create tools that help others solve problems faster",
+       "translations": {
+        "en": {
+         "body": "I lead projects across teams, align people, and create tools that help others solve problems faster"
+        }
+       }
+      },
+      {
+       "id": 6729054,
+       "position": 6,
+       "body": "I redesign systems across departments, focus on long-term goals, and drive strategic change",
+       "translations": {
+        "en": {
+         "body": "I redesign systems across departments, focus on long-term goals, and drive strategic change"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4371179,
+     "position": 14,
+     "options": {},
+     "required": true,
+     "body": "Which of the following statements best describes your approach to using AI in a professional context?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "Which of the following statements best describes your approach to using AI in a professional context?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6729055,
+       "position": 0,
+       "body": "I have limited to no experience with AI tools and am not yet convinced of their practical benefits in a work environment.",
+       "translations": {
+        "en": {
+         "body": "I have limited to no experience with AI tools and am not yet convinced of their practical benefits in a work environment."
+        }
+       }
+      },
+      {
+       "id": 6729056,
+       "position": 1,
+       "body": "I consistently use AI tools to improve my personal efficiency, validate the quality of my own work, and build simple automations for my individual tasks.",
+       "translations": {
+        "en": {
+         "body": "I consistently use AI tools to improve my personal efficiency, validate the quality of my own work, and build simple automations for my individual tasks."
+        }
+       }
+      },
+      {
+       "id": 6729057,
+       "position": 2,
+       "body": "I proactively improve team efficiency by designing, building, and maintaining multi-step automated workflows, and I actively share these solutions with my team.",
+       "translations": {
+        "en": {
+         "body": "I proactively improve team efficiency by designing, building, and maintaining multi-step automated workflows, and I actively share these solutions with my team."
+        }
+       }
+      },
+      {
+       "id": 6729058,
+       "position": 3,
+       "body": "I strategically redesign core operations by architecting scalable AI systems, coaching others to raise their AI skills, and identifying work that can be entirely eliminated by AI.",
+       "translations": {
+        "en": {
+         "body": "I strategically redesign core operations by architecting scalable AI systems, coaching others to raise their AI skills, and identifying work that can be entirely eliminated by AI."
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4371180,
+     "position": 15,
+     "options": {},
+     "required": true,
+     "body": "How would you rate your practical proficiency with analyzing user data to differentiate legitimate users from fraudsters?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "How would you rate your practical proficiency with analyzing user data to differentiate legitimate users from fraudsters?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6729059,
+       "position": 0,
+       "body": "No experience - I haven’t used it in a work setting.",
+       "translations": {
+        "en": {
+         "body": "No experience - I haven’t used it in a work setting."
+        }
+       }
+      },
+      {
+       "id": 6729060,
+       "position": 1,
+       "body": "Basic - I can perform simple tasks with templates or guidance.",
+       "translations": {
+        "en": {
+         "body": "Basic - I can perform simple tasks with templates or guidance."
+        }
+       }
+      },
+      {
+       "id": 6729061,
+       "position": 2,
+       "body": "Intermediate - I work independently on common tasks and solve moderate problems.",
+       "translations": {
+        "en": {
+         "body": "Intermediate - I work independently on common tasks and solve moderate problems."
+        }
+       }
+      },
+      {
+       "id": 6729062,
+       "position": 3,
+       "body": "Advanced - I design solutions, optimise performance, and mentor others.",
+       "translations": {
+        "en": {
+         "body": "Advanced - I design solutions, optimise performance, and mentor others."
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4371181,
+     "position": 16,
+     "options": {},
+     "required": true,
+     "body": "How familiar and practised are you with Fraud Ops, PayOps, KYC, or customer suppport?",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "How familiar and practised are you with Fraud Ops, PayOps, KYC, or customer suppport?"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 6729063,
+       "position": 0,
+       "body": "Not familiar - I am enthusiastic to start learning about it.",
+       "translations": {
+        "en": {
+         "body": "Not familiar - I am enthusiastic to start learning about it."
+        }
+       }
+      },
+      {
+       "id": 6729064,
+       "position": 1,
+       "body": "Theoretical - I know the basics but have little hands-on experience.",
+       "translations": {
+        "en": {
+         "body": "Theoretical - I know the basics but have little hands-on experience."
+        }
+       }
+      },
+      {
+       "id": 6729065,
+       "position": 2,
+       "body": "Applied - I have applied this knowledge in projects or operations.",
+       "translations": {
+        "en": {
+         "body": "Applied - I have applied this knowledge in projects or operations."
+        }
+       }
+      },
+      {
+       "id": 6729066,
+       "position": 3,
+       "body": "Advanced - I have led implementations, designed processes, taught others.",
+       "translations": {
+        "en": {
+         "body": "Advanced - I have led implementations, designed processes, taught others."
+        }
+       }
+      },
+      {
+       "id": 6729067,
+       "position": 4,
+       "body": "Subject-matter expert - I am the go-to-person for complex issues.",
+       "translations": {
+        "en": {
+         "body": "Subject-matter expert - I am the go-to-person for complex issues."
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 4371182,
+     "position": 17,
+     "options": {},
+     "required": false,
+     "body": "<p><em>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace.</em></p>",
+     "kind": "infobox",
+     "translations": {
+      "en": {
+       "body": "<p><em>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace.</em></p>"
+      }
+     },
+     "open_question_options": []
+    }
+   ],
+   "postal_code": null,
+   "sharing_title": "Fraud Operations Analyst - Night Shift",
+   "guid": "2whnw",
+   "created_at": "2026-09-15 08:08:27 UTC",
+   "location": "İstanbul, İstanbul, Türkiye",
+   "sharing_description": "We're on a mission to Make Life Easy, and nothing makes life harder than losing money to a fraudster. Fraud Ops is what keeps that promise real: fast, accurate decisions on our user’s money, every sin",
+   "close_at": null,
+   "experience_code": "entry_level",
+   "mailbox_email": "job.2whnw@bunq.recruitee.com",
+   "careers_apply_url": "https://careers.bunq.com/o/fraud-operations-analyst-night-shift/c/new",
+   "highlight": null,
+   "dynamic_fields": [],
+   "translations": {
+    "en": {
+     "description": "<p>We're on a mission to Make Life Easy, and nothing makes life harder than losing money to a fraudster. Fraud Ops is what keeps that promise real: fast, accurate decisions on our user’s money, every single day.</p><p>Our Fraud queues have changed. Automation now clears the obvious cases, so what lands on your desk are the hard ones: ambiguous profiles, mixed signals, calls with real financial and regulatory weight behind them. We're growing the team to keep pace with that shift, and we're looking for people who bring both speed and precision to the table.</p><p>Up for this?<br>Kick off your application by taking our assessment and find out if bunq is your perfect match! 🍭</p><p style=\"min-height: 1.7em;\"></p><p><strong>Take ownership</strong><br>As our Fraud Operations Analyst, you'll take on the cases automation can't settle on its own: reading the signals, protecting our user’s money, and helping our systems learn from every case you close.</p><ul><li><p>Become a detective in fraud prevention, using your in-depth investigation and problem-solving skills to protect our users from suspicious activity 🕵️‍♂️</p></li><li><p>Bring empathy and effective communication into every interaction to provide the best support possible</p></li><li><p>Investigate ambiguous fraud cases where the signals aren't clear-cut, weighing behavioral and contextual clues to tell a genuine user from a fraudster</p></li><li><p>Choose whether to act, ask, or escalate: fast, accurate calls that protect user’s money</p></li><li><p>Feed what you learn back into our fraud tooling, so automation catches more and fewer edge cases reach the queue over time</p></li></ul>",
+     "title": "Fraud Operations Analyst - Night Shift",
+     "highlight": null,
+     "requirements": "<ul><li><p>You have knowledge of fraud monitoring and prevention</p></li><li><p>You have a close eye for detail: you notice the subtle behavioral and contextual clues</p></li><li><p>You always think from the user’s perspective first, have empathy, and understand how to protect their interests</p></li><li><p>You're comfortable using AI tools to work faster and smarter, and you can spot when an AI-based tool is being used against us</p></li><li><p>We'd love it if you already have knowledge of KYC and PayOps</p></li><li><p>You're an excellent communicator and speak English fluently</p></li></ul><p style=\"min-height: 1.7em;\"></p><p><strong>Your space to perform</strong></p><p>🤟 Great, international colleagues who share your mindset<br>👩‍💻 Hybrid setup: after 3 months in-office, work 2 days remote, 3 days in-office weekly.<br>📚 We support growth with bunq Academy and €1500 annual learning budget<br>🇧🇬 Flex Benefits: €70 monthly budget via Re: benefit, offering access to 150+ perks tailored to your lifestyle.<br>🧳 Digital Nomad Program: After your first year, enjoy up to 20 days per year to work while traveling, combining flexibility with strong team collaboration<br>🚀 We reward tenure with a dedicated travel budget: €1.5k after 2 years and €3k after 4 years to visit another core office.<br>💻 A MacBook so you can Get Shit Done with us<br>🥦 Delicious lunches from our fabulous in-house chefs with vegan and vegetarian options<br>⚕️ Private health insurance, just in case<br>🍻 Friday drinks and other celebrations - bunq style</p><p style=\"min-height: 1.7em;\"></p><p>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace.</p><p>Curious to see how we make life easy? — try the <a rel=\"noopener\" target=\"_blank\" href=\"https://app.adjust.com/1tyd4x67?fallback=https%3A%2F%2Fwww.bunq.com%2F&redirect_macos=https%3A%2F%2Fwww.bunq.com%2F\">bunq app</a>, it only takes 5 minutes to sign up.</p>",
+     "sharing_image": null,
+     "locations_question": "What is your preferred work location?",
+     "sharing_description": "We're on a mission to Make Life Easy, and nothing makes life harder than losing money to a fraudster. Fraud Ops is what keeps that promise real: fast, accurate decisions on our user’s money, every sin",
+     "sharing_title": "Fraud Operations Analyst - Night Shift"
+    }
+   },
+   "on_site": false,
+   "employment_type_code": "fulltime_fixed_term",
+   "city": "İstanbul",
+   "description": "<p>We're on a mission to Make Life Easy, and nothing makes life harder than losing money to a fraudster. Fraud Ops is what keeps that promise real: fast, accurate decisions on our user’s money, every single day.</p><p>Our Fraud queues have changed. Automation now clears the obvious cases, so what lands on your desk are the hard ones: ambiguous profiles, mixed signals, calls with real financial and regulatory weight behind them. We're growing the team to keep pace with that shift, and we're looking for people who bring both speed and precision to the table.</p><p>Up for this?<br>Kick off your application by taking our assessment and find out if bunq is your perfect match! 🍭</p><p style=\"min-height: 1.7em;\"></p><p><strong>Take ownership</strong><br>As our Fraud Operations Analyst, you'll take on the cases automation can't settle on its own: reading the signals, protecting our user’s money, and helping our systems learn from every case you close.</p><ul><li><p>Become a detective in fraud prevention, using your in-depth investigation and problem-solving skills to protect our users from suspicious activity 🕵️‍♂️</p></li><li><p>Bring empathy and effective communication into every interaction to provide the best support possible</p></li><li><p>Investigate ambiguous fraud cases where the signals aren't clear-cut, weighing behavioral and contextual clues to tell a genuine user from a fraudster</p></li><li><p>Choose whether to act, ask, or escalate: fast, accurate calls that protect user’s money</p></li><li><p>Feed what you learn back into our fraud tooling, so automation catches more and fewer edge cases reach the queue over time</p></li></ul>",
+   "state_name": "İstanbul",
+   "category_code": "banking",
+   "locations_question_type": "multiple_choice",
+   "min_hours_per_week": "40",
+   "careers_url": "https://careers.bunq.com/o/fraud-operations-analyst-night-shift",
+   "remote": false,
+   "hybrid": true,
+   "min_hours": 40,
+   "id": 2746079,
+   "department": "Support & Operations",
+   "locations_question": "What is your preferred work location?",
+   "max_hours": 40,
+   "salary": {
+    "max": null,
+    "min": null,
+    "period": null,
+    "currency": null
+   },
+   "education_code": "bachelor_degree",
+   "sharing_image": null,
+   "status": "published",
+   "slug": "fraud-operations-analyst-night-shift",
+   "cover_image": null,
+   "state_code": "34",
+   "tags": [
+    "E2",
+    "Operations",
+    "Promise Keeper"
+   ]
+  }
+ ]
+}

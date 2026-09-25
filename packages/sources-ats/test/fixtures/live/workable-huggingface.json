@@ -1,0 +1,126 @@
+{
+ "name": "Hugging Face",
+ "description": "Here at Hugging Face, we're on a journey to advance and democratize machine learning for everyone. Along the way, we contribute to the development of technology for the better. Over five thousand companies are using our technology in production, including leading AI organizations such as Google, Elastic, Salesforce, Algolia, and Grammarly.",
+ "jobs": [
+  {
+   "title": "Low-level Senior Software Engineer, Xet Storage - EMEA Remote",
+   "shortcode": "F4C096B22E",
+   "code": "",
+   "employment_type": "Full-time",
+   "telecommuting": true,
+   "department": "Product",
+   "url": "https://apply.workable.com/j/F4C096B22E",
+   "shortlink": "https://apply.workable.com/j/F4C096B22E",
+   "application_url": "https://apply.workable.com/j/F4C096B22E/apply",
+   "published_on": "2026-07-30",
+   "created_at": "2026-07-30",
+   "country": "France",
+   "city": "Paris",
+   "state": "Île-de-France",
+   "education": "Master's Degree",
+   "experience": "Mid-Senior level",
+   "function": "Engineering",
+   "industry": "Computer Software",
+   "locations": [
+    {
+     "country": "France",
+     "countryCode": "FR",
+     "city": "Paris",
+     "region": "Île-de-France",
+     "hidden": true
+    }
+   ],
+   "description": "<p></p><p>At Hugging Face, we're on a journey to democratize good AI. We are building the fastest growing platform for AI builders with over 11 million users who collectively shared over 4 million models, 1 million datasets &amp; 1.5 million Gradio apps. Our open-source libraries have more than 700,000 stars on Github.</p><p></p><p><strong>About the Role</strong></p><p>Roles at Hugging Face are very fluid and dynamic -- we're looking for someone who is comfortable taking on different challenges that evolve over time. This role sits on the <a href=\"https://huggingface.co/docs/hub/xet/index\" rel=\"nofollow noreferrer noopener\" class=\"external\">Xet Storage</a> team, the group responsible for the storage system behind all of Hugging Face. Today we store over 200PB (and growing rapidly!) of the world's most important ML &amp; AI assets. Xet is the underlying storage architecture for the entire Hugging Face platform and community -- from the largest model repositories to the datasets and Spaces that millions of people build on every day.</p><p></p><p>In this role, you'll work across two closely connected surfaces. You'll contribute to <a href=\"https://github.com/huggingface/xet-core\" rel=\"nofollow noreferrer noopener\" class=\"external\">xet-core</a>, our open-source project written in Rust that powers <a href=\"https://pypi.org/project/hf-xet/\" rel=\"nofollow noreferrer noopener\" class=\"external\">hf-xet</a> -- the Python library underpinning the Hugging Face Hub client and the wider ecosystem of open-source tools the community relies on. And you'll design, build, and operate meaningful and challenging features in the Xet Storage backend, contributing to the broader Infrastructure organization at Hugging Face. We're a small team building and operating incredible things at enormous scale, in a high-trust, low-process, async, and remote environment -- and we lean heavily on the latest AI tools to move fast.</p><p></p><p>If you love writing low-level, high-performance code and are energized by the challenge of large-scale, scalable services, this is the team for you. This usually means proven experience building and operating production systems software, but we consider every applicant on an individual basis.</p><p><strong>Requirements</strong></p><p></p><p><strong>What we're looking for</strong></p><ul><li>8+ years building and scaling distributed systems, storage, or networking infrastructure.</li><li>Proficiency in a low-level systems language, with Rust strongly preferred (we also work in Python, Typescript, Go, and C++ across the stack).</li><li>A track record of working independently in a high-trust, low-process environment -- you're comfortable with ambiguity and take ownership end to end.</li><li>Comfort operating in a fast-moving, async, and fully remote environment.</li><li>A passion for building simple, robust, and scalable systems relied on by engineering and science teams around the world.</li></ul><p><strong>Bonus points if you have</strong></p><ul><li>Experience designing efficient, high-performance, fault-tolerant data storage and retrieval systems.</li><li>Experience operating production systems -- monitoring, alerting, and distributed debugging and recovery.</li><li>Familiarity with git internals, cloud infrastructure (AWS, Azure, GCP, Kubernetes), databases (relational and non-relational), or networking.</li></ul><p></p><p><strong>About You</strong></p><p>If you love open-source, are excited by the intersection of low-level performance work and large-scale services, and want your code to sit at the foundation of the world's largest platform for AI builders, then we can't wait to see your application!</p><p></p><p>If you're interested in joining us, but don't tick every box above, we still encourage you to apply! We're building a diverse team whose skills, experiences, and backgrounds complement one another. We're happy to consider where you might be able to make the biggest impact.</p><p></p><p><strong>One more thing</strong></p><p>At Hugging Face we believe great AI shouldn't require a massive cluster, we build for everyone, especially the GPU-poor. And because we read every application, here's a small sign that you read this one too: start your answer to the first application question with the words “<strong>GPU-poor and proud&nbsp;</strong>🤗”. No trick, no catch, it just tells us a real person is on the other side.</p><p><strong>Benefits</strong></p><p><strong>More about Hugging Face</strong></p><p><strong>We are actively working to build a culture that values diversity, equity, and inclusivity</strong>. We are intentionally building a workplace where people feel respected and supported—regardless of who you are or where you come from. We believe this is foundational to building a great company and community. Hugging Face is an equal opportunity employer and we do not discriminate on the basis of race, religion, color, national origin, gender, sexual orientation, age, marital status, veteran status, or disability status.</p><p><strong>We value development.</strong>&nbsp;You will work with some of the smartest people in our industry. We are an organization that has a bias for impact and is always challenging ourselves to continuously grow. We provide all employees with reimbursement for relevant conferences, training, and education.</p><p><strong>We care about your well-being.</strong>&nbsp;We offer flexible working hours and remote options. We offer health, dental, and vision benefits for employees and their dependents. We also offer parental leave and flexible paid time off.</p><p><strong>We support our employees wherever they are</strong>. While we have office spaces in NYC and Paris, we're very distributed and all remote employees have the opportunity to visit our offices. If needed, we'll also outfit your workstation to ensure you succeed.</p><p><strong>We want our teammates to be shareholders</strong>. All employees have company equity as part of their compensation package. If we succeed in becoming a category-defining platform in machine learning and artificial intelligence, everyone enjoys the upside.</p><p><strong>We support the community</strong>. We believe major scientific advancements are the result of collaboration across the field. Join a community supporting the ML/AI community.</p>"
+  },
+  {
+   "title": "Open-Source Machine Learning Engineer - US Remote",
+   "shortcode": "19A136F8E2",
+   "code": "",
+   "employment_type": "Full-time",
+   "telecommuting": true,
+   "department": "Open Source",
+   "url": "https://apply.workable.com/j/19A136F8E2",
+   "shortlink": "https://apply.workable.com/j/19A136F8E2",
+   "application_url": "https://apply.workable.com/j/19A136F8E2/apply",
+   "published_on": "2026-05-29",
+   "created_at": "2026-05-29",
+   "country": "United States",
+   "city": "New York",
+   "state": "New York",
+   "education": "",
+   "experience": "",
+   "function": "Engineering",
+   "industry": "Computer Software",
+   "locations": [
+    {
+     "country": "United States",
+     "countryCode": "US",
+     "city": "New York",
+     "region": "New York",
+     "hidden": false
+    }
+   ],
+   "description": "<p></p><p>At Hugging Face, we're on a journey to democratize good AI. We are building the fastest growing platform for AI builders with over 11 million users who collectively shared over 4 million models, 1 million datasets &amp; 1.5 million Gradio apps. Our open-source libraries have more than 700,000 stars on Github.</p><h3>About the Role</h3><p>As an Open-Source Machine Learning Engineer, you'll work to improve the open-source machine learning ecosystem. You'll mainly work on existing open-source libraries such as Transformers, Datasets, Pytorch and vLLM, and you'll interact with users and contributors across the broad open-source ML ecosystem. We'll brainstorm with you to put you in a position to do the work that interests you and that is impactful.</p><p>You'll help foster one of the most active machine learning communities, helping users contribute to and use the tools you build. You'll work with researchers, ML practitioners, and data scientists every day through GitHub, our forums, and Slack.</p><h3>About You</h3><p>You have a public track record of open-source work, and you enjoy collaborating with a community out in the open on GitHub. You love open source, you're passionate about making complex technology more accessible, and you want to contribute to one of the fastest-growing ML ecosystems. If that's you, we can't wait to see your application.</p><h3>What you'll need</h3><ul><li>Strong Python skills, with experience writing clean, well-tested, maintainable library code</li><li>Deep hands-on experience with a modern deep-learning framework, especially PyTorch (JAX or TensorFlow a plus)</li><li>Practical experience with the Hugging Face open-source stack (Transformers, Datasets, Accelerate) or comparable ML libraries</li><li>A public track record of open-source contributions, for example merged pull requests to ML or data libraries, that we can review on GitHub</li><li>Solid understanding of modern machine learning and deep learning, including transformer architectures</li><li>Experience collaborating with a technical community in the open (GitHub issues and reviews, forums, Slack or Discord)</li><li>Fluent written English for asynchronous collaboration across a distributed, global community</li></ul><h3>Nice to have</h3><ul><li>Experience maintaining an open-source project</li><li>Prior contributions to Transformers, Datasets, Accelerate, or similar libraries</li><li>Familiarity with distributed training, inference optimization, or GPU/accelerator performance work</li><li>Experience training or fine-tuning models at scale</li></ul><h3>A note on fit</h3><p>If you're interested in joining us but don't tick every box above, we still encourage you to apply. We're building a diverse team whose skills, experiences, and backgrounds complement one another, and we're happy to consider where you might make the biggest impact.</p><h3>One more thing</h3><p>At Hugging Face we believe great AI shouldn't require a massive cluster, we build for everyone, especially the GPU-poor. And because we read every application, here's a small sign that you read this one too: start your answer to the first application question with the words “<strong>GPU-poor and proud </strong>🤗”. No trick, no catch, it just tells us a real person is on the other side. </p><p></p><p><strong>More about Hugging Face</strong></p><p><strong>We are actively working to build a culture that values diversity, equity, and inclusivity</strong>. We are intentionally building a workplace where people feel respected and supported—regardless of who you are or where you come from. We believe this is foundational to building a great company and community. Hugging Face is an equal opportunity employer and we do not discriminate on the basis of race, religion, color, national origin, gender, sexual orientation, age, marital status, veteran status, or disability status.</p><p><strong>We value development.</strong> You will work with some of the smartest people in our industry. We are an organization that has a bias for impact and is always challenging ourselves to continuously grow. We provide all employees with reimbursement for relevant conferences, training, and education.</p><p><strong>We care about your well-being.</strong> We offer flexible working hours and remote options. We offer health, dental, and vision benefits for employees and their dependents. We also offer parental leave and flexible paid time off.</p><p><strong>We support our employees wherever they are</strong>. While we have office spaces in NYC and Paris, we're very distributed and all remote employees have the opportunity to visit our offices. If needed, we'll also outfit your workstation to ensure you succeed.</p><p><strong>We want our teammates to be shareholders</strong>. All employees have company equity as part of their compensation package. If we succeed in becoming a category-defining platform in machine learning and artificial intelligence, everyone enjoys the upside.</p><p><strong>We support the community</strong>. We believe major scientific advancements are the result of collaboration across the field. Join a community supporting the ML/AI community.</p><p><strong>Requirements</strong></p><p>Please provide a cover letter mentioning why you would like to work in open-source at Hugging Face. We encourage you to mention your skills, potential expertise, and topics on which you would like to work.</p>"
+  },
+  {
+   "title": "Senior Open-Source Python Engineer, ML Developer Tools - EMEA Remote",
+   "shortcode": "DB4D7C0EC8",
+   "code": "",
+   "employment_type": "Full-time",
+   "telecommuting": true,
+   "department": "Product",
+   "url": "https://apply.workable.com/j/DB4D7C0EC8",
+   "shortlink": "https://apply.workable.com/j/DB4D7C0EC8",
+   "application_url": "https://apply.workable.com/j/DB4D7C0EC8/apply",
+   "published_on": "2026-09-21",
+   "created_at": "2026-09-21",
+   "country": "France",
+   "city": "",
+   "state": "",
+   "education": "Master's Degree",
+   "experience": "Mid-Senior level",
+   "function": "",
+   "industry": "Computer Software",
+   "locations": [
+    {
+     "country": "France",
+     "countryCode": "FR",
+     "city": "",
+     "region": null,
+     "hidden": true
+    }
+   ],
+   "description": "<p>At Hugging Face, we're on a journey to democratize good AI. We are building the fastest growing platform for AI builders with over 11 million users who collectively shared over 4 million models, 1 million datasets &amp; 1.5 million Gradio apps. Our open-source libraries have more than 700,000 stars on Github.</p><p></p><p><strong>About the Role</strong></p><p>Roles at Hugging Face are very fluid and dynamic — we are looking for someone who is comfortable taking on different challenges that will evolve over time.</p><p>You'll join the Applications team, whose goal is to build the tooling that helps developers create machine learning applications on top of the primitives we offer on the Hub: <a href=\"https://www.gradio.dev\" rel=\"nofollow noreferrer noopener\" class=\"external\">Gradio</a>, <a href=\"https://huggingface.co/spaces\" rel=\"nofollow noreferrer noopener\" class=\"external\">Spaces</a>, Inference Providers, Datasets, Xet, and more. Concretely, that means maintaining and growing libraries like <a href=\"https://github.com/gradio-app/trackio\" rel=\"nofollow noreferrer noopener\" class=\"external\">Trackio</a>, a local-first, agent-friendly experiment tracking platform, <a href=\"https://github.com/gradio-app/fastrtc\" rel=\"nofollow noreferrer noopener\" class=\"external\">FastRTC</a>, our library for real-time audio and video streaming in Python, and Gradio itself, used by more than 1 million developers each month. These tools have made machine learning accessible to a wide audience — for the first time in history, anyone with an internet connection can use cutting-edge models right from their browser.</p><p>Several of these libraries are still early in their life, and new ones will start from scratch. A large part of this role is taking a project from its first users to widespread adoption: shaping the API, shipping fast, and getting it into developers' hands.</p><p>Key responsibilities include:</p><ul><li>Designing, developing, and maintaining core features across the team's libraries, ensuring scalability, reliability, and ease of use for ML developers.</li><li>Architecting complex Python projects and frameworks that serve as foundational tools for the ML community.</li><li>Growing early-stage libraries: defining the API surface, writing the demos and documentation that make them click, and driving adoption in the developer community.</li><li>Working on real-time streaming and networking capabilities, a core priority for Gradio 7 and beyond.</li><li>Collaborating with open-source contributors and engaging with the broader community through code reviews, discussions, and support.</li><li>Integrating modern frontend technologies to create seamless and intuitive user experiences for Python-based web applications.</li><li>Adapting to evolving engineering challenges and contributing to the direction of our developer tools as the landscape changes.</li></ul><p><strong>Requirements</strong></p><p></p><p>If you love open-source, are passionate about making machine learning more accessible, have experience building Python frameworks, and want to contribute to some of the fastest-growing libraries in the ML ecosystem, then we can't wait to see your application!</p><p><strong>What you'll need</strong></p><ul><li>Bachelor's degree or equivalent in Computer Science or a related field</li><li>5+ years of professional Python development experience</li><li>Experience architecting complex Python projects or frameworks</li><li>A track record of taking early-stage libraries or products from first users to broad adoption</li><li>Professional experience with JavaScript or TypeScript</li><li>Professional experience with a modern frontend framework such as React or Svelte</li><li>Experience core-contributing to or maintaining open-source software projects</li></ul><p><strong>Nice to have</strong></p><ul><li>Experience with real-time audio/video streaming or networking (WebRTC, WebSockets)</li><li>Contributions to libraries such as <a href=\"https://github.com/pipecat-ai/pipecat\" rel=\"nofollow noreferrer noopener\" class=\"external\">pipecat</a>, <a href=\"https://github.com/livekit/livekit\" rel=\"nofollow noreferrer noopener\" class=\"external\">LiveKit</a>, <a href=\"https://github.com/fastapi\" rel=\"nofollow noreferrer noopener\" class=\"external\">FastAPI</a>, or <a href=\"https://github.com/Kludex/starlette\" rel=\"nofollow noreferrer noopener\" class=\"external\">Starlette</a></li></ul><p></p><p>If you're interested in joining us, but don't tick every box above, we still encourage you to apply! We're building a diverse team whose skills, experiences, and backgrounds complement one another. We're happy to consider where you might be able to make the biggest impact.</p><p></p><p><strong>One more thing</strong></p><p>At Hugging Face we believe great AI shouldn't require a massive cluster, we build for everyone, especially the GPU-poor. And because we read every application, here's a small sign that you read this one too: start your answer to the first application question with the words “<strong>GPU-poor and proud&nbsp;</strong>🤗”. No trick, no catch, it just tells us a real person is on the other side.</p><p><strong>Benefits</strong></p><p><strong>More about Hugging Face</strong></p><p><strong>We are actively working to build a culture that values diversity, equity, and inclusivity</strong>. We are intentionally building a workplace where people feel respected and supported—regardless of who you are or where you come from. We believe this is foundational to building a great company and community. Hugging Face is an equal opportunity employer and we do not discriminate on the basis of race, religion, color, national origin, gender, sexual orientation, age, marital status, veteran status, or disability status.</p><p><strong>We value development.</strong>&nbsp;You will work with some of the smartest people in our industry. We are an organization that has a bias for impact and is always challenging ourselves to continuously grow. We provide all employees with reimbursement for relevant conferences, training, and education.</p><p><strong>We care about your well-being.</strong>&nbsp;We offer flexible working hours and remote options. We offer health, dental, and vision benefits for employees and their dependents. We also offer parental leave and flexible paid time off.</p><p><strong>We support our employees wherever they are</strong>. While we have office spaces in NYC and Paris, we're very distributed and all remote employees have the opportunity to visit our offices. If needed, we'll also outfit your workstation to ensure you succeed.</p><p><strong>We want our teammates to be shareholders</strong>. All employees have company equity as part of their compensation package. If we succeed in becoming a category-defining platform in machine learning and artificial intelligence, everyone enjoys the upside.</p><p><strong>We support the community</strong>. We believe major scientific advancements are the result of collaboration across the field. Join a community supporting the ML/AI community.</p>"
+  },
+  {
+   "title": "Wild Card",
+   "shortcode": "0BD8C06DB3",
+   "code": "",
+   "employment_type": "Full-time",
+   "telecommuting": true,
+   "department": "Wild Card",
+   "url": "https://apply.workable.com/j/0BD8C06DB3",
+   "shortlink": "https://apply.workable.com/j/0BD8C06DB3",
+   "application_url": "https://apply.workable.com/j/0BD8C06DB3/apply",
+   "published_on": "2024-10-17",
+   "created_at": "2022-10-19",
+   "country": "United States",
+   "city": "",
+   "state": "",
+   "education": "Unspecified",
+   "experience": "",
+   "function": "",
+   "industry": "Computer Software",
+   "locations": [
+    {
+     "country": "United States",
+     "countryCode": "US",
+     "city": "",
+     "region": null,
+     "hidden": false
+    }
+   ],
+   "description": "<p>If you don't see the perfect job position, just apply to this one - we'll brainstorm to put you in position to do the best work of your life at Hugging Face!<br></p><p></p><p><strong>Requirements</strong></p><ul> <li>You’re deeply passionate about AI, open source, and democratizing technology.</li> <li>You’ve done something awesome — maybe it's a project, a paper, a startup, or a viral meme with source code. </li> <li>You thrive in ambiguity and love shaping your own role.</li> <li>You’re excited to collaborate with one of the most vibrant AI communities in the world.</li> </ul><p><strong>Benefits</strong></p><ul> <li>A chance to design your dream job at a mission-driven company. </li> <li>Work with (and learn from) a kind, ambitious, and wildly talented team. </li> <li>A culture that values openness, experimentation, and fun. </li> <li>Competitive salary, equity, unlimited time off, and remote-first flexibility. </li> <li>The joy of knowing your work contributes to shaping the open AI movement.</li> </ul>"
+  }
+ ]
+}

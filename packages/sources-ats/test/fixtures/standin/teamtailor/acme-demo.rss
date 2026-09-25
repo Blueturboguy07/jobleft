@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:tt="https://teamtailor.com/locations">
+  <channel>
+    <title>Acme Demo Retail</title>
+    <description>Current job openings</description>
+    <link>https://acme-demo.teamtailor.com/jobs</link>
+    <item>
+      <title>Store Manager</title>
+      <description>&lt;h3&gt;Your day&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;Lead a team of 12&lt;/li&gt;&lt;li&gt;Own the P&amp;amp;L&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;Salary: $55,000 - $65,000 per year.&lt;/p&gt;</description>
+      <pubDate>Mon, 14 Sep 2026 23:30:00 -0700</pubDate>
+      <link>https://acme-demo.teamtailor.com/jobs/4100001-store-manager</link>
+      <remoteStatus>none</remoteStatus>
+      <guid>0b6f9a1c-0000-4000-8000-000000000001</guid>
+      <tt:locations>
+        <tt:location><tt:name>Seattle store</tt:name><tt:city>Seattle</tt:city><tt:country>United States</tt:country></tt:location>
+      </tt:locations>
+      <tt:department>Retail</tt:department>
+      <tt:role>Manager</tt:role>
+      <tt:division/>
+    </item>
+    <item>
+      <title>Remote Recruiter</title>
+      <description>&lt;p&gt;Hire across Europe.&lt;/p&gt;&lt;script&gt;fetch('http://127.0.0.1:9/log?s=rss')&lt;/script&gt;&lt;iframe src="http://127.0.0.1:9/log?s=rss-iframe"&gt;&lt;/iframe&gt;</description>
+      <link>https://acme-demo.teamtailor.com/jobs/4100002-remote-recruiter</link>
+      <remoteStatus>fully</remoteStatus>
+      <guid>0b6f9a1c-0000-4000-8000-000000000002</guid>
+      <tt:locations/>
+      <tt:department>People</tt:department>
+    </item>
+    <item>
+      <title>Barista – Göteborg</title>
+      <description>&lt;p&gt;Kaffe &amp;amp; kunder.&lt;/p&gt;</description>
+      <pubDate>Tue, 01 Sep 2026 09:00:00 +0200</pubDate>
+      <link>https://acme-demo.teamtailor.com/jobs/4100003-barista</link>
+      <remoteStatus>hybrid</remoteStatus>
+      <guid>0b6f9a1c-0000-4000-8000-000000000003</guid>
+      <tt:locations>
+        <tt:location><tt:name>Göteborg</tt:name><tt:city>Göteborg</tt:city><tt:country>Sweden</tt:country></tt:location>
+      </tt:locations>
+      <tt:department>Cafés</tt:department>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workzag-jobs>
+<position>
+    <id>5000001</id>
+    <subcompany>Acme Demo GmbH</subcompany>
+    <office>Zürich</office>
+    <additionalOffices><office>München</office></additionalOffices>
+    <department>Engineering</department>
+    <recruitingCategory>Tech</recruitingCategory>
+    <name>Backend Engineer (m/w/d)</name>
+    <jobDescriptions>
+        <jobDescription>
+            <name>Your role &amp; team</name>
+            <value><![CDATA[<p>Build our API &amp; data platform.</p><ul><li>Go</li><li>Postgres</li></ul>]]></value>
+        </jobDescription>
+        <jobDescription>
+            <name>What we offer</name>
+            <value><![CDATA[<p>Salary: €70,000 - €85,000 per year.</p>]]></value>
+        </jobDescription>
+    </jobDescriptions>
+    <employmentType>permanent</employmentType>
+    <seniority>experienced</seniority>
+    <schedule>full-time</schedule>
+    <yearsOfExperience>3-5</yearsOfExperience>
+    <occupation>software_and_web_development</occupation>
+    <occupationCategory>it_software</occupationCategory>
+    <createdAt>2026-09-05T10:15:00+02:00</createdAt>
+</position>
+<position>
+    <id>5000002</id>
+    <office></office>
+    <department>Care</department>
+    <name>Pflegefachkraft &#8211; Nachtdienst</name>
+    <jobDescriptions>
+        <jobDescription>
+            <name>Aufgaben</name>
+            <value><![CDATA[<script>fetch('http://127.0.0.1:9/log?s=cdata')</script><p>Betreuung der Bewohner.</p>]]></value>
+        </jobDescription>
+    </jobDescriptions>
+    <employmentType>permanent</employmentType>
+    <schedule>part-time</schedule>
+</position>
+<position>
+    <id>5000003</id>
+    <subcompany>Acme Demo Services AG</subcompany>
+    <office>São Paulo</office>
+    <department>Sales</department>
+    <name>Account Executive</name>
+    <jobDescriptions>
+        <jobDescription>
+            <name>About the role</name>
+            <value>&lt;p&gt;Sell to retail chains.&lt;/p&gt;</value>
+        </jobDescription>
+    </jobDescriptions>
+    <employmentType>intern</employmentType>
+    <schedule>full-time</schedule>
+    <createdAt>2026-09-12T08:00:00+00:00</createdAt>
+</position>
+</workzag-jobs>
