@@ -150,6 +150,9 @@ export function createBridgeClient(cfg: BridgeConfig, opts: BridgeOptions = {}):
     async json<S extends JsonSchema>(_req: AiRequest & { schema: S }): Promise<Infer<S>> {
       throw new AiError('provider_error', 'Structured answers are not part of the Network tool.');
     },
+    async embed(): Promise<Float32Array[]> {
+      throw new AiError('provider_error', 'Embeddings are not part of the Network tool.');
+    },
     async listModels(): Promise<string[]> {
       const res = await call('/models', { method: 'GET', headers: { accept: 'application/json' } });
       if (!res.ok) return [];

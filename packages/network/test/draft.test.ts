@@ -17,6 +17,7 @@ function fakeAi(reply: string | ((req: AiRequest) => string), seen: AiRequest[] 
     async complete(req) { seen.push(req); return { text: typeof reply === 'string' ? reply : reply(req), incomplete: false, costMicros: cost, model: 'fake' }; },
     async *chat() { yield { type: 'done', incomplete: false, costMicros: null }; },
     async json() { throw new Error('no'); },
+    async embed() { throw new Error('no'); },
     async listModels() { return []; },
   };
 }
