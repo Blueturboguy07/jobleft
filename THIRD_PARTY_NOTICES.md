@@ -34,9 +34,30 @@ Local additions that are not in freehire (written new): the per-host pacer, the 
 - Source: the owner's own Python project (`~/Documents/internships`, `pipeline/normalize.py` and `pipeline/dedup.py`). First-party code, no third-party licence applies.
 - jobleft file: `packages/crawler/src/normalize.ts` (URL canonicalisation, company and title normalisers, the two-layer dedupe spine). Two deliberate changes are documented in that file (`gh_jid` is kept; intern words are kept).
 
+### 1.3 ai-engine: references only, no code copied (ai-engine lane, 2026-09-25)
+
+`packages/ai-engine` is written new. No third-party code was copied or ported into it. These sources were read for
+ideas only:
+
+| Source | Licence | What was studied | Where the idea shows |
+|---|---|---|---|
+| NitroAI `server/publik.mjs`, `server/publikProxy.mjs`, `server/ollama.mjs`, `src/lib/engine/*` (the owner's own project, `~/NitroAI`) | AGPL-3.0 (the repository licence), so reference only | The publik provisioning order (mint only after the disclosure; a 200 replay without a key mints once more with a new install id; the key never reaches a web page), Ollama `/api/tags` detection | `src/publik.ts`, `src/providers/ollama.ts`. NitroAI's retry-with-backoff wrapper was deliberately NOT followed: jobleft never retries a failed AI request by itself |
+| publik API build contract, sections 1, 3.2 and 12, and memo R21 sections 2.1 to 2.6 (`~/publik-api-research`, first-party documents) | First party | The `POST /installs`, `GET /wallet`, `POST /installs/revoke` shapes, the `x-publik-*` headers, the 402 body with one `top_up_url` | `src/publik.ts`, `src/mock/publik-server.ts` |
+| jobsync "SCORES:" header idea (named in docs/PLAN.md section 6) | MIT | Only the idea of a one-line score header for small models; no code | `parseScoresHeader` in `src/structured.ts` |
+| BERT WordPiece tokenization rules (Devlin et al. 2018; the rules as documented for `BertTokenizer`) | Rules only, no code | Basic tokenization (clean, CJK split, lower case, accent strip, punctuation split) and greedy longest-match WordPiece | `WordPieceTokenizer` in `src/embedder.ts` |
+
 ## 2. Data shipped with the app
 
 None yet. The static-data lane adds entries here (board directory, H-1B sponsor table from US Department of Labor LCA disclosure files, city dictionary with its attribution, skill dictionary).
+
+### 2.1 The fit model (downloaded at first use, not in the repository)
+
+- Model: `BAAI/bge-small-en-v1.5`, files `onnx/model.onnx` (133,093,490 bytes, sha256 `828e1496...0cf35`) and
+  `vocab.txt` (231,508 bytes, sha256 `07eced37...38a3`), from `https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main`
+  (or `JOBLEFT_MODEL_BASE_URL`). Licence: MIT (model card). The hashes are pinned in `packages/ai-engine/src/embedder.ts`
+  and were measured on the copies spike S2 downloaded on 2026-09-24. Nothing of the model is committed.
+- Runtime: `onnxruntime-node` (MIT) is loaded at run time when it is installed. It is not a dependency of any package
+  yet (287 MB); the app build decides. Its install script only fetches CUDA files on Linux (spike S2), so it is not needed.
 
 ## 3. Development tools (not shipped in the app)
 
