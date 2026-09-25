@@ -18,5 +18,8 @@
   },
   "dependencies": {
     "@jobleft/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }
