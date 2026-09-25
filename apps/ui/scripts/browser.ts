@@ -21,6 +21,18 @@ export interface Page {
   key(key: string, code?: string, keyCode?: number, modifiers?: number): Promise<void>;
   click(selector: string): Promise<boolean>;
   type(text: string): Promise<void>;
+  /** Every request the page made since the last clear (url, method, post data). */
+  requests(): Array<{ url: string; method: string; body: string | null }>;
+  clearRequests(): void;
+  /** console.error and uncaught exception texts since the page opened. */
+  errors(): string[];
+  hover(selector: string): Promise<boolean>;
+  /** Presses a named key (Tab, Escape, Enter, ArrowDown, ArrowUp, Space) with the right key codes. */
+  press(name: string, shift?: boolean): Promise<void>;
+  /** Clicks the first visible element (button, link, tab, menu item) whose text or aria-label equals `text`. */
+  clickText(text: string, scope?: string): Promise<boolean>;
+  /** Pretends the network is off for this page (the local API on 127.0.0.1 is unreachable too). */
+  emulateOffline(offline: boolean): Promise<void>;
 }
 
 export async function launch(): Promise<Browser> {
@@ -65,7 +77,54 @@ export async function launch(): Promise<Browser> {
       const s = <T>(m: string, p: Record<string, unknown> = {}) => send<T>(m, p, sessionId);
       await s('Page.enable');
       await s('Runtime.enable');
+      await s('Network.enable');
+      const reqs: Array<{ url: string; method: string; body: string | null }> = [];
+      const errs: string[] = [];
+      listeners.push((m) => {
+        if (m.sessionId !== sessionId) return;
+        const pr = m.params as { request?: { url: string; method: string; postData?: string }; exceptionDetails?: { text: string; exception?: { description?: string } }; type?: string; args?: Array<{ value?: unknown; description?: string }> };
+        if (m.method === 'Network.requestWillBeSent' && pr.request) reqs.push({ url: pr.request.url, method: pr.request.method, body: pr.request.postData ?? null });
+        if (m.method === 'Runtime.exceptionThrown' && pr.exceptionDetails) errs.push(pr.exceptionDetails.exception?.description ?? pr.exceptionDetails.text);
+        if (m.method === 'Runtime.consoleAPICalled' && pr.type === 'error') errs.push((pr.args ?? []).map((a) => String(a.value ?? a.description ?? '')).join(' '));
+      });
+      const KEYS: Record<string, { key: string; code: string; vk: number }> = {
+        Tab: { key: 'Tab', code: 'Tab', vk: 9 }, Escape: { key: 'Escape', code: 'Escape', vk: 27 }, Enter: { key: 'Enter', code: 'Enter', vk: 13 },
+        ArrowDown: { key: 'ArrowDown', code: 'ArrowDown', vk: 40 }, ArrowUp: { key: 'ArrowUp', code: 'ArrowUp', vk: 38 }, Space: { key: ' ', code: 'Space', vk: 32 },
+        End: { key: 'End', code: 'End', vk: 35 }, Home: { key: 'Home', code: 'Home', vk: 36 },
+      };
       const page: Page = {
+        requests: () => [...reqs],
+        clearRequests: () => { reqs.length = 0; },
+        errors: () => [...errs],
+        async emulateOffline(offline) { await s('Network.emulateNetworkConditions', { offline, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }); },
+        async hover(selector) {
+          const box = await page.eval<{ x: number; y: number } | null>(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e) return null; e.scrollIntoView({block:'center'}); const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+          if (!box) return false;
+          await s('Input.dispatchMouseEvent', { type: 'mouseMoved', x: box.x, y: box.y });
+          return true;
+        },
+        async press(name, shift = false) {
+          const k = KEYS[name] ?? { key: name, code: name, vk: name.toUpperCase().charCodeAt(0) };
+          const mods = shift ? 8 : 0;
+          await s('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: k.key, code: k.code, windowsVirtualKeyCode: k.vk, modifiers: mods });
+          await s('Input.dispatchKeyEvent', { type: 'keyUp', key: k.key, code: k.code, windowsVirtualKeyCode: k.vk, modifiers: mods });
+        },
+        async clickText(text, scope = 'body') {
+          const box = await page.eval<{ x: number; y: number } | null>(`(() => {
+            const root = document.querySelector(${JSON.stringify(scope)}) || document.body;
+            const want = ${JSON.stringify(text)};
+            const cands = [...root.querySelectorAll('button, a, [role=tab], [role=menuitem], [role=button], [role=radio], label, .ant-select-item, .ant-dropdown-menu-item, li[role=menuitem]')];
+            for (const e of cands) {
+              const r = e.getBoundingClientRect(); const st = getComputedStyle(e);
+              if (r.width <= 0 || r.height <= 0 || st.visibility === 'hidden' || e.closest('[inert],[aria-hidden=true]')) continue;
+              const t = ((e.getAttribute('aria-label') || '') + '|' + (e.textContent || '')).split('|').map((x) => x.trim().replace(/\s+/g, ' '));
+              if (t.includes(want)) { e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; }
+            }
+            return null; })()`);
+          if (!box) return false;
+          for (const type of ['mousePressed', 'mouseReleased']) await s('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 });
+          return true;
+        },
         async goto(url) {
           const loaded = new Promise<void>((r) => { const l = (m: { method: string; sessionId?: string }) => { if (m.method === 'Page.loadEventFired' && m.sessionId === sessionId) { listeners.splice(listeners.indexOf(l), 1); r(); } }; listeners.push(l); });
           await s('Page.navigate', { url });
