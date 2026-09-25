@@ -156,7 +156,16 @@ export const HANDLERS: HandlerTable = {
   tailorResume: () => notReady('Resume tailoring (the resume engine)'),
   acceptTailoring: () => notReady('Resume tailoring (the resume engine)'),
   fitCheck: () => notReady('The one-page check (the resume engine)'),
-  exportResume: () => notReady('Resume export as PDF or Word (the resume engine)'),
+  exportResume: ({ d, params, query }) => {
+    // Until the resume engine renders documents, an uploaded resume comes back as the very file the person uploaded
+    // (byte for byte) when its type is the format asked for. Anything else needs the resume engine.
+    const r = d.resumes.get(params.resumeId!);
+    if (!r) notFound('That resume');
+    const f = d.resumes.file(r.id);
+    const want = query.format === 'pdf' ? PDF : DOCX;
+    if (!f || f.mimeType !== want) return notReady(`Making a ${query.format === 'pdf' ? 'PDF' : 'Word file'} from this resume (the resume engine)`);
+    return { file: { fileName: f.fileName, mimeType: f.mimeType, bytes: f.bytes } };
+  },
   atsCheck: () => notReady('The ATS check (the resume engine)'),
   listCoverLetters: ({ d, query }) => { jobOr404(d, query.jobId); return { json: [] }; },
   createCoverLetter: () => notReady('Cover letters (the resume engine)'),

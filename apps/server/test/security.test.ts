@@ -122,8 +122,14 @@ test('undocumented and traversal paths answer not found; no file outside the UI 
     const r = await raw(s.port, { path: p, headers: { 'x-jobleft-token': s.token } });
     assert.ok(!r.text.includes('root:'), p);
     assert.ok(!r.text.includes('"name": "@jobleft/server"'), p);
-    if (p.startsWith('/api/')) assert.ok(r.status === 404 || r.status === 400 || r.status === 405, `${p} -> ${r.status}`);
+    assert.ok(r.status === 404 || r.status === 400 || r.status === 405, `${p} -> ${r.status}`);
   }
+  // Outside /api/ only real UI files answer: no fallback page for admin, debug or tool paths.
+  for (const p of ['/admin', '/debug', '/developer', '/_next/', '/%252e%252e/etc/passwd', '/files/resumes', '/data/jobleft.db', '/logs/server.log', '/run/server.json']) {
+    const r = await raw(s.port, { path: p });
+    assert.equal(r.status, 404, `${p} -> ${r.status}`);
+  }
+  assert.equal((await raw(s.port, { path: '/' })).status, 200, 'the UI itself still loads');
 });
 
 test('the dev clock route is hidden without dev mode', async () => {

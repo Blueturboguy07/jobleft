@@ -233,7 +233,7 @@ export class ZipReader {
         s.on('end', () => resolve());
         s.on('error', reject);
       });
-      if (h.digest('hex') !== want) throw new ZipRejected('The backup file is damaged: its checksum does not match. Nothing was changed.');
+      if (h.digest('hex') !== want) throw new ZipRejected('The backup file is damaged: its checksum does not match.');
     }
     const disk = tail.readUInt16LE(eocd + 4), cdDisk = tail.readUInt16LE(eocd + 6);
     const count = tail.readUInt16LE(eocd + 10);

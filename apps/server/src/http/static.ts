@@ -1,7 +1,7 @@
 // Serves the built UI (apps/ui/dist, or JOBLEFT_UI_DIR) at "/". Only files inside that folder are served: every
 // path segment is decoded once, "..", "." and hidden names are refused, and the real path must stay inside the
-// folder (a symlink cannot lead out). No directory listing. Unknown paths without an extension get index.html
-// (the SPA's own router). Nothing here reads the data folder.
+// folder (a symlink cannot lead out). No directory listing. Unknown paths answer 404 (the UI routes by the URL
+// fragment, so it needs no fallback page). Nothing here reads the data folder.
 
 import { createReadStream, existsSync, realpathSync, statSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -67,13 +67,10 @@ export class StaticSite {
       if (s === '.' || s === '..' || s.startsWith('.') || s.includes('/') || s.includes('\\') || s.includes('\0')) return null;
       segs.push(s);
     }
-    const candidate = segs.length === 0 ? join(this.realRoot, 'index.html') : join(this.realRoot, ...segs);
-    let file = candidate;
-    if (!existsSync(file) || statSync(file).isDirectory()) {
-      if (segs.length > 0 && extname(segs[segs.length - 1]!) !== '') return null;
-      file = join(this.realRoot, 'index.html');
-      if (!existsSync(file)) return null;
-    }
+    // Only real files are served. "/" is index.html; there is no fallback page for unknown paths (the UI uses hash
+    // routes, "#/jobs"), so a probe such as /admin or /debug answers 404, never a page.
+    const file = segs.length === 0 ? join(this.realRoot, 'index.html') : join(this.realRoot, ...segs);
+    if (!existsSync(file) || statSync(file).isDirectory()) return null;
     let real: string;
     try { real = realpathSync(file); } catch { return null; }
     if (real !== this.realRoot && !real.startsWith(this.realRoot + sep)) return null;

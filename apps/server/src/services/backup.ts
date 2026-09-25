@@ -131,7 +131,7 @@ export async function createBackup(d: AppData, l: HomeLayout): Promise<{ path: s
 }
 
 function reject(message: string): ApiFailure {
-  return new ApiFailure('bad_request', `${message} Nothing was changed.`);
+  return new ApiFailure('bad_request', /Nothing was changed\.$/.test(message) ? message : `${message} Nothing was changed.`);
 }
 
 /** Checks an uploaded backup in full and unpacks it into a staging folder. Changes nothing else. */

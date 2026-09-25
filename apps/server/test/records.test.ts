@@ -133,6 +133,12 @@ test('resume uploads: the real type is checked, and files come back byte for byt
     const ok = await s.call('POST', '/api/v1/resumes/import', PDF, { 'content-type': 'application/pdf', 'x-jobleft-filename': '..%2F..%2Fevil.pdf' });
     assert.equal(ok.status, 200);
     assert.equal(ok.json.resume.file.fileName, 'evil.pdf');
+    const back = await s.call('GET', `/api/v1/resumes/${ok.json.resume.id}/export?format=pdf`);
+    assert.equal(back.status, 200);
+    assert.equal(back.headers['content-type'], 'application/pdf');
+    assert.ok(back.body.equals(PDF), 'the uploaded file comes back byte for byte');
+    const docx = await s.call('GET', `/api/v1/resumes/${ok.json.resume.id}/export?format=docx`);
+    assert.equal(docx.status, 503, 'a Word file from a PDF needs the resume engine');
     const del = await s.call('DELETE', `/api/v1/resumes/${ok.json.resume.id}`);
     assert.deepEqual(del.json.deleted, [ok.json.resume.id]);
     assert.equal((await s.call('GET', '/api/v1/resumes')).json.length, 0);
