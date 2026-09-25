@@ -3,7 +3,7 @@
 import type { FactEvidence, Place, WorkModel } from '@jobleft/contracts';
 import { AU_STATE_CODES, CA_PROVINCE_CODES, COUNTRIES, COUNTRY_TYPOS, FOREIGN_REGIONS, GLOBAL_DOMINANT, MACRO_REGIONS, WORLD_CITY_COUNTRIES, WORLD_CITY_NAMES } from './geo-world.ts';
 import { US_CITY_DOMINANT, US_CITY_STATES, US_PLACE_ALIASES, US_REGION_NAMES, US_STATES, US_STATE_ALIASES } from './geo-us.ts';
-import { clip, keyOf, normalizeText } from './text.ts';
+import { clip, cutOtherJobs, keyOf, normalizeText } from './text.ts';
 
 // ---------------------------------------------------------------------------------------------------------------
 // Lookup tables
@@ -246,6 +246,8 @@ function settle(d: Draft, context: string): Place | null {
     } else {
       region = code; country = 'US';
       if (code === 'GA' && tok && tok.world.includes('GE') && !tok.us.includes('GA')) { country = 'GE'; region = null; }
+      // "Georgia" with the posting naming Tbilisi, Batumi or the lari: the country.
+      else if (code === 'GA' && !(tok && tok.us.includes('GA')) && GEORGIA_COUNTRY_CONTEXT.test(context)) { country = 'GE'; region = null; }
     }
   }
   if (d.stateHint && country === 'US' && !region) region = d.stateHint;
@@ -277,6 +279,8 @@ function settle(d: Draft, context: string): Place | null {
   if (country && region === null && city === null && d.text === '') return null;
   return { text: d.text.trim(), city, region, country, placeId: null };
 }
+
+const GEORGIA_COUNTRY_CONTEXT = /\b(?:tbilisi|batumi|kutaisi|rustavi|zugdidi|sakartvelo|georgian\s+(?:lari|language|speaking|citizens?)|GEL\s?\d|\d\s?GEL\b|georgia\s*\(country\)|caucasus)\b/i;
 
 /** Clues in the rest of the posting for a bare ambiguous city ("Portland" with "Maine" in the text). */
 function readContext(tok: Extract<Tok, { kind: 'city' }>, context: string): string | null {
@@ -619,7 +623,8 @@ const BOILERPLATE = /\b(?:headquarter\w*|hq|founded|offices?\s+(?:in|across|arou
 
 export function placesFromText(text: string, opts: { context?: string } = {}): { places: Place[]; evidence: string | null } {
   if (!text) return { places: [], evidence: null };
-  const t = normalizeText(text);
+  // Places in a "Similar jobs" block belong to other jobs.
+  const t = cutOtherJobs(normalizeText(text));
   const found: Place[] = [];
   let evidence: string | null = null;
   LABELED.lastIndex = 0;
@@ -636,6 +641,15 @@ export function placesFromText(text: string, opts: { context?: string } = {}): {
     while ((m = SENTENCE.exec(t)) !== null) {
       const ps = parseLocationText(m[1].replace(/\b(?:office|offices|headquarters|hq)\b.*$/i, ''), opts).places.filter((p) => p.city || p.region);
       if (ps.length) { found.push(...ps); evidence = evidence ?? clip(m[0], 300); break; }
+    }
+  }
+  if (!found.length) {
+    // A place at the end of the first line (the title): "Nurse - Portland, ME", "Therapist in Wayne, PA", "(Louisville, KY)".
+    const first = t.split('\n').find((l) => l.trim()) ?? '';
+    const tm = /(?:\s[-–|@]\s*|\bin\s+|\(|,\s+)([A-Z][\p{L}.' -]{1,40},\s*(?:[A-Z]{2}|[A-Z][a-z]+(?:\s[A-Z][a-z]+)?))\)?\s*$/u.exec(first.trim());
+    if (tm) {
+      const ps = parseLocationText(tm[1], opts).places.filter((p) => p.city && p.country);
+      if (ps.length) { found.push(...ps); evidence = first.trim().slice(0, 300); }
     }
   }
   if (!found.length) {

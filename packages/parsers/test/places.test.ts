@@ -72,6 +72,9 @@ test('country: never the wrong country (O8)', () => {
   assert.equal(us('Berlin, DE'), false);
   assert.equal(us('Ontario - Remote'), false);
   assert.equal(parsePlaces('Tbilisi, Georgia')[0].country, 'GE');
+  assert.equal(parsePlaces('Georgia', { context: 'Join our team in Tbilisi. Salary in GEL.' })[0].country, 'GE');
+  assert.equal(parsePlaces('Georgia', { context: 'Join our team in Atlanta.' })[0].country, 'US');
+  assert.equal(parsePlaces('Batumi, Georgia')[0].country, 'GE');
 });
 
 test('country: the spike API still answers the same questions', () => {

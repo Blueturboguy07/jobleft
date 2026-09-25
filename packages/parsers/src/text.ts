@@ -38,7 +38,7 @@ export function keyOf(s: string): string {
 /**
  * Cuts a pasted page at a block of other jobs ("Similar jobs", "People also viewed", ...), so that
  * those jobs' pay, places and levels never become this job's facts (parsers O4 angle 4).
- * The cut happens only at a short heading-like line, and never in the first two lines.
+ * The cut happens only at a short heading-like line after this job's own first line.
  */
 const OTHER_JOBS_HEADING = new RegExp(
   '^\\s*(?:#+\\s*)?(?:' + [
@@ -60,8 +60,8 @@ export function cutOtherJobs(text: string): string {
   let pos = 0;
   let seen = 0;
   for (const line of lines) {
-    // Never the first lines of the page: a block of other jobs comes after this job's own text.
-    if (seen >= 2 && pos >= 60 && line.length <= 90 && OTHER_JOBS_HEADING.test(line)) return text.slice(0, pos).trimEnd();
+    // Never the first line of the page: a block of other jobs comes after this job's own text.
+    if (seen >= 1 && line.length <= 90 && OTHER_JOBS_HEADING.test(line)) return text.slice(0, pos).trimEnd();
     if (line.trim()) seen++;
     pos += line.length + 1;
   }
