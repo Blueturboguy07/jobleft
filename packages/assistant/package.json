@@ -1,0 +1,27 @@
+{
+  "name": "@jobleft/assistant",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "The assistant (chat with tools over the person's own data), interview practice, the company facts panel and the metered fetch and search client.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "jobleft-assistant": "./src/cli.ts"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json",
+    "assistant": "node src/cli.ts"
+  },
+  "dependencies": {
+    "@jobleft/ai-engine": "workspace:*",
+    "@jobleft/contracts": "workspace:*"
+  }
+}

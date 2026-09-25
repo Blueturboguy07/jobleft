@@ -243,6 +243,15 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/assistant:
+    dependencies:
+      '@jobleft/ai-engine':
+        specifier: workspace:*
+        version: link:../ai-engine
+      '@jobleft/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   packages/boards:
     dependencies:
       '@jobleft/contracts':
