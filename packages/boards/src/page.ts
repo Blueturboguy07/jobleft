@@ -57,14 +57,21 @@ function attrs(s: string): Map<string, string> {
 /** [start, end) ranges of footer, nav and aside elements (and divs whose class or id says footer). */
 function weakZones(html: string): Array<[number, number]> {
   const zones: Array<[number, number]> = [];
-  const el = /<(footer|nav|aside)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
+  // footer, nav and aside: one pass with a stack (linear, also on hostile pages with unclosed tags).
+  const re = /<(\/?)(footer|nav|aside)\b[^>]{0,2000}>/gi;
+  const stack: number[] = [];
   let m: RegExpExecArray | null;
-  while ((m = el.exec(html))) zones.push([m.index, m.index + m[0].length]);
-  const role = /<(div|section|ul)\b[^>]*(?:role\s*=\s*["']contentinfo["']|(?:class|id)\s*=\s*["'][^"']*\b(?:site-)?footer\b[^"']*["'])[^>]*>/gi;
-  while ((m = role.exec(html))) {
-    // Balance nested tags of the same name to find the end.
+  while ((m = re.exec(html)) && zones.length < 500) {
+    if (!m[1]) stack.push(m.index);
+    else if (stack.length) { const start = stack.pop()!; if (stack.length === 0) zones.push([start, m.index + m[0].length]); }
+  }
+  if (stack.length) zones.push([stack[0]!, html.length]);
+  // divs, sections and lists whose role, class or id says footer: at most 10, each balanced by a bounded scan.
+  const role = /<(div|section|ul)\b[^>]{0,2000}?(?:role\s*=\s*["']contentinfo["']|(?:class|id)\s*=\s*["'][^"'>]{0,500}?\b(?:site-)?footer\b[^"'>]{0,500}["'])[^>]{0,2000}>/gi;
+  let n = 0;
+  while ((m = role.exec(html)) && n++ < 10) {
     const tag = m[1]!.toLowerCase();
-    const tokens = new RegExp(`<(/?)${tag}\\b[^>]*>`, 'gi');
+    const tokens = new RegExp(`<(/?)${tag}\\b[^>]{0,2000}>`, 'gi');
     tokens.lastIndex = m.index + m[0].length;
     let depth = 1, end = html.length, t: RegExpExecArray | null;
     while ((t = tokens.exec(html))) {
@@ -74,6 +81,22 @@ function weakZones(html: string): Array<[number, number]> {
     zones.push([m.index, end]);
   }
   return zones;
+}
+
+/** [start, end) of each script element, found with indexOf (linear). */
+function scriptZones(html: string): Array<[number, number]> {
+  const lower = html.toLowerCase();
+  const out: Array<[number, number]> = [];
+  let pos = 0;
+  while (out.length < 2000) {
+    const i = lower.indexOf('<script', pos);
+    if (i < 0) break;
+    const j = lower.indexOf('</script', i + 7);
+    if (j < 0) { out.push([i, html.length]); break; }
+    out.push([i, j + 9]);
+    pos = j + 9;
+  }
+  return out;
 }
 
 function inZones(i: number, zones: Array<[number, number]>): boolean {
@@ -146,7 +169,7 @@ export function scanPage(htmlIn: string, pageUrl: URL): PageScan {
   };
 
   // 1. Tags and their attributes.
-  const tagRe = /<([a-z][a-z0-9-]*)\b([^>]*)>/gi;
+  const tagRe = /<([a-z][a-z0-9-]*)\b([^>]{0,4000})>/gi;
   let t: RegExpExecArray | null;
   while ((t = tagRe.exec(clean))) {
     const name = t[1]!.toLowerCase();
@@ -194,10 +217,7 @@ export function scanPage(htmlIn: string, pageUrl: URL): PageScan {
 
   // 2. Addresses inside scripts and inline JSON (escaped slashes included).
   const unescaped = clean.replace(/\\\//g, '/');
-  const scriptRanges: Array<[number, number]> = [];
-  const sr = /<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi;
-  let s: RegExpExecArray | null;
-  while ((s = sr.exec(unescaped))) scriptRanges.push([s.index, s.index + s[0].length]);
+  const scriptRanges = scriptZones(unescaped);
   let m: RegExpExecArray | null;
   ATS_URL.lastIndex = 0;
   while ((m = ATS_URL.exec(unescaped))) {

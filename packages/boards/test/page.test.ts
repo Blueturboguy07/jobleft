@@ -51,3 +51,15 @@ test('a page with no board gives hints, careers links and no guess', () => {
   const w = scanPage('<script src="https://acme.wd5.myworkdayjobs.com/embed.js"></script>', PAGE);
   assert.equal(w.forbiddenTarget, 'Workday');
 });
+
+test('hostile pages: 4 MB of unclosed tags scan quickly and find nothing false', () => {
+  const junk = '<nav><footer><aside><script><div class="footer"><a href="x'.repeat(40_000) + 'x'.repeat(2_000_000);
+  const t0 = performance.now();
+  const s = scanPage(junk, PAGE);
+  assert.ok(performance.now() - t0 < 3000, `took ${Math.round(performance.now() - t0)} ms`);
+  assert.equal(s.boards.length, 0);
+  const many = Array.from({ length: 5000 }, (_, i) => `<a href="https://jobs.lever.co/co${i}">x</a>`).join('');
+  const t1 = performance.now();
+  assert.equal(scanPage(many, PAGE).boards.length, 5000);
+  assert.ok(performance.now() - t1 < 3000);
+});
