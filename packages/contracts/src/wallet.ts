@@ -2,7 +2,7 @@
 // never "credits" and never tokens. Field meanings follow the publik API contract (GET /wallet, x-publik-* headers).
 
 import { HttpUrlSchema, IsoDateTimeSchema, MicrosSchema } from './common.ts';
-import { enm, int, named, nullable, obj, type Infer } from './schema.ts';
+import { arr, enm, int, named, nullable, obj, str, type Infer } from './schema.ts';
 
 export const PublikWalletSchema = named(obj({
   claimState: enm(['anonymous', 'claimed']),
@@ -30,6 +30,16 @@ export const PublikConnectionSchema = named(obj({
   wallet: nullable(PublikWalletSchema),
   /** Version of the two-sentence disclosure the user accepted before the app connected. */
   disclosureVersion: nullable(int({ minimum: 1 })),
+}, {
+  /**
+   * Every charge of this app's paid calls, newest first, so the balance always agrees with the list (added by the
+   * i-ai lane). `costText` is `formatDollars(costMicros)`; a charge under one cent shows as "<$0.01", never "$0.00".
+   */
+  usage: arr(obj({
+    id: str({ minLength: 1 }), at: IsoDateTimeSchema, what: str(), costMicros: int({ minimum: 0 }), costText: str(),
+  })),
+  /** The sum of `usage` in micros (added by the i-ai lane). */
+  usageTotalMicros: int({ minimum: 0 }),
 }), 'PublikConnection');
 
 export type PublikWallet = Infer<typeof PublikWalletSchema>;

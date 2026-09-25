@@ -32,7 +32,11 @@
               "profile_edit",
               "resume_delete",
               "filter_save",
-              "contact_stage"
+              "contact_stage",
+              "cover_letter",
+              "debrief_save",
+              "paid_fetch",
+              "paid_search"
             ]
           },
           "summary": {
@@ -49,7 +53,8 @@
                   "resume",
                   "profile",
                   "filter",
-                  "contact"
+                  "contact",
+                  "web"
                 ]
               },
               "id": {
@@ -68,6 +73,17 @@
             "required": [
               "kind",
               "id"
+            ]
+          },
+          "costMicros": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "description": "Integer millionths of a US dollar"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },

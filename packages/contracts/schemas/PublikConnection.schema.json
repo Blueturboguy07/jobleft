@@ -154,6 +154,44 @@
           "type": "null"
         }
       ]
+    },
+    "usage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 date-time, UTC (\"Z\")"
+          },
+          "what": {
+            "type": "string"
+          },
+          "costMicros": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "costText": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "what",
+          "costMicros",
+          "costText"
+        ]
+      }
+    },
+    "usageTotalMicros": {
+      "type": "integer",
+      "minimum": 0
     }
   },
   "required": [

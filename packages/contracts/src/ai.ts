@@ -84,7 +84,8 @@ export const ChatRequestSchema = named(obj({
   chatId: IdSchema,
   /** Ask about this job (its facts are added by the server, not by the client). */
   jobId: IdSchema,
-  preset: enm(['chat', 'fit', 'tailor', 'interview', 'debrief', 'profile']),
+  /** `browse` was added by the i-ai lane (additive). */
+  preset: enm(['chat', 'fit', 'tailor', 'interview', 'debrief', 'profile', 'browse']),
 }), 'ChatRequest');
 
 /**
@@ -99,11 +100,17 @@ export const ActionProposalSchema = named(obj({
     kind: enm([
       'tracker_status', 'like', 'unlike', 'hide', 'unhide', 'note_add', 'reminder_add', 'profile_edit', 'resume_delete',
       'filter_save', 'contact_stage',
+      // Added by the i-ai lane (additive): a saved cover letter draft, a saved interview debrief, and the two PAID web
+      // actions (page fetch, web search), which never run without the person's approval of the shown price.
+      'cover_letter', 'debrief_save', 'paid_fetch', 'paid_search',
     ]),
     /** One plain sentence that names the exact change ("Move Initech, Data Analyst to Rejected"). */
     summary: str({ minLength: 1 }),
     /** The record the action changes. */
-    target: obj({ kind: enm(['job', 'resume', 'profile', 'filter', 'contact']), id: nullable(IdSchema) }),
+    target: obj({ kind: enm(['job', 'resume', 'profile', 'filter', 'contact', 'web']), id: nullable(IdSchema) }),
+  }, {
+    /** The price of a paid action in micros, shown before the person approves (added by the i-ai lane). */
+    costMicros: nullable(MicrosSchema),
   }), { minItems: 1 }),
   expiresAt: IsoDateTimeSchema,
 }), 'ActionProposal');
@@ -112,7 +119,11 @@ export const ChatThreadSchema = named(obj({
   id: IdSchema,
   title: str(),
   jobId: nullable(IdSchema),
-  messages: arr(obj({ role: enm(['user', 'assistant']), content: str(), at: IsoDateTimeSchema }, { incomplete: bool() })),
+  messages: arr(obj({ role: enm(['user', 'assistant']), content: str(), at: IsoDateTimeSchema }, {
+    incomplete: bool(),
+    /** Jobs this answer relies on, so each can be opened (added by the i-ai lane). */
+    jobs: arr(obj({ id: IdSchema, title: str(), company: str() })),
+  })),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
 }), 'ChatThread');
@@ -132,6 +143,17 @@ export const PracticeSessionSchema = named(obj({
     gap: bool(),
   })),
   createdAt: IsoDateTimeSchema,
+}, {
+  /** Added by the i-ai lane (additive). Says these are practice questions made for this job, not the employer's. */
+  label: str(),
+  /** The answers given so far, so a session continues after a restart. */
+  answers: arr(obj({
+    questionId: IdSchema, answer: str(), feedback: nullable(str()), sampleAnswer: nullable(str()), answeredAt: IsoDateTimeSchema,
+  })),
+  /** true = this call returned the open session for the job instead of making a new one. */
+  resumed: bool(),
+  /** Where the question texts came from: `rules` (made from the posting and the profile) or `ai` (worded by the model). */
+  madeBy: enm(['rules', 'ai']),
 }), 'PracticeSession');
 
 /** A saved practice question, answer or interview debrief, linked to one job (the personal question bank). */
@@ -159,7 +181,12 @@ export const ChatStreamEventSchema = named(union([
   obj({ type: lit('delta'), text: str() }),
   /** The assistant asks to change data; the UI shows each action for approval. */
   obj({ type: lit('proposal'), proposal: ActionProposalSchema }),
-  obj({ type: lit('done'), incomplete: bool(), costMicros: nullable(MicrosSchema), chatId: nullable(IdSchema) }),
+  obj({ type: lit('done'), incomplete: bool(), costMicros: nullable(MicrosSchema), chatId: nullable(IdSchema) }, {
+    /** Jobs this answer relies on, so each can be opened (added by the i-ai lane). */
+    jobs: arr(obj({ id: IdSchema, title: str(), company: str() })),
+    /** Why the answer is incomplete, in plain words (added by the i-ai lane). */
+    reason: str(),
+  }),
   obj({ type: lit('error'), error: StreamErrorSchema }),
 ]), 'ChatStreamEvent');
 
