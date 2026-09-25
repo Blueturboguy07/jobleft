@@ -156,7 +156,13 @@ chat call coffee time minutes advice perspective insights insight team role posi
 experiences day week congrats congratulations good morning afternoon evening all the best many talk soon regards, yes sure absolutely
 certainly appreciate appreciated appreciation grateful love like excited exciting keen eager learn learning more lot any anything
 linkedin monday tuesday wednesday thursday friday saturday sunday january february march april june july august september october
-november december ps p.s. re fyi mr ms mrs dr`.split(/\s+/));
+november december ps p.s. re fyi mr ms mrs dr since given while after before recently currently additionally lastly finally
+many some every being having really truly again otherwise feel free definitely totally anyway however though although
+especially particularly specifically right well nice best wishes hiring thought thinking hoping reaching writing
+wondering following noticed impressed inspired admire admired enjoyed enjoy enjoying learning met hear heard
+glad pleased honored honoured delighted sorry apologies no worries thanks! cheers! hello! hi! good luck warmest
+kindest respectfully cordially fondly sincerely yours truly regards best, would've it's that's there's here's what's
+who's let's i'll we'll you'll`.split(/\s+/));
 
 
 function corpusOf(f: DraftFacts): string {
@@ -197,7 +203,7 @@ export function checkDraft(text: string, f: DraftFacts): string[] {
     const p = fold(phrase).trim();
     if (!p) return true;
     if (corpus.includes(p)) return true;
-    const ws = [...wordsOf(p)];
+    const ws = [...wordsOf(p)].filter((w) => !COMMON.has(w));
     return ws.length > 0 && ws.every(knownWord);
   };
   const flagged = new Set<string>();
@@ -283,11 +289,16 @@ export function checkDraft(text: string, f: DraftFacts): string[] {
   }
 
   // 7. Any other capitalised word that is not in the inputs (a name, school, company or title the AI invented).
-  for (const tok of text.match(/[\p{L}\p{N}][\p{L}\p{N}&'’.+#-]*/gu) ?? []) {
+  // A word that starts a sentence is capitalised by grammar: an adverb ("Recently") or a gerund ("Having") is skipped.
+  for (const m of text.matchAll(/[\p{L}\p{N}][\p{L}\p{N}&'’.+#-]*/gu)) {
+    const tok = m[0];
     const clean = tok.replace(/['’]s$/i, '').replace(/[.'’-]+$/, '');
     if (!/^\p{Lu}/u.test(clean)) continue;
     const low = fold(clean);
     if (COMMON.has(low) || flagged.has(low)) continue;
+    const before = text.slice(0, m.index!).replace(/\s+$/, '');
+    const sentenceStart = before === '' || /[.!?:\n]$/.test(before) || /^(?:hi|hello|hey|dear)\b[^,\n]*,$/i.test(before);
+    if (sentenceStart && /^[a-z]+(?:ly|ing)$/.test(low)) continue;
     if (knownWord(low)) continue;
     add(`Names "${clean}", which is not in your profile, the contact's row or the job.`);
     flagged.add(low);
