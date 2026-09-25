@@ -1,42 +1,45 @@
 // @jobleft/sources-ats: ATS adapters beyond the crawler's built-ins (Greenhouse, Lever, Ashby), the ATS source
 // list (crawled or not, why, checked when), and ATS detection from any URL.
-// Phase 1 adds Workable, Recruitee and Personio. Never: SmartRecruiters, LinkedIn, Indeed, Glassdoor. Never without
-// the owner's approval: Workday, iCIMS, Oracle, UKG, Taleo.
-// Status: interface stubs (foundation). Bodies throw until the sources-ats lane implements them.
-// Interface: docs/INTERFACES.md, section "@jobleft/sources-ats".
-
-import type { AtsId, CrawlAtsId, SourceInfo } from '@jobleft/contracts';
-import type { SourceRegistry } from '@jobleft/crawler';
+// Built: Workable, Recruitee, Personio, Teamtailor and Gem. Reviewed and NOT built: BambooHR, Breezy, JazzHR (no
+// documented public feed) and Rippling (terms not verifiable). Never: SmartRecruiters, LinkedIn, Indeed, Glassdoor.
+// Never without the owner's approval: Workday, iCIMS, Oracle, UKG, Taleo.
+// Interface: docs/INTERFACES.md, section "@jobleft/sources-ats". Evidence per source: docs/sources/<ats>.md.
 
 export const PACKAGE_NAME = '@jobleft/sources-ats';
 
-function notImplemented(what: string): never {
-  throw new Error(`not implemented yet: ${what} (lane: @jobleft/sources-ats)`);
-}
+// Registry
+export { ATS_SOURCES, allSources, crawledAtsIds } from './registry.ts';
 
-/** The lane's adapters (workable, recruitee, personio, ...). Merge with @jobleft/crawler SOURCES: { ...SOURCES, ...ATS_SOURCES }. */
-export const ATS_SOURCES: SourceRegistry = {};
+// Detection from a URL (pure string work, sends nothing)
+export { atsName, classifyUrl, detectAts, neverContactHost } from './detect.ts';
+export type { AtsDetection, UrlClassification, UrlVerdict } from './detect.ts';
 
-/** What a URL says about the ATS behind it. Pure string work: it sends no request. */
-export interface AtsDetection {
-  ats: AtsId;
-  /** The board token, when the URL names one. */
-  board: string | null;
-  region: string | null;
-  /** The posting id, when the URL is a single job page (for example a Greenhouse gh_jid). */
-  jobId: string | null;
-  /** true only for CrawlAtsId families; false for workday, icims, smartrecruiters and the rest. */
-  crawlable: boolean;
-}
+// Hosts
+export { atsHost, boardHost, normalRegion, SUBDOMAIN_FAMILIES } from './hosts.ts';
 
-/** Recognises board and job URLs of known ATS families (case, tracking parameters and trailing slashes ignored). */
-export function detectAts(url: string): AtsDetection | null { return notImplemented('detectAts'); }
+// Source list
+export { ATS_SOURCE_DETAILS, ATS_SOURCE_LIST, notCrawledReason } from './source-list.ts';
+export type { AtsSourceDetail, AtsSourceEntry } from './source-list.ts';
 
-/** The public API host of an ATS board (regional hosts included). */
-export function atsHost(ats: CrawlAtsId, region: string | null): string { return notImplemented('atsHost'); }
+// Adapters and their pure mappers (for tests and tools)
+export { gem, gemUrl, mapGem } from './adapters/gem.ts';
+export { mapPersonio, personio, personioBody, personioUrl } from './adapters/personio.ts';
+export { mapRecruitee, recruitee, recruiteePay, recruiteeUrl } from './adapters/recruitee.ts';
+export {
+  mapTeamtailorItem, teamtailor, TEAMTAILOR_MAX_PAGES, TEAMTAILOR_PAGE_SIZE, teamtailorJobId, teamtailorPageUrl,
+} from './adapters/teamtailor.ts';
+export { mapWorkable, workable, workableUrl } from './adapters/workable.ts';
 
-/**
- * The ATS source list: every family jobleft crawls (with evidence that the feed is public) and every family it does
- * not (with a reason and the date the reason was checked). Status fields are filled by the server at run time.
- */
-export const ATS_SOURCE_LIST: ReadonlyArray<Omit<SourceInfo, 'enabled' | 'keySet' | 'status'>> = [];
+// Errors (the crawl report shows `${name}: ${message}`)
+export { BoardTokenError, FeedFormatError, PagingError, SourceChangedError } from './errors.ts';
+
+// XML reader used by the Personio and Teamtailor adapters
+export { child, childText, children, decodeXmlEntities, parseXml, text } from './xml.ts';
+export type { XmlElement, XmlNode } from './xml.ts';
+
+// Crawl support for the CLI and the server: plain reasons, polite fetch, health report
+export { plainReason } from './report.ts';
+export { buildHealthReport } from './report.ts';
+export type { AtsHealth, BoardHealth, HealthReport } from './report.ts';
+export { politeFetch } from './polite-fetch.ts';
+export type { PoliteFetchOptions } from './polite-fetch.ts';
