@@ -1,0 +1,26 @@
+Jordan Testwell
+jordan.testwell@example.com | 555-0100 | Austin, TX | https://example.com/jordan | https://github.com/jordan-testwell-example
+
+SUMMARY
+Software engineer with 3 years of backend experience building APIs and data pipelines.
+
+EXPERIENCE
+Software Engineer, Northwind Sample Labs, Austin, TX    Jun 2023 - Present
+- Cut batch-job time by 40% by rewriting the scheduler in TypeScript.
+- Led a migration of 12 services to PostgreSQL with zero downtime.
+- Built a billing API that processes $2M in payments each month.
+
+Junior Developer, Contoso Example Corp, Dallas, TX    Jan 2021 - May 2023
+- Maintained React dashboards used by 12 engineers across 3 teams.
+- Wrote Python scripts that saved 10 hours of manual work each week.
+
+EDUCATION
+B.S. in Computer Science, Sample State University    Aug 2016 - May 2020
+- GPA: 3.7
+
+SKILLS
+TypeScript, JavaScript, Python, React, Node.js, PostgreSQL, Docker, AWS, Git, REST APIs, SQL, Linux
+
+PROJECTS
+Ledger Lite | A personal budgeting app
+- Built with React and Node.js; used by 200 people each month.
