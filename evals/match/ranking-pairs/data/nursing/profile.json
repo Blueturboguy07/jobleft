@@ -1,0 +1,90 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "summary": "Critical care nurse with ICU and step-down experience.",
+  "work": [
+    {
+      "company": "St. David's Medical Center",
+      "title": "Registered Nurse, ICU",
+      "startDate": "2021-03",
+      "endDate": "present",
+      "bullets": [
+        "Care for 2-3 critically ill patients per shift, including ventilated patients.",
+        "Titrate IV drips, manage telemetry and arterial lines.",
+        "Chart in Epic; precept new graduate nurses."
+      ]
+    },
+    {
+      "company": "Hill Country Nursing Center",
+      "title": "Certified Nursing Assistant",
+      "startDate": "2017-06",
+      "endDate": "2020-12",
+      "bullets": [
+        "Assisted residents with activities of daily living, vital signs and transfers."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "Sample State University",
+      "degree": "BSN",
+      "major": "Nursing",
+      "startDate": "2016-08",
+      "endDate": "2020-12"
+    }
+  ],
+  "skills": [
+    "Patient care",
+    "Critical care",
+    "IV therapy",
+    "Telemetry",
+    "Medication administration",
+    "Wound care",
+    "Epic",
+    "Patient assessment",
+    "Ventilator management"
+  ],
+  "certifications": [
+    "Registered Nurse (RN) license, Texas (compact)",
+    "BLS",
+    "ACLS"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Registered Nurse"
+    ],
+    "targetTitles": [
+      "ICU Nurse"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "onsite"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "placeId": null,
+        "radiusMiles": 30
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

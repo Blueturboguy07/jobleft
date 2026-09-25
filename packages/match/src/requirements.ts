@@ -169,24 +169,25 @@ function num(s: string): number | null {
 
 interface YearsHit { min: number | null; max: number | null; start: number; end: number }
 
-function yearsIn(s: string): YearsHit | null {
-  let m = RE_RANGE.exec(s);
-  if (m) {
-    const a = num(m[1]), b = num(m[2]);
-    if (a !== null && b !== null && a <= 30 && b <= 40) return { min: Math.min(a, b), max: Math.max(a, b), start: m.index, end: m.index + m[0].length };
-  }
-  m = RE_MIN.exec(s);
-  if (m) { const a = num(m[1]); if (a !== null && a <= 30) return { min: a, max: null, start: m.index, end: m.index + m[0].length }; }
-  m = RE_PLUS.exec(s);
-  if (m) {
-    const a = num(m[1] ?? m[2] ?? m[3]);
-    if (a !== null && a <= 30) return { min: a, max: null, start: m.index, end: m.index + m[0].length };
-  }
-  m = RE_UPTO.exec(s);
-  if (m) { const a = num(m[1]); if (a !== null && a <= 30) return { min: 0, max: a, start: m.index, end: m.index + m[0].length }; }
-  m = RE_PLAIN.exec(s);
-  if (m) { const a = num(m[1]); if (a !== null && a <= 30) return { min: a, max: null, start: m.index, end: m.index + m[0].length }; }
-  return null;
+/** Every years statement in a sentence ("3+ years of Python and 5+ years of software experience" gives two). */
+function yearsIn(s: string): YearsHit[] {
+  const hits: YearsHit[] = [];
+  const take = (re: RegExp, read: (m: RegExpExecArray) => { min: number | null; max: number | null } | null) => {
+    const g = new RegExp(re.source, 'gi');
+    let m: RegExpExecArray | null;
+    while ((m = g.exec(s))) {
+      const start = m.index, end = m.index + m[0].length;
+      if (hits.some((h) => start < h.end && end > h.start)) continue;
+      const v = read(m);
+      if (v) hits.push({ ...v, start, end });
+    }
+  };
+  take(RE_RANGE, (m) => { const a = num(m[1]), b = num(m[2]); return a !== null && b !== null && a <= 30 && b <= 40 ? { min: Math.min(a, b), max: Math.max(a, b) } : null; });
+  take(RE_MIN, (m) => { const a = num(m[1]); return a !== null && a <= 30 ? { min: a, max: null } : null; });
+  take(RE_PLUS, (m) => { const a = num(m[1] ?? m[2] ?? m[3]); return a !== null && a <= 30 ? { min: a, max: null } : null; });
+  take(RE_UPTO, (m) => { const a = num(m[1]); return a !== null && a <= 30 ? { min: 0, max: a } : null; });
+  take(RE_PLAIN, (m) => { const a = num(m[1]); return a !== null && a <= 30 ? { min: a, max: null } : null; });
+  return hits.sort((x, y) => x.start - y.start);
 }
 
 export function yearsLabel(min: number | null, max: number | null): string {
@@ -270,15 +271,17 @@ export function readRequirements(a: AnalyzedText): PostedRequirement[] {
     if (NO_EXPERIENCE.test(t)) {
       const m = NO_EXPERIENCE.exec(t)!;
       out.push({ kind: 'years', importance: 'required', label: 'No experience needed', quote: quoteAround(text, s.start + m.index, s.start + m.index + m[0].length, 200), start: s.start, detail: { minYears: 0, maxYears: 0, general: true } });
-    } else {
-      const y = yearsIn(t);
-      if (y && YEARS_CONTEXT.test(t) && !YEARS_NOT.test(t)) {
-        const imp = importanceOf(t, section) ?? (section === 'duties' || section === 'intro' || section === 'other' ? 'required' : null);
-        if (imp && imp !== 'obtainable') {
-          // "3+ years of experience with Salesforce" is about one skill; "5+ years of accounting experience" is general.
-          const after = t.slice(y.end, y.end + 70);
-          const specific = /^\s*(of\s+)?(hands-on\s+|professional\s+|direct\s+|working\s+|practical\s+)?(experience\s+)?(with|using|in)\s+/i.test(after)
-            && scanSkills(a.live.filter((k) => k.start >= s.start + y.end && k.start < s.start + y.end + 70)).some((m) => SKILLS.get(m.id)?.kind !== 'cred');
+    } else if (YEARS_CONTEXT.test(t) && !YEARS_NOT.test(t)) {
+      const imp = importanceOf(t, section) ?? (section === 'duties' || section === 'intro' || section === 'other' ? 'required' : null);
+      if (imp && imp !== 'obtainable') {
+        for (const y of yearsIn(t)) {
+          // "3+ years of Python" or "2+ years with Salesforce" is about one skill; "5+ years of accounting experience"
+          // is general.
+          const after = t.slice(y.end, y.end + 60).replace(/^\s*(of|in|with|using|working with|programming in|hands-on|professional|direct|practical|relevant|recent|progressive|experience|\s)+/i, '');
+          const offset = s.start + y.end + (t.slice(y.end, y.end + 60).length - after.length);
+          const next = a.live.filter((k) => k.start >= offset && k.start < offset + 40);
+          const first = scanSkills(next)[0];
+          const specific = !!first && first.start === next[0]?.start && SKILLS.get(first.id)?.kind !== 'cred';
           out.push({
             kind: 'years', importance: imp, label: yearsLabel(y.min, y.max) + ' of experience',
             quote: quoteAround(text, s.start + y.start, s.start + y.end, 200), start: s.start,
@@ -354,7 +357,12 @@ export function primaryYears(reqs: PostedRequirement[]): PostedRequirement | nul
     for (const r of use) { const k = r.start; bySentence.set(k, [...(bySentence.get(k) ?? []), r]); }
     let best: PostedRequirement | null = null;
     for (const group of bySentence.values()) {
-      const pick = group.reduce((x, y) => ((y.detail.minYears ?? 0) < (x.detail.minYears ?? 0) ? y : x));
+      // "a degree and 2 years, or 6 years" offers alternatives (the smaller one is enough);
+      // "7+ years including 3+ years in leadership" does not (the larger one is the requirement).
+      const alternatives = group.length > 1 && /\bor\b/i.test(group.map((g) => g.quote).join(' '));
+      const pick = group.reduce((x, y) => (alternatives
+        ? ((y.detail.minYears ?? 0) < (x.detail.minYears ?? 0) ? y : x)
+        : ((y.detail.minYears ?? 0) > (x.detail.minYears ?? 0) ? y : x)));
       if (!best || (pick.detail.minYears ?? 0) > (best.detail.minYears ?? 0)) best = pick;
     }
     return best;

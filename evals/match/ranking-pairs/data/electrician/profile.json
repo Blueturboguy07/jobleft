@@ -1,0 +1,88 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "summary": "Licensed journeyman electrician, commercial and industrial.",
+  "work": [
+    {
+      "company": "Lone Star Electrical Contractors",
+      "title": "Journeyman Electrician",
+      "startDate": "2020-07",
+      "endDate": "present",
+      "bullets": [
+        "Install conduit, pull wire and terminate panels on commercial jobs.",
+        "Troubleshoot motor controls and VFDs at industrial sites.",
+        "Read blueprints and follow NEC code."
+      ]
+    },
+    {
+      "company": "Lone Star Electrical Contractors",
+      "title": "Apprentice Electrician",
+      "startDate": "2016-06",
+      "endDate": "2020-06",
+      "bullets": [
+        "Bent EMT and rigid conduit, installed lighting and receptacles."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "Austin High School",
+      "degree": "High School Diploma",
+      "startDate": "2012-08",
+      "endDate": "2016-05"
+    }
+  ],
+  "skills": [
+    "Electrical wiring",
+    "Conduit bending",
+    "Blueprint reading",
+    "NEC",
+    "Motor controls",
+    "Electrical troubleshooting",
+    "Three-phase power",
+    "Hand and power tools",
+    "Low voltage"
+  ],
+  "certifications": [
+    "Texas Journeyman Electrician License",
+    "OSHA 30"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Electrician"
+    ],
+    "targetTitles": [
+      "Journeyman Electrician"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "onsite"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "placeId": null,
+        "radiusMiles": 30
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

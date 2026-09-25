@@ -1,0 +1,12 @@
+Title: Industrial Electrician
+Company: Fabrikam Foods
+Location: Austin, TX
+
+Maintain electrical systems at our food manufacturing plant.
+
+Requirements
+- Journeyman license
+- Troubleshoot motor controls, VFDs and three-phase power
+- Read electrical schematics
+- 3+ years of industrial electrical experience
+- PLC experience a plus

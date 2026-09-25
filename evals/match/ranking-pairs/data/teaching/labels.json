@@ -1,0 +1,18 @@
+{
+  "01-elementary-teacher.txt": "strong",
+  "02-third-grade-teacher.txt": "strong",
+  "03-ela-teacher.txt": "strong",
+  "04-bilingual-esl-teacher.txt": "strong",
+  "05-elementary-teacher-private.txt": "strong",
+  "06-reading-interventionist.txt": "possible",
+  "07-instructional-coach.txt": "possible",
+  "08-special-education-teacher.txt": "possible",
+  "09-high-school-math.txt": "possible",
+  "10-preschool-teacher.txt": "possible",
+  "11-assistant-principal.txt": "poor",
+  "12-software-engineer.txt": "poor",
+  "13-registered-nurse.txt": "poor",
+  "14-instructional-designer.txt": "possible",
+  "15-accountant.txt": "poor",
+  "16-professor.txt": "poor"
+}

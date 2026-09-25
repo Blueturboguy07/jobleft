@@ -1,0 +1,18 @@
+{
+  "01-journeyman-commercial.txt": "strong",
+  "02-industrial-electrician.txt": "strong",
+  "03-electrician-service.txt": "strong",
+  "04-journeyman-tech-data-center.txt": "strong",
+  "05-maintenance-electrician.txt": "strong",
+  "06-master-electrician.txt": "possible",
+  "07-electrical-foreman.txt": "possible",
+  "08-hvac-technician.txt": "possible",
+  "09-solar-installer.txt": "possible",
+  "10-low-voltage-tech.txt": "possible",
+  "11-electrical-engineer.txt": "poor",
+  "12-software-engineer.txt": "poor",
+  "13-registered-nurse.txt": "poor",
+  "14-retail-associate.txt": "poor",
+  "15-staff-accountant.txt": "poor",
+  "16-electrician-anchorage.txt": "poor"
+}

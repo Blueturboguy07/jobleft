@@ -1,0 +1,16 @@
+Title: Data Engineer
+Company: Contoso Analytics
+Location: Austin, TX
+
+Contoso Analytics is a SaaS company.
+
+What you'll do
+- Build ETL pipelines with Airflow and Spark
+- Model data in Snowflake and dbt
+- Own data quality checks
+
+Requirements
+- 3+ years of data engineering experience
+- Python and SQL
+- Airflow, Spark, Snowflake
+- dbt preferred

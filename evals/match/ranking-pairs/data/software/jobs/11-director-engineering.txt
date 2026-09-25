@@ -1,0 +1,12 @@
+Title: Director of Engineering
+Company: Tailspin Pay
+Location: Austin, TX
+
+Tailspin Pay is a fintech platform.
+
+You will lead four engineering teams (30 engineers) and their managers.
+
+Requirements
+- 12+ years of software engineering experience, including 5+ years managing managers
+- Experience owning budgets and hiring plans
+- Background in payments

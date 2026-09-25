@@ -272,15 +272,17 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
       const leadGap = peopleRole ? jobLead - candLead : 0;
       if (leadGap >= 1) {
         const capFit = leadGap >= 3 ? 40 : leadGap === 2 ? 60 : 75;
+        const needs = candLead === 0 ? 'no role in your profile has a lead, supervisor or manager title' : `the most senior people-leading title in your profile is ${leadGap >= 2 ? 'at least two levels' : 'one level'} below it`;
         if (capFit < fit) {
           fit = capFit;
-          levelReasons.push({ code: 'lead_gap', text: `The job leads people as ${article(LEVEL_WORD[jf.level])} ${LEVEL_WORD[jf.level].toLowerCase()} (${levelSrc}); no role in your profile has a ${leadGap >= 2 ? 'manager or higher' : 'lead or supervisor'} title.`, points: -(100 - capFit) });
+          levelReasons.push({ code: 'lead_gap', text: `The job leads people as ${article(LEVEL_WORD[jf.level])} ${LEVEL_WORD[jf.level].toLowerCase()} (${levelSrc}); ${needs}.`, points: -(100 - capFit) });
         }
+        if (leadGap >= 2) blockers.push({ kind: 'level', message: `This is ${article(LEVEL_WORD[jf.level])} ${LEVEL_WORD[jf.level]} role that leads people (title ${q(jf.job.title)}); ${needs}.`, quote: jf.job.title, source: 'title' });
       }
       levelFit = Math.round(fit);
       if (gap > 0.5) {
         levelReasons.push({ code: 'level_below', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); ${formatMonths(pf.totalMonths!)} of work in your profile puts you about ${gap >= 1.5 ? `${Math.round(gap)} levels` : 'one level'} below it.`, points: -(100 - levelFit) });
-        if (gap >= 2.5) blockers.push({ kind: 'level', message: `This is ${article(LEVEL_WORD[jf.level])} ${LEVEL_WORD[jf.level]} role (title ${q(jf.job.title)}); your profile shows ${formatMonths(pf.totalMonths!)} of work, well below that level.`, quote: jf.job.title, source: 'title' });
+        if (gap >= 2.5 && !blockers.some((b) => b.kind === 'level')) blockers.push({ kind: 'level', message: `This is ${article(LEVEL_WORD[jf.level])} ${LEVEL_WORD[jf.level]} role (title ${q(jf.job.title)}); your profile shows ${formatMonths(pf.totalMonths!)} of work, well below that level.`, quote: jf.job.title, source: 'title' });
       } else if (gap < -1) {
         levelReasons.push({ code: 'level_above', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); with ${formatMonths(pf.totalMonths!)} of work you are above that level and may be overqualified.`, points: -(100 - levelFit) });
       } else if (!levelReasons.length) {
@@ -352,6 +354,21 @@ function ensureReason(percent: number | null, reasons: Reason[], part: string): 
 
 // ---------------------------------------------------------------- Skills
 
+/** A higher licence covers a lower one of the same kind (OSHA 30 covers OSHA 10; a CDL-A covers a driver's licence). */
+const COVERS: Record<string, string[]> = {
+  master_elec: ['journeyman_elec', 'elec_apprentice'], journeyman_elec: ['elec_apprentice'], osha30: ['osha10'],
+  cdl_a: ['cdl_b', 'cdl', 'drivers_license'], cdl_b: ['cdl', 'drivers_license'], cdl: ['drivers_license'],
+  aprn: ['rn'], servsafe: ['food_handler'], ccnp: ['ccna'], cfa: [], cpa: [], lcsw: [], bcba: ['rbt'],
+  paramedic: ['emt'], acls: [], pals: [],
+};
+
+function heldOrBetter(pf: ProfileFacts, id: string): import('./profile.ts').HeldSkill | null {
+  const h = pf.held.get(id);
+  if (h) return h;
+  for (const [better, covered] of Object.entries(COVERS)) if (covered.includes(id) && pf.held.has(better)) return pf.held.get(better)!;
+  return null;
+}
+
 interface SkillsOut { sub: SubScore; checks: SkillCheck[]; lists: MatchResult['skills']; coverage: number | null; total: number }
 
 function scoreSkills(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): SkillsOut {
@@ -391,7 +408,7 @@ function scoreSkills(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): SkillsOu
     let via: string | null = null;
     if (it.raw) { state = 'met'; credit = 1; from = `your skills list ("${it.name}")`; }
     else {
-      const h = pf.held.get(it.id);
+      const h = heldOrBetter(pf, it.id);
       if (h) { state = 'met'; credit = 1; from = heldFrom(h); }
       else {
         const def = SKILLS.get(it.id)!;
@@ -576,9 +593,10 @@ function evaluateMustHaves(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): Mu
           m.state = has === 'yes' ? 'met' : 'info';
           m.message = `The posting prefers a ${lvl} clearance ${said}; it is not a must-have.${has === 'yes' ? ' Your profile says you hold a clearance.' : ''}`;
         } else {
-          if (has === 'yes') { m.state = 'met'; m.message = `The posting requires ${article(lvl)} ${lvl} clearance ${said}. Your profile says you hold a security clearance${lvl !== 'security' ? ' (the level is not in your profile)' : ''}.`; }
-          else if (has === 'no') { m.state = 'unmet'; m.message = `The posting requires ${article(lvl)} ${lvl} clearance ${said}. Your profile says you do not hold a security clearance.`; }
-          else { m.state = 'not_in_profile'; m.message = `The posting requires ${article(lvl)} ${lvl} clearance ${said}. Whether you hold a clearance is not in your profile.`; }
+          const what = r.label.charAt(0).toLowerCase() + r.label.slice(1);
+          if (has === 'yes') { m.state = 'met'; m.message = `The posting requires ${article(what)} ${what} ${said}. Your profile says you hold a security clearance${lvl !== 'security' ? ' (the level is not in your profile)' : ''}.`; }
+          else if (has === 'no') { m.state = 'unmet'; m.message = `The posting requires ${article(what)} ${what} ${said}. Your profile says you do not hold a security clearance.`; }
+          else { m.state = 'not_in_profile'; m.message = `The posting requires ${article(what)} ${what} ${said}. Whether you hold a clearance is not in your profile.`; }
         }
         mustHaves.push(m);
         block('clearance', m, cfg.caps.legal);
@@ -586,7 +604,7 @@ function evaluateMustHaves(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): Mu
       }
       case 'licence': {
         const ids = r.detail.credIds ?? [];
-        const heldId = ids.find((id) => pf.held.has(id));
+        const heldId = ids.find((id) => heldOrBetter(pf, id));
         const impliedId = ids.find((id) => pf.impliedCreds.has(id));
         const name = r.label;
         if (r.importance === 'obtainable') {
@@ -594,7 +612,7 @@ function evaluateMustHaves(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): Mu
           m.message = heldId ? `The posting asks for ${name} after hire ${said}; your profile already lists it.` : `The posting asks you to obtain ${name} after hire ${said}; it is not needed to apply.`;
         } else if (heldId) {
           m.state = 'met';
-          m.message = `The posting ${r.importance === 'preferred' ? 'prefers' : 'requires'} ${name} ${said}; it is in ${heldFrom(pf.held.get(heldId)!)}.`;
+          m.message = `The posting ${r.importance === 'preferred' ? 'prefers' : 'requires'} ${name} ${said}; ${heldFrom(heldOrBetter(pf, heldId)!)} has ${pf.held.has(heldId) ? 'it' : `${skillName(heldOrBetter(pf, heldId)!.id)}, which covers it`}.`;
         } else if (r.importance === 'preferred') {
           m.state = 'info';
           m.message = `The posting prefers ${name} ${said}; it is not in your profile, and it is not a must-have.`;
@@ -605,7 +623,10 @@ function evaluateMustHaves(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): Mu
             : `The posting requires ${name} ${said}. It is not in your profile.`;
           mustHaves.push(m);
           blockers.push({ kind: 'licence' as Blocker['kind'], message: m.message, evidence: { source: 'description', text: r.quote.slice(0, 500) }, state: 'not_in_profile', requirement: name, dealBreaker: false } as Blocker);
-          capBy.push({ cap: impliedId ? cfg.caps.notInProfile : Math.min(cfg.caps.licence, cfg.caps.notInProfile), reason: m.message });
+          // A licence of the trade itself (RN, CPA, journeyman) not in the profile holds the percent lower than a
+          // general one (a driver's licence, CPR) or a licence a past title suggests; both are never Strong.
+          const tradeLicence = ids.some((id) => { const d = SKILLS.get(id); return d?.credKind === 'licence' && d.families !== null; });
+          capBy.push({ cap: impliedId || !tradeLicence ? cfg.caps.notInProfile : Math.min(cfg.caps.licence, cfg.caps.notInProfile), reason: m.message });
           break;
         }
         mustHaves.push(m);

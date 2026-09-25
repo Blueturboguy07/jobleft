@@ -1,0 +1,9 @@
+Title: Restaurant Manager
+Company: Blue Bonnet Grill
+Location: Austin, TX
+
+Requirements
+- 2+ years of restaurant management
+- Staff scheduling and labor control
+- Food safety; ServSafe Manager certification required
+- Inventory and food cost control

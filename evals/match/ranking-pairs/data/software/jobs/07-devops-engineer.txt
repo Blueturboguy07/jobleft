@@ -1,0 +1,16 @@
+Title: DevOps Engineer
+Company: Litware Inc
+Location: Austin, TX
+
+Litware builds developer tools.
+
+Responsibilities
+- Manage our Kubernetes clusters and Terraform modules
+- Build CI/CD pipelines in GitHub Actions and Jenkins
+- On-call for infrastructure
+
+Requirements
+- 3+ years in DevOps or SRE roles
+- Terraform, Kubernetes, AWS
+- Linux administration and Bash scripting
+- Monitoring with Prometheus and Grafana

@@ -1,0 +1,18 @@
+{
+  "01-staff-accountant.txt": "strong",
+  "02-senior-staff-accountant.txt": "strong",
+  "03-gl-accountant.txt": "strong",
+  "04-accountant-ii.txt": "strong",
+  "05-corporate-accountant.txt": "strong",
+  "06-senior-accountant-cpa.txt": "possible",
+  "07-ap-specialist.txt": "possible",
+  "08-financial-analyst.txt": "possible",
+  "09-tax-associate.txt": "possible",
+  "10-controller.txt": "poor",
+  "11-bookkeeper-part-time.txt": "possible",
+  "12-software-engineer.txt": "poor",
+  "13-registered-nurse.txt": "poor",
+  "14-bank-teller.txt": "poor",
+  "15-sales-rep.txt": "poor",
+  "16-cfo.txt": "poor"
+}

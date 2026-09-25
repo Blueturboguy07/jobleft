@@ -10,9 +10,9 @@ export function bucketOf(m: MatchResult): Bucket {
   return m.complete === false ? 'incomplete' : m.band;
 }
 
-export interface RankedItem<J> {
+export interface RankedItem<J, M extends MatchResult = MatchResult> {
   job: J;
-  match: MatchResult;
+  match: M;
 }
 
 type JobLike = { id: string; status?: string; duplicateOf?: string | null };
@@ -21,7 +21,7 @@ type JobLike = { id: string; status?: string; duplicateOf?: string | null };
  * Sorts by the shown percent, highest first. At equal percent a complete score comes before an incomplete one, then
  * the job id decides. Closed and duplicate postings are left out.
  */
-export function rankTopMatched<J extends JobLike>(items: Array<RankedItem<J>>): Array<RankedItem<J>> {
+export function rankTopMatched<J extends JobLike, M extends MatchResult>(items: Array<RankedItem<J, M>>): Array<RankedItem<J, M>> {
   return items
     .filter((x) => (x.job.status ?? 'open') === 'open' && !x.job.duplicateOf)
     .slice()

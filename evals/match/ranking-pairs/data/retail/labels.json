@@ -1,0 +1,18 @@
+{
+  "01-assistant-store-manager.txt": "strong",
+  "02-store-manager.txt": "strong",
+  "03-co-manager.txt": "strong",
+  "04-retail-store-manager-sporting.txt": "strong",
+  "05-department-manager.txt": "strong",
+  "06-district-manager.txt": "possible",
+  "07-restaurant-manager.txt": "possible",
+  "08-shift-supervisor.txt": "possible",
+  "09-warehouse-supervisor.txt": "possible",
+  "10-visual-merchandiser.txt": "possible",
+  "11-regional-vp.txt": "poor",
+  "12-software-engineer.txt": "poor",
+  "13-registered-nurse.txt": "poor",
+  "14-staff-accountant.txt": "poor",
+  "15-cdl-driver.txt": "poor",
+  "16-merch-manager-seattle.txt": "poor"
+}

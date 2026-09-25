@@ -1,0 +1,9 @@
+Title: CDL-A Truck Driver
+Company: Northwind Logistics
+Location: Austin, TX
+
+Requirements
+- Class A CDL required
+- 1 year of tractor-trailer experience
+- Clean driving record
+- DOT medical card

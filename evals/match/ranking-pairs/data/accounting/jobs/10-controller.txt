@@ -1,0 +1,10 @@
+Title: Controller
+Company: Northwind Logistics
+Location: Austin, TX
+
+Lead the accounting team of 12.
+
+Requirements
+- 10+ years of accounting experience with 5+ years managing teams
+- CPA required
+- Experience leading audits and building a close process

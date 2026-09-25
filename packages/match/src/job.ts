@@ -126,10 +126,21 @@ function readWorkModel(job: Job, a: AnalyzedText): { model: WorkModel | null; ev
   return { model: null, evidence: null };
 }
 
+/** Job type in a title ("Contract Recruiter", "Part-Time Cashier"). */
 const TYPE_RES: Array<[EmploymentType, RegExp]> = [
   ['internship', /\b(internship|intern|co-?op)\b/i],
-  ['contract', /\b(contract(or)?( position| role| assignment| basis)?|1099|contract[- ]to[- ]hire|temp[- ]to[- ]hire|c2h|w2 contract)\b/i],
-  ['temporary', /\b(temporary|seasonal|temp position|temp role)\b/i],
+  ['contract', /\b(contract|contractor|1099|contract[- ]to[- ]hire|temp[- ]to[- ]hire|c2h)\b/i],
+  ['temporary', /\b(temporary|seasonal|temp)\b/i],
+  ['part_time', /\b(part[- ]time|per diem|prn)\b/i],
+  ['full_time', /\b(full[- ]time)\b/i],
+];
+/**
+ * Job type in the text: only phrases about the job itself. "An electrical contractor" or "a defense contractor"
+ * describes the employer, never the job type.
+ */
+const TEXT_TYPE_RES: Array<[EmploymentType, RegExp]> = [
+  ['contract', /\b(contract (position|role|assignment|job|opportunity|basis|engagement|work|opening)|on a contract basis|contract[- ]to[- ]hire|temp[- ]to[- ]hire|c2h|1099 (contract|contractor|position|role|basis)|w-?2 contract|\d+[- ](month|week)s?\s+contract|(is|be) a contract\b|(job|employment|position|work) type:?\s*contract|independent contractor (position|role|agreement))\b/i],
+  ['temporary', /\b(temporary (position|role|assignment|job|opening|employee)|seasonal (position|role|job|associate|help|employee|work)|temp (position|role|job)|(job|employment|position) type:?\s*(temporary|seasonal))\b/i],
   ['part_time', /\b(part[- ]time|per diem|prn)\b/i],
   ['full_time', /\b(full[- ]time)\b/i],
 ];
@@ -140,9 +151,7 @@ function readEmploymentType(job: Job, a: AnalyzedText): { type: EmploymentType |
   const found = new Map<EmploymentType, string>();
   for (const s of a.sentences) {
     if (s.ignored || a.lines[s.line]?.section === 'eeo') continue;
-    for (const [type, re] of TYPE_RES) {
-      if (type === 'internship') continue; // "internship" in text is often a program mention
-      if (type === 'contract' && /\b(contract negotiation|contracts? (management|review|drafting)|government contract|contractors? (on|at))\b/i.test(s.text)) continue;
+    for (const [type, re] of TEXT_TYPE_RES) {
       const m = re.exec(s.text);
       if (m && !found.has(type)) found.set(type, quoteAround(a.text, s.start + m.index, s.start + m.index + m[0].length, 140));
     }

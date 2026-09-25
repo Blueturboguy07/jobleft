@@ -1,0 +1,90 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "summary": "Staff accountant focused on month-end close and reconciliations.",
+  "work": [
+    {
+      "company": "Contoso Manufacturing",
+      "title": "Staff Accountant",
+      "startDate": "2022-04",
+      "endDate": "present",
+      "bullets": [
+        "Own the month-end close for two entities: journal entries, accruals, and balance sheet reconciliations.",
+        "Maintain fixed assets and depreciation schedules in NetSuite.",
+        "Prepare audit support for external auditors."
+      ]
+    },
+    {
+      "company": "Baker & Lee CPAs",
+      "title": "Accounts Payable Clerk",
+      "startDate": "2020-09",
+      "endDate": "2022-03",
+      "bullets": [
+        "Processed 300+ vendor invoices a month and ran weekly check runs in QuickBooks."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "Sample State University",
+      "degree": "Bachelor of Business Administration",
+      "major": "Accounting",
+      "startDate": "2016-08",
+      "endDate": "2020-05"
+    }
+  ],
+  "skills": [
+    "GAAP",
+    "Account reconciliation",
+    "Journal entries",
+    "Month-end close",
+    "Accruals",
+    "Fixed assets",
+    "NetSuite",
+    "QuickBooks",
+    "Excel",
+    "Pivot tables",
+    "VLOOKUP",
+    "Accounts payable"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Accountant"
+    ],
+    "targetTitles": [
+      "Staff Accountant",
+      "Senior Accountant"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "onsite",
+      "hybrid"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "placeId": null,
+        "radiusMiles": 30
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}

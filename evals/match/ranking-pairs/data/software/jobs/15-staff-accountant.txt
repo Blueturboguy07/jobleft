@@ -1,0 +1,9 @@
+Title: Staff Accountant
+Company: Contoso Manufacturing
+Location: Austin, TX
+
+Requirements
+- Bachelor's degree in Accounting
+- 2+ years of accounting experience
+- GAAP, month-end close, reconciliations
+- Excel (pivot tables, VLOOKUP) and NetSuite

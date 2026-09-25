@@ -1,0 +1,18 @@
+{
+  "01-icu-rn.txt": "strong",
+  "02-rn-step-down.txt": "strong",
+  "03-rn-cvicu.txt": "strong",
+  "04-travel-icu-rn.txt": "strong",
+  "05-rn-emergency.txt": "strong",
+  "06-rn-case-manager.txt": "possible",
+  "07-charge-nurse.txt": "possible",
+  "08-nurse-educator.txt": "possible",
+  "09-home-health-rn.txt": "possible",
+  "10-nurse-practitioner.txt": "poor",
+  "11-director-of-nursing.txt": "poor",
+  "12-software-engineer.txt": "poor",
+  "13-medical-billing.txt": "poor",
+  "14-pharmacist.txt": "poor",
+  "15-accountant.txt": "poor",
+  "16-cna-nights.txt": "poor"
+}

@@ -1,0 +1,18 @@
+{
+  "01-backend-engineer.txt": "strong",
+  "02-software-engineer-ii-platform.txt": "strong",
+  "03-full-stack-developer.txt": "strong",
+  "04-software-engineer-payments.txt": "strong",
+  "05-api-engineer.txt": "strong",
+  "06-data-engineer.txt": "possible",
+  "07-devops-engineer.txt": "possible",
+  "08-senior-go-engineer.txt": "possible",
+  "09-ios-engineer.txt": "possible",
+  "10-solutions-engineer.txt": "poor",
+  "11-director-engineering.txt": "poor",
+  "12-principal-engineer.txt": "poor",
+  "13-ts-sci-engineer.txt": "poor",
+  "14-registered-nurse.txt": "poor",
+  "15-staff-accountant.txt": "poor",
+  "16-customer-support.txt": "poor"
+}

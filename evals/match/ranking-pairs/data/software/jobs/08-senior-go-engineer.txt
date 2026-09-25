@@ -1,0 +1,12 @@
+Title: Senior Software Engineer (Go)
+Company: Woodgrove Systems
+Location: Remote - US
+
+Woodgrove is a technology company building observability software.
+
+Requirements
+- 6+ years of software engineering experience
+- Expert in Go
+- Distributed systems at scale
+- Kafka and gRPC
+- Kubernetes

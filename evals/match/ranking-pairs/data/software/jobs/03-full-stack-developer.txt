@@ -1,0 +1,15 @@
+Title: Full Stack Developer
+Company: Adventure Works Software
+Location: Austin, TX (Hybrid)
+
+We are a software company building scheduling tools for clinics.
+
+You will build features end to end with React on the front end and Node.js services on the back end.
+
+Requirements:
+- 3 years of experience with JavaScript/TypeScript
+- React and Node.js
+- REST API design
+- SQL databases (PostgreSQL preferred)
+- Git
+Nice to have: AWS, Docker

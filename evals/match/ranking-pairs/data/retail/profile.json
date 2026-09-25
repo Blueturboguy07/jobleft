@@ -1,0 +1,89 @@
+{
+  "personal": {
+    "firstName": "Jordan",
+    "lastName": "Testwell",
+    "email": "jordan.testwell@example.com",
+    "phone": "555-0100",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US"
+  },
+  "summary": "Retail leader who runs store operations, scheduling and inventory.",
+  "work": [
+    {
+      "company": "Wide World Outfitters",
+      "title": "Assistant Store Manager",
+      "startDate": "2022-02",
+      "endDate": "present",
+      "bullets": [
+        "Run daily store operations for a $6M store with 25 associates.",
+        "Build weekly staff schedules and manage labor to budget.",
+        "Lead inventory counts, receiving and loss prevention.",
+        "Hire and train new associates."
+      ]
+    },
+    {
+      "company": "Wide World Outfitters",
+      "title": "Sales Associate and Key Holder",
+      "startDate": "2019-05",
+      "endDate": "2022-01",
+      "bullets": [
+        "Opened and closed the store, handled cash and the POS, and set visual merchandising displays."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "Austin Community College",
+      "degree": "Associate of Arts",
+      "major": "Business",
+      "startDate": "2017-08",
+      "endDate": "2019-05"
+    }
+  ],
+  "skills": [
+    "Store operations",
+    "Inventory management",
+    "Visual merchandising",
+    "Staff scheduling",
+    "Hiring",
+    "Employee training",
+    "POS",
+    "Cash handling",
+    "Customer service",
+    "Loss prevention",
+    "P&L"
+  ],
+  "preferences": {
+    "jobFunctions": [
+      "Store Manager"
+    ],
+    "targetTitles": [
+      "Store Manager",
+      "Assistant Store Manager"
+    ],
+    "employmentTypes": [
+      "full_time"
+    ],
+    "workModels": [
+      "onsite"
+    ],
+    "places": [
+      {
+        "text": "Austin, TX",
+        "placeId": null,
+        "radiusMiles": 30
+      }
+    ],
+    "countries": [
+      "US"
+    ]
+  },
+  "workAuthorization": {
+    "usAuthorized": "yes",
+    "needsSponsorship": "no",
+    "usCitizen": "yes",
+    "hasSecurityClearance": "no",
+    "authorizedCountries": []
+  }
+}
