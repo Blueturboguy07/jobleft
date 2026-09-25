@@ -1,0 +1,352 @@
+"use client";
+
+import { useState } from "react";
+import { format } from "date-fns";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toastSuccess, toastError } from "@/lib/toast";
+import {
+  MoreVertical,
+  Pause,
+  Play,
+  Pencil,
+  Trash2,
+  Clock,
+  FileText,
+  AlertTriangle,
+  Zap,
+} from "lucide-react";
+import type { AutomationWithResume } from "@/models/automation.model";
+import { isRetiredBoard } from "@/models/automation.model";
+import {
+  deleteAutomation,
+  pauseAutomation,
+  resumeAutomation,
+} from "@/actions/automation.actions";
+import { APP_CONSTANTS } from "@/lib/constants";
+import Link from "next/link";
+
+interface AutomationListProps {
+  automations: AutomationWithResume[];
+  onEdit: (automation: AutomationWithResume) => void;
+  onRefresh: () => void;
+}
+
+export function AutomationList({
+  automations,
+  onEdit,
+  onRefresh,
+}: AutomationListProps) {
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+
+  const handlePause = async (id: string) => {
+    setLoadingAction(id);
+    const result = await pauseAutomation(id);
+    setLoadingAction(null);
+
+    if (result.success) {
+      toastSuccess("Automation paused");
+      onRefresh();
+    } else {
+      toastError(result.message);
+    }
+  };
+
+  const handleResume = async (id: string) => {
+    setLoadingAction(id);
+    const result = await resumeAutomation(id);
+    setLoadingAction(null);
+
+    if (result.success) {
+      toastSuccess("Automation resumed");
+      onRefresh();
+    } else {
+      toastError(result.message);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+
+    setIsDeleting(true);
+    const result = await deleteAutomation(deleteId);
+    setIsDeleting(false);
+    setDeleteId(null);
+
+    if (result.success) {
+      toastSuccess("Automation deleted");
+      onRefresh();
+    } else {
+      toastError(result.message);
+    }
+  };
+
+  if (automations.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <Zap className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium">No automations yet</h3>
+          <p className="text-muted-foreground text-center mt-2">
+            Create your first automation to start discovering jobs
+            automatically.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <div className="space-y-4">
+        {automations.map((automation) => {
+          const isLoading = loadingAction === automation.id;
+          const resumeMissing = !automation.resume;
+
+          const retired = isRetiredBoard(automation.jobBoard);
+          const ats = (() => {
+            try {
+              return JSON.parse(automation.sourceConfig ?? "{}")[
+                automation.jobBoard
+              ];
+            } catch {
+              return null;
+            }
+          })();
+          const atsCompanies: { name: string; token: string }[] =
+            ats?.companies ?? [];
+          const atsTitles: string[] = ats?.targetTitles ?? [];
+          const atsLocations: string[] = ats?.locations ?? [];
+          const atsKeywords: string[] = ats?.keywords ?? [];
+          const atsTopK: number = ats?.topK ?? APP_CONSTANTS.MAX_JOBS_PER_RUN;
+          const atsSaveUnanalyzed: boolean = ats?.saveUnanalyzed !== false;
+
+          return (
+            <div
+              key={automation.id}
+              className="flex items-start justify-between p-4 rounded-lg border bg-card"
+            >
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Link
+                    href={`/dashboard/automations/${automation.id}`}
+                    className="font-semibold hover:underline"
+                  >
+                    {automation.name}
+                  </Link>
+                  <Badge variant="outline" className="capitalize">
+                    {automation.jobBoard}
+                  </Badge>
+                  {retired ? (
+                    <Badge variant="destructive">Retired</Badge>
+                  ) : (
+                    <Badge
+                      variant={
+                        automation.status === "active" ? "default" : "secondary"
+                      }
+                    >
+                      {automation.status}
+                    </Badge>
+                  )}
+                </div>
+
+                {retired && (
+                  <div className="flex items-center gap-2 text-amber-600 text-sm">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span>
+                      This job board was removed and no longer runs. Delete this
+                      automation.
+                    </span>
+                  </div>
+                )}
+
+                {!retired && resumeMissing && (
+                  <div className="flex items-center gap-2 text-amber-600 text-sm">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>Resume missing - select a new one</span>
+                  </div>
+                )}
+
+                {!retired && (
+                  <div className="space-y-1.5 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-1">
+                      {atsCompanies.slice(0, 3).map((c) => (
+                        <Badge key={c.token} variant="secondary">
+                          {c.name}
+                        </Badge>
+                      ))}
+                      {atsCompanies.length > 3 && (
+                        <Badge variant="secondary">
+                          +{atsCompanies.length - 3} more
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-x-6 gap-y-1">
+                      <span>
+                        <span className="font-medium text-foreground">
+                          Titles:
+                        </span>{" "}
+                        {atsTitles.length ? atsTitles.join(", ") : "Not set"}
+                      </span>
+                      <span>
+                        <span className="font-medium text-foreground">
+                          Keywords:
+                        </span>{" "}
+                        {atsKeywords.length ? atsKeywords.join(", ") : "Any"}
+                      </span>
+                      <span>
+                        <span className="font-medium text-foreground">
+                          Location:
+                        </span>{" "}
+                        {atsLocations.length
+                          ? atsLocations.join(", ")
+                          : "Any location"}
+                      </span>
+                      <span>
+                        <span className="font-medium text-foreground">
+                          Analyzed/run:
+                        </span>{" "}
+                        {atsTopK}
+                      </span>
+                      <span>
+                        <span className="font-medium text-foreground">
+                          Extra listings:
+                        </span>{" "}
+                        {atsSaveUnanalyzed ? "on" : "off"}
+                      </span>
+                      {automation.resume && (
+                        <span>
+                          <span className="font-medium text-foreground">
+                            Resume:
+                          </span>{" "}
+                          {automation.resume.title}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-4 w-4" />
+                    <span>
+                      {automation.scheduleHour.toString().padStart(2, "0")}:00
+                      daily
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <FileText className="h-4 w-4" />
+                    <span>{automation.matchThreshold}% threshold</span>
+                  </div>
+                  {!retired &&
+                    automation.nextRunAt &&
+                    automation.status === "active" && (
+                      <span className="text-xs">
+                        Next:{" "}
+                        {format(
+                          new Date(automation.nextRunAt),
+                          "MMM d, h:mm a",
+                        )}
+                      </span>
+                    )}
+                  {automation.lastRunAt && (
+                    <span className="text-xs">
+                      Last:{" "}
+                      {format(new Date(automation.lastRunAt), "MMM d, h:mm a")}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" disabled={isLoading}>
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {!retired &&
+                    (automation.status === "active" ? (
+                      <DropdownMenuItem
+                        onClick={() => handlePause(automation.id)}
+                      >
+                        <Pause className="h-4 w-4 mr-2" />
+                        Pause
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem
+                        onClick={() => handleResume(automation.id)}
+                        disabled={resumeMissing}
+                      >
+                        <Play className="h-4 w-4 mr-2" />
+                        Resume
+                      </DropdownMenuItem>
+                    ))}
+                  {!retired && (
+                    <>
+                      <DropdownMenuItem onClick={() => onEdit(automation)}>
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={() => setDeleteId(automation.id)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        })}
+      </div>
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Automation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this automation? This action
+              cannot be undone. Discovered jobs will remain but lose their
+              automation reference.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}

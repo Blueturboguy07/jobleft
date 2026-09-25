@@ -1,0 +1,368 @@
+import {
+  LayoutDashboard,
+  SquareCheckBig,
+  BriefcaseBusiness,
+  CalendarClock,
+  UserRound,
+  Sheet,
+  Wrench,
+  Zap,
+  BookOpen,
+} from "lucide-react";
+
+export const APP_CONSTANTS = {
+  RECORDS_PER_PAGE: 25,
+  // Page size for the ATS board directory (browse + typeahead). Kept here so
+  // the pager and searchAtsCompanies can never disagree.
+  ATS_COMPANY_PAGE_SIZE: 50,
+  MAX_AUTOMATIONS_PER_USER: 10,
+  MAX_JOB_TAGS: 10,
+  MIN_QUESTION_LENGTH: 5,
+  MAX_QUESTION_LENGTH: 500,
+  MIN_QUESTION_ANSWER_LENGTH: 10,
+  MAX_QUESTION_ANSWER_LENGTH: 5000,
+  MAX_SKILL_CATEGORIES: 8,
+  MAX_SKILLS_PER_CATEGORY: 20,
+  MIN_RESUME_SECTIONS_FOR_SELECTION: 2,
+  ACTIVITY_MAX_DURATION_MINUTES: 8 * 60, // 8 Hours
+  ACTIVITY_MAX_DURATION_MS: 8 * 60 * 60 * 1000, // 8 hours in milliseconds
+  ACTIVITY_MIN_DURATION_MINUTES: 2, // activities shorter than this are discarded
+  ACTIVITY_BREAK_DEFAULT_MINUTES: 15,
+  ACTIVITY_BREAK_PRESETS: [5, 10, 15, 30],
+  ACTIVITY_BREAK_STEP_MINUTES: 5,
+  ACTIVITY_BREAK_MIN_MINUTES: 5,
+  ACTIVITY_BREAK_MAX_MINUTES: 60,
+  RECENT_NUM_JOBS_ACTIVITIES: 10,
+  AI_SLOW_RESPONSE_THRESHOLD_MS: 15_000, // 15 seconds
+  INTERSECTION_OBSERVER_THRESHOLD: 0.1,
+  SIDEBAR_STORAGE_KEY: "sidebar-expanded",
+  DASHBOARD_WEEKLY_CHART_STORAGE_KEY: "dashboard-weekly-chart-tab",
+  DASHBOARD_RECENT_CARD_STORAGE_KEY: "dashboard-recent-card-tab",
+  DASHBOARD_JOBS_ACTIVITY_STORAGE_KEY: "dashboard-jobs-activity-tab",
+  LAST_JOB_LOCATION_STORAGE_KEY: "last-job-location",
+  LAST_JOB_SOURCE_STORAGE_KEY: "last-job-source",
+  JOBS_VIEW_MODE_STORAGE_KEY: "jobs-view-mode",
+  RESUME_PREVIEW_FIT_STORAGE_KEY: "resume-preview-fit",
+  RESUME_EXPORT_SETTINGS_STORAGE_KEY: "resume-export-settings",
+  COVER_LETTER_EXPORT_SETTINGS_STORAGE_KEY: "cover-letter-export-settings",
+  SIDEBAR_DOM_ID: "app-sidebar",
+
+  // Update check: the upstream repo and how long a GitHub release lookup is
+  // cached. A day is plenty — releases are rare and the check is unauthenticated.
+  GITHUB_REPO: "Gsync/jobsync",
+  UPDATE_CHECK_REVALIDATE_SECONDS: 86_400,
+  // Paired so the rail width and its matching content offset can't drift.
+  SIDEBAR_WIDTH: {
+    expanded: { rail: "w-56", contentOffset: "sm:pl-56" },
+    collapsed: { rail: "w-14", contentOffset: "sm:pl-14" },
+  },
+
+  // Ollama API timeouts
+  AI_OLLAMA_LIST_TIMEOUT_MS: 5_000,
+  AI_OLLAMA_GENERATE_TIMEOUT_MS: 10_000,
+
+  // Ollama context window (covers prompt + generation combined). Defaults to
+  // 2048; even 4096 overflows for a full resume plus the system prompt and the
+  // verbatim JSON output — truncating the tail of generation (e.g. the last
+  // experience/certification entries get dropped).
+  AI_OLLAMA_NUM_CTX: 8192,
+
+  // Resume import generation timeout. Generous because a full resume streams a
+  // few thousand tokens of verbatim JSON, which a local model can take minutes
+  // to produce; too low and the stream is cut mid-entry.
+  AI_RESUME_IMPORT_TIMEOUT_MS: 240_000,
+
+  // Resume review generation timeout. The review is a full markdown analysis
+  // (scores line plus several sections), so a local model can take minutes;
+  // too low cuts the stream mid-review.
+  AI_RESUME_REVIEW_TIMEOUT_MS: 180_000,
+
+  // Job match generation timeout. Like the review, the match is a markdown
+  // analysis (scores line plus several sections) over a resume and a JD, so a
+  // local model can take minutes; too low cuts the stream mid-analysis.
+  AI_JOB_MATCH_TIMEOUT_MS: 180_000,
+
+  // Cover letter generation timeout. Shorter than match/review because the
+  // output is a single 250-400 word letter, not a multi-section analysis.
+  AI_COVER_LETTER_TIMEOUT_MS: 120_000,
+
+  // Floor for "too short to be a letter", shared by the agent tool and the
+  // save action so the two cannot drift apart.
+  MIN_COVER_LETTER_CHARS: 10,
+
+  // Automation manual run rate limiting
+  AUTOMATION_MAX_MANUAL_RUNS_PER_HOUR: 5,
+  AUTOMATION_RATE_LIMIT_WINDOW_MS: 60 * 60 * 1000, // 1 hour
+
+  // Per-run LLM match budget (top-K). Reused as the Greenhouse K.
+  MAX_JOBS_PER_RUN: 10,
+
+  // Concurrent AI job-match calls per automation run (hosted providers only;
+  // Ollama runs sequentially since it serializes on the GPU).
+  AUTOMATION_MATCH_CONCURRENCY: 3,
+
+  // Shared ATS tuning (applies to every job board provider)
+  ATS_MAX_COMPANIES: 25, // per automation
+  ATS_LISTING_CAP: 50, // safety ceiling applied after the relevance floor
+  ATS_FLOOR_MIN_TITLE_HITS: 1,
+  ATS_FLOOR_MIN_KEYWORD_HITS: 1,
+  // Minimum weighted prerank score to spend an LLM call on. Measured against
+  // real runs: nothing scoring below this ever exceeded a 6% AI match.
+  ATS_MIN_PRERANK_SCORE: 0.1,
+  ATS_TITLE_WEIGHT: 0.6,
+  ATS_SKILL_WEIGHT: 0.4,
+
+  // Greenhouse job source
+  GREENHOUSE_BASE_URL: "https://boards-api.greenhouse.io/v1/boards",
+  GREENHOUSE_BOARD_URL: "https://boards.greenhouse.io", // public job board (not API)
+  GREENHOUSE_FETCH_TIMEOUT_MS: 25_000, // per-board AbortController timeout
+  GREENHOUSE_FETCH_CONCURRENCY: 5,
+
+  // Lever job source
+  LEVER_BASE_URL: "https://api.lever.co/v0/postings",
+  LEVER_EU_BASE_URL: "https://api.eu.lever.co/v0/postings",
+  LEVER_JOB_URL: "https://jobs.lever.co", // public posting page (not API)
+  LEVER_EU_JOB_URL: "https://jobs.eu.lever.co", // EU public posting page (not API)
+  LEVER_PAGE_LIMIT: 100, // Lever's max page size
+  LEVER_MAX_PAGES: 10, // safety ceiling: 10 * 100 = 1000 jobs/board
+  LEVER_PAGE_DELAY_MS: 150, // politeness delay between sequential pages
+  LEVER_FETCH_TIMEOUT_MS: 25_000, // wraps the WHOLE paginated loop per board
+  LEVER_FETCH_CONCURRENCY: 5,
+
+  // Ashby (public posting API — unauthenticated, whole board in one call)
+  ASHBY_BASE_URL: "https://api.ashbyhq.com/posting-api/job-board",
+  ASHBY_JOB_URL: "https://jobs.ashbyhq.com", // public board page (not API)
+  ASHBY_FETCH_TIMEOUT_MS: 25_000, // per-board AbortController timeout
+  ASHBY_FETCH_CONCURRENCY: 5,
+
+  // MCP server settings
+  MCP_DUPLICATE_WINDOW_DAYS: 30,
+  MCP_TOKEN_EXPIRY_PRESETS: [30, 90, 365] as const,
+  MCP_TOKEN_EXPIRY_DEFAULT_DAYS: 90,
+  MCP_TOKEN_MAX_PER_USER: 10,
+  MCP_RATE_LIMIT_MAX: 60,
+  MCP_RATE_LIMIT_WINDOW_MS: 60 * 60 * 1000,
+  MCP_DEFAULT_JOB_TYPE: "Full-time",
+  MCP_DEFAULT_STATUS: "draft",
+  // Word-count thresholds for job-description completeness. A real posting
+  // runs 300+ words; under 40 is a title/salary stub, not something a fit
+  // score can honestly be computed from.
+  DESCRIPTION_PARTIAL_MIN_WORDS: 40,
+  DESCRIPTION_FULL_MIN_WORDS: 150,
+  MCP_MATCH_PROVIDER_MARKER: "mcp",
+  MCP_REVIEW_MIN_RESUME_LENGTH: 400,
+  // Batch items are processed sequentially and each consumes one unit of the
+  // shared MCP rate-limit budget, so this caps a single call at a sixth of it.
+  MCP_BATCH_MAX_ITEMS: 10,
+
+  // Agent chat (in-app tool-calling panel)
+  AGENT_CHAT_CREATED_VIA: "chat",
+  // Provenance on Resume.reviewData, alongside the MCP path's "mcp" marker.
+  AGENT_CHAT_REVIEW_SURFACE: "chat",
+  AGENT_CHAT_MATCH_SURFACE: "chat",
+  AGENT_CHAT_MAX_STEPS: 4,
+  AGENT_CHAT_MAX_STORED_MESSAGES: 50,
+  AGENT_CHAT_HISTORY_MESSAGES: 20,
+  // Message count alone cannot bound context: one review output or resume read
+  // is worth a dozen ordinary turns, and think:true adds 1.2-2.3k chars of
+  // reasoning per turn that persists and replays. Derived from the
+  // AGENT_CHAT_NUM_CTX floor: ~700 system prompt + ~950 tool schemas + ~500
+  // paste head + ~3000 for reasoning and tool args across MAX_STEPS, rounded
+  // up to a ~7000 reserve. Symptom it is too tight: the assistant forgets
+  // things a 20-message window used to carry.
+  AGENT_CHAT_HISTORY_TOKEN_BUDGET: 9000,
+  // No tokenizer dependency: with Ollama, DeepSeek and OpenAI models all
+  // reachable there is no single correct vocab, and a real tokenizer would be
+  // precisely wrong rather than approximately right.
+  AGENT_CHAT_CHARS_PER_TOKEN: 4,
+  // Must clear one nested generation plus the thinking steps around it: two
+  // 15-30s think steps plus a 180s review is ~242s, which the old 240s cut off
+  // after the user had watched the whole review stream in.
+  AGENT_CHAT_TIMEOUT_MS: 300_000,
+  // Deliberately not AI_OLLAMA_NUM_CTX: a chat turn carries a system prompt,
+  // tool schemas, a paste head and history. Raising the shared value would
+  // change review/match latency.
+  AGENT_CHAT_NUM_CTX: 16384,
+  // Below this a paste stays inline text and no chip is made, so add_job
+  // never receives it as pastedText. 1500 sat above a real Indeed posting
+  // (1368 chars): it arrived as plain text, the model still read it as a
+  // paste and omitted jobDescription, and the record was saved from the
+  // model's paraphrase. Sized to clear a terse posting, not a typed sentence.
+  // Not lower: a chip outranks the model's jobDescription in both add_job and
+  // the approval card, so an unrelated paste this side of the threshold gets
+  // saved as the description.
+  AGENT_CHAT_PASTE_THRESHOLD: 1000,
+  AGENT_CHAT_PASTE_HEAD_CHARS: 2000,
+  AGENT_CHAT_PASTE_MAX_CHARS: 120_000,
+  // A paste is spliced into add_job / injected into the prompt only while it
+  // sits within this many trailing user messages. Bounds how long an
+  // abandoned paste can shadow a later typed add.
+  AGENT_CHAT_PASTE_ACTIVE_USER_MESSAGES: 2,
+  // Ceiling on the resume text a get_resume result carries. A preprocessed
+  // resume runs 3-6k chars; this is headroom, not a normal-case trim. It
+  // rides in the model window on every later turn, so it is bounded.
+  AGENT_CHAT_RESUME_MAX_CHARS: 12_000,
+  // No fallback model constant, deliberately. An unset settings.ai.model is
+  // a pre-stream 503 pointing at Settings, not a silently substituted model
+  // the user never chose.
+  // Must not be "ai-panel-width" — that key belongs to the three AI sheets.
+  AGENT_CHAT_PANEL_WIDTH_KEY: "agent-chat-width",
+
+  // Telemetry (OTLP export)
+  // Flush cadence. A batch is never serialized in the enqueueing caller's
+  // stack — reaching the batch size only arms the timer.
+  TELEMETRY_FLUSH_INTERVAL_MS: 5_000,
+  // Consecutive-failure backoff, resets to the first entry on any success.
+  // A collector down for a day is retried a few dozen times, not 17,000.
+  TELEMETRY_BACKOFF_MS: [5_000, 30_000, 60_000],
+  // Bounded queue, drops oldest — mirrors MAX_LOGS_PER_RUN in
+  // automation-logger.ts. A dead collector cannot grow memory without limit.
+  TELEMETRY_MAX_QUEUE: 1_000,
+  TELEMETRY_BATCH_SIZE: 200,
+  TELEMETRY_EXPORT_TIMEOUT_MS: 5_000,
+  // A resume-review prompt runs 10-50 KB; this caps what leaves the process.
+  // Not the same thing as jobsync.input.truncated — see spec section 8.
+  TELEMETRY_MAX_ATTR_CHARS: 32_000,
+
+  // File uploads
+  // jobleft: the desktop shell points UPLOADS_DIR at its app-support folder
+  UPLOADS_DIR:
+    process.env.UPLOADS_DIR ??
+    (process.env.NODE_ENV !== "production" ? "data" : "/data"),
+
+  // Backup caps. Everything is held in RAM at once, so the upload cap is what
+  // bounds memory on a box also running Next and the scheduler; the
+  // uncompressed cap is the zip-bomb guard. 50 MB rather than the spec's 25:
+  // resumes are 5 MB each and PDFs barely deflate, so six of them produce an
+  // export a 25 MB cap would refuse — a backup you cannot restore is worse
+  // than a large one.
+  BACKUP_MAX_UPLOAD_BYTES: 50 * 1024 * 1024,
+  BACKUP_MAX_UNCOMPRESSED_BYTES: 100 * 1024 * 1024,
+  BACKUP_MAX_ENTRIES: 5000,
+  // Pre-import snapshots retained per user. The count alone does not bound
+  // disk — nothing caps one snapshot's size — and these live on the same
+  // volume as the SQLite database, so prune on total bytes as well.
+  BACKUP_SNAPSHOT_KEEP: 5,
+  BACKUP_SNAPSHOT_MAX_TOTAL_BYTES: 250 * 1024 * 1024,
+
+  MAX_RESUME_FILE_SIZE_BYTES: 5 * 1024 * 1024, // 5 MB
+  RESUME_ALLOWED_MIME_TYPES: [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ] as const,
+
+  // Resume import extraction limits
+  RESUME_IMPORT_MAX_PDF_PAGES: 5,
+  RESUME_IMPORT_MAX_EXTRACTED_CHARS: 50_000,
+  RESUME_IMPORT_MAX_DOCX_ENTRIES: 1_000,
+  RESUME_IMPORT_MAX_DOCX_UNCOMPRESSED_BYTES: 100 * 1024 * 1024, // 100 MB
+  RESUME_IMPORT_EXTRACT_TIMEOUT_MS: 30_000, // 30 seconds
+
+  // Resizable panel (AI job match / resume review sheets)
+  RESIZABLE_PANEL_DEFAULT_WIDTH: 450,
+  RESIZABLE_PANEL_MIN_WIDTH: 320,
+  RESIZABLE_PANEL_MAX_WIDTH_RATIO: 0.9,
+} as const;
+
+export const SCHEDULER_CONSTANTS = {
+  ENABLED: true,
+  CRON_EXPRESSION: "0 * * * *", // Every hour at minute 0
+  STALE_RUN_TIMEOUT_MS: 15 * 60 * 1000, // 15 min; reaper cutoff for stuck runs
+} as const;
+
+export const JOB_SOURCES = [
+  { label: "Indeed", value: "indeed" },
+  { label: "Linkedin", value: "linkedin" },
+  { label: "Monster", value: "monster" },
+  { label: "Glassdoor", value: "glassdoor" },
+  { label: "Company Career page", value: "careerpage" },
+  { label: "Google", value: "google" },
+  { label: "ZipRecruiter", value: "ziprecruiter" },
+  { label: "Job Street", value: "jobstreet" },
+  { label: "Other", value: "other" },
+] as const;
+
+// Seeded per user at signup and backfilled by the contacts migration. `value`
+// must equal canonicalizeEntityValue(label) or the creatable role picker will
+// mint a duplicate instead of matching the seeded row.
+export const CONTACT_ROLES = [
+  { label: "Recruiter", value: "recruiter" },
+  { label: "Hiring Manager", value: "hiring manager" },
+  { label: "Interviewer", value: "interviewer" },
+  { label: "Referrer", value: "referrer" },
+  { label: "Reference", value: "reference" },
+] as const;
+
+export const JOB_STATUSES = [
+  { label: "New", value: "new" },
+  { label: "Draft", value: "draft" },
+  { label: "Applied", value: "applied" },
+  { label: "Interview", value: "interview" },
+  { label: "Offer", value: "offer" },
+  { label: "Offer Accepted", value: "offer-accepted" },
+  { label: "Offer Declined", value: "offer-declined" },
+  { label: "Rejected", value: "rejected" },
+  { label: "Expired", value: "expired" },
+  { label: "Archived", value: "archived" },
+] as const;
+
+// Zod's z.enum needs a non-empty tuple; JOB_STATUSES is the source of truth.
+export const JOB_STATUS_VALUES = JOB_STATUSES.map((s) => s.value) as unknown as [
+  string,
+  ...string[],
+];
+
+export const DISCOVERY_STATUSES = [
+  { label: "New", value: "new" },
+  { label: "Accepted", value: "accepted" },
+  { label: "Dismissed", value: "dismissed" },
+] as const;
+
+export const SIDEBAR_LINKS = [
+  {
+    icon: LayoutDashboard,
+    route: "/dashboard",
+    label: "Dashboard",
+  },
+  {
+    icon: BriefcaseBusiness,
+    route: "/dashboard/myjobs",
+    label: "Jobs",
+  },
+  {
+    icon: Zap,
+    route: "/dashboard/automations",
+    label: "Automations",
+  },
+  {
+    icon: SquareCheckBig,
+    route: "/dashboard/tasks",
+    label: "Tasks",
+  },
+  {
+    icon: CalendarClock,
+    route: "/dashboard/activities",
+    label: "Activities",
+  },
+  {
+    icon: BookOpen,
+    route: "/dashboard/questions",
+    label: "Questions",
+  },
+  {
+    icon: UserRound,
+    route: "/dashboard/profile",
+    label: "Profile",
+  },
+  {
+    icon: Sheet,
+    route: "/dashboard/admin",
+    label: "Library",
+  },
+  {
+    icon: Wrench,
+    route: "/dashboard/developer",
+    label: "Developer Options",
+    devOnly: true,
+  },
+];

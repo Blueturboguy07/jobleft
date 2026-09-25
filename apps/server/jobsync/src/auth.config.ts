@@ -1,0 +1,49 @@
+import type { NextAuthConfig } from "next-auth";
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      name?: string | null;
+      email?: string | null;
+    };
+  }
+}
+
+export const authConfig = {
+  pages: {
+    signIn: "/signin",
+    error: "/signin",
+  },
+  secret: process.env.AUTH_SECRET,
+  callbacks: {
+    authorized({ auth, request: { nextUrl } }) {
+      // jobleft desktop: single fixed user, nothing to sign in to (see src/auth.ts)
+      if (process.env.LOCAL_MODE === "1") return true;
+      const isLoggedIn = !!auth?.user;
+      const isOnDashboard = nextUrl.pathname.startsWith("/dashboard");
+      const isApiRoute = nextUrl.pathname.startsWith("/api");
+
+      if (isOnDashboard || isApiRoute) {
+        return isLoggedIn;
+      } else if (isLoggedIn) {
+        return Response.redirect(new URL("/dashboard", nextUrl));
+      }
+      return true;
+    },
+    async jwt({ token, user }) {
+      if (user?.id) {
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      const userId = (token.id as string) || token.sub;
+      if (userId) {
+        session.user.id = userId;
+      }
+      return session;
+    },
+  },
+  providers: [],
+} satisfies NextAuthConfig;
