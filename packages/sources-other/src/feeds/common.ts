@@ -58,8 +58,11 @@ export function result(postings: FeedPosting[], extra: Omit<FeedResult, 'jobs' |
 export function isoFrom(v: unknown, now: number): string | null {
   let t: number;
   if (typeof v === 'number' && Number.isFinite(v)) t = v < 1e12 ? v * 1000 : v;
-  else if (typeof v === 'string' && v.trim()) t = Date.parse(v.trim());
-  else return null;
+  else if (typeof v === 'string' && v.trim()) {
+    const x = v.trim();
+    // A date-time with no zone is read as UTC (never as the laptop's local time).
+    t = Date.parse(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(x) ? `${x}Z` : x);
+  } else return null;
   if (!Number.isFinite(t) || t <= 0) return null;
   if (t > now + 48 * HOUR) return null;
   return new Date(t).toISOString();

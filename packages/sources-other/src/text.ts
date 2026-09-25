@@ -49,7 +49,8 @@ export function safeHttpUrl(v: unknown): string | null {
   try { u = new URL(s); } catch { return null; }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
   if (!u.hostname) return null;
-  return u.toString();
+  // Keep the link exactly as the source wrote it (O1: the link opens the exact URL), unless it needs encoding.
+  return /^https?:\/\/[^\s<>"]+$/.test(s) ? s : u.toString();
 }
 
 // ---------------------------------------------------------------------------------------------------------------

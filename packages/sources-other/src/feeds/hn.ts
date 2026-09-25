@@ -61,7 +61,8 @@ function linksOf(html: string): string[] {
   return out;
 }
 
-const APPLY_HINT = /(greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|recruitee\.com|personio\.(de|com)|breezy\.hr|bamboohr\.com|teamtailor\.com|jobs\.|careers?\.|\/careers?\b|\/jobs?\b|\/join\b|\/hiring\b|\/positions?\b|\/openings?\b|\/apply\b|work-?with-?us|workatastartup\.com)/i;
+const ATS_LINK = /(greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|recruitee\.com|personio\.(de|com)|breezy\.hr|bamboohr\.com|teamtailor\.com|workatastartup\.com|jobs\.gem\.com|[?&](gh_jid|ashby_jid|lever-source)=)/i;
+const APPLY_HINT = /(jobs\.|careers?\.|\/careers?\b|\/jobs?\b|\/join\b|\/hiring\b|\/positions?\b|\/openings?\b|\/apply\b|work-?with-?us)/i;
 
 function cleanCompany(seg: string): string {
   return seg
@@ -155,7 +156,9 @@ export function parseHnComment(c: Record<string, unknown>, thread: HnThreadRef, 
   const pay = segPay ? { ...segPay, source: 'description' as const } : payFromText(header) ?? payFromText(htmlToText(html));
   if (pay) { facts.pay = pay; facts.evidence.pay = ev('description', segPay ? paySeg! : header); }
   facts.postedAt = isoFrom(c.created_at, now) ?? isoFrom(c.created_at_i, now);
-  const apply = linksOf(html).find((u) => APPLY_HINT.test(u) && !/news\.ycombinator\.com/i.test(u)) ?? null;
+  // An ATS posting link first, then a careers or jobs page; the company home page is never called an apply page.
+  const links = linksOf(html).filter((u) => !/news\.ycombinator\.com/i.test(u));
+  const apply = links.find((u) => ATS_LINK.test(u)) ?? links.find((u) => APPLY_HINT.test(u)) ?? null;
   const url = hnPostUrl(id);
   return {
     sourceUrl: url,
