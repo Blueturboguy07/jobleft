@@ -75,19 +75,28 @@ export function looseJob(input: LooseJob | Job): Job {
     .flatMap((l) => l.split(/\s*;\s*|\s+\|\s+|\s+or\s+|\s+\/\s+|\s+&\s+(?=remote)/i));
   const places: Place[] = [];
   let remoteText: string | null = null;
+  let modelInLocation: WorkModel | null = null;
   for (const l of locs) {
     const t = l.trim();
     if (!t) continue;
-    if (/^(remote|anywhere|work from home)\b/i.test(t)) { remoteText = t; continue; }
-    const p = parsePlaceText(t.replace(/\s*\((on-?site|hybrid|in[- ]office)\)\s*$/i, ''));
+    // "Hybrid - Austin, TX", "Austin, TX (On-site)", "Remote (US)".
+    const m = /\b(remote|hybrid|on-?site|in[- ]office)\b/i.exec(t);
+    const rest = t.replace(/\(?\b(remote|hybrid|on-?site|in[- ]office)\b\)?/gi, ' ').replace(/^[\s\-–—:,|/]+|[\s\-–—:,|/]+$/g, '').replace(/\s{2,}/g, ' ').replace(/^(in|at|near|from)\s+/i, '').trim();
+    if (m) {
+      const word = m[1].toLowerCase();
+      if (word === 'remote' && !/[A-Za-z]{3,}/.test(rest.replace(/\b(us|usa|u\.s\.?|united states|anywhere|worldwide|only)\b/gi, ''))) { remoteText = t; continue; }
+      modelInLocation = word === 'remote' ? null : word === 'hybrid' ? 'hybrid' : 'onsite';
+      if (word === 'remote') remoteText = t;
+    }
+    if (/^(anywhere|work from home)\b/i.test(t)) { remoteText = t; continue; }
+    const p = parsePlaceText(rest || t);
     places.push({ text: t, city: p.city, region: p.region, country: p.country, placeId: null });
   }
-  let workModel: WorkModel | null = x.workModel ?? null;
+  let workModel: WorkModel | null = x.workModel ?? modelInLocation ?? null;
   if (!workModel && remoteText && !places.length) workModel = 'remote';
   // A place or remote: the person may choose, so the work model is left unstated and the remote option is kept.
   if (!workModel && remoteText && places.length && /\bhybrid\b/i.test(remoteText)) workModel = 'hybrid';
-  if (!workModel && locs.some((l) => /\bhybrid\b/i.test(l))) workModel = 'hybrid';
-  if (!workModel && locs.some((l) => /\b(on-?site|in[- ]office)\b/i.test(l))) workModel = 'onsite';
+
   const remoteScope = remoteText ? { regions: /\b(us|usa|united states|u\.s\.)\b/i.test(remoteText) ? ['US'] : /\b(anywhere|worldwide|global)\b/i.test(remoteText) ? ['WORLDWIDE'] : [], text: remoteText } : null;
   const level = levelOfTitle(x.title);
   const levels: ExperienceLevel[] = level ? [experienceLevelOf(level)] : [];
