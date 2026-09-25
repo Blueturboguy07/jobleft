@@ -54,6 +54,8 @@ const OTHER_JOBS_HEADING = new RegExp(
   ].join('|') + ')\\s*:?\\s*$',
   'i',
 );
+/** "Similar jobs: Shift Lead - $22/hr": the block can start on the heading's own line. */
+const OTHER_JOBS_INLINE = /^\s*(?:similar|related|recommended|suggested|other|more)\s+(?:jobs?|positions?|openings?|roles?|opportunities|vacancies|listings?|postings?)\s*:\s*\S/i;
 
 export function cutOtherJobs(text: string): string {
   if (!text) return '';
@@ -62,7 +64,7 @@ export function cutOtherJobs(text: string): string {
   let seen = 0;
   for (const line of lines) {
     // Never the first line of the page: a block of other jobs comes after this job's own text.
-    if (seen >= 1 && line.length <= 90 && OTHER_JOBS_HEADING.test(line)) return text.slice(0, pos).trimEnd();
+    if (seen >= 1 && ((line.length <= 90 && OTHER_JOBS_HEADING.test(line)) || OTHER_JOBS_INLINE.test(line))) return text.slice(0, pos).trimEnd();
     if (line.trim()) seen++;
     pos += line.length + 1;
   }
