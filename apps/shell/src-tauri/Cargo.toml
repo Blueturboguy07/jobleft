@@ -1,0 +1,20 @@
+[package]
+name = "jobleft-shell"
+version = "0.1.0"
+description = "jobleft desktop shell: starts the local server as a sidecar, opens the window, lives in the menu bar"
+edition = "2021"
+rust-version = "1.77"
+license = "UNLICENSED"
+
+[lib]
+name = "jobleft_shell_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-single-instance = "2"
+serde_json = "1"
+libc = "0.2"

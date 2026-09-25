@@ -156,6 +156,11 @@ test('keys a contract does not declare are never stored, even names such as cons
     const set = await s.call('PUT', '/api/v1/settings', { crawl: { intervalHours: 12, catchUpOnLaunch: false, runInTray: true, ...odd }, notifications: { reminders: true, alerts: false }, ...odd });
     assert.equal(set.status, 200, set.text);
     assert.deepEqual(Object.keys(set.json.crawl).sort(), ['catchUpOnLaunch', 'intervalHours', 'runInTray']);
+    // The menu bar's "Pause checks" is the optional crawl.paused flag; it round-trips and is absent until set.
+    const paused = await s.call('PUT', '/api/v1/settings', { crawl: { intervalHours: 12, catchUpOnLaunch: false, runInTray: true, paused: true }, notifications: { reminders: true, alerts: false } });
+    assert.equal(paused.status, 200);
+    assert.equal(paused.json.crawl.paused, true);
+    assert.equal((await s.call('GET', '/api/v1/settings')).json.crawl.paused, true);
   } finally { await s.stop(); cleanup(s.home); }
 });
 

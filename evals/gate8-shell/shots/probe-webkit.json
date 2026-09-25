@@ -1,0 +1,211 @@
+{
+ "ua": "webkit",
+ "hash": "#/jobs",
+ "title": "Jobs · jobleft",
+ "viewport": [
+  1280,
+  792
+ ],
+ "shell": true,
+ "onboarding": false,
+ "cards": [
+  {
+   "id": "lever:palantir:a2e9ab0f-4dd1-4744-92b9-edc7ae393c58",
+   "title": "Forward Deployed Software Engineer - US Government",
+   "tile": "Match 67 percent, fair match. Show the parts of this score.",
+   "rect": [
+    88,
+    225,
+    880,
+    232
+   ],
+   "titleRect": [
+    192,
+    269,
+    588,
+    26
+   ],
+   "tileRect": [
+    800,
+    229,
+    164,
+    244
+   ]
+  },
+  {
+   "id": "lever:palantir:289ad049-7b4e-41e3-8a39-146fbeb6fb64",
+   "title": "Forward Deployed Software Engineer - US Government",
+   "tile": "Match 67 percent, fair match. Show the parts of this score.",
+   "rect": [
+    88,
+    465,
+    880,
+    232
+   ],
+   "titleRect": [
+    192,
+    509,
+    588,
+    26
+   ],
+   "tileRect": [
+    800,
+    469,
+    164,
+    244
+   ]
+  },
+  {
+   "id": "lever:palantir:34b3a697-6e22-4751-befd-0b7921abbd5f",
+   "title": "Forward Deployed Software Engineer - Intel",
+   "tile": "Match 59 percent, fair match. Show the parts of this score.",
+   "rect": [
+    88,
+    705,
+    880,
+    232
+   ],
+   "titleRect": [
+    192,
+    749,
+    588,
+    26
+   ],
+   "tileRect": [
+    800,
+    709,
+    164,
+    244
+   ]
+  },
+  {
+   "id": "lever:palantir:e7100322-be11-40c8-9dba-7a21b7302c08",
+   "title": "Forward Deployed Software Engineer - US Government - Federal Health and Civilian",
+   "tile": "Match 58 percent, fair match. Show the parts of this score.",
+   "rect": [
+    88,
+    945,
+    880,
+    232
+   ],
+   "titleRect": [
+    192,
+    989,
+    588,
+    26
+   ],
+   "tileRect": [
+    800,
+    949,
+    164,
+    244
+   ]
+  },
+  {
+   "id": "lever:palantir:be4ab5cb-9caa-4c2a-97b9-c73805fca4fc",
+   "title": "Forward Deployed Software Engineer - US Government - Federal Health and Civilian",
+   "tile": "Match 58 percent, fair match. Show the parts of this score.",
+   "rect": [
+    88,
+    1185,
+    880,
+    232
+   ],
+   "titleRect": [
+    192,
+    1229,
+    588,
+    26
+   ],
+   "tileRect": [
+    800,
+    1189,
+    164,
+    244
+   ]
+  },
+  {
+   "id": "lever:palantir:d83fac1c-353e-4b77-a586-3276b1090b6e",
+   "title": "Forward Deployed Software Engineer - US Government",
+   "tile": "Match 55 percent, fair match. Show the parts of this score.",
+   "rect": [
+    88,
+    1425,
+    880,
+    232
+   ],
+   "titleRect": [
+    192,
+    1469,
+    588,
+    26
+   ],
+   "tileRect": [
+    800,
+    1429,
+    164,
+    244
+   ]
+  },
+  {
+   "id": "lever:palantir:84131e3f-455e-47fc-9c11-898d95f09048",
+   "title": "Forward Deployed Software Engineer - US Government",
+   "tile": "Match 55 percent, fair match. Show the parts of this score.",
+   "rect": [
+    88,
+    1665,
+    880,
+    232
+   ],
+   "titleRect": [
+    192,
+    1709,
+    588,
+    26
+   ],
+   "tileRect": [
+    800,
+    1669,
+    164,
+    244
+   ]
+  },
+  {
+   "id": "lever:palantir:8aba5995-653d-4805-96e8-24488e6abf37",
+   "title": "Forward Deployed Software Engineer - Japan Forward Deployed",
+   "tile": "Match 55 percent, fair match. Show the parts of this score.",
+   "rect": [
+    88,
+    1905,
+    880,
+    232
+   ],
+   "titleRect": [
+    192,
+    1949,
+    588,
+    26
+   ],
+   "tileRect": [
+    800,
+    1909,
+    164,
+    282
+   ]
+  }
+ ],
+ "fonts": {
+  "body": "Inter Variable 14px 400",
+  "title": "Inter Variable 20px 600",
+  "tile": "Inter Variable 14px 700"
+ },
+ "nav": [
+  0,
+  0,
+  72,
+  792
+ ],
+ "textLength": 4143,
+ "overflowX": false,
+ "errorsText": false
+}

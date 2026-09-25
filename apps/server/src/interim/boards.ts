@@ -318,6 +318,7 @@ export class BoardsService {
         if (this.stopped || this.runningP || this.o.offline() || this.count() === 0) return;
         if (this.o.autoCrawl && !this.o.autoCrawl()) return;
         const s = this.o.settings();
+        if (s.crawl.paused) return; // the person paused the checks from the menu bar; a manual run still works
         if (catchUp && !s.crawl.catchUpOnLaunch) return;
         const last = this.lastRun().finishedAt;
         const due = !last || nowMs() - Date.parse(last) >= s.crawl.intervalHours * 3_600_000;

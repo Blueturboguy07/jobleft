@@ -143,6 +143,9 @@ export const AppSettingsSchema = named(obj({
     intervalHours: int({ minimum: 1, maximum: 168 }),
     catchUpOnLaunch: bool(),
     runInTray: bool(),
+  }, {
+    /** True while the person paused the scheduled checks (menu bar "Pause checks"); "Check for jobs now" still works. */
+    paused: bool(),
   }),
   notifications: obj({ reminders: bool(), alerts: bool() }),
 }), 'AppSettings');

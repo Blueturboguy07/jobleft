@@ -1488,8 +1488,12 @@ No Chrome Web Store submission (gate G-store).
 
 ### `@jobleft/shell` (apps/shell)
 
-Status: skeleton (`sidecarEnv`, `READY_TIMEOUT_MS`, `NOTIFICATION_POLL_MS` Built). Purpose: the Tauri v2 shell
-(`apps/shell/src-tauri`, created by the shell lane) with the Node server as a sidecar. Section 5.2 is its contract.
+Status: Built (2026-09-25, gate 8): the Tauri v2 shell in `apps/shell/src-tauri` (Rust: sidecar start, ready wait,
+one window, menu bar item, single instance, notifications through Notification Center, clean quit on menu/Cmd-Q/SIGTERM)
+with the Node server as a sidecar: the official Node 24 binary beside the executable and the server tree (transpiled
+to JavaScript by `apps/shell/scripts/pack.ts`) under `Resources/server`. `pnpm --filter @jobleft/shell app:build`
+makes an unsigned debug `jobleft.app`; `apps/shell/README.md` has the layout and the test hooks. Section 5.2 is its
+contract. The menu bar's "Pause checks" is the optional `crawl.paused` app setting (added 2026-09-25).
 Builds use `CARGO_TARGET_DIR=<main checkout>/.cache/cargo-target`. No signing or notarizing in lanes
 (gate G-release). If WKWebView rendering fails the visual check (plan section 6), the fallback is Electron with the
 same server.
