@@ -58,9 +58,10 @@ export async function* chatEvents(engine: AiEngine, req: ChatRequest, opts: { si
     return;
   }
   yield { type: 'start', requestId: req.requestId, provider: client.provider, model: client.model };
+  let sent = 0;
   try {
     for await (const c of client.chat({ messages: req.messages, requestId: req.requestId, signal: opts.signal })) {
-      if (c.type === 'delta') yield { type: 'delta', text: c.text };
+      if (c.type === 'delta') { sent += c.text.length; yield { type: 'delta', text: c.text }; }
       else if (c.type === 'done') {
         yield { type: 'done', incomplete: c.incomplete, costMicros: c.costMicros, chatId: null };
         return;
@@ -69,6 +70,8 @@ export async function* chatEvents(engine: AiEngine, req: ChatRequest, opts: { si
     yield { type: 'done', incomplete: true, costMicros: null, chatId: null };
   } catch (e) {
     const err = asAiError(e);
+    // Cancelled after some text: the part already shown stays, marked incomplete.
+    if (err.code === 'cancelled' && sent > 0) { yield { type: 'done', incomplete: true, costMicros: null, chatId: null }; return; }
     const { body } = toApiError(err);
     yield { type: 'error', error: body.error.link ? { code: body.error.code, message: body.error.message, link: body.error.link } : { code: body.error.code, message: body.error.message } };
   }

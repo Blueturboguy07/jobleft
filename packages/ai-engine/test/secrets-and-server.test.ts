@@ -98,3 +98,26 @@ test('WordPiece tokenizer follows BERT uncased rules', () => {
   assert.deepEqual(t.encode('Café 北京'), [2, 13, 14, 1, 3]);
   assert.equal(t.encode('word '.repeat(1000)).length, 512);
 });
+
+test('dev server: cancel by request id stops a running chat stream within 2 seconds', async () => {
+  await withModel({ mode: 'slow', slowMs: 300 }, async (m) => {
+    const { engine } = makeEngine();
+    await use(engine, { provider: 'custom', baseUrl: m.url, model: 'standin-7b' });
+    const srv = await startDevServer(engine);
+    const hdr = { 'x-jobleft-token': srv.token, 'content-type': 'application/json' };
+    try {
+      const res = await fetch(`${srv.origin}/api/v1/ai/chat`, { method: 'POST', headers: hdr, body: JSON.stringify({ requestId: 'slow-1', messages: [{ role: 'user', content: 'a long answer' }] }) });
+      const reader = res.body!.getReader();
+      const first = new TextDecoder().decode((await reader.read()).value);
+      assert.match(first, /"type":"start"/);
+      const t0 = Date.now();
+      const c = await fetch(`${srv.origin}/api/v1/ai/requests/slow-1/cancel`, { method: 'POST', headers: hdr });
+      assert.deepEqual(await c.json(), { cancelled: true });
+      let rest = '';
+      for (;;) { const r = await reader.read(); if (r.done) break; rest += new TextDecoder().decode(r.value); }
+      assert.ok(Date.now() - t0 < 2000);
+      assert.match(rest, /"type":"done","incomplete":true/);
+      assert.doesNotMatch(rest, /"incomplete":false/);
+    } finally { await srv.close(); }
+  });
+});
