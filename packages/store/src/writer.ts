@@ -83,9 +83,11 @@ export class JobWriter {
   tagId(tag: string): number {
     const hit = this.tagCache.get(tag);
     if (hit !== undefined) return hit;
-    let r = q(this.db, 'INSERT INTO facet_tags (tag) VALUES (?) ON CONFLICT (tag) DO NOTHING RETURNING id').get(tag) as { id: number } | undefined;
-    if (!r) r = q(this.db, 'SELECT id FROM facet_tags WHERE tag = ?').get(tag) as { id: number };
-    const id = Number(r.id);
+    // No RETURNING here: a statement with RETURNING opens a savepoint, and every savepoint makes FTS5 flush its
+    // pending terms to disk (it made bulk inserts three times slower).
+    const res = q(this.db, 'INSERT OR IGNORE INTO facet_tags (tag) VALUES (?)').run(tag);
+    const id = Number(res.changes) === 1 ? Number(res.lastInsertRowid)
+      : Number((q(this.db, 'SELECT id FROM facet_tags WHERE tag = ?').get(tag) as { id: number }).id);
     this.tagCache.set(tag, id);
     return id;
   }
