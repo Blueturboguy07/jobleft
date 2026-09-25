@@ -1,0 +1,5 @@
+{
+ "format": "jobleft-board-directory-pruned/1",
+ "note": "Boards removed from the directory after two \"not found\" answers from their provider, at least the stated time apart. A person's own boards are never removed.",
+ "rows": []
+}
