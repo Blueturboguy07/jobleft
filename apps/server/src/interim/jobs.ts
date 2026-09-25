@@ -232,8 +232,6 @@ export class JobsService {
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS srv_jobs_apply ON jobs(apply_url);
       CREATE INDEX IF NOT EXISTS srv_jobs_key ON jobs(lower(ats), lower(board), job_id);
-      DROP INDEX IF EXISTS srv_jobs_feed;
-      DROP INDEX IF EXISTS srv_jobs_recent;
     `);
     if (has('srv_job_index') && has('srv_job_index_au')) return;
     this.db.exec('BEGIN IMMEDIATE');
