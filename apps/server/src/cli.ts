@@ -11,7 +11,7 @@
 //   node apps/server/src/cli.ts counts --home <dir>
 //       Prints the count per kind (the same numbers a backup's manifest lists). Reads only.
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { parseArgs } from 'node:util';
@@ -84,6 +84,7 @@ function seedJobs(store: Store, n: number): number {
 
 try {
   if (cmd === 'counts') {
+    if (!existsSync(layout.db)) die('this data folder has no jobleft data yet');
     const db = openReadOnly(layout.db);
     try { process.stdout.write(JSON.stringify(countsOf(db), null, 2) + '\n'); } finally { db.close(); }
   } else if (cmd === 'seed-jobs') {
