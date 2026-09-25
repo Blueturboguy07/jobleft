@@ -46,7 +46,7 @@ type Tok =
   | { kind: 'noise' }
   | { kind: 'zip'; state: string | null };
 
-const PLACEHOLDER = /^(?:n\/?a|na|none|tbd|tba|tbc|unknown|various|varies|multiple|multiple locations?|multiple cities|various cities|several cities|multiple sites|multiple offices|all offices|any office|select locations|various locations in the us|several locations|many locations|all locations|any location|locations?|flexible|flexible location|see (?:job )?description|see below|other|others|nowhere|xx|x|-|—|\.|\?|global locations|various locations|\d+ locations?|to be determined|home|field|field based|field-based|travel|traveling|travelling|on the road|any|anywhere in|any office|any \w+ location|any \w+ office|all \w+ locations|remote_\w+)$/i;
+const PLACEHOLDER = /^(?:n\/?a|na|none|tbd|tba|tbc|unknown|various|varies|multiple|multiple locations?|multiple cities|various cities|several cities|multiple sites|multiple offices|all offices|any office|select locations|various locations in the us|several locations|many locations|all locations|any location|locations?|flexible|flexible location|see (?:job )?description|see below|other|others|nowhere|xx|x|-|—|\.|\?|global locations|various locations|\d+ locations?|to be determined|home|field|field based|field-based|travel|traveling|travelling|on the road|any|any\s.*|anywhere in|any \w+ office|all \w+ locations|remote_\w+)$/i;
 const ORG_WORDS = /\b(?:schools?|academy|college|university|univ|campus|hospital|clinic|medical center|health center|center for|centre for|store|warehouse|plant|facility|headquarters|hq|office|offices|building|bldg|tower|plaza|mall|pvt|ltd|llc|inc|corp|gmbh|s\.a\.|b\.v\.|limited|company|group|partners|branch|site|depot|distribution center|fulfillment center|dc|lab|labs|studio|studios|factory|terminal|yard|shop|restaurant|cafe|café|hotel|resort|casino|club|church|library|station|base|hub|kitchen|bakery|venue|arena|stadium|park & ride)\b/i;
 const STREET = /\b(?:st|street|ave|avenue|road|rd|blvd|boulevard|drive|dr|lane|ln|way|suite|ste|floor|fl|flr|building|bldg|room|rm|unit|parkway|pkwy|highway|hwy|court|ct|place|pl|square|sq|terrace|circle|cir|trail|pike|route|rte|av|avenida|rua|calle|carrera|strasse|straße|stationsplein|boulevard|via|viale|rue|andar|piso|po box|p\.o\. box)\b/i;
 const UK_POSTCODE = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
@@ -154,7 +154,21 @@ const GENERIC_WORDS = new Set(['center', 'centre', 'union', 'normal', 'mobile', 
   'grand', 'long', 'rock', 'green', 'white', 'black', 'red', 'blue', 'royal', 'golden', 'silver', 'crystal', 'diamond', 'sun',
   'moon', 'star', 'eagle', 'bear', 'wolf', 'fox', 'deer', 'elk', 'buffalo', 'mobile', 'energy', 'data', 'digital', 'global']);
 
+const REGION_SUFFIX = /\s+(?:region|area|metro|metro area|metropolitan area|county)$/i;
+const AREA_PREFIX = /^(?:greater|metro|metropolitan|downtown|uptown|midtown|central|north|south|east|west|northern|southern|eastern|western)\s+/i;
+
 function innerBySuffix(t: string): Tok | null {
+  // "Western North Carolina Region", "Greater St. Louis", "East Coast US", "Denver Metro Area".
+  for (const cand of [t.replace(REGION_SUFFIX, ''), t.replace(/\s+(?:US|USA|U\.S\.)$/, '').replace(/^(?:US|USA|U\.S\.)\s+/, '')]) {
+    if (cand !== t && cand.trim()) {
+      const c = classify(cand.trim());
+      if (c.kind === 'city' || c.kind === 'state' || c.kind === 'usregion' || c.kind === 'fregion') return c;
+    }
+  }
+  if (AREA_PREFIX.test(t)) {
+    const c = classify(t.replace(AREA_PREFIX, ''));
+    if (c.kind === 'city' || c.kind === 'usregion' || c.kind === 'state') return c;
+  }
   const stripped = t.replace(SUFFIX_WORDS, '').trim();
   if (stripped && stripped !== t) {
     const c = classify(stripped);
@@ -372,7 +386,7 @@ export function parseLocationText(input: string, opts: { context?: string } = {}
     let placeText = seg
       .replace(/\b(?:fully|100%|full|partially|temporarily)\s+(?=remote|hybrid)/gi, ' ')
       .replace(new RegExp(`${REMOTE_RE.source}|${HYBRID_RE.source}|${ONSITE_RE.source}`, 'gi'), ' ')
-      .replace(/\b(?:in the|within the|within|based in|based out of|from|only|eligible|friendly|first|optional|possible|ok|okay|position|role|job|opportunity|option|work|working)\b/gi, ' ')
+      .replace(/\b(?:in the|within the|within|based in|based out of|from|only|eligible|friendly|first|optional|possible|ok|okay|position|role|job|opportunity|option|work|working|national|nationally|nationwide)\b/gi, ' ')
       .replace(/\b(?:hq|headquarters|office|offices|campus|location|locations)\b(?!\s*,?\s*[A-Z]{2}\b)/gi, ' ')
       .replace(/\s*[-–—:]\s*$/g, '').replace(/^\s*[-–—:,]\s*/g, '').replace(/\s{2,}/g, ' ').trim();
     placeText = placeText.replace(/^(?:[-–—:,]\s*)+|(?:\s*[-–—:,])+$/g, '').trim();
@@ -693,6 +707,8 @@ export function usFromFacts(places: Place[], remoteRegions: string[], boardCount
   if (remoteRegions.some(openUs)) return true;
   const known = places.filter((p) => p.country !== null || (p.region && /^(?:EU|EMEA|APAC|LATAM)$/.test(p.region)));
   if (known.length && known.length === places.length) return false;
+  // A long list of foreign places with one or two unreadable names ("Warsaw; Serbia; Split; Córdoba; ...").
+  if (known.length >= 2 && known.length * 3 >= places.length * 2) return false;
   if (remoteRegions.length) return false;
   if (known.length && places.every((p) => p.country !== 'US')) return places.some((p) => p.country === null && (p.city || p.region)) ? null : false;
   return null;
