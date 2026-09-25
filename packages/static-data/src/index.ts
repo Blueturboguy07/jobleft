@@ -1,15 +1,19 @@
 // @jobleft/static-data: data shipped with the app and the lookups over it.
 //   * companyKey(): the one company-name key every package uses to match companies
-//   * the H-1B sponsor index (US Department of Labor LCA disclosure data, about 84K employers)
-//   * the place dictionary (cities, regions, countries; GeoNames CC BY 4.0 with attribution)
-//   * the skill dictionary (canonical names and aliases: "k8s" -> "Kubernetes")
-//   * the board directory file that @jobleft/boards loads
-//   * company facts (sourced, dated, kept per company; paid lookups only with consent)
-// Status: interface stubs (foundation). Bodies throw until the static-data lane implements them.
-// Interface: docs/INTERFACES.md, section "@jobleft/static-data".
+//   * the H-1B sponsor index (US Department of Labor LCA disclosure data, FY2025 Q1 to FY2026 Q3)
+//   * the place dictionary (USGS GNIS US places and Natural Earth world cities; GeoNames from a person's files)
+//   * company facts (Wikidata, SEC EDGAR, GLEIF; sourced, dated, kept per company; paid lookups only with consent)
+//   * signed dataset releases (a bad release changes nothing)
+// Interface: docs/INTERFACES.md, section "@jobleft/static-data". The skill dictionary and the board directory rows
+// are still stubs (they are outside this lane's scope).
 
-import type { DatabaseSync } from 'node:sqlite';
-import type { Company, CrawlAtsId, DatasetInfo, H1bLookup, Place, PlaceLookup } from '@jobleft/contracts';
+import type { CrawlAtsId, DatasetInfo } from '@jobleft/contracts';
+import { loadAliasIndex, type CompanyAliases } from './aliases.ts';
+import { listDatasets as listAll } from './datasets/list.ts';
+import { updateDatasets as update } from './datasets/release.ts';
+import type { StaticDataOptions } from './datasets/store.ts';
+import { loadH1bIndex as loadH1b, type H1bIndex } from './h1b/index.ts';
+import { loadPlaceIndex as loadPlaces, type PlaceIndex } from './places/index.ts';
 
 export const PACKAGE_NAME = '@jobleft/static-data';
 
@@ -17,45 +21,20 @@ function notImplemented(what: string): never {
   throw new Error(`not implemented yet: ${what} (lane: @jobleft/static-data)`);
 }
 
-/** Where datasets live. Shipped copies sit in `bundledDir`; updated releases are written to `dataDir`. */
-export interface StaticDataOptions {
-  /** $JOBLEFT_HOME/datasets (updated releases, verified before use). */
-  dataDir: string;
-  /** Defaults to this package's data/ folder (the copies that ship with the app). */
-  bundledDir?: string;
-}
-
-/**
- * The company match key. Lower case; accents removed; "&" and "+" become "and"; a leading "the" and legal suffixes
- * (inc, llc, l.l.c., corp, corporation, co, ltd, llp, plc, pbc, gmbh) are removed; punctuation and spaces are removed.
- * It NEVER removes ordinary words such as "technologies", "group", "services" or "holdings" (static-data O5).
- * Examples: "Stripe, Inc." -> "stripe"; "The Home Depot" -> "homedepot"; "Ramp Business Corporation" -> "rampbusiness".
- */
-export function companyKey(name: string): string {
-  return notImplemented(`companyKey(${JSON.stringify(name)})`);
-}
-
-/** Brand to legal filer names that are known to be the same company (a reviewed alias table, never a guess). */
-export interface CompanyAliases {
-  /** The keys of every name known for this company, including the input's own key. */
-  keysFor(name: string): string[];
-}
-
-export interface H1bIndex {
-  /** found with a summary, or unknown. Never a "no" (static-data O2). */
-  lookup(companyName: string): H1bLookup;
-  dataset(): DatasetInfo;
-}
-
-export interface PlaceIndex {
-  /** Resolves "Austin, TX", "SF", "Remote - US", "New York, NY; Austin, TX". Unresolved text stays as written. */
-  resolve(text: string): PlaceLookup;
-  /** Great-circle distance in miles, or null when either place has no coordinates. */
-  distanceMiles(a: Place, b: Place): number | null;
-  /** Place ids within the radius of a place id (for the "within 25 miles" filter). */
-  within(placeId: string, radiusMiles: number): Set<string>;
-  dataset(): DatasetInfo;
-}
+export type { StaticDataOptions } from './datasets/store.ts';
+export { companyKey, splitDba, nameTokens, COMPANY_KEY_VERSION, LEGAL_SUFFIXES } from './company-key.ts';
+export type { CompanyAliases, AliasIndex, AliasEntry } from './aliases.ts';
+export type { H1bIndex, H1bLookupDetail, H1bSummaryDetail, H1bEntityDetail } from './h1b/index.ts';
+export { LIKELY_MIN_FILINGS, LIKELY_MIN_RECENT, LIKELY_MIN_NEW_HIRE } from './h1b/index.ts';
+export type { PlaceIndex, PlaceLookupDetail, WorkModel } from './places/index.ts';
+export { normPlace } from './places/normalize.ts';
+export { h1bTagFor, passesH1bFilter, type H1bTag, type H1bTagResult } from './h1b/tag.ts';
+export { roleFamilyOf, normalizeTitle, SOC_MAJOR_GROUPS, type RoleFamily } from './h1b/role-family.ts';
+export { CompanyFacts, migrateCompanyFacts, DEFAULT_FRESH_MS, type CompanyFactsOptions, type CompanyDetail, type PaidSearch, type SourceStatus } from './facts/company-facts.ts';
+export { ruleEnricher, checkProposed, type PaidEnricher, type ProposedFact, type SearchResult, type EnrichTarget } from './facts/enrich.ts';
+export { installReleases, verifyEnvelope, loadReleaseKeys, type UpdateOutcome, type ReleaseKey } from './datasets/release.ts';
+export { LIVE_FACT_SOURCES } from './datasets/list.ts';
+export { PoliteFetch, USER_AGENT } from './net/polite-fetch.ts';
 
 export interface SkillDictionary {
   /** The canonical name for a term ("k8s" -> "Kubernetes", "JS" -> "JavaScript"), or null when unknown. */
@@ -75,49 +54,31 @@ export interface DirectoryRow {
   source: string;
 }
 
-export function loadAliases(opts: StaticDataOptions): CompanyAliases { return notImplemented('loadAliases'); }
-export function loadH1bIndex(opts: StaticDataOptions): H1bIndex { return notImplemented('loadH1bIndex'); }
-export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex { return notImplemented('loadPlaceIndex'); }
-export function loadSkills(opts: StaticDataOptions): SkillDictionary { return notImplemented('loadSkills'); }
-export function loadDirectoryRows(opts: StaticDataOptions): DirectoryRow[] { return notImplemented('loadDirectoryRows'); }
-/** Every dataset with its date, licence and attribution (GET /api/v1/data-sources). */
-export function listDatasets(opts: StaticDataOptions): DatasetInfo[] { return notImplemented('listDatasets'); }
-
-/** Downloads, verifies (size and sha256 from the release manifest) and swaps in newer releases. A bad release changes nothing. */
-export async function updateDatasets(
-  opts: StaticDataOptions & { releaseManifestUrl: string; fetchImpl?: typeof fetch },
-): Promise<DatasetInfo[]> {
-  return notImplemented('updateDatasets');
+/** The reviewed brand-to-filer alias table (data/company-aliases.json). */
+export function loadAliases(opts: StaticDataOptions): CompanyAliases {
+  void opts;
+  return loadAliasIndex();
 }
 
-/** A paid lookup the facts service may use only when the person allowed it (see @jobleft/sources-other). */
-export interface PaidSearch {
-  priceMicros(kind: 'search' | 'page'): number;
-  search(query: string, opts: { maxPriceMicros: number; signal?: AbortSignal }): Promise<Array<{ title: string; url: string; snippet: string }>>;
+/** The H-1B sponsor index. Works offline; reloads when a newer verified release is installed. */
+export function loadH1bIndex(opts: StaticDataOptions): H1bIndex {
+  return loadH1b(opts);
 }
 
-export interface CompanyFactsOptions {
-  db: DatabaseSync;
-  h1b: H1bIndex;
-  aliases: CompanyAliases;
-  /** Free public sources (Wikidata, SEC, GLEIF) through the polite HTTP client. */
-  fetchText: (url: string) => Promise<string>;
-  /** null = paid lookups are off. */
-  paid: PaidSearch | null;
-  now?: () => number;
-  /** Kept facts expire after this long (default 30 days). */
-  freshForMs?: number;
+/** The place index. Works offline; reloads when a newer verified release is installed. */
+export function loadPlaceIndex(opts: StaticDataOptions): PlaceIndex {
+  return loadPlaces(opts);
 }
 
-/** Company facts, kept per company key in the `company_facts` table (owned by this package). */
-export class CompanyFacts {
-  constructor(opts: CompanyFactsOptions) { void opts; }
-  /** The kept company, or a company with no facts (never invented ones). */
-  get(key: string): Company { return notImplemented('CompanyFacts.get'); }
-  /** Reads facts again. A failed refresh keeps the old facts. Paid lookups only with allowPaid and within the cap. */
-  async refresh(key: string, opts: { allowPaid: boolean; maxPriceMicros?: number }): Promise<Company> {
-    return notImplemented('CompanyFacts.refresh');
-  }
-  /** Marks every kept fact expired (the documented option to expire kept facts). */
-  expireAll(): number { return notImplemented('CompanyFacts.expireAll'); }
+export function loadSkills(opts: StaticDataOptions): SkillDictionary { void opts; return notImplemented('loadSkills'); }
+export function loadDirectoryRows(opts: StaticDataOptions): DirectoryRow[] { void opts; return notImplemented('loadDirectoryRows'); }
+
+/** Every dataset with its date, licence and attribution (GET /api/v1/data-sources), plus the live fact sources. */
+export function listDatasets(opts: StaticDataOptions): DatasetInfo[] {
+  return listAll(opts);
+}
+
+/** Downloads, verifies (signature, size and sha256 from the signed release manifest) and swaps in newer releases. A bad release changes nothing. */
+export async function updateDatasets(opts: StaticDataOptions & { releaseManifestUrl: string; fetchImpl?: typeof fetch }): Promise<DatasetInfo[]> {
+  return update(opts);
 }

@@ -56,6 +56,8 @@ export interface H1bSummaryDetail extends H1bSummary {
   sourceUrl: string;
   counting: string;
   statusRule: string;
+  /** The NAICS industry code on the main filer's H-1B filings. */
+  naics: string | null;
 }
 
 export interface H1bLookupDetail extends H1bLookup {
@@ -289,6 +291,7 @@ export function summarize(p: Prepared, kept: number[], excluded: number[], match
     sourceUrl: p.meta.sourceUrl,
     counting: p.meta.counting,
     statusRule: STATUS_RULE,
+    naics: uniq.map((i) => p.entities[i]!).sort((a, b) => b[5] - a[5])[0]?.[4] ?? null,
   };
 }
 
