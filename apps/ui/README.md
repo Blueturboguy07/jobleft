@@ -153,8 +153,12 @@ All browser checks start their own demo in `/private/tmp` and stop it at the end
 ```sh
 pnpm --filter @jobleft/ui test          # unit tests (node --test)
 pnpm --filter @jobleft/ui typecheck     # tsc
-# The lane's own outcome probes (hostile checks written from docs/outcomes/ui.md; each prints PASS or FAIL with the evidence):
+# The lane's own outcome probes (hostile checks written from docs/outcomes/ui.md; each prints PASS or FAIL with the evidence).
+# Probes: brand nav facts filters signals detail tracker persist states money privacy keyboard layout perf. Each starts its own demo.
 node apps/ui/scripts/probe/run.ts --only nav,facts,filters
+node apps/ui/scripts/probe/run.ts --only keyboard        # keyboard-only flow, focus rings, Esc, names and contrast (O13)
+node apps/ui/scripts/probe/run.ts --only perf            # 50,000 jobs: launch, filter, sort, search, screen switches, 500-card scroll (O11). Takes about 3 minutes
+node apps/ui/scripts/probe/run.ts --all                  # everything (about 25 minutes)
 # Screenshots and an accessibility, contrast and banned-word audit of every screen at two sizes (needs a running demo):
 node apps/ui/scripts/shots.ts --url "http://127.0.0.1:47830/#token=..." --out /private/tmp/jlui-shots --sizes 1024x640,1920x1080
 ```

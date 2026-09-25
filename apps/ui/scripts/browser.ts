@@ -87,6 +87,7 @@ export async function launch(): Promise<Browser> {
         if (frontId !== sessionId && (m.startsWith('Input.') || m === 'Runtime.evaluate' || m === 'Page.captureScreenshot')) {
           frontId = sessionId;
           await send('Page.bringToFront', {}, sessionId);
+          await new Promise((r) => setTimeout(r, 400)); // the page needs a frame or two before it takes clicks and shows fresh data
         }
         return send<T>(m, p, sessionId);
       };
@@ -102,9 +103,9 @@ export async function launch(): Promise<Browser> {
         if (m.method === 'Runtime.exceptionThrown' && pr.exceptionDetails) errs.push(pr.exceptionDetails.exception?.description ?? pr.exceptionDetails.text);
         if (m.method === 'Runtime.consoleAPICalled' && pr.type === 'error') errs.push((pr.args ?? []).map((a) => String(a.value ?? a.description ?? '')).join(' '));
       });
-      const KEYS: Record<string, { key: string; code: string; vk: number }> = {
-        Tab: { key: 'Tab', code: 'Tab', vk: 9 }, Escape: { key: 'Escape', code: 'Escape', vk: 27 }, Enter: { key: 'Enter', code: 'Enter', vk: 13 },
-        ArrowDown: { key: 'ArrowDown', code: 'ArrowDown', vk: 40 }, ArrowUp: { key: 'ArrowUp', code: 'ArrowUp', vk: 38 }, Space: { key: ' ', code: 'Space', vk: 32 },
+      const KEYS: Record<string, { key: string; code: string; vk: number; text?: string }> = {
+        Tab: { key: 'Tab', code: 'Tab', vk: 9 }, Escape: { key: 'Escape', code: 'Escape', vk: 27 }, Enter: { key: 'Enter', code: 'Enter', vk: 13, text: '\r' },
+        ArrowDown: { key: 'ArrowDown', code: 'ArrowDown', vk: 40 }, ArrowUp: { key: 'ArrowUp', code: 'ArrowUp', vk: 38 }, Space: { key: ' ', code: 'Space', vk: 32, text: ' ' },
         End: { key: 'End', code: 'End', vk: 35 }, Home: { key: 'Home', code: 'Home', vk: 36 },
       };
       const page: Page = {
@@ -121,7 +122,8 @@ export async function launch(): Promise<Browser> {
         async press(name, shift = false) {
           const k = KEYS[name] ?? { key: name, code: name, vk: name.toUpperCase().charCodeAt(0) };
           const mods = shift ? 8 : 0;
-          await s('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: k.key, code: k.code, windowsVirtualKeyCode: k.vk, modifiers: mods });
+          // keys that type a character (Enter, Space) need a "keyDown" with text, or a button never gets its click
+          await s('Input.dispatchKeyEvent', { type: k.text ? 'keyDown' : 'rawKeyDown', key: k.key, code: k.code, windowsVirtualKeyCode: k.vk, modifiers: mods, ...(k.text ? { text: k.text } : {}) });
           await s('Input.dispatchKeyEvent', { type: 'keyUp', key: k.key, code: k.code, windowsVirtualKeyCode: k.vk, modifiers: mods });
         },
         async clickText(text, scope = 'body') {

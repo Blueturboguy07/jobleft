@@ -154,6 +154,8 @@ export async function run(demo: Demo, outDir: string): Promise<void> {
     await p.eval(`document.querySelector('textarea[aria-label="Message to the assistant"]').focus()`);
     await p.type('Help me plan my job search this week.');
     await p.press('Enter');
+    await sleep(800);
+    await p.clickText('Send to publik'); // the first message to a service asks once, and the person agrees
     await sleep(3500);
     const off = await p.eval<string>(`[...document.querySelectorAll('[role=alert]')].map((e) => e.innerText).join(' | ')`);
     await shot(p, dir, '06-chat-offline');

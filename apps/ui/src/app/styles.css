@@ -333,3 +333,6 @@ button.jl-kpi:hover { box-shadow: inset 0 0 0 1px #9AA0A6; }
 
 /* a table that is wider than its pane scrolls inside its own frame, so the screen itself never scrolls sideways */
 .ant-table-wrapper { max-width: 100%; overflow-x: auto; }
+
+/* Ant Design's own placeholder text ("no data") is lighter than the 4.5:1 contrast rule allows */
+.ant-empty-description, .ant-table-placeholder .ant-empty-description, .ant-table-placeholder { color: var(--jl-text3) !important; }

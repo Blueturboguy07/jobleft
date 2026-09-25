@@ -13,7 +13,7 @@ const ACTIVE = `(() => { const a = document.activeElement; if (!a || a === docum
   const card = a.closest('.jl-card');
   return { tag: a.tagName, label: (a.getAttribute('aria-label') || a.textContent || '').trim().slice(0, 70), card: card ? card.getAttribute('data-job-id') : null,
     outline: cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0, shadow: cs.boxShadow !== 'none', cardRing: !!card && getComputedStyle(card).boxShadow !== 'none',
-    inDialog: !!a.closest('[role=dialog], .ant-drawer, .ant-modal, .jl-detail'), href: a.getAttribute('href') }; })()`;
+    inDialog: !!a.closest('[role=dialog], .ant-drawer, .ant-modal, .jl-detail-main'), href: a.getAttribute('href') }; })()`;
 
 interface Active { tag: string; label: string; card: string | null; outline: boolean; shadow: boolean; cardRing: boolean; inDialog: boolean; href: string | null }
 
@@ -72,7 +72,7 @@ export async function run(demo: Demo, outDir: string): Promise<void> {
     if (title?.card) {
       const cardId = title.card;
       await p.press('Enter');
-      const opened = await p.waitFor("/#\\/jobs\\//.test(location.hash) && document.querySelector('.jl-detail, [role=dialog]')", 5000);
+      const opened = await p.waitFor("/#\\/jobs\\//.test(location.hash) && document.querySelector('.jl-detail-main')", 5000);
       await sleep(500);
       const inside = await p.eval<Active | null>(ACTIVE);
       check(opened && !!inside?.inDialog, 'O13 opening a job with Enter moves the focus into the detail', `focus: ${inside?.tag} ${inside?.label}`);
@@ -80,7 +80,7 @@ export async function run(demo: Demo, outDir: string): Promise<void> {
       check(!!apply && /^https?:/.test(apply.href ?? ''), 'O13 the apply control is reachable with Tab and is a real link to the employer page', apply ? `${apply.label} -> ${apply.href}` : 'not reached');
       await p.press('Escape');
       await sleep(700);
-      const closed = await p.eval<boolean>("!document.querySelector('.jl-detail')");
+      const closed = await p.eval<boolean>("!document.querySelector('.jl-detail-main')");
       const back = await p.eval<Active | null>(ACTIVE);
       check(closed, 'O13 Esc closes the detail', `hash=${await p.eval<string>('location.hash')}`);
       check(back?.card === cardId, 'O13 after Esc the focus is back on the card that was open', `focus card=${back?.card} (wanted ${cardId}) ${back?.label ?? ''}`);
