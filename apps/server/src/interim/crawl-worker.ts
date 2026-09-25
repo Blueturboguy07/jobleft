@@ -6,7 +6,7 @@
 // i-core: the adapters are sources-ats `allSources()` (Greenhouse, Lever, Ashby with the sources-ats repairs, plus
 // Workable, Recruitee, Personio, Teamtailor and Gem), every request goes through sources-ats `politeFetch` (1 s +
 // 100 ms per host, Retry-After, Crawl-delay, body limit), and each request is appended to the request log
-// ($JOBLEFT_HOME/logs/requests.ndjson: time, host, URL, status; never a header or a body).
+// ($JOBLEFT_HOME/logs/requests.ndjson: send time `at`, answer time, host, URL, status; never a header or a body).
 
 import { appendFileSync } from 'node:fs';
 import { parentPort, workerData } from 'node:worker_threads';
@@ -45,7 +45,7 @@ const fetchImpl = politeFetch({
   onRequest: init.requestLog
     ? (e) => {
       try {
-        appendFileSync(init.requestLog!, JSON.stringify({ at: e.at, host: e.host, url: e.url, status: e.status, waitedMs: e.waitedMs, ...(e.error ? { error: e.error } : {}) }) + '\n', { mode: 0o600 });
+        appendFileSync(init.requestLog!, JSON.stringify({ at: e.sentAtMs !== undefined ? new Date(e.sentAtMs).toISOString() : e.at, answeredAt: e.at, host: e.host, url: e.url, status: e.status, waitedMs: e.waitedMs, ...(e.error ? { error: e.error } : {}) }) + '\n', { mode: 0o600 });
       } catch { /* the log is best effort */ }
     }
     : undefined,

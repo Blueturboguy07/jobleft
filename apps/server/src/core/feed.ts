@@ -82,7 +82,7 @@ export function titleWords(text: string): string[] {
   });
 }
 
-interface Target { label: string; words: string[] }
+interface Target { label: string; words: string[]; weight: number }
 
 export interface PrefModel {
   version: string;
@@ -100,11 +100,12 @@ export function prefModel(p: Profile): PrefModel {
   const pr = p.preferences;
   const targets: Target[] = [];
   const levels = new Set<ExperienceLevel>(pr.levels);
-  for (const t of [...pr.targetTitles, ...pr.jobFunctions]) {
+  // A target title counts in full; a broad job function ("Nursing") a little less, so an exact title ranks first.
+  for (const [t, weight] of [...pr.targetTitles.map((x) => [x, 1] as const), ...pr.jobFunctions.map((x) => [x, 0.8] as const)]) {
     const all = titleWords(t);
     for (const w of all) if (LEVEL_OF_WORD[w] && pr.levels.length === 0) levels.add(LEVEL_OF_WORD[w]!);
     const words = [...new Set(all.filter((w) => !LEVEL_WORDS.has(w) && !STOP.has(w)))];
-    if (words.length) targets.push({ label: t.trim(), words });
+    if (words.length) targets.push({ label: t.trim(), words, weight });
   }
   const states = new Set<string>();
   const labels: string[] = [];
@@ -132,11 +133,13 @@ export function scoreRow(m: PrefModel, r: CandidateRow): Scored {
   let bestLabel = '';
   if (m.targets.length) {
     const have = new Set(titleWords(r.title));
+    let full = false;
     for (const t of m.targets) {
-      const hit = t.words.filter((w) => have.has(w)).length / t.words.length;
-      if (hit > title) { title = hit; bestLabel = t.label; }
+      const frac = t.words.filter((w) => have.has(w)).length / t.words.length;
+      const hit = frac * t.weight;
+      if (hit > title) { title = hit; bestLabel = t.label; full = frac >= 0.999; }
     }
-    if (title >= 0.999) chips.push({ kind: 'skills', label: clip(`Title fits "${bestLabel}"`), positive: true });
+    if (full) chips.push({ kind: 'skills', label: clip(`Title fits "${bestLabel}"`), positive: true });
     else if (title >= 0.5) chips.push({ kind: 'skills', label: clip(`Title close to "${bestLabel}"`), positive: true });
   }
   const remote = r.work_mode === 'remote' || (r.work_mode === '' && r.remote === 1);

@@ -9,6 +9,7 @@
 //     from the owning lanes' tables, so a merge never collides; at integration each lane's package replaces its
 //     stand-in (see apps/server/README.md, "Interim stand-ins").
 
+import { CRAWLER_SCHEMA_VERSION } from '@jobleft/crawler';
 export interface Migration {
   version: number;
   name: string;
@@ -204,5 +205,6 @@ CREATE TABLE srv_extension_reviews (
 export const SERVER_SCHEMA_VERSION = SERVER_MIGRATIONS[SERVER_MIGRATIONS.length - 1]!.version;
 
 /** Owners whose steps this build runs. A file with steps of any other owner came from a build this one cannot read. */
-// 'static-data': the company_facts tables (i-core wires static-data into the app database).
-export const KNOWN_OWNERS: Readonly<Record<string, number>> = { server: SERVER_SCHEMA_VERSION, 'static-data': 1 };
+// i-core: the other owners whose tables live in the app database (docs/INTERFACES.md section 3). Without them a
+// second start refused the folder the first start wrote.
+export const KNOWN_OWNERS: Readonly<Record<string, number>> = { server: SERVER_SCHEMA_VERSION, crawler: CRAWLER_SCHEMA_VERSION, 'static-data': 1 };

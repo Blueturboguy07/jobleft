@@ -1,6 +1,7 @@
 // First-run board choice (i-core). When the person finishes the preference step and has no boards yet, jobleft adds
 // a starting set of employer boards and starts the first crawl at once. Every board below is a row of the boards
-// lane's directory with status "live" (checked against the provider). The set spans fields (health care, education,
+// lane's directory with status "live" (checked against the provider), except medcarepediatric and lifestance
+// (directory status "unverified"; both answered with open postings on 2026-09-25). The set spans fields (health care, education,
 // retail and food, finance, operations and trades, sales, software), so people outside software find their field.
 // Boards of the field the person picked come first, so their jobs arrive first.
 //
@@ -19,11 +20,12 @@ const a = (board: string, company: string): SeedBoard => ({ ats: 'ashby', board,
 
 export const SEED: Record<Field, SeedBoard[]> = {
   health: [
-    g('careaccess', 'Care Access'), g('ecpcareers', 'Eye Care Partners'), g('cadrehospice', 'Cadre Hospice'),
+    l('medcarepediatric', 'MedCare Pediatric'), g('careaccess', 'Care Access'), g('ecpcareers', 'Eye Care Partners'), l('lifestance', 'LifeStance Health'),
     g('cortica', 'Cortica'), g('evergreennephrology', 'Evergreen Nephrology'), g('charliehealthbehavioralhealthoperations', 'Charlie Health'),
     g('amwell', 'Amwell'), g('hopscotchprimarycare', 'Hopscotch Primary Care'), l('lunaphysicaltherapy', 'Luna Physical Therapy'),
     l('ppfa', 'Planned Parenthood Federation of America'), l('paramedicservices', 'Paramedic Services of Illinois'),
     g('cloverhealth', 'Clover Health'), g('bouldercare', 'Boulder Care'), l('everlywell', 'Everlywell'), g('daybreakhealth', 'Daybreak Health'),
+    g('galileo', 'Galileo'),
   ],
   education: [
     g('guidepostmontessori', 'Guidepost Montessori'), g('brookecharterschools', 'Brooke Charter Schools'), g('appletreeprep', 'AppleTree Prep'),
