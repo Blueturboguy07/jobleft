@@ -1053,7 +1053,7 @@ server (`JOBLEFT_PUBLIK_BASE_URL`).
 
 ### `@jobleft/resume`
 
-Status: **Built** (resume lane; 53 tests; commands in `packages/resume/README.md`). Purpose: import, base resumes and
+Status: **Built** (resume lane; 54 tests; commands in `packages/resume/README.md`). Purpose: import, base resumes and
 tailored versions, keyword gaps, tailoring with the truth gate, cover letters, one-page PDF and Word export, and the
 ATS check. Owns: tables `resumes` (base resumes and tailored versions, `kind` = base or tailored), `tailor_proposals`,
 `cover_letters` (migrations owner `resume`, version 1); files in `files/resumes/`; routes `listResumes`,

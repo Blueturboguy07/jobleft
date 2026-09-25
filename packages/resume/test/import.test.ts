@@ -129,3 +129,30 @@ test('a long multi-page resume is read in full, with jobs in order', async () =>
   assert.deepEqual(r.proposedProfile.work.map((w) => w.company), ['Northwind Sample Labs', 'Contoso Example Corp', 'Fabrikam Sample Inc', 'Tailspin Example Toys', 'Sample State University', 'Woodgrove Example Market']);
   for (const w of r.proposedProfile.work) assert.ok(w.bullets.length >= 6, `${w.company}: ${w.bullets.length}`);
 });
+
+test('other layouts: capital headings and numeric dates; pipes and a right sidebar; flush-right places and dates', async () => {
+  const a = (await importInProcess(read('variant-caps-numeric-dates.pdf'), 'a.pdf', 'application/pdf')).proposedProfile;
+  assert.deepEqual(a.work.map((w) => [w.company, w.title, w.location, w.startDate, w.endDate, w.current, w.bullets.length]), [
+    ['Northwind Sample Labs', 'Software Engineer', 'Austin, TX', '2023-06', null, true, 2],
+    ['Contoso Example Corp', 'Junior Developer', 'Dallas, TX', '2021-01', '2023-05', false, 1],
+  ]);
+  assert.equal(a.education[0]!.endDate, '2020-05');
+  assert.deepEqual(a.skills.map((s) => s.name), ['TypeScript', 'Python', 'SQL', 'Docker', 'Git', 'AWS (EC2, S3)']);
+  assert.equal(a.certifications[0]!.name, 'AWS Certified Cloud Practitioner');
+  assert.equal(a.personal.links[0]!.url, 'https://linkedin.com/in/jordan-testwell-example');
+  const b = (await importInProcess(read('variant-pipes-right-sidebar.pdf'), 'b.pdf', 'application/pdf')).proposedProfile;
+  assert.deepEqual(b.work.map((w) => [w.title, w.company, w.startDate, w.current]), [
+    ['Member of Technical Staff', 'Northwind Sample Labs', '2021-01', true], ['Software Engineering Intern', 'Contoso Example Corp', '2020', false],
+  ]);
+  assert.equal(b.work[0]!.bullets.length, 2);
+  assert.match(b.work[0]!.bullets[0]!, /morning reports were due\.$/, 'a wrapped bullet is joined, not split');
+  assert.deepEqual(b.skills.map((s) => s.name), ['TypeScript', 'React', 'Node.js', 'PostgreSQL', 'Docker', 'Kubernetes']);
+  assert.equal(b.personal.phone, '+1 (555) 010-0100');
+  const c = (await importInProcess(read('variant-flush-right.pdf'), 'c.pdf', 'application/pdf')).proposedProfile;
+  assert.deepEqual(c.work.map((w) => [w.company, w.title, w.location, w.startDate, w.endDate, w.bullets.length]), [
+    ['Northwind Sample Labs', 'Software Engineer', 'Austin, TX', '2023-06', null, 3],
+    ['Contoso Example Corp', 'Junior Developer', 'Dallas, TX', '2021-01', '2023-05', 2],
+    ['Fabrikam Sample Inc', 'Data Analyst', 'Houston, TX', '2019-06', '2020-12', 2],
+  ]);
+  assert.deepEqual(c.skills.map((s) => s.name), ['TypeScript', 'Python', 'SQL']);
+});

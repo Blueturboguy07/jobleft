@@ -93,6 +93,7 @@ export function findGutter(rows: Row[], pageWidth: number): number | null {
     if (crossing > rows.length * 0.12) continue;
     if (left < 4 || right < 4) continue;
     if (rightCells && rightDateish / rightCells >= 0.6) continue; // right-aligned dates, not a column
+    if (rightAligned(rows, x)) continue; // places and dates set flush right beside each entry, not a column
     const score = left + right - 3 * crossing;
     if (!best || score > best.score) best = { x, score };
   }
@@ -111,6 +112,20 @@ export function findGutterForPage(p: PdfPageInfo): { x: number; left: number; ri
     if (r.cells.some((c) => c.x >= x)) right++;
   }
   return { x, left, right };
+}
+
+/**
+ * True when the cells right of x are set flush right (their right edges line up, their left edges do not): the
+ * places and dates beside each entry. A real right column is set flush left.
+ */
+function rightAligned(rows: Row[], x: number): boolean {
+  const cells = rows.flatMap((r) => r.cells.filter((c) => c.x >= x));
+  if (cells.length < 3) return false;
+  const maxEnd = Math.max(...cells.map((c) => c.xEnd));
+  const minX = Math.min(...cells.map((c) => c.x));
+  const endAligned = cells.filter((c) => maxEnd - c.xEnd <= 3).length / cells.length;
+  const startAligned = cells.filter((c) => c.x - minX <= 3).length / cells.length;
+  return endAligned >= 0.7 && startAligned < 0.5;
 }
 
 function cellLine(cells: Cell[], page: number, column: 0 | 1 | 2, gapAbove: number): SrcLine {
