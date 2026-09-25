@@ -19,6 +19,8 @@ const CONFIG = {
     '/listing': '<html><script>var gh = "https://boards.greenhouse.io/embed/job_app?for=acme&token=1001"</script></html>',
     '/home.html': '<html><a href="/careers.html">Careers</a></html>',
     '/careers.html': '<iframe src="https://jobs.lever.co/beta"></iframe>',
+    '/framed.html': '<h1>Work with us</h1><iframe src="/frame-inner.html"></iframe>',
+    '/frame-inner.html': '<script src="https://jobs.ashbyhq.com/gamma/embed?version=2"></script>',
     '/nothing.html': '<html><h1>About us</h1><p>We make things.</p></html>',
     '/scriptonly.html': '<div id="grnhse_app"></div><script>loadBoard()</script>',
     '/to-workday.html': '<meta http-equiv="refresh" content="0; url=https://acme.wd5.myworkdayjobs.com/External">',
@@ -86,6 +88,8 @@ test('employer pages: script embed, footer partner ignored, two boards, gh_jid l
     assert.deepEqual(go.candidates.map((c) => c.boardId), ['ashby:gamma']);
     const hop = await r.service.resolve('https://careers.mock.example/home.html');
     assert.deepEqual(hop.candidates.map((c) => c.boardId), ['lever:beta']);
+    const framed = await r.service.resolve('https://careers.mock.example/framed.html');
+    assert.deepEqual(framed.candidates.map((c) => c.boardId), ['ashby:gamma']);
   } finally { await r.close(); }
 });
 

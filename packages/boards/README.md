@@ -107,8 +107,8 @@ anything. `--json` prints the `BoardResolveResponse` contract.
 - Employer-hosted pages: jobleft reads the page (with the same polite client) and finds a board behind a plain link,
   an iframe, a script embed, an inline embed config, an "Apply" button, a form, a meta refresh, a script redirect or
   an HTTP redirect (the target is checked before anything is sent to it). A partner's board in a footer, nav bar or
-  aside never beats the employer's own board. A page with two boards lists both and asks you to choose. A home page
-  with no board gets one more look at its own careers link.
+  aside never beats the employer's own board. A page with two boards lists both and asks you to choose. A page with
+  no board gets one more look on the same site: a frame of the page, or else its own careers link.
 - Forbidden hosts (LinkedIn, Indeed, Glassdoor, SmartRecruiters, Workday, iCIMS, Oracle, UKG, Taleo) get no request
   at all, also as a redirect target or an embed target. The answer says plainly that the site is not supported.
 - A link that names a board the provider does not have answers `no_board_found`; jobleft never tries a company

@@ -33,6 +33,8 @@ export interface PageScan {
   forbiddenTarget: string | null;
   /** Same-site links that look like a careers page (one more hop may find the board there). */
   careersLinks: string[];
+  /** Same-host frames (a careers page that frames its own jobs page, which embeds the board). */
+  frameLinks: string[];
   /** Providers the page names without a readable board (a Greenhouse app div, a Workable numeric embed, gh_jid). */
   providerHints: CrawlAtsId[];
 }
@@ -116,6 +118,7 @@ export function scanPage(htmlIn: string, pageUrl: URL): PageScan {
   let redirect: string | null = null;
   let forbiddenTarget: string | null = null;
   const careers = new Set<string>();
+  const frames = new Set<string>();
   const hints = new Set<CrawlAtsId>();
 
   const add = (raw: string, evidence: Evidence, at: number): void => {
@@ -162,7 +165,11 @@ export function scanPage(htmlIn: string, pageUrl: URL): PageScan {
       }
     } else if (name === 'iframe' || name === 'frame') {
       const src = a.get('src') ?? a.get('data-src');
-      if (src) add(src, 'iframe', at);
+      if (src) {
+        add(src, 'iframe', at);
+        const u = absolute(src, pageUrl);
+        if (u && u.host === pageUrl.host && u.href !== pageUrl.href) frames.add(u.origin + u.pathname + u.search);
+      }
     } else if (name === 'script') {
       const src = a.get('src');
       if (src) add(src, 'script', at);
@@ -219,5 +226,5 @@ export function scanPage(htmlIn: string, pageUrl: URL): PageScan {
     Number(y.domainMatch) - Number(x.domainMatch) ||
     (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
   for (const b of boards) hints.delete(b.ats);
-  return { boards, redirect, forbiddenTarget, careersLinks: [...careers].slice(0, 3), providerHints: [...hints] };
+  return { boards, redirect, forbiddenTarget, careersLinks: [...careers].slice(0, 3), frameLinks: [...frames].slice(0, 2), providerHints: [...hints] };
 }

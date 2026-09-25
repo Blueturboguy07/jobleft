@@ -4,7 +4,8 @@
 //
 // The walk: fetch the page with the polite client; a redirect is never followed blindly (its target is checked
 // first: a forbidden host ends the walk, a board link is the answer); scan the HTML for embedded boards; follow a
-// meta refresh or script redirect; from a home page with no board, try one same-site careers link. At most 6 pages.
+// meta refresh or script redirect; from a page with no board, look once more on the same site (a frame of the page,
+// else its careers link). At most 6 pages.
 
 import type { BoardResolveResponse, CrawlAtsId } from '@jobleft/contracts';
 import { HttpError } from '@jobleft/crawler';
@@ -124,9 +125,11 @@ export async function walkForBoards(first: Extract<UrlDetection, { kind: 'page' 
       if ('kind' in f) return f;
       current = f.next; hops++; continue;
     }
-    if (!careersHop && scan.careersLinks.length) {
+    // One more look on the same site: a frame of the page first, else its careers link.
+    const next = scan.frameLinks[0] ?? scan.careersLinks[0];
+    if (!careersHop && next) {
       careersHop = true;
-      current = new URL(scan.careersLinks[0]!); hops++; continue;
+      current = new URL(next); hops++; continue;
     }
     break;
   }
