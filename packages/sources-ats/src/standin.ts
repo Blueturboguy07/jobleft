@@ -3,7 +3,7 @@
 // contacts the internet: servers listen on 127.0.0.1 only.
 //
 // Folder layout (one file per board; "<board>@<region>" selects a regional host, for example acme@com.xml):
-//   greenhouse/<board>.json   -> GET /v1/boards/<board>/jobs            on boards-api.greenhouse.io
+//   greenhouse/<board>.json   -> GET /v1/boards/<board>/jobs            on boards-api.greenhouse.io (.eu. for @eu)
 //   lever/<board>.json        -> GET /v0/postings/<board>               on api.lever.co (api.eu.lever.co for @eu)
 //   ashby/<board>.json        -> GET /posting-api/job-board/<board>     on api.ashbyhq.com
 //   workable/<board>.json     -> GET /api/v1/widget/accounts/<board>    on apply.workable.com
@@ -21,9 +21,8 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CrawlAtsId } from '@jobleft/contracts';
-import { hostFor } from '@jobleft/crawler';
 import type { BoardRef } from '@jobleft/crawler';
-import { boardHost, normalRegion } from './hosts.ts';
+import { atsHost, boardHost, normalRegion } from './hosts.ts';
 
 const FAMILIES: Record<string, { ext: string; type: string }> = {
   greenhouse: { ext: '.json', type: 'application/json' },
@@ -60,7 +59,7 @@ export interface Standin {
 }
 
 function hostOf(ats: string, board: string, region: string | null): string {
-  if (ats === 'greenhouse' || ats === 'lever' || ats === 'ashby') return hostFor(ats, region ?? undefined);
+  if (ats === 'greenhouse' || ats === 'lever' || ats === 'ashby') return atsHost(ats, region);
   return boardHost({ ats: ats as CrawlAtsId, board, region: region ?? undefined });
 }
 
@@ -80,7 +79,7 @@ export function listStandinBoards(dir: string): StandinBoard[] {
       if (!file.endsWith(f.ext) || file.endsWith('.meta.json') || file.endsWith(`.en${f.ext}`)) continue;
       const stem = file.slice(0, -f.ext.length);
       const [board, rawRegion] = stem.split('@');
-      const region = rawRegion ? (['greenhouse', 'lever', 'ashby'].includes(ats) ? rawRegion : normalRegion(ats as CrawlAtsId, rawRegion)) : null;
+      const region = rawRegion ? normalRegion(ats as CrawlAtsId, rawRegion) : null;
       const named = names[`${ats}:${stem}`] ?? names[`${ats}:${board}`];
       out.push({
         ats: ats as CrawlAtsId, board, company: named?.company ?? board, ...(region ? { region } : {}),

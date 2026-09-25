@@ -78,11 +78,14 @@ test('boards on one host are paced 1 s apart; boards on their own sub-domains ar
   const s = await startStandin(dir);
   const store = new Store(join(t.dir, 'jobs.db'));
   try {
-    const http = new HttpClient({ hostMap: s.hostMap, pacer: new Pacer(1000), fetchImpl: politeFetch() });
+    // The times are those at which politeFetch sent each request (the stand-in server shares this process's event loop,
+    // so its own arrival times carry the loop's delay on a busy machine).
+    const sent: number[] = [];
+    const http = new HttpClient({ hostMap: s.hostMap, pacer: new Pacer(1000), fetchImpl: politeFetch({ onRequest: (e) => { if (e.sentAtMs !== undefined) sent.push(e.sentAtMs); } }) });
     await crawl(s.boards.map(({ ats, board, company }) => ({ ats, board, company })), { store, http, sources: allSources() });
-    const times = s.requests.map((q) => Date.parse(q.at));
-    assert.equal(times.length, 4); // robots.txt + 3 boards, all on apply.workable.com
-    for (let i = 1; i < times.length; i++) assert.ok(times[i] - times[i - 1] >= 990, `gap ${times[i] - times[i - 1]} ms`);
+    assert.equal(s.requests.length, 4); // robots.txt + 3 boards, all on apply.workable.com
+    assert.equal(sent.length, 4);
+    for (let i = 1; i < sent.length; i++) assert.ok(sent[i] - sent[i - 1] >= 1000, `gap ${sent[i] - sent[i - 1]} ms`);
   } finally {
     await s.close(); store.close(); t.done();
   }

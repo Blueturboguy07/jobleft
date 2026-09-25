@@ -4,6 +4,7 @@
 import type { AtsId } from '@jobleft/contracts';
 import type { RunReport, Store } from '@jobleft/crawler';
 import { atsName } from './detect.ts';
+import { robotsProblemFor } from './polite-fetch.ts';
 import { notCrawledReason } from './source-list.ts';
 
 /** One short plain reason for a failed board, from the crawler's `${name}: ${message}` error text. */
@@ -31,7 +32,14 @@ export function plainReason(error: string | null | undefined): string | null {
   if (/TimeoutError|timed out|timeout/i.test(e)) return 'the board did not answer in time (20 seconds per try, 3 tries)';
   if (/AbortError/.test(e)) return 'the request was stopped before the board answered';
   if (/fetch failed|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ECONNRESET|socket/i.test(e)) return 'the host could not be reached';
-  if (/^RobotsError/.test(e)) return "the host's robots.txt disallows this feed, so nothing was requested";
+  const cd = /^CrawlDelayError: robots\.txt on (\S+) asks for (\d+) s between requests/.exec(e);
+  if (cd) return `the host ${cd[1]} asks for ${cd[2]} seconds between requests in its robots.txt (Crawl-delay), longer than jobleft waits; the board waits for a later run`;
+  if (/^RobotsError/.test(e)) {
+    // The crawler also says "disallowed" when robots.txt could not be read; the fetch layer remembers the real reason.
+    const url = /for (https?:\/\/\S+)$/.exec(e)?.[1];
+    const problem = url ? robotsProblemFor(url) : null;
+    return problem ?? "the host's robots.txt disallows this feed, so nothing was requested";
+  }
   if (/^DeniedHostError/.test(e)) return "this host is on jobleft's never-contact list; nothing was sent";
   if (/^BudgetError/.test(e)) return "the run's request budget ran out before this board";
   const m = /^(FeedFormatError|PagingError|BoardTokenError|SourceChangedError): (.*)$/s.exec(e);

@@ -9,7 +9,8 @@ import { arr, countryFromCode, employmentTypeFromText, obj, str } from '@jobleft
 import type { BoardRef, HttpGetter, RawJob, Source, WorkMode } from '@jobleft/crawler';
 import { FeedFormatError } from '../errors.ts';
 import { boardHost } from '../hosts.ts';
-import { countryCodes, httpUrl, joinDistinct, pathBoard, placeText, postedIso, textField, unreadableJob, unwrapEscapedHtml } from '../util.ts';
+import { countryCodes, httpUrl, joinDistinct, pathBoard, placeText, postedIso, textField, unreadableJob, cleanDescription } from '../util.ts';
+import { polishSource } from '../polish.ts';
 
 export const WORKABLE_HOST = 'apply.workable.com';
 
@@ -58,7 +59,7 @@ export function mapWorkable(j: Record<string, unknown>, board: BoardRef, account
     title,
     company: textField(account.name) || board.company,
     location,
-    descriptionHtml: unwrapEscapedHtml(description),
+    descriptionHtml: cleanDescription(description),
     remote,
     workMode: mode,
     countries,
@@ -70,7 +71,7 @@ export function mapWorkable(j: Record<string, unknown>, board: BoardRef, account
   };
 }
 
-export const workable: Source = {
+export const workable: Source = polishSource({
   ats: 'workable',
   fullBoardListing: true,
   host: (b: BoardRef) => boardHost(b),
@@ -83,7 +84,7 @@ export const workable: Source = {
     const account = resp as Record<string, unknown>;
     return mergeByShortcode(arr(account.jobs).map((j) => mapWorkable(obj(j), board, account)));
   },
-};
+});
 
 /**
  * Workable lists a job once per location, with the same shortcode each time (seen live on 2026-09-25: one

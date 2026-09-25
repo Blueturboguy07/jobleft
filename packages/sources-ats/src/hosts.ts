@@ -2,7 +2,7 @@
 //
 // | ATS        | Feed host                                   | region values          |
 // |------------|---------------------------------------------|------------------------|
-// | greenhouse | boards-api.greenhouse.io (crawler adapter)   | none                   |
+// | greenhouse | boards-api.greenhouse.io, boards-api.eu.greenhouse.io | "eu"          |
 // | lever      | api.lever.co, api.eu.lever.co               | "eu"                   |
 // | ashby      | api.ashbyhq.com                             | none                   |
 // | workable   | apply.workable.com                          | none                   |
@@ -22,7 +22,7 @@ export const SUBDOMAIN_FAMILIES: ReadonlySet<CrawlAtsId> = new Set<CrawlAtsId>([
 export function normalRegion(ats: CrawlAtsId, region: string | null | undefined): string | null {
   const r = (region ?? '').trim().toLowerCase();
   if (!r) return null;
-  if (ats === 'lever' && r === 'eu') return 'eu';
+  if ((ats === 'lever' || ats === 'greenhouse') && r === 'eu') return 'eu';
   if (ats === 'personio' && (r === 'com' || r === 'de')) return r === 'com' ? 'com' : null;
   if (ats === 'teamtailor' && r === 'na') return 'na';
   return null;
@@ -35,7 +35,8 @@ export function normalRegion(ats: CrawlAtsId, region: string | null | undefined)
 export function atsHost(ats: CrawlAtsId, region: string | null): string {
   const r = normalRegion(ats, region);
   switch (ats) {
-    case 'greenhouse': case 'ashby': return hostFor(ats);
+    case 'greenhouse': return r === 'eu' ? 'boards-api.eu.greenhouse.io' : hostFor(ats);
+    case 'ashby': return hostFor(ats);
     case 'lever': return hostFor('lever', r ?? undefined);
     case 'workable': return 'apply.workable.com';
     case 'recruitee': return 'recruitee.com';

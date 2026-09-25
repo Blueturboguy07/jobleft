@@ -8,7 +8,8 @@ import { arr, obj, str } from '@jobleft/crawler';
 import type { BoardRef, HttpGetter, RawJob, Source, WorkMode } from '@jobleft/crawler';
 import { FeedFormatError } from '../errors.ts';
 import { boardHost } from '../hosts.ts';
-import { escapeHtml, httpUrl, joinDistinct, pathBoard, postedIso, textField, unreadableJob, unwrapEscapedHtml } from '../util.ts';
+import { escapeHtml, httpUrl, joinDistinct, pathBoard, postedIso, textField, unreadableJob, cleanDescription } from '../util.ts';
+import { polishSource } from '../polish.ts';
 
 export const GEM_HOST = 'api.gem.com';
 
@@ -54,7 +55,7 @@ export function mapGem(p: Record<string, unknown>, board: BoardRef): RawJob {
     title,
     company: board.company,
     location,
-    descriptionHtml: unwrapEscapedHtml(html) || (plain ? escapeHtml(plain).replace(/\n/g, '<br>') : ''),
+    descriptionHtml: cleanDescription(html) || (plain ? escapeHtml(plain).replace(/\n/g, '<br>') : ''),
     remote: mode === 'remote',
     workMode: mode,
     countries: [],
@@ -65,7 +66,7 @@ export function mapGem(p: Record<string, unknown>, board: BoardRef): RawJob {
   };
 }
 
-export const gem: Source = {
+export const gem: Source = polishSource({
   ats: 'gem',
   fullBoardListing: true,
   host: (b: BoardRef) => boardHost(b),
@@ -77,4 +78,4 @@ export const gem: Source = {
     }
     return resp.map((p) => mapGem(obj(p), board));
   },
-};
+});

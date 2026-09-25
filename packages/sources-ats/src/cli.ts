@@ -16,6 +16,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { crawl, HttpClient, hostMapFromEnv, Store, USER_AGENT } from '@jobleft/crawler';
 import type { BoardRef } from '@jobleft/crawler';
 import { atsName, classifyUrl } from './detect.ts';
+import { stripControls } from './entities.ts';
 import { politeFetch } from './polite-fetch.ts';
 import { allSources } from './registry.ts';
 import { buildHealthReport, plainReason } from './report.ts';
@@ -24,15 +25,20 @@ import { startStandin } from './standin.ts';
 
 type Args = { _: string[]; [k: string]: string | string[] };
 
+/** Flags that never take a value: `detect --json A B` keeps A and B as links. */
+const BOOLEAN_FLAGS = new Set(['json', 'full']);
+
 function parseArgs(argv: string[]): Args {
   const out: Args = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--') continue;
     if (!a.startsWith('--')) { out._.push(a); continue; }
+    const eq = a.indexOf('=');
+    if (eq > 2) { out[a.slice(2, eq)] = a.slice(eq + 1); continue; }
     const k = a.slice(2);
     const v = argv[i + 1];
-    if (v === undefined || v.startsWith('--')) out[k] = 'true';
+    if (BOOLEAN_FLAGS.has(k) || v === undefined || v.startsWith('--')) out[k] = 'true';
     else { out[k] = v; i++; }
   }
   return out;
@@ -173,6 +179,12 @@ function cmdJobs(args: Args): void {
   const rows = db.prepare(`SELECT * FROM jobs ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY ats, board, job_id`)
     .all(...params) as unknown as JobRow[];
   const full = !!flag(args, 'full');
+  // Text from postings is printed as plain text: a control character (ESC, BEL, NUL) in an old row must not reach the terminal.
+  const safe = (v: string): string => stripControls(v).replace(/\r/g, '');
+  for (const r of rows) {
+    r.title = safe(r.title); r.company = safe(r.company); r.location = safe(r.location ?? '');
+    r.department = safe(r.department ?? ''); r.description = safe(r.description ?? '');
+  }
   const shaped = rows.map((r) => ({
     id: `${r.ats}:${r.board}:${r.job_id}`.replace(/^([^:]+):([^:]+):/, (_m, a: string, b: string) => `${a.toLowerCase()}:${b.toLowerCase()}:`),
     ats: r.ats, board: r.board, externalId: r.job_id, title: r.title, company: r.company,

@@ -8,7 +8,12 @@
 export const PACKAGE_NAME = '@jobleft/sources-ats';
 
 // Registry
-export { ATS_SOURCES, allSources, crawledAtsIds } from './registry.ts';
+export { ATS_SOURCES, allSources, BUILTIN_SOURCES, crawledAtsIds } from './registry.ts';
+export { ashbyOverallPay, greenhouseUrlFor, GREENHOUSE_EU_HOST } from './adapters/builtins.ts';
+export { parseEuropeanPay } from './pay-text.ts';
+export { cleanDescription, descriptionText, statedPay, textField } from './util.ts';
+export { decodeEntitiesFull, stripControls } from './entities.ts';
+export { polishRaw, polishSource } from './polish.ts';
 
 // Detection from a URL (pure string work, sends nothing)
 export { atsName, classifyUrl, detectAts, neverContactHost } from './detect.ts';

@@ -4,11 +4,12 @@
 // Change announced by Recruitee: "Deadline for introducing the token to calls is 10 February 2027. Calls without the
 // authorization header will return the 401 Unauthorized error." jobleft has no token, so a 401 becomes a plain reason.
 
-import { arr, countryFromCode, HttpError, makePay, num, obj, str } from '@jobleft/crawler';
+import { arr, countryFromCode, HttpError, num, obj, str } from '@jobleft/crawler';
 import type { BoardRef, HttpGetter, PayPeriod, RawJob, RawPay, Source, WorkMode } from '@jobleft/crawler';
 import { FeedFormatError, SourceChangedError } from '../errors.ts';
 import { boardHost } from '../hosts.ts';
-import { countryCodes, httpUrl, joinDistinct, placeText, postedIso, subdomainBoard, textField, unreadableJob, unwrapEscapedHtml } from '../util.ts';
+import { countryCodes, httpUrl, joinDistinct, placeText, postedIso, statedPay, subdomainBoard, textField, unreadableJob, cleanDescription } from '../util.ts';
+import { polishSource } from '../polish.ts';
 
 export function recruiteeUrl(board: string): string {
   return `https://${subdomainBoard('recruitee', board)}.recruitee.com/api/offers/`;
@@ -25,12 +26,12 @@ function payPeriod(p: string): PayPeriod | '' {
   }
 }
 
-/** Recruitee states pay as plain amounts in strings ("100", "1000"), never in cents. No currency, no pay. */
+/** Recruitee states pay as plain amounts in strings ("22.50", "25000"), never in cents. No currency, no pay; no period, period "not stated". */
 export function recruiteePay(salary: unknown): RawPay | null {
   const s = obj(salary);
   const currency = str(s.currency).trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency)) return null;
-  return makePay(num(s.min), num(s.max), currency, payPeriod(str(s.period)));
+  return statedPay(num(s.min), num(s.max), currency, payPeriod(str(s.period)) || null);
 }
 
 function employmentType(code: string): string {
@@ -75,7 +76,7 @@ export function mapRecruitee(o: Record<string, unknown>, board: BoardRef): RawJo
     title,
     company: textField(o.company_name) || board.company,
     location,
-    descriptionHtml: unwrapEscapedHtml(description),
+    descriptionHtml: cleanDescription(description),
     remote: o.remote === true,
     workMode: mode,
     countries,
@@ -86,7 +87,7 @@ export function mapRecruitee(o: Record<string, unknown>, board: BoardRef): RawJo
   };
 }
 
-export const recruitee: Source = {
+export const recruitee: Source = polishSource({
   ats: 'recruitee',
   fullBoardListing: true,
   host: (b: BoardRef) => boardHost(b),
@@ -106,4 +107,4 @@ export const recruitee: Source = {
     }
     return arr((resp as { offers: unknown[] }).offers).map((o) => mapRecruitee(obj(o), board));
   },
-};
+});

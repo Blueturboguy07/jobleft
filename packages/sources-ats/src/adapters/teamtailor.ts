@@ -11,7 +11,8 @@ import { countryFromCode } from '@jobleft/crawler';
 import type { BoardRef, HttpGetter, RawJob, Source, WorkMode } from '@jobleft/crawler';
 import { FeedFormatError, PagingError } from '../errors.ts';
 import { atsHost, boardHost, normalRegion } from '../hosts.ts';
-import { httpUrl, joinDistinct, placeText, postedIso, subdomainBoard, textField, textGetter, unreadableJob, unwrapEscapedHtml } from '../util.ts';
+import { httpUrl, joinDistinct, placeText, postedIso, subdomainBoard, textField, textGetter, unreadableJob, cleanDescription } from '../util.ts';
+import { polishSource } from '../polish.ts';
 import { child, childText, children, parseXml, text } from '../xml.ts';
 import type { XmlElement } from '../xml.ts';
 
@@ -59,7 +60,7 @@ export function mapTeamtailorItem(item: XmlElement, board: BoardRef, company: st
     title,
     company,
     location,
-    descriptionHtml: unwrapEscapedHtml(text(child(item, 'description'))),
+    descriptionHtml: cleanDescription(text(child(item, 'description'))),
     remote: mode === 'remote',
     workMode: mode,
     countries,
@@ -76,7 +77,7 @@ function channelOf(root: XmlElement, url: string): XmlElement {
   return channel;
 }
 
-export const teamtailor: Source = {
+export const teamtailor: Source = polishSource({
   ats: 'teamtailor',
   // Every page is read and any page problem fails the whole board, so a returned list IS the whole board.
   fullBoardListing: true,
@@ -113,4 +114,4 @@ export const teamtailor: Source = {
     }
     return out;
   },
-};
+});

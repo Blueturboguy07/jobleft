@@ -59,7 +59,7 @@ export async function crawlStandin(dir: string, dbPath: string, boards?: BoardRe
   const store = opts.store ?? new Store(dbPath);
   const http = new HttpClient({
     hostMap: standin.hostMap, pacer: new Pacer(opts.paceMs ?? 0), retries: 0, retryDelayMs: 0,
-    timeoutMs: opts.timeoutMs ?? 5000, fetchImpl: politeFetch({ maxWaitMs: 0 }),
+    timeoutMs: opts.timeoutMs ?? 5000, fetchImpl: politeFetch({ maxWaitMs: 0, timeoutMs: opts.timeoutMs ?? 5000 }),
   });
   const list = boards ?? standin.boards.map(({ ats, board, company, region }) => ({ ats, board, company, ...(region ? { region } : {}) }));
   const report = await crawl(list, { store, http, sources: allSources(), now: opts.now, graceMs: opts.graceMs });
