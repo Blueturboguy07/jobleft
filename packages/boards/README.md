@@ -146,7 +146,7 @@ jb jobs greenhouse:acme --all  # the jobs a board's refreshes stored; closed one
   the next refresh. Two failures in a row make it `unreachable` with a next check date (1 day, then 2, 4, ... up to
   30 days); it gets no request before that date. When it answers again it is `live` again, with no action from you.
 - A failed, "not found", empty or broken answer never closes the board's jobs (the crawler closes a job only after a
-  refresh that read the whole board did not list it for 48 hours). An empty answer from a board that had jobs shows
+  refresh that read the whole board has not listed it for 24 hours). An empty answer from a board that had jobs shows
   a warning, not "live, 0 jobs".
 - Every request carries `User-Agent: jobleft-build/0.1 (research build; no personal data)` and nothing else about
   you. Requests to one host are at least 1.1 seconds apart, across pastes, refreshes and even several jobleft

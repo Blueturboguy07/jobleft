@@ -30,13 +30,13 @@ export {
   networkCode, offlineFromEnv, redirectLogFor,
 } from './http.ts';
 export type { BoardHttpOptions, BoardHttpState } from './http.ts';
-export { boardSources } from './sources.ts';
+export { boardSources, unreadableRegion } from './sources.ts';
 export { classifyError, verifyBoard } from './verify.ts';
 export type { CheckFailure, VerifyResult } from './verify.ts';
 export { migrateBoards, SCHEMA_VERSION } from './db.ts';
 export { BoardError, BoardService, UNREACHABLE_AFTER, backoffMs, priceText } from './service.ts';
 export type { BoardErrorCode, BoardServiceOptions, CheckOutcome, ListView, PaidPageFetcher } from './service.ts';
-export { CrawlScheduler, outcomeOf } from './scheduler.ts';
+export { CrawlScheduler, DEFAULT_GRACE_MS, outcomeOf } from './scheduler.ts';
 export type { SchedulerOptions } from './scheduler.ts';
 export { detectBoard } from './discover.ts';
 export type { DetectBoardResult } from './discover.ts';

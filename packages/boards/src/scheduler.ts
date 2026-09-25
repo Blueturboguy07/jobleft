@@ -30,7 +30,11 @@ export interface SchedulerOptions {
   offline?: () => boolean;
   /** Boards per batch (default 40). */
   batchSize?: number;
-  /** Passed to crawl(): how long a posting may be unseen on a covered board before it closes (default 48 h). */
+  /**
+   * Passed to crawl(): how long a posting may be missing from a board whose whole list was read before it closes.
+   * Default 24 h here (the crawler's own default is 48 h): with a refresh every 6 hours a removed job closes 24 to
+   * 30 hours after the first refresh that no longer lists it, and one flaky answer never closes anything.
+   */
   graceMs?: number;
 }
 
@@ -66,6 +70,9 @@ export function outcomeOf(r: BoardResult): { outcome: CheckOutcome | null; statu
 }
 
 function iso(ms: number): string { return new Date(ms).toISOString(); }
+
+/** A posting missing from a fully read board for this long closes (see SchedulerOptions.graceMs). */
+export const DEFAULT_GRACE_MS = 24 * 3_600_000;
 
 export class CrawlScheduler {
   private o: SchedulerOptions;
@@ -198,7 +205,7 @@ export class CrawlScheduler {
         if (batch.length === 0) { this.emit(); continue; }
         const res = await crawl(batch, {
           store: this.o.crawlStore, http, sources: this.o.sources, now: this.now,
-          ...(this.o.graceMs !== undefined ? { graceMs: this.o.graceMs } : {}),
+          graceMs: this.o.graceMs ?? DEFAULT_GRACE_MS,
           onBoard: (r) => {
             const id = boardId(r.ats, r.board, batch.find((b) => b.ats === r.ats && b.board === r.board)?.region ?? null);
             const o = outcomeOf(r);

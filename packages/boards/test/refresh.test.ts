@@ -105,3 +105,20 @@ test('a newer directory never removes, renames or re-enables the person boards a
     assert.equal(next.get('lever:fol1')?.company, 'Fol One');
   } finally { await r.close(); }
 });
+
+test('a job removed from a working board closes after two refreshes a day apart; the others stay open', async () => {
+  const ids = Array.from({ length: 20 }, (_, i) => String(2000 + i));
+  const r = await rig({ boards: { 'greenhouse:acme': { name: 'Acme', jobs: ids } } }, { directory: [row('greenhouse', 'acme', 'Acme')] });
+  try {
+    await r.scheduler.runOnce();
+    r.mock.setBoard('greenhouse:acme', { name: 'Acme', jobs: ids.slice(1) });
+    r.clock.now += 60 * 60_000;
+    await r.scheduler.runOnce();
+    assert.equal(r.store.count("board = 'acme' AND closed_at IS NOT NULL"), 0, 'not closed after one refresh');
+    r.clock.now += DAY;
+    await r.scheduler.runOnce();
+    assert.equal(r.store.count("board = 'acme' AND closed_at IS NOT NULL"), 1);
+    assert.equal(r.store.count("board = 'acme' AND closed_at IS NOT NULL AND job_id = '2000'"), 1);
+    assert.equal(r.store.count("board = 'acme' AND closed_at IS NULL"), 19);
+  } finally { await r.close(); }
+});
