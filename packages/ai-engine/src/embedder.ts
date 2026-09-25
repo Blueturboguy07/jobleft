@@ -110,7 +110,11 @@ export class WordPieceTokenizer {
     return ids;
   }
 
-  /** [CLS] tokens [SEP], cut to maxLength. */
+  /**
+   * [CLS] tokens [SEP], cut to maxLength. A long text keeps its closing [SEP] (the Python BertTokenizer rule the model
+   * was trained with). Checked against the spike S2 reference pipeline on 2026-09-25: the same token ids and cosine
+   * 1.000000 for texts under 512 tokens; transformers.js drops the [SEP] when it truncates, so texts over 512 tokens differ.
+   */
   encode(text: string, maxLength = 512): number[] {
     const ids: number[] = [this.clsId];
     for (const w of this.basic(text)) {
