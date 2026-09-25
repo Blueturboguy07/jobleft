@@ -12,7 +12,7 @@
 // Interface: docs/INTERFACES.md, section "@jobleft/contracts".
 
 export const PACKAGE_NAME = '@jobleft/contracts';
-export const CONTRACTS_VERSION = '1.0.0';
+export const CONTRACTS_VERSION = '1.1.0';
 
 export * from './schema.ts';
 export * from './validate.ts';
