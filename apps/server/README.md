@@ -42,8 +42,12 @@ Use a scratch data folder for every test, for example `/private/tmp/jl-eval`. Ne
 
 ```sh
 export JOBLEFT_HOME=/private/tmp/jl-eval
-node apps/server/src/main.ts
+node apps/server/src/main.ts                     # or: node apps/server/src/main.ts --home /private/tmp/jl-eval
 ```
+
+Always set a scratch folder (`JOBLEFT_HOME` or `--home`). With neither, the server uses the real folder
+`~/Library/Application Support/jobleft`. `--help` and `--version` print and exit without starting; any other argument
+prints the usage and exits 1 without touching any folder. `--port <n>` is the port to try first (as `JOBLEFT_PORT`).
 
 You see (the port and the token differ):
 
@@ -197,6 +201,8 @@ You see JSON like this (use it before and after a `kill -9`, a restart, a backup
 | Any route but `health` and `extension/pair`, with no token or a wrong token | `401 unauthorized` |
 | `curl .../api/v1/settings?token=$T` | `400`: tokens are never accepted in a URL |
 | `curl --resolve attacker.example:$P:127.0.0.1 -H "x-jobleft-token: $T" http://attacker.example:$P/api/v1/settings` | `403 forbidden_host` (also for `127.0.0.1.attacker.example`) |
+| Two `Host` lines in one request, sent raw: `printf "GET /api/v1/settings HTTP/1.1\r\nHost: 127.0.0.1:$P\r\nHost: attacker.example\r\nx-jobleft-token: $T\r\nConnection: close\r\n\r\n" \| nc 127.0.0.1 $P` | `400`. A target that is not a plain path (`//etc/passwd`, a full URL) answers `404` |
+| A body key that the contract does not declare (for example `"bogus"` or `"constructor"`) | Dropped: it is never stored, and the answer shows what was stored |
 | A request with `Origin: http://127.0.0.1:8099`, `Origin: null` or any other site | `403 forbidden_origin`, and no `Access-Control-Allow-Origin` header |
 | A form post: `-H 'content-type: text/plain'` (or urlencoded, multipart) | `415 unsupported_media_type`, before any work |
 | No Origin but `Sec-Fetch-Site: cross-site` (an image or script tag on another site) | `403` |
@@ -420,7 +426,7 @@ Data saved in an interim table is not moved into a lane's table automatically ye
 ## 14. Tests
 
 ```sh
-pnpm --filter @jobleft/server test        # 44 tests: security, records, kill -9, backup, pairing, lifecycle, AI, crawl, add by link, exact board facts
+pnpm --filter @jobleft/server test        # 47 tests: security, records, kill -9, backup, pairing, lifecycle, AI, crawl, add by link, exact board facts, arguments
 pnpm --filter @jobleft/server typecheck
 ```
 

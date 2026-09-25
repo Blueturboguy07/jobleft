@@ -1304,9 +1304,13 @@ Owns: tables `pairings`, `srv_kv`, `srv_notifications` and the interim `srv_*` t
 | `startServer(opts: ServerOptions): Promise<RunningServer>` | `ServerOptions { home, port?, launchToken, uiDir?, dev?, parentPid?, offline?, env?, secrets?, onStop? }`; `RunningServer { port, origin, uiUrl, close() }`. Throws `AlreadyRunningError` (another live server on the folder) or `DataFolderError` (`kind`: newer, read_only, full, not_jobleft, upgrade_failed; nothing was changed) |
 | `SERVER_SCHEMA_VERSION`, `APP_VERSION`, `readRunFile(path)`, `memorySecrets()` | Schema version of the server's tables (2), the app version, the run file reader, a test secret store |
 
-Entry point: `node apps/server/src/main.ts` (reads section 4; exit codes 0 stopped, 1 could not start, 2 data folder
-refused and untouched, 3 already running). It prints the UI address and the token unless `JOBLEFT_QUIET=1`, and stops
-cleanly within 5 s on SIGTERM, SIGINT or SIGHUP, and within 10 s after `JOBLEFT_PARENT_PID` is gone.
+Entry point: `node apps/server/src/main.ts [--home <dir>] [--port <n>]` (reads section 4; `--home` and `--port` win over
+`JOBLEFT_HOME` and `JOBLEFT_PORT`; `--help` and `--version` print and exit 0; any other argument prints the usage and
+exits 1 before any folder is touched; exit codes 0 stopped, 1 could not start, 2 data folder refused and untouched,
+3 already running). It prints the UI address and the token unless `JOBLEFT_QUIET=1`, and stops cleanly within 5 s on
+SIGTERM, SIGINT or SIGHUP, and within 10 s after `JOBLEFT_PARENT_PID` is gone. A request with two `Host` lines answers
+`400`; a request target that is not a plain path (`//x`, `*`, a full URL) answers `404`. Keys that a body's contract
+does not declare are dropped before anything is stored (also keys such as `constructor` or `toString`).
 
 CLI (`node apps/server/src/cli.ts`): `seed-jobs --home <dir> --count <n>` (synthetic jobs for speed tests),
 `fixture --home <dir> --schema 1|future` (an older or a newer data folder with the test persona, for upgrade tests),
