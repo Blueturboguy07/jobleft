@@ -38,6 +38,8 @@ Local additions that are not in freehire (written new): the per-host pacer, the 
 
 None yet. The static-data lane adds entries here (board directory, H-1B sponsor table from US Department of Labor LCA disclosure files, city dictionary with its attribution, skill dictionary).
 
+Note (parsers lane, 2026-09-25): `packages/parsers/src/geo-us.ts`, `geo-world.ts` and `currency.ts` hold small lookup lists (US state codes, about 2,500 US city names, 116 country names, common regions, about 1,500 world city names, currency markers). They were written for jobleft from general knowledge. No dataset (GeoNames, Census or other) was copied, so no third-party licence applies.
+
 ## 3. Development tools (not shipped in the app)
 
 | Package | Version | Licence | Use |
