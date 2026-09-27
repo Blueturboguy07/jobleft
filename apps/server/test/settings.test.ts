@@ -3,9 +3,39 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { inflateRawSync } from 'node:zlib';
-import { startAi, startPublik } from '../scripts/mocks.ts';
-import { cleanup, startTest } from './helpers.ts';
+import { greenhouseJob, startAi, startBoards, startPublik } from '../scripts/mocks.ts';
+import { cleanup, PERSONA, scratchHome, startTest, type TestServer } from './helpers.ts';
+
+async function waitCrawl(s: TestServer): Promise<any> {
+  for (let i = 0; i < 200; i++) {
+    const st = (await s.call('GET', '/api/v1/crawl/status')).json;
+    if (!st.running && st.lastRun) return st.lastRun;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error('crawl did not finish');
+}
+
+/** A server with one loopback Greenhouse board ("mockco", three jobs) added and crawled. */
+async function withCrawledBoard(tag: string, fn: (s: TestServer, boardsFile: string) => Promise<void>): Promise<void> {
+  const dir = scratchHome(`${tag}-boards`);
+  const file = join(dir, 'boards.json');
+  writeFileSync(file, JSON.stringify({ greenhouse: { mockco: [
+    greenhouseJob(1, { board: 'mockco', title: 'Data Analyst', location: 'Austin, TX' }),
+    greenhouseJob(2, { board: 'mockco', title: 'Nurse', location: 'Denver, CO' }),
+    greenhouseJob(3, { board: 'mockco', title: 'Chef', location: 'Denver, CO' }),
+  ] } }));
+  const boards = await startBoards({ file });
+  const s = await startTest(tag, { env: { JOBLEFT_HOST_MAP: JSON.stringify({ 'boards-api.greenhouse.io': boards.origin }) } });
+  try {
+    assert.equal((await s.call('POST', '/api/v1/boards', { ats: 'greenhouse', board: 'mockco' })).status, 200);
+    assert.equal((await s.call('POST', '/api/v1/crawl/run', {})).json.started, true);
+    assert.equal((await waitCrawl(s)).inserted, 3);
+    await fn(s, file);
+  } finally { await s.stop(); await boards.close(); cleanup(s.home); cleanup(dir); }
+}
 
 test('JL-settings-6: a key typed for OpenAI while a custom address is saved is refused (409) and never sent there', async () => {
   const ai = await startAi();
@@ -106,4 +136,37 @@ test('JL-settings-14/15: a backup carries no publik connection; a restore keeps 
     assert.equal((await b.call('POST', '/api/v1/publik/refresh')).json.wallet.balanceMicros, 222_000);
     assert.equal(pubA.log.length, before, 'nothing went to the backup\'s publik account');
   } finally { await a.stop(); await b.stop(); await pubA.close(); await pubB.close(); cleanup(a.home); cleanup(b.home); }
+});
+
+test('JL-settings-22: "Delete my data" deletes the personal records and keeps the crawled jobs and boards', async () => {
+  await withCrawledBoard('delkeep', async (s) => {
+    const NOTE = 'private-note-QX7-zebra';
+    await s.call('PUT', '/api/v1/profile', PERSONA);
+    await s.call('PATCH', `/api/v1/tracker/${encodeURIComponent('greenhouse:mockco:1')}`, { liked: true, status: 'applied', notes: [{ text: NOTE }] });
+    const ext = await s.call('POST', '/api/v1/jobs/external', { text: 'Secret Role at Hidden Co\nCompany: Hidden Co\nText', applyUrl: 'https://example.com/hidden' });
+    assert.equal(ext.status, 200, ext.text);
+    await s.call('POST', '/api/v1/filters', { name: 'my filter', filter: {}, sort: 'recommended' });
+    await s.call('PUT', '/api/v1/ai/settings', { provider: 'custom', baseUrl: 'http://127.0.0.1:9/v1', model: 'm' });
+    assert.equal((await s.call('POST', '/api/v1/data/delete', { confirm: 'delete everything' })).status, 200);
+
+    // Kept: the crawled jobs and the boards they come from.
+    assert.equal((await s.call('POST', '/api/v1/jobs/search', { sort: 'most_recent' })).json.total, 3);
+    assert.equal((await s.call('GET', '/api/v1/storage')).json.jobs, 3);
+    const boards = (await s.call('GET', '/api/v1/boards?view=all')).json;
+    assert.deepEqual(boards.items.map((b: any) => b.id), ['greenhouse:mockco']);
+    assert.equal((await s.call('GET', `/api/v1/jobs/${encodeURIComponent('greenhouse:mockco:1')}`)).json.tracker, null, 'the job stays; its tracking is gone');
+
+    // Gone: every personal record, the job the person added, their settings.
+    assert.equal((await s.call('GET', '/api/v1/profile')).json.personal.lastName, null);
+    assert.equal((await s.call('GET', `/api/v1/jobs/${encodeURIComponent(ext.json.job.id)}`)).status, 404);
+    assert.equal((await s.call('GET', '/api/v1/tracker?view=liked')).json.items.length, 0);
+    assert.equal((await s.call('GET', '/api/v1/filters')).json.length, 0);
+    assert.equal((await s.call('GET', '/api/v1/ai/settings')).json.provider, null);
+    // Nothing of the deleted text is left in the database file (freed pages are wiped).
+    const data = join(s.home, 'data');
+    for (const f of readdirSync(data)) {
+      const bytes = readFileSync(join(data, f)).toString('latin1');
+      for (const secret of [NOTE, 'Testwell', 'Hidden Co', 'my filter']) assert.ok(!bytes.includes(secret), `${f} holds "${secret}"`);
+    }
+  });
 });

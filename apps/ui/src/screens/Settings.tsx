@@ -439,7 +439,7 @@ function DataTab() {
           ]} />
         <Button shape="round" icon={<ReloadOutlined />} loading={busy === 'datasets'} style={{ alignSelf: 'flex-start' }} onClick={() => { void updateData(); }}>Check for newer data</Button>
       </Panel>
-      <Panel title="Delete everything" desc="Deletes your profile, resumes, tracker, notes, saved filters, conversations, connections and settings from this Mac. Crawled jobs stay. This cannot be undone.">
+      <Panel title="Delete everything" desc="Deletes your profile, resumes, tracker, notes, saved filters, conversations, connections, jobs you added yourself, settings, saved AI keys and the publik connection from this Mac. Crawled jobs and the boards list stay. This cannot be undone.">
         <label>Type <strong>delete everything</strong> to confirm<Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} style={{ maxWidth: 300, display: 'block', marginTop: 4 }} aria-label="Type delete everything to confirm" /></label>
         <Button danger shape="round" icon={<DeleteOutlined />} disabled={confirmText !== 'delete everything'} loading={busy === 'delete'} style={{ alignSelf: 'flex-start' }} onClick={() => { void del(); }}>Delete my data</Button>
       </Panel>

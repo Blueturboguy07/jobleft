@@ -258,9 +258,10 @@ curl -s -X POST -H "x-jobleft-token: $T" -H 'content-type: application/json' -d 
 
 | Fact | Detail |
 |---|---|
-| What a backup holds | Every record (crawled jobs included, so liked and tracked jobs keep their details) and every uploaded file. No key (keys are in the Keychain), no launch token, no pairing token (pairings are removed from the copy) |
+| What a backup holds | Every record (crawled jobs included, so liked and tracked jobs keep their details) and every uploaded file. No key (keys are in the Keychain), no launch token, no pairing token (pairings are removed from the copy), no publik connection (install id, claim link, balance) and no key hints |
 | Seal | The last line of the zip comment is `jobleft-backup v1 sha256=<hex>`: the SHA-256 of every byte before it. Any cut, changed or added byte is detected |
-| Restore | Checks the whole file first (seal, names, sizes, CRC-32, SHA-256, SQLite integrity, schema version). Then it replaces the current data. It never mixes old and new data and never makes duplicates. This computer's extension pairings are kept |
+| Restore | Checks the whole file first (seal, names, sizes, CRC-32, SHA-256, SQLite integrity, schema version). Then it replaces the current data. It never mixes old and new data and never makes duplicates. This computer's extension pairings, publik connection and AI key hints are kept |
+| Delete everything | Deletes every personal record (profile, resumes, tracker, notes, saved filters, conversations, connections, jobs added by link or text, settings), the uploaded files, backups, logs, AI keys and the publik connection. The crawled jobs and the boards list stay. The database is cleaned in place with secure delete and VACUUM; if that fails, the whole data folder goes |
 | Refused files | A cut backup, one changed byte, a random zip, random bytes, a file with `../` names or links: `400` with "Nothing was changed.", and the current data is as it was |
 | Restore into a fresh install | Start a server on an empty folder, then restore. A backup from an older build is upgraded on restore |
 | Export | Readable files: `profile.json`, `tracker.json`, `saved-jobs.ndjson`, `saved-filters.json`, `resumes.json` and the uploaded files, `network-contacts.csv` and `.json`, `chats.json`, `boards.json`, `settings.json`. No key or token |
