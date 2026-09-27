@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Data Engineer - Practice Labs (practice page, Ashby-like)</title>
+<link rel="stylesheet" href="/practice/_style.css">
+<script src="/practice/_log.js"></script>
+<style>
+  ._fieldEntry { margin: 14px 0; }
+  ._label { font: bold 14px Arial, sans-serif; display: block; margin-bottom: 4px; }
+  .yesno { display: flex; gap: 8px; }
+  .yesno input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .yesno label { border: 1px solid #999; border-radius: 4px; padding: 6px 16px; cursor: pointer; font: 14px Arial, sans-serif; }
+  .yesno input:checked + label { background: #0a6; color: #fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Data Engineer</h1>
+  <div class="company">Practice Labs · Austin (practice page shaped like an Ashby form, with custom dropdowns)</div>
+  <form id="ashby-form" action="/apply/ashby" method="post">
+    <div class="_fieldEntry" data-field-path="_systemfield_name"><label class="_label" for="_systemfield_name">Name *</label><input id="_systemfield_name" name="_systemfield_name" type="text" required></div>
+    <div class="_fieldEntry" data-field-path="_systemfield_email"><label class="_label" for="_systemfield_email">Email *</label><input id="_systemfield_email" name="_systemfield_email" type="email" required></div>
+    <div class="_fieldEntry" data-field-path="_systemfield_resume"><label class="_label" for="_systemfield_resume">Resume *</label><input id="_systemfield_resume" name="_systemfield_resume" type="file" accept="application/pdf,.pdf,.doc,.docx"></div>
+    <div class="_fieldEntry" data-field-path="phone"><label class="_label" for="phone">Phone number</label><input id="phone" name="phone" type="tel"></div>
+    <div class="_fieldEntry" data-field-path="country"><span class="_label" id="country-label">Country of residence</span><div class="combo" data-label-id="country-label" data-name="country" data-options="United States Minor Outlying Islands|United Kingdom|United States|Uruguay"></div></div>
+    <div class="_fieldEntry" data-field-path="location"><span class="_label" id="location-label">Location</span><div class="combo" data-label-id="location-label" data-name="location" data-options="Austin, Minnesota, United States|Austin, Arkansas, United States|Austin, Texas, United States|Boston, Massachusetts, United States"></div></div>
+    <div class="_fieldEntry" data-field-path="degree"><span class="_label" id="degree-label">Highest degree</span><div class="combo" data-label-id="degree-label" data-name="degree" data-options="High school|Bachelor of Arts|Bachelor of Engineering|Master of Science"></div></div>
+    <div class="_fieldEntry" data-field-path="authorized">
+      <span class="_label">Are you authorized to work in the United States?</span>
+      <div class="yesno"><input type="radio" id="auth_yes" name="authorized" value="Yes"><label for="auth_yes">Yes</label><input type="radio" id="auth_no" name="authorized" value="No"><label for="auth_no">No</label></div>
+    </div>
+    <div class="_fieldEntry" data-field-path="_systemfield_eeoc_veteran_status">
+      <span class="_label">Veteran status</span>
+      <div class="yesno"><input type="radio" id="vet_1" name="vet" value="1"><label for="vet_1">I am a protected veteran</label><input type="radio" id="vet_2" name="vet" value="2"><label for="vet_2">I am not a protected veteran</label><input type="radio" id="vet_3" name="vet" value="3"><label for="vet_3">I prefer not to say</label></div>
+    </div>
+    <div class="_fieldEntry" data-field-path="why"><label class="_label" for="why">What excites you about this role?</label><textarea id="why" name="why" maxlength="600"></textarea></div>
+    <button class="btn" type="submit">Submit Application</button>
+  </form>
+</div>
+<script src="/practice/_combo.js"></script>
+</body>
+</html>

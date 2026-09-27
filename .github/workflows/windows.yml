@@ -30,10 +30,13 @@ jobs:
       - uses: actions/checkout@v5
 
       - uses: pnpm/action-setup@v4 # the version comes from package.json's packageManager
+        with:
+          standalone: true # a real pnpm binary: the .bin shim breaks under cmd.exe on Windows
 
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+          package-manager-cache: false
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -113,3 +116,98 @@ jobs:
           $tag = if ('${{ github.event_name }}' -eq 'release') { '${{ github.event.release.tag_name }}' } else { '${{ github.event.inputs.release_tag }}' }
           $setup = Get-ChildItem -Path apps/shell/src-tauri/target/release/bundle/nsis -Filter '*.exe' | Select-Object -First 1
           gh release upload $tag $setup.FullName --clobber
+
+  # The black-box replay: the scenario scripts the Mac testers wrote (qa/scenarios) run on Windows against the
+  # installed app, on a first run (onboarding), then after a live crawl of 12 boards (every other surface).
+  replay:
+    needs: windows
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          standalone: true
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build the extension
+        run: pnpm --filter @jobleft/extension build
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: jobleft-windows-setup
+          path: setup
+
+      - name: Install the app and start it (12 starting boards)
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem -Path setup -Filter '*.exe' | Select-Object -First 1
+          Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait
+          $exe = "$env:LOCALAPPDATA\jobleft\jobleft.exe"
+          if (-not (Test-Path $exe)) { $exe = (Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Recurse -Filter 'jobleft.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
+          "installed at: $exe"
+          $env:JOBLEFT_SEED_LIMIT = '12'
+          $p = Start-Process -FilePath $exe -PassThru
+          $run = "$env:APPDATA\jobleft\run\server.json"
+          $deadline = (Get-Date).AddSeconds(60)
+          while (-not (Test-Path $run) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+          if (-not (Test-Path $run)) { Get-Content "$env:APPDATA\jobleft\logs\sidecar.log" -ErrorAction SilentlyContinue | Select-Object -Last 30; throw "no run/server.json after 60 s" }
+          $j = Get-Content $run | ConvertFrom-Json
+          "JOBLEFT_QA_URL=http://127.0.0.1:$($j.port)/#token=$($j.token)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "JOBLEFT_QA_API=http://127.0.0.1:$($j.port)/api/v1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "JOBLEFT_QA_TOKEN=$($j.token)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "JOBLEFT_QA_EXTENSION=$env:GITHUB_WORKSPACE\apps\extension\dist" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "JOBLEFT_QA_SHOTS=$env:GITHUB_WORKSPACE\qa\shots" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "JOBLEFT_APP_PID=$($p.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "app pid $($p.Id), server on port $($j.port)"
+
+      - name: First run (onboarding)
+        id: onboarding
+        continue-on-error: true
+        env:
+          JOBLEFT_QA_STATE: fresh
+        run: node qa/bin/run-all.mjs onboarding
+
+      - name: Jobs from live boards
+        id: crawl
+        continue-on-error: true
+        run: node qa/bin/wait-for-jobs.mjs
+
+      - name: Every other surface
+        id: rest
+        continue-on-error: true
+        env:
+          JOBLEFT_QA_STATE: golden
+        run: node qa/bin/run-all.mjs feed tracker resume network settings extension
+
+      - name: Keep the screenshots and the app's logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobleft-windows-replay
+          if-no-files-found: ignore
+          path: |
+            qa/shots
+            ~/AppData/Roaming/jobleft/logs
+
+      - name: Stop the app
+        if: always()
+        shell: pwsh
+        run: |
+          try { Invoke-RestMethod -Method Post -Uri "$env:JOBLEFT_QA_API/shutdown" -Headers @{ 'x-jobleft-token' = $env:JOBLEFT_QA_TOKEN } -ContentType 'application/json' -Body '{}' | Out-Null } catch { "shutdown route: $_" }
+          Start-Sleep -Seconds 3
+          if ($env:JOBLEFT_APP_PID) { Stop-Process -Id $env:JOBLEFT_APP_PID -Force -ErrorAction SilentlyContinue }
+
+      - name: Result
+        if: steps.onboarding.outcome == 'failure' || steps.crawl.outcome == 'failure' || steps.rest.outcome == 'failure'
+        run: |
+          echo "a replay step failed: onboarding=${{ steps.onboarding.outcome }} crawl=${{ steps.crawl.outcome }} rest=${{ steps.rest.outcome }}"
+          exit 1

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Backend Engineer - Acme Practice Co (practice page, Lever-like)</title>
+<link rel="stylesheet" href="/practice/_style.css">
+<script src="/practice/_log.js"></script>
+<style>
+  .application-question { list-style: none; margin: 12px 0; }
+  .application-label { font: bold 14px Arial, sans-serif; }
+  .required { color: #c00; margin-left: 4px; }
+  .application-file-input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .postings-btn { display: inline-block; border: 1px solid #999; padding: 6px 12px; border-radius: 4px; cursor: pointer; font: 13px Arial, sans-serif; }
+  ul { padding: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Backend Engineer</h1>
+  <div class="company">Acme Practice Co · Remote (practice page shaped like a Lever form)</div>
+  <form method="POST" enctype="multipart/form-data" id="application-form" action="/apply/job-b">
+    <div class="section application-form">
+      <h4>Submit your application</h4>
+      <ul>
+        <li class="application-question resume">
+          <label>
+            <div class="application-label">Resume/CV<span class="required">✱</span></div>
+            <div class="application-field"><a class="postings-btn">ATTACH RESUME/CV</a>
+              <input type="file" name="resume" id="resume-upload-input" class="application-file-input" accept=".pdf,.doc,.docx,.txt,.rtf,.odt"></div>
+          </label>
+        </li>
+        <li class="application-question"><label><div class="application-label">Full name<span class="required">✱</span></div><div class="application-field"><input type="text" name="name" required></div></label></li>
+        <li class="application-question"><label><div class="application-label">Pronouns</div><div class="application-field"><input type="text" name="pronouns"></div></label></li>
+        <li class="application-question"><label><div class="application-label">Email<span class="required">✱</span></div><div class="application-field"><input type="email" name="email" required></div></label></li>
+        <li class="application-question"><label><div class="application-label">Phone</div><div class="application-field"><input type="text" name="phone"></div></label></li>
+        <li class="application-question"><label><div class="application-label">Current location</div><div class="application-field"><input type="text" name="location"></div></label></li>
+        <li class="application-question"><label><div class="application-label">Current company</div><div class="application-field"><input type="text" name="org"></div></label></li>
+      </ul>
+      <h4>Links</h4>
+      <ul>
+        <li class="application-question"><label><div class="application-label">LinkedIn URL</div><div class="application-field"><input type="text" name="urls[LinkedIn]"></div></label></li>
+        <li class="application-question"><label><div class="application-label">Twitter URL</div><div class="application-field"><input type="text" name="urls[Twitter]"></div></label></li>
+        <li class="application-question"><label><div class="application-label">GitHub URL</div><div class="application-field"><input type="text" name="urls[GitHub]"></div></label></li>
+        <li class="application-question"><label><div class="application-label">Portfolio URL</div><div class="application-field"><input type="text" name="urls[Portfolio]"></div></label></li>
+        <li class="application-question"><label><div class="application-label">Other website</div><div class="application-field"><input type="text" name="urls[Other]"></div></label></li>
+      </ul>
+      <h4>Additional information</h4>
+      <textarea name="comments" placeholder="Add a cover letter or anything else you want to share."></textarea>
+      <h4>U.S. Equal Employment Opportunity information (Completion is voluntary)</h4>
+      <ul>
+        <li class="application-question"><label><div class="application-label">Gender</div><select name="eeo[gender]"><option value="">Select ...</option><option value="Male">Male</option><option value="Female">Female</option><option value="Decline to self-identify">Decline to self-identify</option></select></label></li>
+        <li class="application-question"><label><div class="application-label">Race</div><select name="eeo[race]"><option value="">Select ...</option><option>Hispanic or Latino</option><option>White (Not Hispanic or Latino)</option><option>Black or African American (Not Hispanic or Latino)</option><option>Asian (Not Hispanic or Latino)</option><option>Two or More Races (Not Hispanic or Latino)</option><option>Decline to self-identify</option></select></label></li>
+        <li class="application-question"><label><div class="application-label">Veteran status</div><select name="eeo[veteran]"><option value="">Select ...</option><option>I am a veteran</option><option>I am not a veteran</option><option>Decline to self-identify</option></select></label></li>
+      </ul>
+      <button class="btn" type="submit">Submit application</button>
+    </div>
+  </form>
+</div>
+</body>
+</html>

@@ -1,0 +1,39 @@
+Notes:
+"When exporting your connection data, you may notice that some of the email addresses are missing. You will only see email addresses for connections who have chosen to allow their contacts to see or download their email address."
+
+First Name,Last Name,URL,Email Address,Company,Position,Connected On
+Maria,Delgado,https://www.linkedin.com/in/mdelgado-x1,,Kroger,Talent Acquisition Partner,12 Sep 2026
+Tom,Okafor,https://www.linkedin.com/in/tokafor-x2,tom.okafor@example.com,The Kroger Co.,Pharmacist,03 Mar 2016
+Priya,Raman,https://www.linkedin.com/in/praman-x3,,KROGER,Senior Recruiting Coordinator,20 Jan 2023
+Luis,Vega,https://www.linkedin.com/in/lvega-x4,,Kroger Specialty Pharmacy,Pharmacy Technician,01 Feb 2022
+Ann,Whitcomb,https://www.linkedin.com/in/awhitcomb-x5,ann.w@example.com,Mercy Health,"Nurse Manager, ICU",15 Nov 2019
+Bo,Lindqvist,https://www.linkedin.com/in/blindqvist-x6,,Mercy Health,Software Engineer,15 Aug 2026
+Rosa,Peña,https://www.linkedin.com/in/rpena-x7,,Mercy Health,"Recruiter, Nursing",09 Sep 2026
+Cal,Moreau,https://www.linkedin.com/in/cmoreau-x8,,Mercy Health System,Chief Nursing Officer,07 Jul 2010
+Ida,Brandt,https://www.linkedin.com/in/ibrandt-x9,,H&R Block,Tax Preparer,04 Apr 2021
+Sam,Ito,https://www.linkedin.com/in/sito-x10,,"H & R Block, Inc.",Tax Manager,05 May 2018
+Jen,Cho,https://www.linkedin.com/in/jcho-x11,,Block,Payments Analyst,06 Jun 2020
+Omar,Haddad,https://www.linkedin.com/in/ohaddad-x12,,Ernst & Young LLP,Audit Senior,10 Oct 2017
+Nia,Baker,https://www.linkedin.com/in/nbaker-x13,,Ernst and Young,Tax Associate,11 Nov 2019
+Léa,Fournier,https://www.linkedin.com/in/lfournier-x14,,Café Rio,General Manager,12 Dec 2015
+Kai,Nguyen,https://www.linkedin.com/in/knguyen-x15,,Cafe Rio,Line Cook,13 Jan 2024
+Hal,Pryor,https://www.linkedin.com/in/hpryor-x16,,St. Jude Children's Research Hospital,Clinical Research Coordinator,14 Feb 2020
+Eve,Sato,https://www.linkedin.com/in/esato-x17,,St Jude Children's Research Hospital,Grants Manager,15 Mar 2022
+Dee,Cruz,https://www.linkedin.com/in/dcruz-x18,,Kaiser Permanente,Registered Nurse,16 Apr 2021
+Wes,Ford,https://www.linkedin.com/in/wford-x19,,Kaiser Permanente,Physical Therapist,17 May 2021
+Gus,Hale,https://www.linkedin.com/in/ghale-x20,,Kaiser Aluminum,Plant Supervisor,18 Jun 2013
+Zed,Ross,https://www.linkedin.com/in/zross-x21,,Meta,Content Strategist,19 Jul 2019
+Yun,Park,https://www.linkedin.com/in/ypark-x22,,Metaview,Sales Rep,20 Aug 2023
+Val,Stone,https://www.linkedin.com/in/vstone-a-x23,,Teach For America,Program Director,21 Sep 2018
+Val,Stone,https://www.linkedin.com/in/vstone-b-x24,,"Nike, Inc.",Footwear Designer,22 Oct 2019
+Rex,Vale,https://www.linkedin.com/in/rvale-x25,,Nike,Recruiter,23 Nov 2025
+Blank,One,https://www.linkedin.com/in/b1-x26,,,Consultant,24 Dec 2020
+Blank,Two,https://www.linkedin.com/in/b2-x27,,,,25 Jan 2021
+Ed,"Smith, Jr.",https://www.linkedin.com/in/esmith-x28,,"Acme Foods, LLC","Director of Operations, Central Region",26 Feb 2014
+Sol,Ochoa,https://www.linkedin.com/in/sochoa-x29,,Acme Foods,Executive Assistant to the CEO,27 Mar 2015
+Tia,Marsh,https://www.linkedin.com/in/tmarsh-x30,,Acme Foods,Account Executive,28 Apr 2016
+Ulf,Berg,https://www.linkedin.com/in/uberg-x31,,Acme Foods,Chief of Staff,29 May 2017
+Neo,Lund,https://www.linkedin.com/in/nlund-x32,,Acme Foods,"VP, Operations",30 Jun 2018
+JosÃ©,GarcÃ­a,https://www.linkedin.com/in/jgarcia-x33,,Kroger,Store Manager,01 Jul 2022
+Broken,Row,only three
+Maria,Delgado,https://www.linkedin.com/in/mdelgado-x1,,Kroger,Talent Acquisition Partner,12 Sep 2026

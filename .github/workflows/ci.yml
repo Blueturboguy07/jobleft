@@ -28,11 +28,14 @@ jobs:
       - uses: actions/checkout@v5
 
       - uses: pnpm/action-setup@v4 # the version comes from package.json's packageManager
+        with:
+          standalone: true # a real pnpm binary: the .bin shim breaks under cmd.exe on Windows
 
       # No pnpm cache here: setup-node's cache step fails on Windows with the pnpm shim path (2026-09-27).
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+          package-manager-cache: false
 
       # --ignore-scripts: no dependency install script runs (rule 5, see pnpm-workspace.yaml).
       - name: Install
