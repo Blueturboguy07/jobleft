@@ -7,6 +7,7 @@ import type { ApplyInput, CollectResult, DraftItem, Report, ReportItem, ToConten
 import { atsFromPage, blockedFrames, scan, visibleSelf, type Found, type Scan } from './dom.ts';
 import { attachFile, isEmpty, mark, repr, shownValue, stillHolds, undoOne, unmark, unmarkAll, writeDraft, writeFill, type Written } from './fill.ts';
 import { Panel } from './panel.ts';
+import { mergeUndo } from './undoplan.ts';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -253,9 +254,12 @@ function watch(written: Written[]): void {
 }
 
 async function undo(): Promise<void> {
-  const last = S.undo.pop();
   const r = S.report;
-  if (!last || !r) return;
+  if (!S.undo.length || !r) return;
+  // Every fill on this page, not only the last one: after "Fill again" the last fill's "before" is jobleft's own
+  // first fill. Each control goes back to its value before jobleft's first write.
+  const last = mergeUndo(S.undo, (w) => w.found.els[0]);
+  S.undo = [];
   if (S.watcher !== null) { clearInterval(S.watcher); S.watcher = null; }
   let failed = 0;
   let keptEdits = 0;
