@@ -1,0 +1,34 @@
+// JL-feed-1: an Apply in one filter-bar popover must keep every filter set in the other popovers.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import type { JobFilter } from '@jobleft/contracts';
+import { applySection, resetSection, sameFilter } from '../src/lib/filters.ts';
+
+test('an Apply keeps the filters of the other popovers, even from a draft copied from an older filter', () => {
+  // The person has United States and Entry Level; the Job type popover still holds a draft made before either was set.
+  const current: JobFilter = { countries: ['US'], levels: ['entry'] };
+  const staleDraft: JobFilter = { employmentTypes: ['full_time'] };
+  const next = applySection(current, staleDraft, 'type');
+  assert.ok(sameFilter(next, { countries: ['US'], levels: ['entry'], employmentTypes: ['full_time'] }), JSON.stringify(next));
+  // Then Work model, Date posted, Years and Pay, each from a draft that knows nothing of the others.
+  let f = next;
+  f = applySection(f, { workModels: ['remote'] }, 'model');
+  f = applySection(f, { postedWithin: '7d' }, 'posted');
+  f = applySection(f, { maxYearsRequired: 3 }, 'years');
+  f = applySection(f, { minAnnualPayUsd: 80000 }, 'pay');
+  assert.ok(sameFilter(f, {
+    countries: ['US'], levels: ['entry'], employmentTypes: ['full_time'], workModels: ['remote'], postedWithin: '7d', maxYearsRequired: 3, minAnnualPayUsd: 80000,
+  }), JSON.stringify(f));
+});
+
+test('an Apply changes and clears only its own fields and its own "include unknown" boxes', () => {
+  const current: JobFilter = { countries: ['US'], levels: ['entry', 'mid'], includeUnknown: ['place', 'level'] };
+  // The level popover: Mid unticked, "include jobs with no level" unticked.
+  const f = applySection(current, { ...current, levels: ['entry'], includeUnknown: ['place'] }, 'level');
+  assert.ok(sameFilter(f, { countries: ['US'], levels: ['entry'], includeUnknown: ['place'] }), JSON.stringify(f));
+  // Location set to "Any country" (no countries) with a stale draft: the level stays.
+  const g = applySection(f, { levels: ['senior'] }, 'location');
+  assert.ok(sameFilter(g, { levels: ['entry'] }), JSON.stringify(g));
+  // Reset of one popover leaves the others.
+  assert.ok(sameFilter(resetSection({ countries: ['US'], postedWithin: '24h', includeUnknown: ['postedAt', 'place'] }, 'posted'), { countries: ['US'], includeUnknown: ['place'] }));
+});

@@ -119,6 +119,44 @@ export function toggle<T>(list: T[] | undefined, v: T): T[] {
   return l.includes(v) ? l.filter((x) => x !== v) : [...l, v];
 }
 
+/** The filter-bar popovers. Each one owns some fields of the filter and the "include unknown" boxes of those fields. */
+export type FilterSection = 'location' | 'function' | 'level' | 'type' | 'model' | 'posted' | 'industry' | 'years' | 'pay';
+type UnknownKey = NonNullable<JobFilter['includeUnknown']>[number];
+const SECTION_FIELDS: Record<FilterSection, { keys: Array<keyof JobFilter>; unknown: UnknownKey[] }> = {
+  location: { keys: ['countries', 'places'], unknown: ['place'] },
+  function: { keys: ['jobFunctions'], unknown: [] },
+  level: { keys: ['levels'], unknown: ['level'] },
+  type: { keys: ['employmentTypes'], unknown: ['employmentType'] },
+  model: { keys: ['workModels'], unknown: ['workModel'] },
+  posted: { keys: ['postedWithin'], unknown: ['postedAt'] },
+  industry: { keys: ['industries'], unknown: [] },
+  years: { keys: ['maxYearsRequired'], unknown: ['years'] },
+  pay: { keys: ['minAnnualPayUsd'], unknown: ['pay'] },
+};
+
+/**
+ * The filter after one popover's Apply (JL-feed-1): the popover's own fields come from its draft, every other field
+ * from the filter in use at the moment of Apply. So an Apply never drops a filter set in another popover, even when
+ * the draft was copied from an older filter.
+ */
+export function applySection(current: JobFilter, draft: JobFilter, section: FilterSection): JobFilter {
+  const { keys, unknown } = SECTION_FIELDS[section];
+  const out: Record<string, unknown> = { ...current };
+  for (const k of keys) {
+    if (draft[k] === undefined) delete out[k];
+    else out[k] = draft[k];
+  }
+  const kept = (current.includeUnknown ?? []).filter((u) => !unknown.includes(u));
+  const mine = (draft.includeUnknown ?? []).filter((u) => unknown.includes(u));
+  out.includeUnknown = [...kept, ...mine];
+  return cleanFilter(out as JobFilter);
+}
+
+/** The filter without one popover's fields (its Reset button). */
+export function resetSection(f: JobFilter, section: FilterSection): JobFilter {
+  return applySection(f, {}, section);
+}
+
 export function withUnknown(f: JobFilter, key: NonNullable<JobFilter['includeUnknown']>[number], on: boolean): JobFilter {
   const set = new Set(f.includeUnknown ?? []);
   if (on) set.add(key); else set.delete(key);

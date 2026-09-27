@@ -2,14 +2,15 @@
 // Every filter that reads a fact some jobs do not state says how it treats those jobs, and offers to include them.
 // Active filters have a green fill; inactive ones are white.
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Checkbox, Input, Popover, Radio, Select, Slider, Switch, Space } from 'antd';
 import { Tooltip } from '../../components/Tip.tsx';
 import { DownOutlined, QuestionCircleOutlined, CloseOutlined, FilterOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import type { JobFilter, JobSort, PlaceQuery } from '@jobleft/contracts';
 import {
-  COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, activeCount, cleanFilter,
-  countryLabel, functionLabel, industryLabel, levelLabel, modelLabel, payLabel, postedLabel, toggle, typeLabel, withUnknown, yearsLabel,
+  COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, activeCount, applySection, cleanFilter,
+  countryLabel, functionLabel, industryLabel, levelLabel, modelLabel, payLabel, postedLabel, resetSection, sameFilter, toggle, typeLabel, withUnknown, yearsLabel,
+  type FilterSection,
 } from '../../lib/filters.ts';
 import { call } from '../../app/api.ts';
 
@@ -89,7 +90,7 @@ function Pop({ title, children, onApply, onReset, dirty }: { title: string; chil
   );
 }
 
-type Section = 'location' | 'function' | 'level' | 'type' | 'model' | 'posted' | 'industry' | 'years' | 'pay';
+type Section = FilterSection;
 
 function sectionActive(f: JobFilter, s: Section): boolean {
   switch (s) {
@@ -105,33 +106,27 @@ function sectionActive(f: JobFilter, s: Section): boolean {
   }
 }
 
-function resetSection(f: JobFilter, s: Section): JobFilter {
-  const n = { ...f };
-  const drop = (...keys: Array<keyof JobFilter>) => { for (const k of keys) delete n[k]; };
-  const unk = (k: NonNullable<JobFilter['includeUnknown']>[number]) => { n.includeUnknown = (n.includeUnknown ?? []).filter((x) => x !== k); };
-  switch (s) {
-    case 'location': drop('countries', 'places'); unk('place'); break;
-    case 'function': drop('jobFunctions'); break;
-    case 'level': drop('levels'); unk('level'); break;
-    case 'type': drop('employmentTypes'); unk('employmentType'); break;
-    case 'model': drop('workModels'); unk('workModel'); break;
-    case 'posted': drop('postedWithin'); unk('postedAt'); break;
-    case 'industry': drop('industries'); break;
-    case 'years': drop('maxYearsRequired'); unk('years'); break;
-    case 'pay': drop('minAnnualPayUsd'); unk('pay'); break;
-  }
-  return cleanFilter(n);
-}
-
 function FilterButton({ section, label, filter, onApply }: { section: Section; label: string; filter: JobFilter; onApply: (f: JobFilter) => void }) {
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<JobFilter>(filter);
-  useEffect(() => { if (open) setDraft(filter); }, [open, filter]);
+  const [draft, setDraftState] = useState<JobFilter>(filter);
+  // The latest filter and draft, read at the moment of Apply (a popup can still hold the handlers of an older render).
+  const filterRef = useRef(filter);
+  filterRef.current = filter;
+  const draftRef = useRef(draft);
+  const setDraft = (next: JobFilter | ((d: JobFilter) => JobFilter)) => {
+    const v = typeof next === 'function' ? next(draftRef.current) : next;
+    draftRef.current = v;
+    setDraftState(v);
+  };
+  // The draft starts from the filter in use each time the popover opens (in the same event, so the first click inside
+  // it already edits the current filter).
+  const onOpenChange = (o: boolean) => { if (o) setDraft(filter); setOpen(o); };
   const active = sectionActive(filter, section);
-  const dirty = JSON.stringify(cleanFilter(draft)) !== JSON.stringify(cleanFilter(filter));
-  const apply = () => { onApply(cleanFilter(draft)); setOpen(false); };
-  const reset = () => setDraft(resetSection(draft, section));
-  const set = (patch: Partial<JobFilter>) => setDraft(cleanFilter({ ...draft, ...patch }));
+  const dirty = !sameFilter(applySection(filter, draft, section), filter);
+  // Apply changes only this popover's fields; every other filter stays as it is now (JL-feed-1).
+  const apply = () => { onApply(applySection(filterRef.current, draftRef.current, section)); setOpen(false); };
+  const reset = () => setDraft((d) => resetSection(d, section));
+  const set = (patch: Partial<JobFilter>) => setDraft((d) => cleanFilter({ ...d, ...patch }));
 
   let body: ReactNode = null;
   let title = '';
@@ -232,7 +227,7 @@ function FilterButton({ section, label, filter, onApply }: { section: Section; l
     }
   }
   return (
-    <Popover open={open} onOpenChange={setOpen} trigger="click" placement="bottomLeft" arrow={false} destroyTooltipOnHide
+    <Popover open={open} onOpenChange={onOpenChange} trigger="click" placement="bottomLeft" arrow={false} destroyTooltipOnHide
       content={<Pop title={title} onApply={apply} onReset={reset} dirty={dirty}>{body}</Pop>}>
       <Button className={`jl-filter-btn${active ? ' active' : ''}`} aria-expanded={open} aria-haspopup="dialog" aria-label={`${title} filter: ${active ? label : 'off'}`}>
         {label} <DownOutlined style={{ fontSize: 10 }} />
