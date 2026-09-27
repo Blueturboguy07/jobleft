@@ -19,6 +19,7 @@ import { LogoMark, Wordmark } from '../components/Art.tsx';
 import { ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { ago, dateText, fitIndexText, hostOf, plural } from '../lib/format.ts';
 import { readAllPages } from '../lib/pages.ts';
+import { rememberAiCheck } from '../lib/aiHealth.ts';
 
 const TABS = [
   { key: 'ai', label: 'AI provider', icon: <ApiOutlined /> },
@@ -85,12 +86,13 @@ function AiTab() {
       const r = await call('putAiSettings', { body: settingsBody() });
       setCached('ai:settings', () => r.settings);
       setCheck(r.check);
+      rememberAiCheck(r.settings.updatedAt, r.check.ok);
       invalidate('ai:');
     } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   const test = async () => {
     setBusy('test'); setErr(null);
-    try { setCheck(await call('checkAi')); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+    try { const c = await call('checkAi'); setCheck(c); rememberAiCheck(s.updatedAt, c.ok); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   // A key belongs to the provider shown on this form (JL-settings-6). When the form shows another provider than the
   // saved one, "Save key" saves that provider choice first; the key route then checks that the key's provider is the

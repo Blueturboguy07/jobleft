@@ -2,7 +2,7 @@
 // pills, search, and the AI chip that shows the dollar balance when publik is the provider), the connection banner,
 // and the assistant button and panel.
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Alert, Button, Input } from 'antd';
 import { Tooltip } from './Tip.tsx';
 import { SearchOutlined, CloseOutlined, ExpandAltOutlined } from '@ant-design/icons';
@@ -11,6 +11,7 @@ import { navigate } from '../app/router.ts';
 import { useLayer, useReturnFocus } from '../app/layers.ts';
 import { invalidate } from '../app/data.ts';
 import { setFeed, useAiSettings, useFeed, useNotifications, usePublik, useTrackerCounts } from '../app/session.ts';
+import { aiCheckFailed, lastAiCheck, subscribeAiCheck } from '../lib/aiHealth.ts';
 import { LogoMark } from './Art.tsx';
 import { Chat } from './Chat.tsx';
 import { closeChat, openChat, useChatTarget } from './chatStore.ts';
@@ -59,6 +60,7 @@ export function Rail({ active }: { active: ScreenId }) {
 export function ProviderChip({ compact = false }: { compact?: boolean }) {
   const ai = useAiSettings();
   const s = ai.data;
+  const lastCheck = useSyncExternalStore(subscribeAiCheck, lastAiCheck);
   const publik = usePublik(s?.provider === 'publik');
   let text = 'AI: not set up';
   let on = false;
@@ -72,6 +74,8 @@ export function ProviderChip({ compact = false }: { compact?: boolean }) {
   } else if (s?.provider === 'local') { text = compact ? 'AI on this Mac' : 'AI: model on this Mac'; on = true; }
   else if (s?.provider === 'custom') { text = 'AI: your server'; on = true; }
   else if (s?.provider === 'own_key') { text = 'AI: your own key'; on = true; }
+  // The last setup check of these settings failed (JL-settings-3): never a green dot then.
+  if (s?.provider && s.provider !== 'publik' && aiCheckFailed(lastCheck, s.updatedAt)) { text = 'AI: not answering'; on = false; }
   return (
     <Tooltip title={s?.provider === 'publik' ? 'Your publik balance in dollars. Select to see it or add money.' : 'Where AI answers come from. Select to change it.'}>
       <button type="button" className="jl-status-chip" onClick={() => navigate(to)}>

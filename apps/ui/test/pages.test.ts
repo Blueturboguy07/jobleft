@@ -37,3 +37,17 @@ test('the fit index row is plain words with thousands separators', async () => {
   assert.match(fitIndexText({ state: 'ready', model: 'bge', modelBytes: null, indexed: 1234, waiting: 0 }), /^Ready \(bge\): 1,234 jobs indexed\.$/);
   assert.match(fitIndexText({ state: 'indexing', model: null, modelBytes: null, indexed: 1000, waiting: 500 }), /1,000 of 1,500/);
 });
+
+// JL-settings-3: the header chip stayed green while the saved AI setup failed its own test.
+test('the last failed check of the settings in use marks the AI chip as not answering', async () => {
+  const { aiCheckFailed, lastAiCheck, rememberAiCheck, subscribeAiCheck } = await import('../src/lib/aiHealth.ts');
+  let calls = 0;
+  const off = subscribeAiCheck(() => { calls++; });
+  rememberAiCheck('2026-09-27T10:00:00.000Z', false);
+  assert.equal(calls, 1);
+  assert.equal(aiCheckFailed(lastAiCheck(), '2026-09-27T10:00:00.000Z'), true);
+  assert.equal(aiCheckFailed(lastAiCheck(), '2026-09-27T10:05:00.000Z'), false, 'a newer save is not judged by an older check');
+  rememberAiCheck('2026-09-27T10:00:00.000Z', true);
+  assert.equal(aiCheckFailed(lastAiCheck(), '2026-09-27T10:00:00.000Z'), false);
+  off();
+});
