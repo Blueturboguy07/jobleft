@@ -35,7 +35,7 @@ function NoToken() {
 
 const WINDOW_TITLES: Record<ScreenId, string> = {
   jobs: 'Jobs', tracker: 'Tracker', dashboard: 'Dashboard', resume: 'Resume', profile: 'Profile', network: 'Network', interview: 'Interview',
-  assistant: 'Assistant', settings: 'Settings', notifications: 'Notifications',
+  assistant: 'Assistant', settings: 'Settings', notifications: 'Alerts',
 };
 
 export function App() {

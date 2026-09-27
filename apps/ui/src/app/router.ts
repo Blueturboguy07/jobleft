@@ -9,6 +9,15 @@ function current(): string {
   return h.split('?')[0] ?? '';
 }
 
+// The route before the current one, so a job opened from Alerts, the Tracker or the Dashboard closes back there.
+let lastPath = typeof window === 'undefined' ? '' : current();
+let previousPath = '';
+if (typeof window !== 'undefined') window.addEventListener('hashchange', () => { previousPath = lastPath; lastPath = current(); });
+/** The route the person was on before the current one ("" at start). */
+export function previousRoute(): string {
+  return previousPath;
+}
+
 function subscribe(cb: () => void): () => void {
   window.addEventListener('hashchange', cb);
   return () => window.removeEventListener('hashchange', cb);

@@ -43,7 +43,7 @@ export function Rail({ active }: { active: ScreenId }) {
         ))}
       </div>
       <div className="jl-rail-bottom">
-        <a href="#/notifications" className="jl-rail-item" aria-current={active === 'notifications' ? 'page' : undefined} aria-label={`Notifications${n ? `, ${n} new` : ''}`}>
+        <a href="#/notifications" className="jl-rail-item" aria-current={active === 'notifications' ? 'page' : undefined} aria-label={`Alerts${n ? `, ${n} new` : ''}`}>
           <IconBell /><span>Alerts</span>
           {n > 0 && <span className="jl-rail-badge" aria-hidden="true">{n > 99 ? '99+' : n}</span>}
         </a>
@@ -87,7 +87,8 @@ function JobsTabs({ tab }: { tab: string | null }) {
   const tabs = [
     { id: 'recommended', label: 'Recommended', to: '#/jobs', n: null },
     { id: 'liked', label: 'Liked', to: '#/jobs/liked', n: c?.liked ?? null },
-    { id: 'applied', label: 'Applied', to: '#/jobs/applied', n: c?.applied ?? null },
+    // Every application, whatever its stage: "Applications", so it never reads as the Tracker's "Applied" column (JL-tracker-23).
+    { id: 'applied', label: 'Applications', to: '#/jobs/applied', n: c?.applied ?? null },
     { id: 'external', label: 'External', to: '#/jobs/external', n: c?.external ?? null },
   ];
   return (
@@ -121,7 +122,7 @@ function JobSearch({ onRecommended }: { onRecommended: boolean }) {
 
 const TITLES: Record<ScreenId, string> = {
   jobs: 'Jobs', tracker: 'Tracker', dashboard: 'Dashboard', resume: 'Resume', profile: 'Profile', network: 'Network', interview: 'Interview',
-  assistant: 'Assistant', settings: 'Settings', notifications: 'Notifications',
+  assistant: 'Assistant', settings: 'Settings', notifications: 'Alerts',
 };
 
 /** The assistant button in the top bar: opens or closes the assistant panel (the panel stays over the page, closes with Esc). */

@@ -168,7 +168,7 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
       <div className="jl-detail-main">
         <div className="jl-actionbar"><Button ref={closeRef} shape="circle" icon={<CloseOutlined />} aria-label="Close job detail" onClick={() => { void close(); }} /></div>
         {d.error.status === 404
-          ? <EmptyState art="box" title="This job is not in your saved jobs" text="It may have been removed. Go back to your list." action={<Button type="primary" shape="round" onClick={onClose}>Back to the list</Button>} />
+          ? <EmptyState art="box" title="jobleft has no job with this address" text="It may have been removed, or the link is wrong. Go back to your list." action={<Button type="primary" shape="round" onClick={onClose}>Back to the list</Button>} />
           : <ErrorState error={d.error} onRetry={() => { void d.reload(); }} />}
       </div>
     );
@@ -214,7 +214,8 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
     <div className="jl-2col">
       <div className="jl-detail-main" ref={scrollRef} role="region" aria-label={`Job: ${job.title} at ${job.company}`}>
         <div className="jl-actionbar">
-          <Tooltip title="Close (Esc)"><Button ref={closeRef} shape="circle" icon={<CloseOutlined />} aria-label="Close job detail and return to the list" onClick={() => { void close(); }} /></Tooltip>
+          {/* Focus lands here when a job opens; the tip shows on hover only, so it never sits over the page title (JL-tracker-17). */}
+          <Tooltip title="Close (Esc)" trigger={['hover']}><Button ref={closeRef} shape="circle" icon={<CloseOutlined />} aria-label="Close job detail and return to the list (Esc)" onClick={() => { void close(); }} /></Tooltip>
           {closed && <span className="jl-chip closed" style={{ height: 32, padding: '0 10px' }}>Posting closed {dateText(job.closedAt)}</span>}
           {tracker?.status && <span className="jl-chip dark" style={{ height: 32, padding: '0 10px' }}>{statusLabel(tracker.status)}</span>}
           {networkCount && <span className="jl-chip" style={{ height: 32, padding: '0 10px' }}><TeamOutlined /> You know {networkCount} {networkCount === 1 ? 'person' : 'people'} at {job.company}</span>}

@@ -3,7 +3,7 @@
 // same list, filters and scroll position, and focus goes back to the card that opened it.
 
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { navigate } from '../../app/router.ts';
+import { navigate, previousRoute } from '../../app/router.ts';
 import { ErrorBoundary } from '../../components/States.tsx';
 import { JobDetail } from '../detail/JobDetail.tsx';
 import { Feed } from './Feed.tsx';
@@ -52,7 +52,17 @@ export function JobsScreen({ tab, detailId }: { tab: JobsTab | null; detailId: s
     else document.getElementById('jl-main')?.focus({ preventScroll: true });
   }, [detailId]);
 
-  const close = () => navigate(current === 'recommended' ? 'jobs' : `jobs/${current}`);
+  // A job opened from another screen (Alerts, Tracker, Dashboard) closes back to that screen, "where you were"
+  // (JL-tracker-19); a job opened from a jobs list closes to that list.
+  const from = useRef<string | null>(null);
+  const shownId = useRef<string | null>(null);
+  if (detailId !== shownId.current) {
+    const prev = previousRoute();
+    if (detailId && !shownId.current) from.current = prev && !/^jobs(\/|$)/.test(prev) && prev !== 'onboarding' ? prev : null;
+    if (!detailId) from.current = null;
+    shownId.current = detailId;
+  }
+  const close = () => navigate(from.current ?? (current === 'recommended' ? 'jobs' : `jobs/${current}`));
 
   return (
     <div className="jl-content" style={{ flex: 1 }}>

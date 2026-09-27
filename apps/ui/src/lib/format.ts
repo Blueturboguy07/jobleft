@@ -36,7 +36,9 @@ export function payText(pay: Pay | null | undefined): string | null {
   const max = typeof pay.max === 'number' && Number.isFinite(pay.max) && pay.max > 0 ? pay.max : null;
   if (min === null && max === null) return null;
   const u = PERIOD_SHORT[pay.period] ?? '';
-  const f = (v: number) => `${money(v, pay.currency, pay.period === 'year')}${u}`;
+  // Both ends in one form: "$141,773/yr - $162,000/yr", never "$141,773/yr - $162K/yr" (JL-tracker-22).
+  const compact = pay.period === 'year' && [min, max].every((v) => v === null || (v >= 1000 && v % 100 === 0));
+  const f = (v: number) => `${money(v, pay.currency, compact)}${u}`;
   if (min !== null && max !== null) return min === max ? f(min) : `${f(min)} - ${f(max)}`;
   if (min !== null) return `From ${f(min)}`;
   return `Up to ${f(max!)}`;

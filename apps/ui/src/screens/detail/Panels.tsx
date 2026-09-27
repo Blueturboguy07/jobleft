@@ -91,9 +91,11 @@ export function CompanySection({ job, company }: { job: Job; company: Company | 
       </div>
       {!has && (
         <div className="jl-factbox">
-          <p>jobleft has no facts about this company yet. Nothing is guessed.</p>
+          <p>{busy === 'free' ? 'Looking up this company in Wikidata, SEC EDGAR and GLEIF…' : 'jobleft has no facts about this company yet. Nothing is guessed.'}</p>
           <Space wrap style={{ marginTop: 8 }}>
-            <Button shape="round" loading={busy === 'free'} onClick={() => { void refresh(false); }}>Look up company facts (free public sources)</Button>
+            <Tooltip title="Sends only the company name to these free public sites (Wikidata, SEC EDGAR, GLEIF). Nothing about you is sent.">
+              <Button shape="round" loading={busy === 'free'} onClick={() => { void refresh(false); }}>Look up company facts (Wikidata, SEC, GLEIF; free)</Button>
+            </Tooltip>
             {metered?.enabled && (
               <Button shape="round" loading={busy === 'paid'} onClick={() => { void refresh(true); }}>Paid web search (about {formatDollars(Math.round(metered.pricesPer1000Micros.search / 1000))} from your balance)</Button>
             )}

@@ -109,7 +109,7 @@ export function Dashboard() {
           <section className="jl-card-box" aria-labelledby="al-h">
             <h2 id="al-h" className="jl-section-title" style={{ fontSize: 17 }}>Alerts</h2>
             <p>{plural(notes.data?.length ?? 0, 'new notification')}. {plural((filters.data ?? []).filter((f) => f.alert.enabled).length, 'saved filter')} with alerts on.</p>
-            <Button type="link" style={{ padding: 0 }} onClick={() => navigate('notifications')}>Open notifications</Button>
+            <Button type="link" style={{ padding: 0 }} onClick={() => navigate('notifications')}>Open alerts</Button>
           </section>
         </div>
       </div>

@@ -487,6 +487,8 @@ function AboutTab() {
         <Table size="small" pagination={false} rowKey="what" dataSource={[
           { what: 'Your profile, resumes, tracker, notes, connections, searches', where: 'Nothing leaves this Mac.' },
           { what: 'Requests to employers\' public job boards', where: 'Sent to those boards, one a second per site, with no personal data.' },
+          { what: 'A job or careers link you paste', where: 'That page is read once, when you add it, with no personal data.' },
+          { what: 'Company facts, when you select "Look up company facts"', where: 'The company name goes to Wikidata, SEC EDGAR and GLEIF (free public sources). Nothing about you is sent.' },
           { what: 'AI steps (chat, tailoring, letters, messages, practice)', where: `Sent to ${aiWhere}.` },
           { what: 'Paid web lookups', where: s?.meteredFetch.enabled ? 'On: sent to publik or your key\'s service, priced per request.' : 'Off.' },
           { what: 'Usage data, analytics, crash reports', where: 'None. jobleft has no tracking.' },
