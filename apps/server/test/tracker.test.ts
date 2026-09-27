@@ -3,6 +3,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { cleanup, startTest, type TestServer } from './helpers.ts';
 
 async function addJob(s: TestServer, title: string): Promise<string> {
@@ -23,7 +25,8 @@ test('a job with notes, reminders or an applied date never drops out of the trac
     const back = await patch(s, a, { status: null });
     assert.equal(back.status, 200, back.text);
     assert.equal(back.json.status, null);
-    assert.ok(back.json.appliedAt, 'the applied date is kept');
+    assert.equal(back.json.appliedAt, null, 'a job set back to "not applied" has no applied date (JL-v2-4)');
+    assert.equal(back.json.notes.length, 1, 'its note stays');
 
     // 2. Liked with a note and a reminder, then unliked.
     const b = await addJob(s, 'Data Analyst B');
@@ -92,4 +95,58 @@ test('tracker refusals: an empty note or reminder, and a wrong status, in plain 
     const entry = (await s.call('GET', `/api/v1/jobs/${encodeURIComponent(id)}`)).json.tracker;
     assert.deepEqual([entry.notes.length, entry.reminders.length, entry.status], [0, 0, null], 'nothing was saved');
   } finally { await s.stop(); cleanup(s.home); }
+});
+
+// JL-v2-4: jobs marked "Not interested" after being set back to "Not applied" (no note, no reminder) sat in "Not applied
+// yet" with "Kept here for your notes and reminders", and the Table showed an "Applied" date on "Not applied" jobs.
+test('"Not interested" alone is not tracked, and a job set back to "not applied" has no applied date (JL-v2-4)', async () => {
+  const s = await startTest('trkhid');
+  let running = true;
+  try {
+    // Applied, set back to "not applied" with its note and reminder emptied, then marked "Not interested".
+    const a = await addJob(s, 'Staff Data Analyst');
+    await patch(s, a, { status: 'applied', notes: [{ text: 'Sent Monday' }], reminders: [{ at: '2026-10-01T15:00:00Z', text: 'Follow up', done: false }] });
+    const back = (await patch(s, a, { status: null, notes: [], reminders: [] })).json;
+    assert.equal(back.appliedAt, null);
+    assert.equal((await patch(s, a, { hidden: true })).json.appliedAt, null);
+    // Only marked "Not interested".
+    const h = await addJob(s, 'Clover Analyst');
+    await patch(s, h, { hidden: true });
+    // Set back to "not applied" but with a note: still tracked, with no applied date.
+    const n = await addJob(s, 'Kept Analyst');
+    await patch(s, n, { status: 'applied', notes: [{ text: 'Keep this one' }] });
+    await patch(s, n, { status: null });
+
+    const t = await tracked(s);
+    const ids = t.items.map((x: any) => x.entry.jobId);
+    assert.ok(!ids.includes(a), 'a hidden job with nothing else is not on the board');
+    assert.ok(!ids.includes(h), 'a hidden job with nothing else is not on the board');
+    assert.ok(ids.includes(n), 'a job with a note stays on the board');
+    for (const x of t.items) if (x.entry.status === null) assert.equal(x.entry.appliedAt, null, `${x.entry.jobId} is "Not applied" with an applied date`);
+    const hidden = (await s.call('GET', '/api/v1/tracker?view=hidden')).json;
+    assert.deepEqual(hidden.items.map((x: any) => x.entry.jobId).sort(), [a, h].sort());
+
+    // Applying again gives a new date.
+    const again = (await patch(s, n, { status: 'applied' })).json;
+    assert.ok(again.appliedAt);
+    assert.equal(again.appliedAt, again.statusHistory.at(-1).at);
+
+    // A row an older build left with an applied date and no stage reads as not applied, and is not tracked by it.
+    const old = await addJob(s, 'Old Analyst');
+    await patch(s, old, { hidden: true });
+    await s.stop();
+    running = false;
+    const db = new DatabaseSync(join(s.home, 'data', 'jobleft.db'));
+    db.prepare("UPDATE srv_tracker SET applied_at = '2026-09-27T10:00:00.000Z', status = NULL WHERE job_id = ?").run(old);
+    db.close();
+    const s2 = await startTest('trkhid', { home: s.home });
+    try {
+      const t2 = await tracked(s2);
+      assert.ok(!t2.items.some((x: any) => x.entry.jobId === old), 'an old applied date alone does not track a job');
+      const e = (await s2.call('GET', '/api/v1/tracker?view=hidden')).json.items.find((x: any) => x.entry.jobId === old);
+      assert.equal(e.entry.appliedAt, null);
+      const re = (await patch(s2, old, { status: 'applied' })).json;
+      assert.notEqual(re.appliedAt, '2026-09-27T10:00:00.000Z', 'applying again gives a new date, not the old one');
+    } finally { await s2.stop(); }
+  } finally { if (running) await s.stop(); cleanup(s.home); }
 });

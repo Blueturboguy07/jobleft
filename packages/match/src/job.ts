@@ -81,6 +81,33 @@ const RANK: Record<SkillImportance, number> = { required: 0, preferred: 1, menti
 const BOILERPLATE = /\b(equal (employment )?opportunity|affirmative action|without regard to|protected (veteran|characteristic|class)|e-?verify|know your rights|employee rights|privacy (policy|notice|statement)|personal (information|data)|candidate privacy|reasonable accommodations?|pay transparency|fair chance|use of artificial intelligence|ai[- ]powered tools|follow (us|[A-Z][\w&.'-]*) on (linkedin|x|twitter|instagram|youtube|facebook)|diverse backgrounds|different perspectives)\b/i;
 /** How the employer hires: boilerplate in any posting except one for hiring work itself (recruiters, HR). */
 const HIRING_TALK = /\b((hiring|recruitment|recruiting|application|interview) process(es)?|hiring (guidelines|decisions))\b/i;
+/** A sentence about the employer's values ("We believe in hiring smart, curious people"), not about the job. */
+const VALUES_TALK = /\b(we believe|we value|one of our values|our (core )?values|our mission|we(?:'|’| a)re (proud|committed))\b/i;
+
+const LEGAL_WORDS = /\b(inc|incorporated|llc|l\.l\.c|ltd|limited|corp|corporation|co|company|gmbh|plc|lp|llp|pbc|the)\b\.?/g;
+/** A name reduced for comparing: lower case, no accents, no legal words, letters and digits only. */
+function nameKey(s: string): string {
+  return s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(LEGAL_WORDS, ' ').replace(/[^a-z0-9]+/g, '');
+}
+
+/**
+ * A sentence about the employer rather than the job (JL-tracker-5): it opens with the employer's name ("Figma's
+ * platform helps teams ... creating a prototype", "From idea to product, Figma empowers ...", "At Figma, ...").
+ */
+function aboutEmployer(sentence: string, company: string): boolean {
+  // "Acme is seeking a Cloud Engineer to work in an Agile environment" is about the job.
+  if (/\b(is|are) (seeking|looking for|searching for)\b|\bseeks\b/i.test(sentence)) return false;
+  const names = [nameKey(company)];
+  const first = company.replace(/^the\s+/i, '').split(/[\s,]+/)[0] ?? '';
+  if (first.length >= 5) names.push(nameKey(first)); // "Hippo" for "Hippo Insurance"; never a short word such as "Care"
+  // The first words of the sentence, after a bullet and a short opening phrase ("From idea to product, ").
+  const t = sentence.replace(/^[\s\-–—•·*]+/, '');
+  const heads = [t, t.replace(/^[^,.;:]{1,40},\s*/, ''), t.replace(/^at\s+/i, '')];
+  return heads.some((h) => {
+    const w = h.split(/\s+/).slice(0, 4).map((x) => nameKey(x.replace(/['’]s$/i, '')));
+    return names.some((n) => n && (w[0] === n || w.slice(0, 2).join('') === n || w.slice(0, 3).join('') === n || w.join('') === n));
+  });
+}
 
 function jobFamily(job: Job, a: AnalyzedText): { family: string | null; source: JobFacts['familySource']; evidence: string | null } {
   const byTitle = familyOfTitle(job.title);
@@ -318,8 +345,19 @@ export function readJob(job: Job, company: Company | null): JobFacts {
   if (st.usCitizenOnly && !has('citizenship')) {
     requirements.push({ kind: 'citizenship', importance: 'required', label: 'US citizenship', quote: verbatim(job, ev.usCitizenOnly?.text) ?? '', start: Number.MAX_SAFE_INTEGER, detail: { citizenship: 'citizen' } });
   }
-  if (job.yearsRequired && (job.yearsRequired.min !== null || job.yearsRequired.max !== null) && !has('years')) {
-    const { min, max } = job.yearsRequired;
+  // One years figure (JL-v2-1): the card, the "Years of experience" filter and "Why this score" read the same value,
+  // the job's yearsRequired (the parsers' reading of the posting). A required figure this lane reads stands only where
+  // it says the same; one the job does not carry is not stated here either. A reading under a year ("6+ months", "no
+  // experience needed"), which a job's whole years cannot carry, stays when the job states no years.
+  const jobYears = job.yearsRequired && (job.yearsRequired.min !== null || job.yearsRequired.max !== null) ? job.yearsRequired : null;
+  const sameYears = (r: PostedRequirement) => !!jobYears && (r.detail.minYears ?? null) === jobYears.min && (r.detail.maxYears ?? null) === jobYears.max;
+  for (let k = requirements.length - 1; k >= 0; k--) {
+    const r = requirements[k];
+    if (r.kind !== 'years' || r.importance !== 'required' || sameYears(r)) continue;
+    if (jobYears || (r.detail.minYears ?? 0) >= 1 || (r.detail.maxYears ?? 0) >= 1) requirements.splice(k, 1);
+  }
+  if (jobYears && !requirements.some((r) => r.kind === 'years' && r.importance === 'required')) {
+    const { min, max } = jobYears;
     requirements.push({ kind: 'years', importance: 'required', label: `${min ?? 0}+ years of experience`, quote: verbatim(job, ev.years?.text) ?? '', start: Number.MAX_SAFE_INTEGER, detail: { minYears: min, maxYears: max, general: true } });
   }
   const years = primaryYears(requirements);
@@ -364,6 +402,8 @@ export function readJob(job: Job, company: Company | null): JobFacts {
       for (const m of all) if (m.start >= run.start && m.end <= run.end) altOf.set(m.start, key);
     }
     const tokAt = new Map(a.live.map((t) => [t.start, t]));
+    // The employer's own name is never a skill on its own posting ("Figma" on a Figma job, JL-tracker-5).
+    const employer = new Set([nameKey(job.company), nameKey(job.companyKey ?? '')].filter(Boolean));
     for (const m0 of all) {
       const m = altOf.has(m0.start) ? { ...m0, id: altOf.get(m0.start)! } : m0;
       const def = SKILLS.get(m0.id)!;
@@ -372,7 +412,11 @@ export function readJob(job: Job, company: Company | null): JobFacts {
       if (!line || SKIP_SECTIONS.has(line.section)) continue;
       const sentence = a.sentences[tok.sentence]?.text ?? line.text;
       if (BOILERPLATE.test(sentence) || (fam.family !== 'hr' && HIRING_TALK.test(sentence))) continue;
+      if (employer.has(nameKey(def.name)) || employer.has(nameKey(a.text.slice(m0.start, m0.end)))) continue;
       const imp = lineImportance(line.section, sentence, def.kind === 'cred');
+      // A skill named only in passing counts where the posting talks about the job, never in a sentence about the
+      // employer or its values (JL-tracker-5).
+      if (imp === 'mentioned' && (VALUES_TALK.test(sentence) || aboutEmployer(sentence, job.company))) continue;
       if (def.kind === 'cred' && imp === 'mentioned') continue;
       if (imp === 'mentioned' && def.families && fam.family) {
         let fits = false;

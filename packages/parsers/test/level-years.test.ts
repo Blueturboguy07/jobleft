@@ -163,3 +163,49 @@ test('years: words about another thing in the sentence do not make the years opt
   assert.equal(y('- 3+ years of Kafka experience (nice to have)'), null);
   assert.equal(y('- 1 year of office experience preferred'), null);
 });
+
+// JL-v2-1: "Forbes' Cloud 100 (five years running!)" gave "5+ years exp" on 22 Attentive jobs whose requirement is
+// "4+ years of product management experience"; "A year from now, you will look back ... your experience" gave 1 year.
+test('JL-v2-1: years come from an experience requirement, never from company history or time words', () => {
+  const y = (t: string) => { const r = parseYearsRequired(t); return r ? [r.min, r.max] : null; };
+  const attentive = [
+    "Attentive is proud to be included in Deloitte's Fast 500 (four years running!), LinkedIn's Top Startups, Forbes' Cloud 100 (five years running!), Inc.'s Best Workplaces, and the Human Rights Campaign Foundation's Corporate Equality Index!",
+    '',
+    "What you'll accomplish",
+    '- 4+ years of product management experience building complex B2B or SaaS platforms, with a track record of owning ambiguous problem spaces end to end.',
+  ].join('\n');
+  const r = parseYearsRequired(attentive);
+  assert.deepEqual([r?.min, r?.max], [4, null]);
+  assert.match(r!.evidence.text, /4\+ years of product management experience/);
+  assert.doesNotMatch(r!.evidence.text, /running/);
+  assert.equal(y("Proud to be named to Forbes' Cloud 100 (five years running!), a great place to build experience."), null);
+  assert.equal(y('A year from now, you will look back on this single job application and reflect on your experience.'), null);
+  assert.equal(y('Revenue grew 40% year-over-year, and a year-over-year view of your experience matters.'), null);
+  assert.equal(y('We are celebrating 25 years of excellence in patient care and hands-on experience.'), null);
+  assert.equal(y('Founded 30 years ago, we bring experience to every client.'), null);
+  assert.equal(y('Our company has been in business for 50 years, serving experienced builders.'), null);
+  // Still read: "running" as work, "or more", and the ordinary requirement wordings.
+  assert.deepEqual(y('- 5+ years running and scaling paid performance campaigns at B2B SaaS companies'), [5, null]);
+  assert.deepEqual(y('- You have 5 or more years of experience working for a technology vendor'), [5, null]);
+  assert.deepEqual(y("- 3 years' experience in retail management"), [3, null]);
+  assert.deepEqual(y('- A minimum of 2 years of customer service experience'), [2, null]);
+  assert.deepEqual(y('- At least 6 years in software engineering'), [6, null]);
+});
+
+// JL-v2-2: "7+ years ... in data science, analytics, or related fields, including 2+ years of people management" showed
+// "2+ years exp" and passed an "Up to 3 years" filter: an "or" inside a list of fields was read as an alternative.
+test('JL-v2-2: a sub-requirement never lowers the overall years; only a real alternative does', () => {
+  const y = (t: string) => { const r = parseYearsRequired(t); return r ? [r.min, r.max] : null; };
+  assert.deepEqual(y('- 7+ years of experience in data science, analytics, or related fields, including 2+ years of people management experience'), [7, null]);
+  assert.deepEqual(y('• 10+ years of experience in data science, analytics, or a related quantitative field, with 3+ years in a people management role leading data scientists or analysts'), [10, null]);
+  assert.deepEqual(y('- 12+ years of experience in business intelligence, financial analytics, or analytics engineering, with deep exposure to finance/accounting operations, and at least 3 years in a people management or team lead capacity'), [12, null]);
+  assert.deepEqual(y('- Extensive Experience: A minimum of 10 years of experience in systems engineering, cloud architecture, or technical consultancy, with a minimum of 4 years of specialized expertise in Google Cloud Platform (GCP).'), [10, null]);
+  assert.deepEqual(y('- 14+ years in distributed systems engineering with 6+ years leading infrastructure organizations and 4+ years managing managers'), [14, null]);
+  assert.deepEqual(y('- At least 10 years\' experience leading a sales team, of which at least 5 years\' experience in scaling a team of reps'), [10, null]);
+  // Real alternatives still give the lowest that meets the requirement.
+  assert.deepEqual(y('- 12+ years of relevant industry experience with a BS/Masters, or 9+ years with a PhD, in data engineering'), [9, null]);
+  assert.deepEqual(y('- A BA/BS in a quantitative field with 5+ years of relevant experience, or a PhD in a quantitative field with 3+ years of relevant experience.'), [3, null]);
+  assert.deepEqual(y('- Bachelors + 8 years or Masters + 6 years or Phd + 3 years of data science experience'), [3, null]);
+  assert.deepEqual(y("- 12 or more years of enterprise sales experience with a bachelor's degree, or 8 or more years with a master's degree."), [8, null]);
+  assert.deepEqual(y('- Min 5 to 10 or more years of experience in sales'), [5, null]);
+});

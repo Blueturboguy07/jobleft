@@ -13,19 +13,19 @@ const NUMW = '(\\d{1,2}(?:\\.5)?|zero|one|two|three|four|five|six|seven|eight|ni
 // "3+ years", "3-5 years", "3 to 5 years", "three (3) years", "at least 3 years", "3 years or more", "3 yrs".
 const MENTION = new RegExp(
   `(?:(at\\s+least|minimum\\s+(?:of\\s+)?|min\\.?\\s*|a\\s+minimum\\s+of|no\\s+less\\s+than|more\\s+than|over|in\\s+excess\\s+of|upwards\\s+of|up\\s+to|mínimo(?:\\s+de)?|al\\s+menos|au\\s+moins|mindestens)\\s+)?` +
-  `\\b${NUMW}(?:\\s*\\(\\s*\\d{1,2}\\s*\\))?\\s*(\\+|plus)?\\s*(?:(?:-|–|to|a|à|bis|or)\\s*${NUMW}\\s*(\\+)?\\s*)?` +
+  `\\b${NUMW}(?:\\s*\\(\\s*\\d{1,2}\\s*\\))?\\s*(\\+|plus|or\\s+more(?=\\s+(?:full[- ]time\\s+|consecutive\\s+|calendar\\s+)?(?:years?|yrs?)\\b))?\\s*(?:(?:-|–|to|a|à|bis|or)\\s*${NUMW}\\s*(\\+|or\\s+more(?=\\s+(?:full[- ]time\\s+|consecutive\\s+|calendar\\s+)?(?:years?|yrs?)\\b))?\\s*)?` +
   `(?:full[- ]time\\s+|consecutive\\s+|calendar\\s+)?(years?|yrs?|yoe|años|anos|ans|années|jahre|jahren)(?![a-z])(\\s*(?:\\+|or\\s+more|or\\s+longer|or\\s+greater|and\\s+above|minimum|min\\.?))?`,
   'gi',
 );
 
 /** Words after the number that show it is an experience requirement. */
-const EXP_AFTER = /^[^.;\n]{0,90}?\b(?:experience|experiences|exp\b|expertise|expérience|experiencia|experiência|erfahrung|berufserfahrung|working\b|work(?:ed)?\s+(?:in|with|as|at|on|for)\b|background|practice|practicing|track\s+record|hands[- ]on|in\s+(?:an?|the)\s+(?:[\w-]+\s+){0,3}(?:role|position|setting|environment|capacity|field|industry|function)|(?:building|developing|designing|leading|managing|working|writing|shipping|selling|teaching|supervising|coding|programming|engineering|delivering|running|operating|owning|driving|creating|implementing|deploying|maintaining|supporting|serving|providing|performing|conducting|administering|analyzing|analysing|handling|overseeing|coordinating|recruiting|training|caring|treating|practicing|practising)\b|in\s+(?:[\w&/-]+\s+){0,3}(?:management|sales|engineering|development|design|marketing|finance|accounting|operations|consulting|healthcare|nursing|retail|hospitality|industry|field|role|roles|position|positions|setting|environment|space|domain|capacity|function|leadership|recruiting|research|analytics|product|security|support|education|teaching|law|practice)\b|of\s+(?:[\w-]+\s+){0,3}(?:work|employment|leadership|management|supervis\w+|teaching|sales|driving|nursing|coding|programming|engineering|development|design|accounting|auditing|recruiting|consulting|research))/i;
+const EXP_AFTER = /^[^.;!\n]{0,90}?\b(?:experience|experiences|exp\b|expertise|expérience|experiencia|experiência|erfahrung|berufserfahrung|working\b|work(?:ed)?\s+(?:in|with|as|at|on|for)\b|background|practice|practicing|track\s+record|hands[- ]on|in\s+(?:an?|the)\s+(?:[\w-]+\s+){0,3}(?:role|position|setting|environment|capacity|field|industry|function)|(?:building|developing|designing|leading|managing|working|writing|shipping|selling|teaching|supervising|coding|programming|engineering|delivering|running|operating|owning|driving|creating|implementing|deploying|maintaining|supporting|serving|providing|performing|conducting|administering|analyzing|analysing|handling|overseeing|coordinating|recruiting|training|caring|treating|practicing|practising)\b|in\s+(?:[\w&/-]+\s+){0,3}(?:management|sales|engineering|development|design|marketing|finance|accounting|operations|consulting|healthcare|nursing|retail|hospitality|industry|field|role|roles|position|positions|setting|environment|space|domain|capacity|function|leadership|recruiting|research|analytics|product|security|support|education|teaching|law|practice)\b|of\s+(?:[\w-]+\s+){0,3}(?:work|employment|leadership|management|supervis\w+|teaching|sales|driving|nursing|coding|programming|engineering|development|design|accounting|auditing|recruiting|consulting|research))/i;
 /** "yoe" and "5 years experience" need no more words. */
 const EXP_TIGHT = /^\s*(?:of\s+)?(?:(?:relevant|related|professional|progressive|prior|previous|recent|direct|post-?graduate|post-?licensure|paid|full[- ]time|industry|clinical|work|job)\s+)*(?:experience|exp\b|expérience|experiencia|experiência|erfahrung|berufserfahrung)/i;
 
 /** Things with years that are not an experience requirement. */
-const NOT_EXP_AFTER = /^\s*(?:of\s+age|old\b|or\s+older|of\s+(?:college|university|school|schooling|education|study|studies|coursework|post-?secondary|high\s+school|service\b(?!\s+experience)|history|operation|business|existence|growth)|in\s+(?:business|operation|a\s+row)|ago\b|consecutive|in\s+a\s+row|degree|college|program|contract|commitment|term|warranty|plan\b|vesting|cliff|guarantee|lease|agreement|residency\s+program|apprenticeship\s+program)/i;
-const NOT_EXP_LEAD = /\b(?:age|aged|ages|older\s+than|be\s+at\s+least|must\s+be|vest\w*|vesting|over\s+the\s+(?:next|last|past|previous|coming)|in\s+(?:just\s+)?(?:under|over|less\s+than)|within(?:\s+the)?(?:\s+(?:last|past|first|next))?|in\s+the\s+(?:last|past|next|first)|during\s+the\s+(?:last|past)|for\s+(?:the\s+)?(?:last|past)|every|each|after|once|since|founded|established|serving|served|been|history|anniversary|renew\w*|valid\s+for|commit\w*\s+(?:to|for))\s*$/i;
+const NOT_EXP_AFTER = /^\s*(?:of\s+age|old\b|or\s+older|of\s+(?:college|university|school|schooling|education|study|studies|coursework|post-?secondary|high\s+school|service\b(?!\s+experience)|history|operation|business|existence|growth)|in\s+(?:business|operation|a\s+row)|ago\b|from\s+now\b|later\b|away\b|hence\b|running\b(?=\s*(?:[!)\],.;:]|$|in\s+a\s+row))|-?\s*(?:over|on)[\s-]+(?:the[\s-]+)?years?\b|of\s+(?:excellence|innovation)\b|consecutive|in\s+a\s+row|degree|college|program|contract|commitment|term|warranty|plan\b|vesting|cliff|guarantee|lease|agreement|residency\s+program|apprenticeship\s+program)/i;
+const NOT_EXP_LEAD = /\b(?:age|aged|ages|older\s+than|be\s+at\s+least|must\s+be|vest\w*|vesting|over\s+the\s+(?:next|last|past|previous|coming)|in\s+(?:just\s+)?(?:under|over|less\s+than)|within(?:\s+the)?(?:\s+(?:last|past|first|next))?|in\s+(?:the\s+)?(?:last|past|next|first)|during\s+the\s+(?:last|past)|for\s+(?:the\s+)?(?:last|past)|every|each|after|once|since|founded|established|serving|served|been|history|anniversary|celebrat\w*|marks?|marking|running|out\s+of(?:\s+the)?|renew\w*|valid\s+for|commit\w*\s+(?:to|for))\s*$/i;
 /** The company or its team has the years ("our team has 20+ years", "a family business with over 50 years"). */
 const COMPANY_HAS = /(?:\b(?:we|we've|we're|our\s+(?:[\w-]+\s+){0,2}(?:team|company|firm|founders?|leaders(?:hip)?|clinicians|staff|people|experts|partners|business|organization|family)|the\s+(?:company|firm|team)|founders?|company|firm|business|organization)\s+(?:have|has|bring|brings|combine|combines|boast|boasts|possess|possesses|with)\b[^.;\n]{0,40}$)|\bfor\s+(?:over|more\s+than|nearly|almost|about|close\s+to)\s*$/i;
 const PREFERRED = /\b(?:prefer(?:red|ably|ence)?|nice[- ]to[- ]have|a\s+plus|is\s+a\s+plus|bonus|ideally|desired|desirable|would\s+be\s+(?:great|nice|a\s+plus)|an?\s+asset|advantage(?:ous)?|plus\b|optional|deseable|souhaité|wünschenswert)\b/i;
@@ -50,6 +50,8 @@ interface Mention {
   sentence: number;
   line: number;
   degree: boolean;
+  /** Added as the "or N years" alternative of another figure in its sentence. */
+  orAlt?: boolean;
 }
 
 function sentenceBounds(text: string): number[] {
@@ -141,7 +143,7 @@ export function parseYearsRequired(input: string): YearsResult | null {
   const seenEnds = new Set(mentions.map((x) => x.end));
   const bySent = new Map<number, Mention>();
   for (const x of mentions) if (!bySent.has(x.sentence)) bySent.set(x.sentence, x);
-  const alt = new RegExp(`\\b(?:or|alternatively|otherwise)\\s+(?:with\\s+)?(?:an?\\s+)?(?:[\\w'-]+\\s+){0,4}?${NUMW}\\s*(\\+)?\\s*(?:years?|yrs?)\\b`, 'gi');
+  const alt = new RegExp(`\\b(?:or|alternatively|otherwise)\\s+(?:with\\s+)?(?:an?\\s+)?(?:[\\w'-]+\\s+){0,4}?${NUMW}\\s*(\\+|or\\s+more)?\\s*(?:years?|yrs?)\\b`, 'gi');
   let added = 0;
   for (const base of bySent.values()) {
     const sStart = Math.max(sentStarts[base.sentence], base.index - 400);
@@ -155,7 +157,7 @@ export function parseYearsRequired(input: string): YearsResult | null {
       const v = num(am[1]);
       if (v === null || v > 30) continue;
       if (NOT_EXP_AFTER.test(text.slice(at, at + 60))) continue;
-      mentions.push({ ...base, index: sStart + am.index, end: at, min: v, max: null });
+      mentions.push({ ...base, index: sStart + am.index, end: at, min: v, max: null, orAlt: true });
       seenEnds.add(at);
       added++;
     }
@@ -171,8 +173,15 @@ export function parseYearsRequired(input: string): YearsResult | null {
   for (const [, ms] of bySentence) {
     if (ms.length === 1) { groups.push({ value: ms[0], members: ms }); continue; }
     const between = text.slice(ms[0].end, ms[ms.length - 1].index);
-    const alt = /\bor\b|\bwith\s+an?\s+(?:master|bachelor|ph\.?d|advanced|graduate)|\((?:[^)]*\b(?:master|ph\.?d|bachelor|degree)\b)/i.test(between) || /\bor\b/i.test(text.slice(Math.max(0, ms[0].index - 3), ms[ms.length - 1].end));
-    const pick = alt ? ms.reduce((p, c) => (c.min < p.min ? c : p)) : ms.reduce((p, c) => (c.min > p.min ? c : p));
+    // An alternative is an "or" that leads to the next figure ("..., or 9+ years with a PhD", "or a Master's degree and
+    // 3 years"), not an "or" inside a list of fields ("in data science, analytics, or related fields, including 2+
+    // years of people management", JL-v2-2): that second figure is part of the first and never lowers it.
+    const orNext = ms.some((x) => x.orAlt) || ms.slice(1).some((x, i) => /\b(?:or|alternatively|otherwise)\b\s*\(?\s*(?:[\w'’./-]+\s+){0,4}$/i.test(text.slice(ms[i].end, x.index)));
+    const alt = orNext || /\bor\b[^.;\n]{0,60}?\b(?:master'?s?|bachelor'?s?|ph\.?\s?d|doctorate|degree|mba|[bm]\.?[sa]\.?)(?![a-z])|\bwith\s+an?\s+(?:master|bachelor|ph\.?d|advanced|graduate)|\((?:[^)]*\b(?:master|ph\.?d|bachelor|degree)\b)/i.test(between);
+    // "including 2+ years of X" and "of which 2 years in X" are part of the requirement, never the requirement.
+    const primary = ms.filter((x) => !/\b(?:including|incl\.?|of\s+which|within\s+which)\s*$/i.test(text.slice(Math.max(0, x.index - 30), x.index)));
+    const use = primary.length ? primary : ms;
+    const pick = alt ? use.reduce((p, c) => (c.min < p.min ? c : p)) : ms.reduce((p, c) => (c.min > p.min ? c : p));
     groups.push({ value: pick, members: ms });
   }
   let chosen: Mention;

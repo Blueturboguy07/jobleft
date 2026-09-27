@@ -82,3 +82,47 @@ test('Experience Level quotes the title, the department or the years line as the
   const hr = score(ANALYST, job({ title: 'Coordinator', department: 'Talent Acquisition', description: 'What you will do\n- Schedule interviews with candidates and hiring managers in Greenhouse\n- Source candidates' }));
   assert.match(hr.subScores.experienceLevel.reasons.map((x) => x.text).join(' '), /department "Talent Acquisition"/);
 });
+
+// JL-tracker-5 residue: on Figma's "PhD Intern, Data Science (2027)" the skills list held "Hiring and staffing" (from
+// "We believe in hiring smart, curious people"), "Wireframing and prototyping" (from the company blurb "creating a
+// prototype"), "Figma" (the employer's own name) and "Budgeting and forecasting" (from statistical "forecasting"); each
+// counted as missing.
+test('skills come from what the posting asks of the person, never from the employer\'s name, blurb or values (JL-tracker-5)', () => {
+  const figma = job({
+    title: 'PhD Intern, Data Science (2027)', company: 'Figma', location: 'San Francisco, CA',
+    description: [
+      "Figma is growing our team of passionate creatives and builders on a mission to make design accessible to all. Figma’s platform helps teams bring ideas to life—whether you're brainstorming, creating a prototype, translating designs into code, or iterating with AI. From idea to product, Figma empowers teams to streamline workflows.",
+      '',
+      'What you’ll do at Figma:',
+      '- Analyze user, product, or business data to uncover insights and recommend actions',
+      '',
+      'We’d love to hear from you if you have:',
+      '- Experience using a scripting language such as Python or R, as well as proficiency with SQL',
+      '',
+      "While it's not required, it's an added plus if you also have:",
+      '- Prior industry or applied research experience with experimental design, causal inference, forecasting, product measurement, or applied machine learning',
+      '',
+      'At Figma, one of our values is Grow as you go. We believe in hiring smart, curious people who are excited to learn and develop their skills.',
+    ].join('\n'),
+  });
+  const r = score(ANALYST, figma);
+  const named = [...r.skills.required, ...r.skills.preferred];
+  for (const wrong of ['Hiring and staffing', 'Wireframing and prototyping', 'Figma', 'Budgeting and forecasting']) {
+    assert.ok(!named.includes(wrong), `"${wrong}" in ${JSON.stringify(named)}`);
+    assert.ok(!r.skills.missing.includes(wrong));
+  }
+  assert.ok(named.includes('SQL') && named.includes('Machine learning'), JSON.stringify(named));
+  // The count the reason gives equals the list shown.
+  const req = r.subScores.skills.reasons.find((x) => x.code === 'skills_required')!;
+  assert.equal(Number(/of (?:the )?(\d+) skill/.exec(req.text)?.[1]), r.skills.required.length, req.text);
+
+  // The same words where a posting asks for them still count.
+  const design = job({ title: 'Product Designer', company: 'Contoso', description: 'Requirements\n- 3+ years of experience with Figma\n- Wireframing and prototyping for web and mobile' });
+  const d = score(ANALYST, design).skills.required;
+  assert.ok(d.includes('Figma') && d.includes('Wireframing and prototyping'), JSON.stringify(d));
+  const store = job({ title: 'Store Manager', company: 'Contoso Outfitters', description: 'Requirements\n- Hiring and training a team of 20 associates\n- Budgeting and forecasting for the store' });
+  const s = score(ANALYST, store).skills.required;
+  assert.ok(s.includes('Hiring and staffing') && s.includes('Budgeting and forecasting'), JSON.stringify(s));
+  const fpa = job({ title: 'Financial Analyst', company: 'Contoso', description: 'Requirements\n- Own the annual budget and expense forecasting for two departments' });
+  assert.ok(score(ANALYST, fpa).skills.required.includes('Budgeting and forecasting'));
+});

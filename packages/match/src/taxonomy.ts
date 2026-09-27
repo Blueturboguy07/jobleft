@@ -232,6 +232,8 @@ const TRADES_ANCHORS = words('programming ladder controls automation allen bradl
 // definitions" are not) and car repair ("alignment", "brakes", "suspension").
 const BUILD_ANCHORS = words('construction carpentry carpenter carpenters lumber wood drywall roofing masonry mason rebar studs joists trim cabinets cabinetry blueprints jobsite site tools saw saws nail nails nailer hammer building buildings remodel remodeling renovation renovations install installation forms forming pour pouring poured slab slabs foundation foundations finishing framing concrete cement sidewalk sidewalks curbs walls floors flooring');
 const AUTO_ANCHORS = words('brake brakes tire tires wheel wheels vehicle vehicles automotive auto car cars truck trucks engine engines suspension oil diagnostics mechanic mechanics technician technicians steering alignment alignments rotation rotations lube shop');
+// Money words: "forecasting" is budgeting and forecasting only next to these, never statistical forecasting.
+const FIN_ANCHORS = words('budget budgets budgeting budgetary financial finance fiscal revenue revenues expense expenses variance cash accounting cost costs spend spending opex capex headcount margin margins earnings profit profitability p&l fp&a ebitda');
 const HR_ANCHORS = words('ats applicant applicants candidate candidates recruiting recruiter recruiters sourcing hiring requisitions offers interview interviews lever greenhouse workday icims taleo');
 const MFG_NEIGHBORS = words('line mechanical electrical product products component components parts manual electronic electronics');
 const HEALTH_NEIGHBORS = words('ehr emr systems charting hyperspace certification certified credentialed');
@@ -337,6 +339,7 @@ export const CONTEXT_RULES: Record<string, (doc: ScanDoc, i: number, len: number
   therapy: (doc, i, len) => neighbors(doc, i, len, 6, THERAPY_ANCHORS),
   aba: (doc, i, len) => neighbors(doc, i, len, 8, ABA_ANCHORS),
   acct: (doc, i, len) => neighbors(doc, i, len, 4, ACCT_ANCHORS),
+  fin: (doc, i, len) => neighbors(doc, i, len, 6, FIN_ANCHORS) || docHas(doc, 'fin', FIN_ANCHORS, 4),
   spoken: (doc, i, len) => neighbors(doc, i, len, 3, SPOKEN_ANCHORS),
   // Never part of a hyphenated word ("self-starter" is not a motor starter).
   trades: (doc, i, len) => !hyphenated(doc, i, len) && neighbors(doc, i, len, 5, TRADES_ANCHORS),

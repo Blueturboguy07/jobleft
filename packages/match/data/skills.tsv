@@ -348,7 +348,7 @@ reconciliation | Account reconciliation | skill | accounting,finance,payroll | a
 journal_entries | Journal entries | skill | accounting | journal entries, journal entry, adjusting entries, adjusting journal entries, recording entries |
 month_end | Month-end close | skill | accounting,finance | month-end close, month end close, month-end closing, month end closing, monthly close, period-end close, year-end close, month-end and year-end close, close process, financial close |
 financial_reporting | Financial reporting | skill | accounting,finance | financial reporting, financial statements, financial statement preparation, preparing financial statements, balance sheet, income statement, cash flow statement, p&l statements |
-budget_forecast | Budgeting and forecasting | skill | finance,accounting | budgeting and forecasting, forecasting, financial forecasting, variance analysis, budget vs actual, fp&a, financial planning and analysis |
+budget_forecast | Budgeting and forecasting | skill | finance,accounting | budgeting and forecasting, forecasting@fin, financial forecasting, variance analysis, budget vs actual, fp&a, financial planning and analysis |
 financial_modeling | Financial modeling | skill | finance,accounting | financial modeling, financial modelling, financial models, dcf, discounted cash flow, valuation, valuations, lbo |
 financial_analysis | Financial analysis | skill | finance,accounting | financial analysis, analyzing financial data, ratio analysis |
 auditing | Auditing | skill | accounting,finance | auditing, audit, audits, internal audit, internal audits, external audit, audit procedures, audit support, audit preparation |
