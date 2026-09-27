@@ -228,7 +228,11 @@ export function politeFetch(opts: PoliteFetchOptions = {}): typeof fetch {
     } catch (e) {
       lastMark.set(host, now());
       if (isRobots && !(e instanceof HttpError)) {
-        robotsProblems.set(host, `could not connect to ${host} to read robots.txt, so nothing was requested (an unreadable robots.txt means "do not crawl")`);
+        // A slow host and an unreachable one are different facts; the report says which (a slow one is "did not
+        // answer in time", the same words as a slow feed).
+        const name = (e as { name?: string } | null)?.name;
+        const why = name === 'TimeoutError' || name === 'RequestTimeoutError' ? `${host} did not answer in time when robots.txt was requested` : `could not connect to ${host} to read robots.txt`;
+        robotsProblems.set(host, `${why}, so nothing was requested (an unreadable robots.txt means "do not crawl")`);
       }
       opts.onRequest?.({ at: new Date(now()).toISOString(), url, host, status: null, waitedMs: waited, error: e instanceof Error ? e.name : String(e), sentAtMs });
       throw e;
