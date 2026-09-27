@@ -4,7 +4,7 @@
 // the structured fields.
 
 import type { Company, EmploymentType, Job, Level, WorkModel } from '@jobleft/contracts';
-import { levelFromTitle } from '@jobleft/parsers';
+import { levelFromDescription, levelFromTitle } from '@jobleft/parsers';
 import { analyzeText, quoteAround, textLanguage, type AnalyzedText, type SectionKind } from './text.ts';
 import {
   FAMILIES, SKILLS, familyOfTitle, familyRelatedness, scanIndustries, scanSkills, tokensOfText, type IndustryHit,
@@ -34,6 +34,8 @@ export interface JobFacts {
   level: Level | null;
   levelSource: 'job' | 'title' | 'years' | 'employment_type' | null;
   levelEvidence: string | null;
+  /** The level came with the job, read from the years of experience its text asks for (not stated in the title). */
+  levelFromPostingYears: boolean;
   requirements: PostedRequirement[];
   years: PostedRequirement | null;
   workModel: WorkModel | null;
@@ -83,10 +85,24 @@ const HIRING_TALK = /\b((hiring|recruitment|recruiting|application|interview) pr
 function jobFamily(job: Job, a: AnalyzedText): { family: string | null; source: JobFacts['familySource']; evidence: string | null } {
   const byTitle = familyOfTitle(job.title);
   if (byTitle) return { family: byTitle.family, source: 'title', evidence: byTitle.phrase };
+  const ranked = familyVotes(job, a);
+  const clear = ranked.length && ranked[0][1] >= 2 && (ranked.length < 2 || ranked[0][1] >= ranked[1][1] * 1.5) ? ranked[0][0] : null;
   if (job.department) {
     const byDept = familyOfTitle(job.department);
-    if (byDept) return { family: byDept.family, source: 'department', evidence: byDept.phrase };
+    if (byDept) {
+      // A department is the employer's own label ("[INACTIVE] Talent Acquisition" over a data analyst job): when the
+      // duties point to other, unrelated work and hardly to the department's, the duties win (JL-tracker-16).
+      const top = ranked.length && ranked[0][1] >= 2 ? ranked[0] : null;
+      const deptVotes = ranked.find(([f]) => familyRelatedness(byDept.family, f) >= 0.3)?.[1] ?? 0;
+      if (top && familyRelatedness(byDept.family, top[0]) < 0.3 && deptVotes < top[1] / 3) return { family: top[0], source: 'description', evidence: null };
+      return { family: byDept.family, source: 'department', evidence: job.department };
+    }
   }
+  return clear ? { family: clear, source: 'description', evidence: null } : { family: null, source: null, evidence: null };
+}
+
+/** The kinds of work the requirement and duty lines point to, with their votes, most first. */
+function familyVotes(job: Job, a: AnalyzedText): Array<[string, number]> {
   // Vote from the skills the requirement and duty lines name, and from job titles written in the text.
   const votes = new Map<string, number>();
   for (const m of scanSkills(a.live, { title: job.title })) {
@@ -104,11 +120,7 @@ function jobFamily(job: Job, a: AnalyzedText): { family: string | null; source: 
       if (f) votes.set(f.family, (votes.get(f.family) ?? 0) + 1.5);
     }
   }
-  const ranked = [...votes].sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1));
-  if (ranked.length && ranked[0][1] >= 2 && (ranked.length < 2 || ranked[0][1] >= ranked[1][1] * 1.5)) {
-    return { family: ranked[0][0], source: 'description', evidence: null };
-  }
-  return { family: null, source: null, evidence: null };
+  return [...votes].sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1));
 }
 
 const REMOTE_RE = /\b(fully remote|100% remote|remote[- ]first|remote position|remote role|remote job|remote opportunity|remote work|work(ing)? from home|wfh|telecommut\w*|work remotely|this (is a )?remote|(role|position|job) is remote|remote \((us|u\.s\.|usa|united states|anywhere)|remote - |remote, (us|usa|united states)|remote in the (us|u\.s\.|united states)|remote within|remote \/ |open to remote|remote eligible|remote-eligible)\b/i;
@@ -315,11 +327,22 @@ export function readJob(job: Job, company: Company | null): JobFacts {
   let level: Level | null = job.level ?? null;
   let levelSource: JobFacts['levelSource'] = level ? 'job' : null;
   let levelEvidence: string | null = level ? verbatim(job, job.evidence?.level?.text) ?? job.title : null;
+  // A level the crawler read from the description comes from the years it asks for ("4+ years of experience" is Mid
+  // Level). Its reasons say so and quote the years sentence, never an unrelated line ("16 hours of paid volunteer
+  // time per year") and never the title, which states no level (JL-tracker-16).
+  const levelEv = job.evidence?.level;
+  let levelFromPostingYears = false;
+  if (level && levelEv?.source !== 'title' && levelEv?.source !== 'board_field' && levelFromTitle(job.title) !== level) {
+    const said = verbatim(job, levelEv?.text);
+    levelFromPostingYears = true;
+    levelEvidence = said && levelFromDescription(said) === level ? said : years?.quote || null;
+  }
   // The title, read by the match lane, wins over a level that is only the parsers' reading of the same title
   // ("Account Manager" is not a people manager; "Executive Assistant to the CEO" is not an executive).
   const t = levelOfTitle(job.title, fam.family);
   if (level && levelFromTitle(job.title) === level && t !== level) { level = t; levelSource = t ? 'title' : null; levelEvidence = t ? job.title : null; }
   if (t && !level) { level = t; levelSource = 'title'; levelEvidence = job.title; }
+  if (levelSource !== 'job') levelFromPostingYears = false;
   if (!level && job.employmentType === 'internship') { level = 'intern'; levelSource = 'employment_type'; levelEvidence = 'internship'; }
   // A level is never inferred from the years a posting asks for: "3+ years" is a minimum, not a level, and the
   // view shows "not stated" rather than a guess.
@@ -372,7 +395,7 @@ export function readJob(job: Job, company: Company | null): JobFacts {
 
   return {
     job, text: a, language, words: liveWords, family: fam.family, familySource: fam.source, familyEvidence: fam.evidence,
-    level, levelSource, levelEvidence, requirements, years, workModel: wm.model, workModelEvidence: wm.evidence,
+    level, levelSource, levelEvidence, levelFromPostingYears, requirements, years, workModel: wm.model, workModelEvidence: wm.evidence,
     employmentType: et.type, employmentTypeEvidence: et.evidence, skills, distinctSkillCount: skills.length,
     industries: language === 'other' && !(company?.facts?.industries) ? [] : jobIndustries(job, a, company, fam.family),
     ignoredSentences: a.ignoredSentences,

@@ -140,3 +140,13 @@ test('description: a list item whose text sits in a paragraph keeps its "-" mark
   assert.match(t, /^- RN license$/m);
   assert.match(t, /^- BLS card$/m);
 });
+
+test('level read from the years: its evidence is the years line, never the first line that says "year" (JL-tracker-16)', () => {
+  const descriptionHtml = '<p>Benefits</p><ul><li>16 hours of paid volunteer time per year</li><li>Seasonal and year round wellness challenges.</li></ul><p>Requirements</p><ul><li>4+ years of experience focused on data analysis</li></ul>';
+  const j = normalizeJob(gh, { ...emptyRaw(), externalId: '9', title: 'Financial Data Analyst', url: 'https://x.example/9', location: 'Austin, TX', descriptionHtml });
+  assert.ok(j);
+  assert.equal(j.level, 'mid');
+  assert.equal(j.evidence?.level?.source, 'description');
+  assert.match(j.evidence?.level?.text ?? '', /4\+ years of experience focused on data analysis/);
+  assert.doesNotMatch(j.evidence?.level?.text ?? '', /volunteer|wellness/);
+});

@@ -139,7 +139,9 @@ function relevanceOf(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): { rel: n
   const reasons: Reason[] = [];
   const fam = jf.family;
   const jobKind = fam ? familyLabel(fam).toLowerCase() : null;
-  const titleWords = jf.familyEvidence ? q(jf.familyEvidence) : q(jf.job.title);
+  // Where the kind of work was read, quoted as the posting writes it (JL-tracker-16).
+  const titleWords = jf.familySource === 'department' ? `department ${q(jf.job.department ?? jf.familyEvidence ?? '')}`
+    : jf.familySource === 'description' ? 'from the duties in the posting' : `title ${q(jf.job.title)}`;
   if (!fam) {
     reasons.push({ code: 'role_unknown_job', text: `Not enough information: jobleft could not tell the kind of work from the title ${q(jf.job.title)} or the posting.`, points: 0 });
     return { rel: null, reasons, relevantMonths: null };
@@ -182,9 +184,9 @@ function relevanceOf(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): { rel: n
   if (rel <= 0) rel = cfg.experience.unrelated;
   if (bestRole && relRoles >= rel && relRoles > 0) {
     if (best >= 1) {
-      reasons.push({ code: 'role_match', text: `The job is ${jobKind} work (title ${titleWords}); you have ${formatMonths(sameMonths)} in it, as ${listNames([...new Set(pf.families.get(fam)!.roles.map((r) => q(r.title)))], 3)}.`, points: 0 });
+      reasons.push({ code: 'role_match', text: `The job is ${jobKind} work (${titleWords}); you have ${formatMonths(sameMonths)} in it, as ${listNames([...new Set(pf.families.get(fam)!.roles.map((r) => q(r.title)))], 3)}.`, points: 0 });
     } else {
-      reasons.push({ code: 'role_related', text: `The job is ${jobKind} work (title ${titleWords}); your closest role is ${q(bestRole.title)} (${familyLabel(bestRole.family!).toLowerCase()}), related but not the same work, so it counts ${Math.round(relRoles * 100)}%.`, points: -Math.round((1 - relRoles) * 100) });
+      reasons.push({ code: 'role_related', text: `The job is ${jobKind} work (${titleWords}); your closest role is ${q(bestRole.title)} (${familyLabel(bestRole.family!).toLowerCase()}), related but not the same work, so it counts ${Math.round(relRoles * 100)}%.`, points: -Math.round((1 - relRoles) * 100) });
     }
   } else if (target) {
     reasons.push({ code: 'role_target_only', text: `The job is ${jobKind} work; no past role in your profile is in it, but your target ${q(target.text)} is. Target titles count at most ${Math.round(cfg.experience.targetOnly * 100)}%.`, points: -Math.round((1 - rel) * 100) });
@@ -192,7 +194,7 @@ function relevanceOf(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): { rel: n
     reasons.push({ code: 'role_study_only', text: `The job is ${jobKind} work; no past role in your profile is in it, but your field of study ${q(study.text)} is. Study counts at most ${Math.round(cfg.experience.studyOnly * 100)}%.`, points: -Math.round((1 - rel) * 100) });
   } else {
     const kinds = [...new Set(pf.roles.filter((r) => r.family).map((r) => familyLabel(r.family!).toLowerCase()))];
-    reasons.push({ code: 'role_unrelated', text: `The job is ${jobKind} work (title ${titleWords}); none of your roles is in it or close to it${kinds.length ? ` (your roles are ${listNames(kinds, 3)})` : ''}.`, points: -Math.round((1 - rel) * 100) });
+    reasons.push({ code: 'role_unrelated', text: `The job is ${jobKind} work (${titleWords}); none of your roles is in it or close to it${kinds.length ? ` (your roles are ${listNames(kinds, 3)})` : ''}.`, points: -Math.round((1 - rel) * 100) });
   }
   return { rel, reasons, relevantMonths: best >= 1 ? sameMonths : bestRole ? 0 : null };
 }
@@ -257,7 +259,9 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
   const levelFromYearsOnly = jf.levelSource === 'years';
   if (jf.level && !levelFromYearsOnly) {
     const jobOrd = LEVEL_ORD[scale][jf.level];
-    const levelSrc = jf.levelSource === 'title' || jf.levelSource === 'job' ? `title ${q(jf.levelEvidence ?? jf.job.title)}` : q(jf.levelEvidence ?? '');
+    const fromBoard = jf.levelSource === 'job' && jf.job.evidence?.level?.source === 'board_field';
+    const levelSrc = jf.levelFromPostingYears ? `from the years it asks for${jf.levelEvidence ? `, ${q(jf.levelEvidence)}` : ''}`
+      : fromBoard ? `the job board says ${q(jf.levelEvidence ?? '')}` : jf.levelSource === 'title' || jf.levelSource === 'job' ? `title ${q(jf.job.title)}` : q(jf.levelEvidence ?? '');
     if (years === null) {
       if (!levelFromYearsOnly) levelReasons.push({ code: 'level_no_dates', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); your work dates are not in your profile, so the level cannot be checked.`, points: 0 });
     } else {
@@ -901,7 +905,7 @@ function jobFactsView(jf: JobFacts, ind: IndustryOut): MatchExtras['jobFacts'] {
   const pay = job.pay;
   return {
     level: jf.level
-      ? { value: LEVEL_WORD[jf.level], text: `${LEVEL_WORD[jf.level]} (${jf.levelSource === 'years' ? 'from the years it asks for' : jf.levelSource === 'employment_type' ? 'an internship' : 'from the title'})`, quote: jf.levelSource === 'years' ? jf.levelEvidence : job.title }
+      ? { value: LEVEL_WORD[jf.level], text: `${LEVEL_WORD[jf.level]} (${jf.levelSource === 'years' || jf.levelFromPostingYears ? 'from the years it asks for' : jf.levelSource === 'employment_type' ? 'an internship' : jf.levelSource === 'job' && job.evidence?.level?.source === 'board_field' ? 'from the job board' : 'from the title'})`, quote: jf.levelSource === 'years' || jf.levelFromPostingYears || (jf.levelSource === 'job' && job.evidence?.level?.source === 'board_field') ? jf.levelEvidence : job.title }
       : { value: null, text: 'not stated', quote: null },
     years: y
       ? { value: yearsLabel(y.detail.minYears ?? null, y.detail.maxYears ?? null), text: `${yearsLabel(y.detail.minYears ?? null, y.detail.maxYears ?? null)}${y.importance === 'preferred' ? ' (preferred)' : ''}`, quote: y.quote }
