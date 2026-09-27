@@ -5,7 +5,7 @@
 import { createHash } from 'node:crypto';
 import type { EmploymentType, ExperienceLevel, Job, Pay, Place, WorkModel } from '@jobleft/contracts';
 import { experienceLevelOf, validate, JobSchema } from '@jobleft/contracts';
-import { annualize, htmlToText, parsePayFromText } from '@jobleft/parsers';
+import { annualize, htmlToText, parsePayFromText, parseYearsRequired } from '@jobleft/parsers';
 import { parsePlaceText } from './geo.ts';
 import { levelOfTitle } from './job.ts';
 
@@ -102,14 +102,16 @@ export function looseJob(input: LooseJob | Job): Job {
   const levels: ExperienceLevel[] = level ? [experienceLevelOf(level)] : [];
   const body = `${x.title}\n${company}\n${locs.join('; ')}\n${description}`;
   const id = x.id ?? `ext:${sha(body).slice(0, 16)}`;
+  // Required years as the store holds them: the parsers' reading of the posting, with its sentence.
+  const years = parseYearsRequired(description);
   const url = x.url && /^https?:\/\//.test(x.url) ? x.url : `https://fixture.invalid/jobs/${encodeURIComponent(id)}`;
   const job: Job = {
     id, status: x.status ?? 'open', closedAt: null, closedReason: null, title: x.title.trim(), company, companyKey: companyKeyOf(company),
     ats: null, board: null, externalId: null, url, applyUrl: null, canonicalUrl: url, places,
     isUs: places.length ? (places.every((p) => p.country === 'US') ? true : places.some((p) => p.country && p.country !== 'US') ? false : null) : remoteScope?.regions.includes('US') ? true : null,
     workModel, remoteScope, employmentType: x.employmentType ?? null, level: level ?? null, levels,
-    yearsRequired: null, pay: payOf(x.pay, description), postedAt: null, firstSeenAt: FIXED_TIME, lastSeenAt: FIXED_TIME, updatedAt: FIXED_TIME,
-    department: x.department ?? null, statements: { sponsorship: null, clearanceRequired: null, usCitizenOnly: null }, skills: [], evidence: {},
+    yearsRequired: years ? { min: years.min, max: years.max } : null, pay: payOf(x.pay, description), postedAt: null, firstSeenAt: FIXED_TIME, lastSeenAt: FIXED_TIME, updatedAt: FIXED_TIME,
+    department: x.department ?? null, statements: { sponsorship: null, clearanceRequired: null, usCitizenOnly: null }, skills: [], evidence: years ? { years: years.evidence } : {},
     sources: [{ sourceId: 'external:text', name: 'Fixture file', url, credit: null, firstSeenAt: FIXED_TIME, lastSeenAt: FIXED_TIME }],
     duplicateOf: x.duplicateOf ?? null, contentHash: sha(body + JSON.stringify([x.pay ?? null, x.workModel ?? null, x.employmentType ?? null, x.department ?? null])),
     description,

@@ -77,3 +77,34 @@ test('a level stated in the posting text is quoted as the posting\'s words, shor
   const rt = score(profileOf({ skills: ['SQL'] }), t).subScores.experienceLevel.reasons.map((x) => x.text).join(' | ');
   assert.ok(!/the posting says/.test(rt), rt);
 });
+
+// JL-v2-1 / JL-v2-2: the card and the "Years of experience" filter showed the job's yearsRequired ("5+ years" from
+// "Forbes' Cloud 100 (five years running!)"), while "Why this score" read its own figure ("4+ years"). One value now.
+test('Why this score reads the same years as the card and the filter (JL-v2-1, JL-v2-2)', () => {
+  const pm = profileOf({
+    work: [{ company: 'Northwind', title: 'Product Manager', startDate: '2019-01', endDate: 'present', bullets: ['Owned the data platform roadmap.'] }],
+    skills: ['Product management'],
+  });
+  const attentive = job({
+    title: 'Senior Product Manager, Data Platform',
+    description: "Attentive is proud to be included in Deloitte's Fast 500 (four years running!), Forbes' Cloud 100 (five years running!), and Inc.'s Best Workplaces!\n\nWhat you'll accomplish\n- 4+ years of product management experience building complex B2B or SaaS platforms.",
+  });
+  assert.deepEqual(attentive.yearsRequired, { min: 4, max: null });
+  const a = score(pm, attentive);
+  assert.equal(a.jobFacts.years.value, '4+ years');
+  assert.match(a.jobFacts.years.quote ?? '', /4\+ years of product management experience/);
+
+  // A sub-requirement never lowers the figure, in the score as on the card.
+  const manager = job({ title: 'Manager of Data Science', description: 'Requirements\n- 7+ years of experience in data science, analytics, or related fields, including 2+ years of people management experience' });
+  assert.deepEqual(manager.yearsRequired, { min: 7, max: null });
+  assert.equal(score(pm, manager).jobFacts.years.value, '7+ years');
+
+  // A job read by the crawler: the score takes its stored figure, even where this lane's own reading differs.
+  const stored = { ...job({ title: 'Data Analyst', description: 'Requirements\n- 3+ years of experience in analytics\n- 2 years of SQL' }), yearsRequired: { min: 5, max: null }, evidence: { years: { source: 'description' as const, text: '3+ years of experience in analytics' } } };
+  assert.equal(score(pm, stored).jobFacts.years.value, '5+ years');
+  // A job whose posting states no years the card can show states none in the score either.
+  const none = { ...job({ title: 'Reliability Engineer', description: 'Requirements\n- Minimum of five years of professional involvement in reliability validation or hardware testing.' }), yearsRequired: null, evidence: {} };
+  const n = score(pm, none);
+  assert.equal(n.jobFacts.years.value, null);
+  assert.ok(!n.mustHaves.some((m) => m.kind === 'years'), JSON.stringify(n.mustHaves));
+});

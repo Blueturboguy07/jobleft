@@ -318,8 +318,19 @@ export function readJob(job: Job, company: Company | null): JobFacts {
   if (st.usCitizenOnly && !has('citizenship')) {
     requirements.push({ kind: 'citizenship', importance: 'required', label: 'US citizenship', quote: verbatim(job, ev.usCitizenOnly?.text) ?? '', start: Number.MAX_SAFE_INTEGER, detail: { citizenship: 'citizen' } });
   }
-  if (job.yearsRequired && (job.yearsRequired.min !== null || job.yearsRequired.max !== null) && !has('years')) {
-    const { min, max } = job.yearsRequired;
+  // One years figure (JL-v2-1): the card, the "Years of experience" filter and "Why this score" read the same value,
+  // the job's yearsRequired (the parsers' reading of the posting). A required figure this lane reads stands only where
+  // it says the same; one the job does not carry is not stated here either. A reading under a year ("6+ months", "no
+  // experience needed"), which a job's whole years cannot carry, stays when the job states no years.
+  const jobYears = job.yearsRequired && (job.yearsRequired.min !== null || job.yearsRequired.max !== null) ? job.yearsRequired : null;
+  const sameYears = (r: PostedRequirement) => !!jobYears && (r.detail.minYears ?? null) === jobYears.min && (r.detail.maxYears ?? null) === jobYears.max;
+  for (let k = requirements.length - 1; k >= 0; k--) {
+    const r = requirements[k];
+    if (r.kind !== 'years' || r.importance !== 'required' || sameYears(r)) continue;
+    if (jobYears || (r.detail.minYears ?? 0) >= 1 || (r.detail.maxYears ?? 0) >= 1) requirements.splice(k, 1);
+  }
+  if (jobYears && !requirements.some((r) => r.kind === 'years' && r.importance === 'required')) {
+    const { min, max } = jobYears;
     requirements.push({ kind: 'years', importance: 'required', label: `${min ?? 0}+ years of experience`, quote: verbatim(job, ev.years?.text) ?? '', start: Number.MAX_SAFE_INTEGER, detail: { minYears: min, maxYears: max, general: true } });
   }
   const years = primaryYears(requirements);
