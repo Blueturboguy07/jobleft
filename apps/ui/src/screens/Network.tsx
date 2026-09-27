@@ -37,7 +37,7 @@ function ContactDrawer({ c: start, onClose, onDraft }: { c: Contact | null; onCl
   const close = async () => { if (await confirmDiscard(dirty ? ['the note'] : [])) { setNote(null); onClose(); } };
   const save = async (body: Parameters<typeof saveContact>[1], ok: string) => { const s = await saveContact(cur, body, ok); if (s) setC(s); return s; };
   return (
-    <Drawer open onClose={() => { void close(); }} width="min(520px, 94vw)" title={<ContactName c={cur} />}>
+    <Drawer open onClose={() => { void close(); }} width="min(520px, 94vw)" title={<span className="jl-clamp3"><ContactName c={cur} /></span>}>
       <Space direction="vertical" style={{ width: '100%' }} size={12}>
         <span>{cur.position ?? 'No title in your file'}{cur.company ? ` at ${cur.company}` : ' · no company in your file'}</span>
         {cur.connectedOn && <span className="jl-muted">Connected {calendarDate(cur.connectedOn)}</span>}
@@ -86,7 +86,7 @@ function CompanyCard({ x, onOpen, onEveryone }: { x: CompanyCoverage; onOpen: (c
           const c = byId.get(r.contactId);
           return c ? (
             <div key={r.contactId} style={{ padding: '4px 0' }}>
-              <Button type="link" style={{ padding: 0, height: 'auto' }} onClick={() => onOpen(c)}>{i + 1}. {fullName(c)}</Button>
+              <Button type="link" style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left', maxWidth: '100%' }} onClick={() => onOpen(c)}><span className="jl-clamp3">{i + 1}. {fullName(c)}</span></Button>
               <span className="jl-small jl-muted"> {c.position ?? 'No title in your file'}</span>
               <ReasonList reasons={r.reasons} />
             </div>
@@ -202,7 +202,7 @@ function PlanTab({ onOpen, onDraft }: { onOpen: (c: Contact) => void; onDraft: (
             return (
               <div key={p.contactId} style={{ padding: '8px 0', borderTop: '1px solid var(--jl-line)' }}>
                 <div className="jl-row jl-wrap">
-                  {c ? <Button type="link" style={{ padding: 0 }} onClick={() => onOpen(c)}>{p.firstName} {p.lastName}</Button> : <strong>{p.firstName} {p.lastName}</strong>}
+                  {c ? <Button type="link" style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left', maxWidth: '100%' }} onClick={() => onOpen(c)}><span className="jl-clamp3">{p.firstName} {p.lastName}</span></Button> : <strong className="jl-clamp3">{p.firstName} {p.lastName}</strong>}
                   <span className="jl-grow jl-small jl-muted">{p.position ?? 'No title in your file'}</span>
                   {c && <StageSelect c={c} />}
                   {c && <Button size="small" shape="round" icon={<MessageOutlined />} onClick={() => onDraft(c)}>Draft</Button>}
