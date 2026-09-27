@@ -1,6 +1,6 @@
 {
   "name": "jobleft",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "license": "MIT",
   "description": "jobleft: a local-first desktop job-search app. Workspace root. MIT (see LICENSE).",
@@ -15,7 +15,8 @@
     "check": "pnpm typecheck && pnpm test",
     "app:up": "node scripts/app-up.ts",
     "app:down": "node scripts/app-down.ts",
-    "gen:interfaces": "node scripts/gen-interfaces.ts"
+    "gen:interfaces": "node scripts/gen-interfaces.ts",
+    "start": "pnpm --filter @jobleft/ui build && node scripts/app-up.ts"
   },
   "devDependencies": {
     "@types/node": "24.13.6",

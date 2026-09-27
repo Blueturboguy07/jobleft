@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
  * The crawler identity, fixed in code (docs/INTERFACES.md: USER_AGENT). It is never read from the environment, a
  * profile, git, a config file or a flag: a config or flag that names another identity is refused.
  */
-export const DEFAULT_USER_AGENT = 'jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
+export const DEFAULT_USER_AGENT = 'jobleft/0.1.1 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
 
 export interface CrawlerConfig {
   /** Sent on every request. Must name jobleft and its version; never a browser identity, never a personal address. */

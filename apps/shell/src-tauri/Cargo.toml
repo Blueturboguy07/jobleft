@@ -1,6 +1,6 @@
 [package]
 name = "jobleft-shell"
-version = "0.1.0"
+version = "0.1.1"
 description = "jobleft desktop shell: starts the local server as a sidecar, opens the window, lives in the menu bar"
 edition = "2021"
 rust-version = "1.77"

@@ -49,7 +49,7 @@ Node 24 and pnpm, plus Rust for the desktop shell.
 ```sh
 pnpm install
 pnpm -r test                                   # 17 suites
-pnpm app:up                                    # the app in a browser, data in .jobleft-dev
+pnpm start                                     # builds the UI and opens the app in a browser (data in .jobleft-dev)
 pnpm --filter @jobleft/shell app:build         # the desktop bundle (see apps/shell/README.md)
 ```
 

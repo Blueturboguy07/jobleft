@@ -15,7 +15,7 @@ import { countryName } from './places.ts';
 import { formatPay, PAY_FILTER_RULE } from './pay-filter.ts';
 import { htmlToText } from './html.ts';
 
-const USER_AGENT = 'jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
+const USER_AGENT = 'jobleft/0.1.1 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
 const FORMATS: BoardFormat[] = ['greenhouse', 'lever', 'ashby', 'workable', 'recruitee', 'personio', 'jsonld'];
 
 interface Args { _: string[]; [k: string]: string | boolean | string[] }
