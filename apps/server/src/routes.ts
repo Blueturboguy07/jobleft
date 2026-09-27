@@ -327,7 +327,8 @@ export const HANDLERS: HandlerTable = {
   refreshPublik: (c) => aiJson(c, 'refreshPublik'),
 
   // ---------------------------------------------------------------- extension
-  pairingCode: ({ d }) => ({ json: d.pairing.newCode() }),
+  // The port goes with the code: the person types both in the extension, which then talks to this port only.
+  pairingCode: ({ d, req }) => ({ json: { ...d.pairing.newCode(), ...(req.socket.localPort ? { port: req.socket.localPort } : {}) } }),
   pair: ({ d, body, extensionId }) => {
     if (!extensionId) throw new ApiFailure('forbidden_origin', 'Only a browser extension can pair.');
     return { json: d.pairing.pair(body, extensionId, APP_VERSION) };

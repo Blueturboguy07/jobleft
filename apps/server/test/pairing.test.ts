@@ -28,6 +28,9 @@ test('pairing needs the person, five wrong codes void it, and unpairing stops th
     assert.equal((await ext('POST', '/api/v1/extension/pair', undefined, req('123456'), 'http://attacker.example')).status, 403);
     assert.equal((await raw(s.port, { method: 'POST', path: '/api/v1/extension/pair', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req('123456')) })).status, 403);
 
+    // The app shows its own port next to the code: the extension sends the code to that port only (JL-extension-2, 3).
+    assert.equal((await s.call('POST', '/api/v1/extension/pairing-code')).json.port, s.port);
+
     // Five wrong guesses void the code.
     let code = (await s.call('POST', '/api/v1/extension/pairing-code')).json.code as string;
     const wrong = code === '000000' ? '000001' : '000000';

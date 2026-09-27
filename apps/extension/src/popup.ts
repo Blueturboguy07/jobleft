@@ -26,7 +26,7 @@ function readsNode(open: boolean): HTMLElement {
       h('li', {}, 'When you press Fill: the fields of the application form on this tab (their labels and choices). It sends them only to the jobleft app on this computer, which answers with your values. The values go into that form, and you check them.'),
       h('li', {}, 'When you click the jobleft button: the address of this tab, and a few markers that name the job system (not the page text). The address goes to your jobleft app to find the job.'),
       h('li', {}, 'Never: other tabs, your browsing history, page text, passwords. Nothing at all on the three large job boards it blocks (the README names them).'),
-      h('li', {}, 'It talks only to the jobleft app at 127.0.0.1 (this computer), ports 47821 to 47830. Chrome lists this as access to 127.0.0.1.'),
+      h('li', {}, 'It talks only to the jobleft app at 127.0.0.1 (this computer), on the one port you type when you pair it. Chrome lists this as access to 127.0.0.1.'),
       h('li', {}, 'It never presses submit, next or save, and never solves a human check.'),
     ));
   return d;
@@ -36,7 +36,7 @@ function connNode(c: ConnState, onChange: () => void): HTMLElement {
   if (c.state === 'paired') {
     const unpair = h('button', { class: 'link' }, 'Unpair');
     unpair.addEventListener('click', async () => { await ask({ type: 'popup:unpair' }); onChange(); });
-    const box = h('div', { class: 'card' }, h('div', { class: 'row' }, h('span', { class: 'ok' }, `Paired with jobleft ${c.appVersion} on this computer.`), unpair));
+    const box = h('div', { class: 'card' }, h('div', { class: 'row' }, h('span', { class: 'ok' }, `Paired with jobleft ${c.appVersion} on this computer (port ${c.port}).`), unpair));
     if (!c.profileComplete && c.missingProfileFields.length) {
       box.append(h('div', { class: 'small warn' }, `Your profile has no ${c.missingProfileFields.join(', ')}. Fields that need them stay empty.`));
     }
@@ -45,18 +45,21 @@ function connNode(c: ConnState, onChange: () => void): HTMLElement {
   if (c.state === 'app_not_running') {
     const retry = h('button', {}, 'Try again');
     retry.addEventListener('click', onChange);
-    return h('div', { class: 'card' }, h('div', { class: 'err' }, 'The jobleft app is not running on this computer.'),
-      h('div', { class: 'small muted' }, 'Start the jobleft app, then try again. jobleft fills nothing without it.'), h('div', { class: 'msg' }, retry));
+    const unpair = h('button', {}, 'Unpair');
+    unpair.addEventListener('click', async () => { await ask({ type: 'popup:unpair' }); onChange(); });
+    return h('div', { class: 'card' }, h('div', { class: 'err' }, `The jobleft app is not running on this computer (nothing answers on port ${c.port}).`),
+      h('div', { class: 'small muted' }, c.message), h('div', { class: 'small muted' }, 'jobleft fills nothing without it.'), h('div', { class: 'msg row' }, retry, unpair));
   }
   if (c.state === 'refused') return h('div', { class: 'card err' }, c.message);
-  // Not paired.
+  // Not paired. The code goes only to the port the person types: the one the app shows next to the code.
   const input = h('input', { type: 'text', inputmode: 'numeric', maxlength: '6', autocomplete: 'off', 'aria-label': 'Pairing code', placeholder: '000000' });
+  const portInput = h('input', { type: 'text', class: 'port', inputmode: 'numeric', maxlength: '5', autocomplete: 'off', 'aria-label': 'App port', placeholder: '47821' });
   const btn = h('button', {}, 'Pair');
   const msg = h('div', { class: 'msg small' });
   btn.addEventListener('click', async () => {
     btn.setAttribute('disabled', 'true');
     msg.textContent = 'Pairing…';
-    const r = await ask<{ ok: boolean; message: string }>({ type: 'popup:pair', code: input.value.trim() });
+    const r = await ask<{ ok: boolean; message: string }>({ type: 'popup:pair', code: input.value.trim(), port: portInput.value.trim() });
     msg.textContent = r.message;
     msg.className = `msg small ${r.ok ? 'ok' : 'err'}`;
     btn.removeAttribute('disabled');
@@ -64,9 +67,10 @@ function connNode(c: ConnState, onChange: () => void): HTMLElement {
   });
   return h('div', { class: 'card' },
     h('div', { class: 'warn' }, 'This browser is not paired with your jobleft app. jobleft does nothing until you pair it.'),
-    c.appRunning ? null : h('div', { class: 'small err' }, 'The jobleft app is not running on this computer. Start it first.'),
-    h('ol', {}, h('li', {}, 'In the jobleft app, click "Pair a browser extension". The app shows a 6-digit code.'), h('li', {}, 'Type the code here and press Pair.')),
-    h('div', { class: 'row' }, input, btn), msg, readsNode(true));
+    c.note ? h('div', { class: 'small err' }, c.note) : null,
+    h('ol', {}, h('li', {}, 'In the jobleft app, open Settings, then Browser extension, and click "Show a pairing code". The app shows a 6-digit code and its port.'),
+      h('li', {}, 'Type the code and the port here and press Pair. jobleft sends the code to that port only.')),
+    h('div', { class: 'row pairrow' }, h('label', { class: 'small muted' }, 'Code', input), h('label', { class: 'small muted' }, 'Port', portInput), btn), msg, readsNode(true));
 }
 
 async function render(): Promise<void> {

@@ -300,7 +300,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (m === 'POST' && path === '/api/v1/extension/pairing-code') {
     gate(req, 'launch');
     code = { code: String(randomInt(0, 1_000_000)).padStart(6, '0'), expiresAt: Date.now() + 5 * 60_000, wrong: 0 };
-    send(res, 200, { code: code.code, expiresAt: new Date(code.expiresAt).toISOString() });
+    send(res, 200, { code: code.code, expiresAt: new Date(code.expiresAt).toISOString(), port });
     return;
   }
   if (m === 'POST' && path === '/api/v1/extension/pair') {

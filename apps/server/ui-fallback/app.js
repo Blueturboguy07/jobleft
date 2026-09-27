@@ -115,6 +115,7 @@ $('pairBtn').addEventListener('click', async () => {
   try {
     const c = await json('POST', '/api/v1/extension/pairing-code');
     $('code').textContent = c.code;
+    $('codePort').textContent = `Port: ${c.port ?? location.port}`;
     $('codeBox').hidden = false;
     clearInterval(codeTimer);
     const tick = () => {

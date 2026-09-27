@@ -17,6 +17,6 @@
   },
   "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src http://127.0.0.1:47821 http://127.0.0.1:47822 http://127.0.0.1:47823 http://127.0.0.1:47824 http://127.0.0.1:47825 http://127.0.0.1:47826 http://127.0.0.1:47827 http://127.0.0.1:47828 http://127.0.0.1:47829 http://127.0.0.1:47830"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src http://127.0.0.1:*"
   }
 }

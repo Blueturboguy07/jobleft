@@ -17,14 +17,17 @@ The stand-in follows the same local API rules. It makes no outbound request.
 | You press "Make drafts" | The labels of the open questions | Only to the jobleft app. The app uses the draft provider you chose |
 | You press "I submitted this application" | The page address | Only to the jobleft app, which marks the job "Applied" |
 
-The extension talks only to `http://127.0.0.1` on ports 47821 to 47830 (the app's ports). The browser enforces this:
-the manifest's `connect-src` rule allows only those ten addresses.
+The extension talks only to `http://127.0.0.1`, on the one port you type with the pairing code (the app shows its
+port next to the code). The browser enforces `127.0.0.1`: the manifest's `connect-src` rule allows nothing else. The
+code enforces the port: the pairing code and later the pairing key go to the paired port only, never to another
+program that answers like jobleft on another port. When that port stops answering, the popup says the app is not
+running; if the app moved to another port, unpair and pair again with the new port.
 
 Chrome's details page for the extension shows these permissions. They agree with the table above:
 
 | Chrome shows | Why |
 |---|---|
-| Site access: `127.0.0.1` (ports 47821 to 47830 only) | To talk to the jobleft app on this computer |
+| Site access: `127.0.0.1` (ports 47821 to 47830, the app's usual ports) | To talk to the jobleft app on this computer. An app on another port answers the extension through its own CORS rule |
 | `activeTab` (no warning) | To read the tab you clicked the button on, only then, and only that tab |
 | `scripting` | To put the fill code into that tab after your click |
 | `storage` | To keep the pairing key. Only the extension's own pages can read it; pages cannot |
@@ -85,8 +88,9 @@ You need macOS or Linux, Node 24 or newer, pnpm, and Google Chrome.
    ```
 6. In that Chrome, open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and choose
    `apps/extension/dist`. Pin the jobleft button (the puzzle icon, then the pin).
-7. Pair: in the stand-in page, click **Pair a browser extension**. It shows a 6-digit code. Click the jobleft button
-   in Chrome, type the code, and click **Pair**. The popup says "Paired with jobleft ... on this computer".
+7. Pair: in the stand-in page, click **Pair a browser extension**. It shows a 6-digit code and the app's port. Click
+   the jobleft button in Chrome, type the code and the port, and click **Pair**. The popup says "Paired with jobleft
+   ... on this computer (port ...)".
    The stand-in page lists the paired browser with the date.
 8. Fill: open `http://127.0.0.1:47900/practice/job-a.html`. Click the jobleft button. The popup shows
    "This page: Greenhouse · supported", the job "Software Engineer · Acme Practice Co" and the resume made for this
@@ -100,8 +104,8 @@ You need macOS or Linux, Node 24 or newer, pnpm, and Google Chrome.
 
 | State | The popup shows |
 |---|---|
-| Not paired | "This browser is not paired with your jobleft app. jobleft does nothing until you pair it.", the steps, the code box, and the list of what jobleft reads |
-| App not running | "The jobleft app is not running on this computer." and **Try again**. No Fill button |
+| Not paired | "This browser is not paired with your jobleft app. jobleft does nothing until you pair it.", the steps, the code and port boxes, and the list of what jobleft reads |
+| App not running | "The jobleft app is not running on this computer (nothing answers on port ...)", **Try again** and **Unpair**. No Fill button. No other port is tried |
 | Pairing removed in the app | "not paired" again, with the code box |
 | Paired | The app version and **Unpair**; the page's system and level; the job (or "This page is not a job in your jobleft app"); "You already marked this job as applied on <date>" when the tracker says so; the resume to attach (you can pick another); **Fill this application** |
 | LinkedIn, Indeed, Glassdoor | "jobleft does not work on this site. It reads nothing here and fills nothing here." No Fill button |

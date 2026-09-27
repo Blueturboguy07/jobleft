@@ -177,7 +177,7 @@ async function main(): Promise<void> {
       check('page unchanged before pairing', JSON.stringify(await dump(tab)) === d0);
       // Pair: the app shows a code (its click is the approval), the person types it in the popup.
       const c = await api('POST', '/api/v1/extension/pairing-code');
-      await pop.eval(`(function(){ var i = document.querySelector('input[aria-label="Pairing code"]'); i.value = ${JSON.stringify(c.json.code)}; Array.from(document.querySelectorAll('button')).find(function(b){return b.textContent==='Pair'}).click(); return true; })()`);
+      await pop.eval(`(function(){ var i = document.querySelector('input[aria-label="Pairing code"]'); i.value = ${JSON.stringify(c.json.code)}; document.querySelector('input[aria-label="App port"]').value = ${JSON.stringify(String(c.json.port))}; Array.from(document.querySelectorAll('button')).find(function(b){return b.textContent==='Pair'}).click(); return true; })()`);
       check('pairing works with the code from the app', await waitFor(() => pop.eval<boolean>(`document.body.textContent.indexOf('Paired with jobleft') >= 0`), 8000));
       const list = (await api('GET', '/api/v1/extension/pairings')).json as Array<{ pairedAt: string; browser: string }>;
       check('the app lists exactly one paired browser with a date', list.length === 1 && /^\d{4}-\d\d-\d\dT/.test(list[0]!.pairedAt), JSON.stringify(list));
@@ -313,7 +313,7 @@ async function main(): Promise<void> {
       const tab = await fresh(`job-a.html?utm_term=${unique()}`);
       const c = await api('POST', '/api/v1/extension/pairing-code');
       const pop = await openPopup(b.browser, b.extId, tab);
-      await pop.eval(`(function(){ var i = document.querySelector('input[aria-label="Pairing code"]'); i.value = ${JSON.stringify(c.json.code)}; Array.from(document.querySelectorAll('button')).find(function(b){return b.textContent==='Pair'}).click(); return true; })()`);
+      await pop.eval(`(function(){ var i = document.querySelector('input[aria-label="Pairing code"]'); i.value = ${JSON.stringify(c.json.code)}; document.querySelector('input[aria-label="App port"]').value = ${JSON.stringify(String(c.json.port))}; Array.from(document.querySelectorAll('button')).find(function(b){return b.textContent==='Pair'}).click(); return true; })()`);
       await waitFor(() => pop.eval<boolean>(`document.body.textContent.indexOf('Paired with jobleft') >= 0`), 8000);
       const list = (await api('GET', '/api/v1/extension/pairings')).json as unknown[];
       check('one entry again (a new link, not two)', list.length === 1);

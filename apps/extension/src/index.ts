@@ -16,7 +16,7 @@ import { SUPPORT } from './support.ts';
 export const PACKAGE_NAME = '@jobleft/extension';
 export { EXTENSION_PROTOCOL_VERSION };
 
-/** Where the extension looks for the app: GET /api/v1/health on each port until one answers app "jobleft". */
+/** The ports the app tries first. The extension does not scan them: it talks only to the port typed with the pairing code. */
 export const APP_PORTS: readonly number[] = Array.from({ length: PORT_SPAN }, (_, i) => DEFAULT_PORT + i);
 
 /**

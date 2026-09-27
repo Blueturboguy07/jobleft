@@ -184,7 +184,7 @@
     api('POST', '/api/v1/extension/pairing-code').then(function (c) {
       var box = $('codeBox'); box.innerHTML = '';
       var d = document.createElement('div'); d.className = 'code'; d.textContent = c.code; box.appendChild(d);
-      var n = document.createElement('div'); n.className = 'muted'; n.textContent = 'Type this code in the jobleft extension. It stops working at ' + new Date(c.expiresAt).toLocaleTimeString() + ' or after 5 wrong tries.'; box.appendChild(n);
+      var n = document.createElement('div'); n.className = 'muted'; n.textContent = 'Type this code and the port ' + (c.port || location.port) + ' in the jobleft extension. It stops working at ' + new Date(c.expiresAt).toLocaleTimeString() + ' or after 5 wrong tries.'; box.appendChild(n);
       var poll = setInterval(function () { load(); }, 2000); setTimeout(function () { clearInterval(poll); }, 300000);
     }, fail);
   });

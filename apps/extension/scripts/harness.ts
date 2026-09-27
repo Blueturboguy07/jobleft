@@ -86,9 +86,9 @@ export async function waitFor(fn: () => Promise<boolean>, ms = 8000, step = 150)
 }
 
 export async function pair(s: { browser: Browser; extId: string; appPort: number; appToken: string }, tab: Page): Promise<string> {
-  const c = await appCall(s, 'POST', '/api/v1/extension/pairing-code') as { code: string };
+  const c = await appCall(s, 'POST', '/api/v1/extension/pairing-code') as { code: string; port?: number };
   const pop = await openPopup(s.browser, s.extId, tab);
-  await pop.eval(`(function(){ var i = document.querySelector('input[aria-label="Pairing code"]'); i.value = ${JSON.stringify(c.code)}; Array.from(document.querySelectorAll('button')).find(function(b){return b.textContent==='Pair'}).click(); return true; })()`);
+  await pop.eval(`(function(){ var i = document.querySelector('input[aria-label="Pairing code"]'); i.value = ${JSON.stringify(c.code)}; document.querySelector('input[aria-label="App port"]').value = ${JSON.stringify(String(c.port ?? s.appPort))}; Array.from(document.querySelectorAll('button')).find(function(b){return b.textContent==='Pair'}).click(); return true; })()`);
   await waitFor(() => pop.eval<boolean>(`document.body.textContent.indexOf('Paired with jobleft') >= 0`), 8000);
   return pop.eval<string>('document.body.innerText');
 }
