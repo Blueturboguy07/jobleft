@@ -2,7 +2,7 @@
 // and puts it at src-tauri/binaries/node-<target triple>[.exe]. Safe to run again (skips when present).
 // Usage: node apps/shell/scripts/fetch-node.mjs [--target darwin-arm64|win-x64]   (default: this machine)
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, copyFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -29,6 +29,6 @@ const work = join(tmpdir(), `jobleft-node-${Date.now()}`); mkdirSync(work, { rec
 const archive = join(work, spec.archive); writeFileSync(archive, buf);
 if (spec.archive.endsWith('.zip')) execFileSync(process.platform === 'win32' ? 'tar' : 'unzip', process.platform === 'win32' ? ['-xf', archive, '-C', work] : ['-q', archive, '-d', work]);
 else execFileSync('tar', ['-xzf', archive, '-C', work]);
-renameSync(join(work, spec.inner), out);
+copyFileSync(join(work, spec.inner), out); // a copy, not a rename: the temp folder may sit on another drive (Windows runners: C: vs D:)
 rmSync(work, { recursive: true, force: true });
 console.log(`fetched ${spec.archive} (sha256 ok) -> ${out}`);
