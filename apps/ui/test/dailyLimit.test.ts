@@ -28,3 +28,15 @@ test('JL-network-19: after a refusal the card says so until the limit starts aga
   assert.equal(dailyLimitReached(w, Date.parse('2026-09-28T00:00:01.000Z')), false, 'gone once the limit starts again');
   assert.equal(dailyLimitText(base, now), null, 'an older wallet without the field shows nothing');
 });
+
+test('JL-v2-5: a $0.00 balance right after connecting says publik added no free amount, never "credits"', async () => {
+  const { zeroBalanceText } = await import('../src/lib/dailyLimit.ts');
+  const fresh = zeroBalanceText({ ...base, balanceMicros: 0, starterRemainingMicros: null, week: { usedMicros: 0, budgetMicros: null, resetsAt: null } })!;
+  assert.match(fresh, /did not add a free starting amount/);
+  assert.match(fresh, /\$0\.00/);
+  const spent = zeroBalanceText({ ...base, balanceMicros: 0, starterRemainingMicros: 0 })!;
+  assert.doesNotMatch(spent, /did not add/);
+  assert.match(spent, /\$0\.00/);
+  for (const t of [fresh, spent]) assert.doesNotMatch(t, /credit/i);
+  assert.equal(zeroBalanceText(base), null, 'no line while money is left');
+});

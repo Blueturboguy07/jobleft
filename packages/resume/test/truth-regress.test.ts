@@ -115,6 +115,29 @@ test('a letter may name the hiring company and the job\'s own title, even when t
   assert.ok(k(checkLetter(letterFor('I have deep Data Engineering experience.'), p, risk)).includes('skill:Data Engineering'));
 });
 
+test('a truthful letter to a posting that uses its own name as a tool is ready: the employer, the title and the posting\'s names are not skills (JL-resume-16)', () => {
+  const p = jordanProfile();
+  // A Figma-like posting: the company's name is also a tool name, and the posting says it many times.
+  const figma = jobFromText({ title: 'Software Engineer - Data Infrastructure', company: 'Figma', city: null, text: [
+    'Figma is growing our team of passionate creatives and builders on a mission to make design accessible to all. Figma\u2019s platform helps teams bring ideas to life. From idea to product, Figma empowers teams to streamline workflows.',
+    'The Data Platform team at Figma builds and operates the foundational systems that power analytics, AI/ML, and data-driven decision-making. Our team owns the Snowflake data warehouse, orchestration and pipeline infrastructure.',
+    'We are focused on building the data infrastructure layer for Figma\'s AI-powered products. Python, SQL, Spark, Kafka and Airflow.',
+  ].join('\n\n') });
+  const letter = letterFor([
+    'I am writing to apply for the Software Engineer - Data Infrastructure role at Figma.',
+    'I am drawn to Figma\'s mission to make design accessible to all, and to the Data Platform team that builds the data infrastructure layer for Figma\'s AI-powered products.',
+    'I cut batch-job time by 40% by rewriting the scheduler in TypeScript, and I led a migration of 12 services to PostgreSQL with zero downtime.',
+    'Thank you for considering my application. I would welcome the chance to talk about how I can help Figma.',
+  ].join('\n\n'));
+  assert.deepEqual(k(checkLetter(letter, p, figma)), []);
+  const databricks = jobFromText({ title: 'Senior Software Engineer - Distributed Data Systems', company: 'Databricks', city: null, text: 'Databricks is the Data and AI company. The Databricks platform runs on Spark. Python and SQL.' });
+  assert.deepEqual(k(checkLetter(letterFor('I am a software engineer with 3 years of backend experience building APIs and data pipelines.\n\nThank you for considering my application. I would welcome the chance to talk about how I can help Databricks.'), p, databricks)), []);
+  // The posting's skills claimed as the person's own, and the company as a place the person worked, are still refused.
+  assert.ok(k(checkLetter(letterFor('I have deep Snowflake experience.'), p, figma)).includes('skill:Snowflake'));
+  assert.ok(k(checkLetter(letterFor('I kept data warehouses running for years.'), p, figma)).some((x) => x.startsWith('skill:data warehouse')));
+  assert.ok(k(checkLetter(letterFor('I worked at Figma for two years.'), p, figma)).some((x) => /Figma/.test(x)));
+});
+
 test('a letter\'s claims about the person are flagged by their words: mentoring, results, a job skill in another form, a number said another way (JL-resume-22)', () => {
   const p = jordanProfile();
   const job = jobFromText({ title: 'Staff Software Engineer, Risk Data Engineering', company: 'Stripe', text: 'Lead technical outcomes and mentor engineers. Data warehousing, Spark, Python.', city: null });

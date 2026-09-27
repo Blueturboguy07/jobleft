@@ -36,8 +36,24 @@ test('a refused save is told in plain words, with the row named', () => {
 });
 
 test('skills: blanks and letter-case duplicates are dropped (JL-onboarding-19)', () => {
-  assert.deepEqual(uniqueNames(['TypeScript', 'typescript', '   ', ' SQL ', 'K'.repeat(500)]).map((x) => x.slice(0, 5)), ['TypeS', 'SQL', 'KKKKK']);
-  assert.equal(uniqueNames(['K'.repeat(500)])[0]!.length, 100);
+  // A name longer than 100 characters is left out with a message, never cut to 100 in silence (JL-onboarding-19 residue).
+  assert.deepEqual(uniqueNames(['TypeScript', 'typescript', '   ', ' SQL ', 'K'.repeat(500)]), ['TypeScript', 'SQL']);
+  assert.deepEqual(uniqueNames(['K'.repeat(100)]).map((x) => x.length), [100]);
+});
+
+test('a too-long skill name, a negative or non-number amount are refused with a plain message (JL-onboarding-19, -21)', async () => {
+  const { PAY_RULE, longSkillText, numberProblem, skillYearsRule } = await import('../src/lib/profileErrors.ts');
+  assert.match(longSkillText(['SQL', 'K'.repeat(500)])!, /at most 100 characters.*has 500, so it was not added/);
+  assert.equal(longSkillText(['SQL', 'K'.repeat(100)]), null);
+  const years = skillYearsRule('TypeScript');
+  assert.match(numberProblem(-3, years)!, /^Years of TypeScript: type a number from 0 to 60\. "-3" was not kept\.$/);
+  assert.match(numberProblem('-3', years)!, /"-3" was not kept/);
+  assert.ok(numberProblem(61, years));
+  for (const ok of [0, 3, 2.5, 60, '', '  ']) assert.equal(numberProblem(ok, years), null, String(ok));
+  assert.match(numberProblem('-5000', PAY_RULE)!, /^Minimum yearly pay: type an amount from \$0 to \$10,000,000\. "-5000" was not kept\.$/);
+  assert.match(numberProblem('abc', PAY_RULE)!, /"abc" is not a number, so it was not kept/);
+  assert.match(numberProblem('99999999999999999999999', PAY_RULE)!, /was not kept/);
+  for (const ok of [0, 120000, '120,000', '$150,000', 10_000_000]) assert.equal(numberProblem(ok, PAY_RULE), null, String(ok));
 });
 
 test('work-authorization answers that cannot all be true are pointed out (JL-onboarding-20)', async () => {

@@ -220,6 +220,8 @@ export interface JobContext {
   terms: Set<string>;
   /** Folded words of the company and title (a letter may name them). */
   words: Set<string>;
+  /** Folded words of the whole posting: a letter may name the posting's own teams and products in a sentence about the job. */
+  postingWords: Set<string>;
   /** The job's title as written, and without a trailing part in brackets (how a letter names the role). */
   titleForms: string[];
 }
@@ -241,6 +243,7 @@ export function jobContext(job: Job | null): JobContext | null {
     cities: job.places.map((p) => p.city).filter((c): c is string => !!c),
     terms,
     words: w,
+    postingWords: new Set(foldKey(text).split(/[\s/.]+/).filter(Boolean)),
     titleForms: [...new Set([job.title, job.title.replace(/\s*[([{].*$/, '')].map((t) => t.trim()).filter((t) => t.length > 2))],
   };
 }
@@ -265,6 +268,33 @@ function companyAsHistory(text: string, start: number, end: number): boolean {
   const before = text.slice(Math.max(0, start - 120), start);
   if (/(?:\b(?:worked|working|served|serving|interned|interning|employed|spent|was|were|been)\b[^.;:!?]{0,40}?|\b(?:my (?:time|role|years|tenure|work|job)|while|during my)|\bas an?\s+[^,.;:!?]{1,60}?)\s+(?:at|for|with|in)\s+$/i.test(before)) return true;
   return /(?:^|[.!?]\s+)at\s+$/i.test(before) && /^[^.!?]{0,40}?,\s*(?:I|we)\s+[a-z]+(?:ed|t)\b/i.test(text.slice(end));
+}
+
+/**
+ * The parts of a letter sentence outside the hiring company's name (unless the sentence makes it a place the person
+ * worked) and outside the job's own title (in a sentence about the job), JL-resume-16.
+ */
+function outsideJobNames(sentence: string, job: JobContext): string[] {
+  const spans: Array<[number, number]> = HISTORY_RE.test(sentence) ? [] : titleSpans(sentence, job);
+  for (const form of new Set([job.company, job.companyKey])) {
+    const words = form.split(/[^\p{L}\p{N}+#]+/u).filter(Boolean).map(escapeRegExp);
+    if (!words.length) continue;
+    const re = new RegExp(`(?<![\\p{L}\\p{N}])${words.join('[^\\p{L}\\p{N}+#]+')}(?![\\p{L}\\p{N}])`, 'giu');
+    for (const m of sentence.matchAll(re)) {
+      const end = m.index! + m[0].length;
+      if (!companyAsHistory(sentence, m.index!, end)) spans.push([m.index!, end]);
+    }
+  }
+  if (!spans.length) return [sentence];
+  spans.sort((a, b) => a[0] - b[0]);
+  const out: string[] = [];
+  let at = 0;
+  for (const [a, b] of spans) {
+    if (a > at) out.push(sentence.slice(at, a));
+    at = Math.max(at, b);
+  }
+  out.push(sentence.slice(at));
+  return out;
 }
 
 /** True when a name in a letter is the hiring company's own name ("Figma" in "how I can help Figma"). */
@@ -453,7 +483,9 @@ function checkMentions(text: string, where: string, ctx: Ctx, opts: { sentence?:
       }
     }
     if (!k || pf.words.has(k) || pf.words.has(k.replace(/s$/, '')) || inCorpus(pf, m.text)) continue;
-    if (namesJob(m) || (ctx.mode === 'letter' && ctx.job && k.split(' ').every((w) => ctx.job!.words.has(w)) && aboutJob(sentence))) continue;
+    // In a sentence about the job, a name the posting itself uses ("the Data Platform team", "AI-powered products")
+    // names the job, not a fact about the person (JL-resume-16).
+    if (namesJob(m) || (ctx.mode === 'letter' && ctx.job && k.split(' ').every((w) => ctx.job!.words.has(w) || ctx.job!.postingWords.has(w)) && aboutJob(sentence))) continue;
     out.push(v('other', m.text, where, 'This name is not in your profile.'));
   }
   return out;
@@ -502,16 +534,19 @@ function checkPersonClaims(sentence: string, where: string, ctx: Ctx): TruthViol
       said.add(re.source);
       out.push(v('other', w, where, 'Your profile does not say this about you (a responsibility or a result). Add it to your profile first if it is true.'));
     }
-    // 2. A skill the job asks for, written in another form ("data warehouses" for "Data warehousing").
+    // 2. A skill the job asks for, written in another form ("data warehouses" for "Data warehousing"). The hiring
+    // company's name and the job's own title name the job, never a skill of the person, even when the posting uses
+    // them as a tool name ("how I can help Figma", JL-resume-16): their words are left out of this check.
+    const pieces = ctx.job ? outsideJobNames(sentence, ctx.job).map(wordsOf) : [words];
     for (const term of ctx.job?.terms ?? []) {
       if (pf.skillKeys.has(term)) continue;
       const stems = term.split(' ').filter(Boolean).map((w) => (w.length > 6 ? w.slice(0, w.length - 3) : w));
       if (!stems.length || stems.every((st) => [...pf.words].some((x) => x.startsWith(st)))) continue;
-      for (let i = 0; i + stems.length <= words.length; i++) {
-        if (!stems.every((st, k) => words[i + k]!.startsWith(st))) continue;
-        out.push(v('skill', words.slice(i, i + stems.length).join(' '), where, 'The job asks for this, but your profile does not show it.'));
-        break;
-      }
+      const hit = pieces.map((ws) => {
+        for (let i = 0; i + stems.length <= ws.length; i++) if (stems.every((st, k) => ws[i + k]!.startsWith(st))) return ws.slice(i, i + stems.length).join(' ');
+        return null;
+      }).find((x) => x !== null);
+      if (hit) out.push(v('skill', hit, where, 'The job asks for this, but your profile does not show it.'));
     }
   }
   // 3. A number from the profile, said to move another way than the profile says.

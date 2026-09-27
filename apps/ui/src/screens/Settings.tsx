@@ -20,7 +20,7 @@ import { ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { ago, dateText, fitIndexText, hostOf, plural, secondsLeft } from '../lib/format.ts';
 import { readAllPages } from '../lib/pages.ts';
 import { rememberAiCheck } from '../lib/aiHealth.ts';
-import { dailyLimitText } from '../lib/dailyLimit.ts';
+import { dailyLimitText, zeroBalanceText } from '../lib/dailyLimit.ts';
 
 const TABS = [
   { key: 'ai', label: 'AI provider', icon: <ApiOutlined /> },
@@ -147,7 +147,7 @@ function AiTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Panel title="Where AI answers come from" desc="AI helps with chat, tailoring, cover letters, messages and interview practice. Pick one. jobleft uses only the one you pick; it never switches to another on its own.">
         <div className="jl-choice-grid">
-          {card('publik', <CloudOutlined />, 'publik API', 'Pay per use from a dollar balance. Starts with a small free amount.')}
+          {card('publik', <CloudOutlined />, 'publik API', 'Pay per use from a dollar balance. publik may add a small free starting amount.')}
           {card('local', <DesktopOutlined />, 'A model on this computer', 'Ollama, LM Studio, llama.cpp, MLX or similar. Nothing leaves this Mac. Free, but the small models that fit on a laptop tailor and answer noticeably worse than the hosted ones.')}
           {card('custom', <LinkOutlined />, 'A custom address', 'Any OpenAI-compatible server you run or trust.')}
           {card('own_key', <KeyOutlined />, 'Your own key', 'Your account with an AI vendor. The vendor bills you.')}
@@ -203,7 +203,7 @@ const FIT_STATE: Record<string, string> = {
 };
 
 const DISCLOSURE = [
-  'jobleft can send its AI requests to the publik API: each request is priced per use and paid in dollars from your publik balance, which starts with a small free amount.',
+  'jobleft can send its AI requests to the publik API: each request is priced per use and paid in dollars from your publik balance. publik may add a small free starting amount; it limits these, so a balance can also start at $0.00.',
   "Your prompts go through publik's servers to the AI model's provider, publik does not train on them, and you can change to a local model or your own key at any time.",
 ];
 /** publik's live price list (JL-settings-25): every price the app quotes can be checked there. */
@@ -216,16 +216,21 @@ function BalanceTab() {
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<UiError | null>(null);
+  const [switching, setSwitching] = useState(false);
   const notProvider = !!ai.data && ai.data.provider !== 'publik';
   const connect = async () => {
     setBusy('connect'); setErr(null);
+    let connected = false;
     try {
       const c = await call('connectPublik', { body: { disclosureAccepted: true, disclosureVersion: 1 } });
       setCached('ai:publik', () => c);
-      if (notProvider) { const r = await call('putAiSettings', { body: { provider: 'publik' } }); setCached('ai:settings', () => r.settings); }
-      invalidate('ai:');
+      connected = true;
+      // The switch is saved at once, but its answer waits for a live test of publik, while the balance already shows:
+      // until it answers the page says the switch is under way, and after it the AI settings are read again, so the
+      // page never says "publik is not your AI provider" to a person who just chose it (JL-v1-2).
+      if (notProvider) { setSwitching(true); const r = await call('putAiSettings', { body: { provider: 'publik' } }); setCached('ai:settings', () => r.settings); }
       ui.message?.success(notProvider ? 'Connected. AI answers now come from publik.' : 'Connected to publik.');
-    } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+    } catch (e) { setErr(e as UiError); } finally { setBusy(null); setSwitching(false); if (connected) invalidate('ai:'); }
   };
   const refresh = async () => {
     setBusy('refresh'); setErr(null);
@@ -240,9 +245,11 @@ function BalanceTab() {
   const c = pub.data;
   const w = c?.wallet;
   const daily = w ? dailyLimitText(w) : null;
+  const zero = w ? zeroBalanceText(w) : null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {ai.data && ai.data.provider !== 'publik' && (
+      {switching && <Alert type="info" showIcon message="Making publik your AI provider. jobleft is testing the connection; this can take a few seconds." />}
+      {ai.data && ai.data.provider !== 'publik' && !switching && (
         <Alert type="info" showIcon message="publik is not your AI provider now, so nothing charges your balance." action={<Button size="small" onClick={() => { void usePublikNow(); }}>Use publik</Button>} />
       )}
       {pub.error && !c && <ErrorState error={pub.error} onRetry={() => { void pub.reload(); }} title="The balance could not load" />}
@@ -261,6 +268,7 @@ function BalanceTab() {
           <div className="jl-row" style={{ alignItems: 'baseline', gap: 12 }}>
             <span className="jl-display" style={{ fontSize: 40 }} aria-label={`Balance: ${formatDollars(w.balanceMicros)}`}>Balance: {formatDollars(w.balanceMicros)}</span>
           </div>
+          {zero && <Alert type="warning" showIcon message={zero} action={<Button size="small" icon={<LinkOutlined />} onClick={() => openExternal(w.topUpUrl)}>Add money</Button>} />}
           <Descriptions size="small" column={1} items={[
             ...(w.starterRemainingMicros !== null ? [{ key: 's', label: 'Free starter amount left', children: formatDollars(w.starterRemainingMicros) }] : []),
             { key: 'u', label: 'Used this week', children: formatDollars(w.week.usedMicros) },

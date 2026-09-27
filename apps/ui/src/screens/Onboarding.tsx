@@ -4,7 +4,7 @@
 // either. You can skip at any step: what you chose is kept, and the setup does not open by itself again.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, Checkbox, Input, InputNumber, Progress, Select, Space, Steps, Tag } from 'antd';
+import { Alert, Button, Checkbox, Input, Progress, Select, Space, Steps, Tag } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import type { OnboardingState, Profile, ProfileInput } from '@jobleft/contracts';
 import { call, type UiError } from '../app/api.ts';
@@ -18,9 +18,9 @@ import { COMMON_COUNTRY_OPTIONS, COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVE
 import { countrySort } from '../lib/countries.ts';
 import { plural, yearMonthText } from '../lib/format.ts';
 import { PlacePicker } from './jobs/Filters.tsx';
-import { YesNo } from './Profile.tsx';
+import { NumberBox, YesNo } from './Profile.tsx';
 import { importChanges } from '../lib/importMerge.ts';
-import { cleanForSave, problemsIn, serverProblems, type FieldProblem } from '../lib/profileErrors.ts';
+import { PAY_RULE, cleanForSave, problemsIn, serverProblems, type FieldProblem } from '../lib/profileErrors.ts';
 import { LAST_STEP, MAX_FUNCTION_LENGTH, addJobFunction, bodyToSave, closedState, keptState, replaceUpload, resumeSetup, toInput, type PendingImport } from '../lib/onboarding.ts';
 
 /** jobleft 0.1.2 and earlier kept "skipped" only in this browser; read once to carry it over, never written again. */
@@ -221,7 +221,7 @@ export function Onboarding() {
         <strong>Experience level</strong>
         <div className="jl-choice-grid">{LEVEL_OPTIONS.map((o) => <Choice key={o.value} on={pr.levels.includes(o.value)} onClick={() => setPr({ levels: toggle(pr.levels, o.value) })}>{o.label}</Choice>)}</div>
         <strong>Minimum yearly pay (US dollars, optional)</strong>
-        <InputNumber min={0} step={5000} precision={0} style={{ width: 220 }} status={problems.some((x) => x.path === '/preferences/minAnnualPayUsd') ? 'error' : undefined} value={pr.minAnnualPayUsd ?? undefined} onChange={(v) => { setPr({ minAnnualPayUsd: v ?? null }); setProblems([]); }} placeholder="Not set" aria-label="Minimum yearly pay in US dollars" />
+        <NumberBox rule={PAY_RULE} step={5000} precision={0} style={{ width: 220 }} status={problems.some((x) => x.path === '/preferences/minAnnualPayUsd') ? 'error' : undefined} value={pr.minAnnualPayUsd} onChange={(v) => { setPr({ minAnnualPayUsd: v }); setProblems([]); }} placeholder="Not set" aria-label="Minimum yearly pay in US dollars" />
         {problems.filter((x) => x.path === '/preferences/minAnnualPayUsd').map((x) => <span key={x.path} role="alert" style={{ color: 'var(--jl-error)', fontSize: 13 }}>{x.message}</span>)}
         <p className="jl-note">A job that does not state its pay is never hidden by this. It is marked "pay not stated".</p>
       </Space>
@@ -287,11 +287,11 @@ export function Onboarding() {
         <p className="jl-muted">AI is the one part of jobleft that costs money: tailoring a resume or a letter runs a model, and the model's provider charges for each run. Through publik you pay only for those runs, from a dollar balance, which comes to about 2% of what the subscription job-search apps charge each month.</p>
         <p className="jl-muted">AI is optional. Search, filters, match scores and the tracker work without it.</p>
         <div className="jl-choice-grid">
-          <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/balance'} onClick={() => { void finish('settings/balance'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><span className="jl-row" style={{ gap: 8 }}><strong>publik API</strong><Tag color="green" style={{ margin: 0 }}>Cheapest</Tag></span><span className="jl-small">Pay per use from a dollar balance; a free starter amount is included. You read the terms and connect on the next screen.</span></button>
+          <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/balance'} onClick={() => { void finish('settings/balance'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><span className="jl-row" style={{ gap: 8 }}><strong>publik API</strong><Tag color="green" style={{ margin: 0 }}>Cheapest</Tag></span><span className="jl-small">Pay per use from a dollar balance; publik may add a small free starting amount. You read the terms and connect on the next screen.</span></button>
           <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/ai?pick=local'} onClick={() => { void finish('settings/ai?pick=local'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>A model on this computer</strong><span className="jl-small">Ollama, LM Studio and similar. Nothing leaves this Mac. Be warned: the small models that fit on a laptop tailor resumes and answer questions noticeably worse than the hosted ones. You pick the server and test it on the next screen.</span></button>
           <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/ai?pick=own_key'} onClick={() => { void finish('settings/ai?pick=own_key'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>Your own key</strong><span className="jl-small">Your account with OpenAI, Anthropic, OpenRouter or Google. The vendor bills you. You paste the key on the next screen; it stays in the macOS Keychain.</span></button>
         </div>
-        <p className="jl-small">Want more than the starter amount? <a href="https://publikhq.com/pricing" target="_blank" rel="noopener noreferrer">See the plans and prices on publikhq.com</a>. A plan adds a weekly budget to your balance; you still pay only for what you use.</p>
+        <p className="jl-small">Want more than a free starting amount? <a href="https://publikhq.com/pricing" target="_blank" rel="noopener noreferrer">See the plans and prices on publikhq.com</a>. A plan adds a weekly budget to your balance; you still pay only for what you use.</p>
         {leaving && <p className="jl-small jl-muted" role="status">Saving your answers…</p>}
       </Space>
     ),

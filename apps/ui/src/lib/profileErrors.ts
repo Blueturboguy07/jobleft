@@ -44,14 +44,52 @@ export function serverProblems(details: unknown): FieldProblem[] {
   });
 }
 
-/** Skill names as typed: trimmed, blanks dropped, and one per name whatever its letter case (JL-onboarding-19). */
+/** The longest skill name the editors take. */
+export const SKILL_NAME_MAX = 100;
+
+/**
+ * Skill names as typed: trimmed, blanks dropped, and one per name whatever its letter case (JL-onboarding-19). A name
+ * longer than SKILL_NAME_MAX is left out, never cut; longSkillText says why.
+ */
 export function uniqueNames(names: string[]): string[] {
   const out: string[] = [];
   for (const n of names) {
-    const t = n.trim().replace(/\s+/g, ' ').slice(0, 100);
-    if (t && !out.some((x) => x.toLowerCase() === t.toLowerCase())) out.push(t);
+    const t = n.trim().replace(/\s+/g, ' ');
+    if (t && t.length <= SKILL_NAME_MAX && !out.some((x) => x.toLowerCase() === t.toLowerCase())) out.push(t);
   }
   return out;
+}
+
+/** The message for skill names that uniqueNames left out as too long, or null. */
+export function longSkillText(names: string[]): string | null {
+  const long = names.map((n) => n.trim().replace(/\s+/g, ' ')).filter((t) => t.length > SKILL_NAME_MAX);
+  if (!long.length) return null;
+  const first = long[0]!;
+  return `A skill name can have at most ${SKILL_NAME_MAX} characters. "${first.slice(0, 30)}..." has ${first.length}, so it was not added. Type a shorter name.`;
+}
+
+/** What a number box takes (JL-onboarding-19, -21). */
+export interface NumberRule { label: string; min: number; max: number; money?: boolean }
+
+export const PAY_RULE: NumberRule = { label: 'Minimum yearly pay', min: 0, max: 10_000_000, money: true };
+export const skillYearsRule = (skill: string): NumberRule => ({ label: `Years of ${skill}`, min: 0, max: 60 });
+
+function shown(v: number, r: NumberRule): string {
+  return r.money ? `$${v.toLocaleString('en-US')}` : v.toLocaleString('en-US');
+}
+
+/**
+ * The problem with a number typed in a box, or null when the box may keep it. A number out of range or text that is
+ * not a number is refused with a plain message and never becomes 0 or the nearest limit on its own.
+ */
+export function numberProblem(typed: number | string, r: NumberRule): string | null {
+  const text = typeof typed === 'number' ? typed.toLocaleString('en-US', { maximumFractionDigits: 2 }) : typed.trim();
+  if (!text) return null;
+  const range = `${r.label}: type ${r.money ? 'an amount' : 'a number'} from ${shown(r.min, r)} to ${shown(r.max, r)}.`;
+  const v = typeof typed === 'number' ? typed : Number(text.replace(/[$,\s]/g, ''));
+  if (!Number.isFinite(v)) return `${range} "${text.slice(0, 30)}" is not a number, so it was not kept.`;
+  if (v < r.min || v > r.max) return `${range} "${text.slice(0, 30)}" was not kept.`;
+  return null;
 }
 
 /**

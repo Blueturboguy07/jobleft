@@ -3,7 +3,7 @@
 // changes asks first, and a failed save keeps what you typed and says so.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, Checkbox, Drawer, Input, InputNumber, Segmented, Select, Space, Tag } from 'antd';
+import { Alert, Button, Checkbox, Drawer, Input, InputNumber, Segmented, Select, Space, Tag, type InputNumberProps } from 'antd';
 import { EditOutlined, PlusOutlined, DeleteOutlined, ArrowUpOutlined, LockOutlined } from '@ant-design/icons';
 import type { EducationEntry, Profile, ProfileBlock, ProfileInput, WorkEntry } from '@jobleft/contracts';
 import { EXPERIENCE_LEVEL_LABELS } from '@jobleft/contracts';
@@ -19,7 +19,7 @@ import { typeText, yearMonthText } from '../lib/format.ts';
 import { INDUSTRY_SUGGESTIONS, PlacePicker, SKILL_SUGGESTIONS } from './jobs/Filters.tsx';
 import { AddResumeModal } from './Resume.tsx';
 import { toInput } from '../lib/onboarding.ts';
-import { authConflicts, cleanForSave, problemsIn, serverProblems, uniqueNames, type FieldProblem } from '../lib/profileErrors.ts';
+import { PAY_RULE, authConflicts, cleanForSave, longSkillText, numberProblem, problemsIn, serverProblems, skillYearsRule, uniqueNames, type FieldProblem, type NumberRule } from '../lib/profileErrors.ts';
 
 type Block = 'personal' | 'prefs' | 'education' | 'work' | 'skills' | 'auth' | 'eeo';
 const BLOCKS: Array<{ id: Block; label: string }> = [
@@ -31,6 +31,23 @@ export { toInput };
 
 let seq = 0;
 const nid = (p: string) => `${p}${Date.now().toString(36)}${++seq}`;
+
+/**
+ * A number box that refuses what it cannot keep (JL-onboarding-19, -21): a number out of range or text that is not a
+ * number is never turned into 0 or the nearest limit; the box keeps its last good value and says why under it.
+ */
+export function NumberBox({ value, onChange, rule, ...rest }: { value: number | null; onChange: (v: number | null) => void; rule: NumberRule } & Omit<InputNumberProps<number>, 'value' | 'onChange' | 'onInput' | 'min' | 'max'>) {
+  const [problem, setProblem] = useState<string | null>(null);
+  return (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4 }}>
+      <InputNumber<number> {...rest} status={problem ? 'error' : rest.status} value={value}
+        onChange={(v) => { const m = v === null ? null : numberProblem(v, rule); if (m) { setProblem((typed) => typed ?? m); return; } setProblem(null); onChange(v); }}
+        // the message names the text as typed; a refused number keeps it when the box reports that number on leaving
+        onInput={(text) => setProblem(numberProblem(text, rule))} />
+      {problem && <span role="alert" style={{ color: 'var(--jl-error)', fontSize: 13, maxWidth: 360 }}>{problem}</span>}
+    </span>
+  );
+}
 
 export function YesNo({ value, onChange, decline = false, label }: { value: string | null; onChange: (v: never) => void; decline?: boolean; label: string }) {
   const opts = [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }, ...(decline ? [{ value: 'decline', label: 'Decline to state' }] : []), { value: 'unset', label: 'Not answered' }];
@@ -63,6 +80,7 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
   const [err, setErr] = useState<UiError | null>(null);
   const [newer, setNewer] = useState<Profile | null>(null);
   const [problems, setProblems] = useState<FieldProblem[]>([]);
+  const [skillNote, setSkillNote] = useState<string | null>(null);
   const openedVersion = useRef(profile.version);
   useEffect(() => { if (block) { setD(toInput(profile)); setErr(null); setNewer(null); setProblems([]); openedVersion.current = profile.version; } }, [block]);
   const bad = (path: string) => problems.find((x) => x.path === path)?.message ?? null;
@@ -136,7 +154,7 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
         <Field label="Experience levels"><Checkbox.Group value={pr.levels} onChange={(v) => setPr({ levels: v as never })} options={LEVEL_OPTIONS} /></Field>
         <Field label="Countries"><Select mode="multiple" optionFilterProp="label" filterSort={countrySort} value={pr.countries} onChange={(v) => setPr({ countries: v })} options={COUNTRY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))} /></Field>
         <Field label="Cities"><PlacePicker places={pr.places} onChange={(places) => setPr({ places })} /></Field>
-        <Field label="Minimum yearly pay (US dollars)" problem={bad('/preferences/minAnnualPayUsd')}><InputNumber min={0} step={5000} precision={0} status={badStatus('/preferences/minAnnualPayUsd')} style={{ width: 200 }} value={pr.minAnnualPayUsd ?? undefined} onChange={(v) => setPr({ minAnnualPayUsd: v ?? null })} placeholder="Not set" /></Field>
+        <Field label="Minimum yearly pay (US dollars)" problem={bad('/preferences/minAnnualPayUsd')}><NumberBox rule={PAY_RULE} step={5000} precision={0} status={badStatus('/preferences/minAnnualPayUsd')} style={{ width: 200 }} value={pr.minAnnualPayUsd} onChange={(v) => setPr({ minAnnualPayUsd: v })} placeholder="Not set" aria-label="Minimum yearly pay in US dollars" /></Field>
         <Field label="Industries"><Select mode="tags" value={pr.industries} onChange={(v) => setPr({ industries: v })} options={INDUSTRY_SUGGESTIONS.map((x) => ({ value: x, label: x }))} /></Field>
         <Field label="Company stages"><Checkbox.Group value={pr.companyStages} onChange={(v) => setPr({ companyStages: v as never })} options={STAGE_OPTIONS} /></Field>
         <Field label="Role types"><Checkbox.Group value={pr.roleTypes} onChange={(v) => setPr({ roleTypes: v as never })} options={[{ value: 'ic', label: 'Individual contributor' }, { value: 'manager', label: 'Manager' }]} /></Field>
@@ -184,11 +202,11 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
       break;
     case 'skills':
       body = (<Space direction="vertical" size={12} style={{ width: '100%' }}>
-        <Field label="Skills"><Select mode="tags" value={d.skills.map((s) => s.name)} options={SKILL_SUGGESTIONS.map((x) => ({ value: x, label: x }))}
-          onChange={(names: string[]) => setD({ ...d, skills: uniqueNames(names).map((n) => d.skills.find((s) => s.name === n) ?? { name: n, years: null, source: 'user' as const }) })} /></Field>
+        <Field label="Skills" problem={skillNote}><Select mode="tags" value={d.skills.map((s) => s.name)} options={SKILL_SUGGESTIONS.map((x) => ({ value: x, label: x }))}
+          onChange={(names: string[]) => { setSkillNote(longSkillText(names)); setD({ ...d, skills: uniqueNames(names).map((n) => d.skills.find((s) => s.name === n) ?? { name: n, years: null, source: 'user' as const }) }); }} /></Field>
         {d.skills.map((s, i) => (
-          <div key={s.name} className="jl-row"><span className="jl-grow">{s.name}</span>
-            <InputNumber min={0} max={60} step={0.5} value={s.years ?? undefined} placeholder="Years" aria-label={`Years of ${s.name}`} onChange={(v) => setD({ ...d, skills: d.skills.map((x, j) => (j === i ? { ...x, years: v ?? null, source: 'user' } : x)) })} />
+          <div key={s.name} className="jl-row" style={{ alignItems: 'flex-start' }}><span className="jl-grow">{s.name}</span>
+            <NumberBox rule={skillYearsRule(s.name)} step={0.5} value={s.years} placeholder="Years" aria-label={`Years of ${s.name}`} onChange={(v) => setD({ ...d, skills: d.skills.map((x, j) => (j === i ? { ...x, years: v, source: 'user' } : x)) })} />
           </div>
         ))}
       </Space>);

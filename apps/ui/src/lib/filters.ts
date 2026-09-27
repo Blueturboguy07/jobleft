@@ -140,14 +140,69 @@ export function placeLabel(p: { text: string; city?: string | null; region?: str
   return [name, p.region?.trim() || null, country].filter(Boolean).join(', ');
 }
 
-/** The starting filter from the profile's preferences. */
+/**
+ * The starting filter from the profile's preferences. Most postings do not state a job type, a work model or a level,
+ * so the starting filter keeps the jobs that do not state a fact it filters on (JL-onboarding-28: Software Engineering,
+ * Full-time and Remote showed 0 of 4,302 jobs; 12 with the jobs that do not state a job type). The person can untick
+ * each box in the filter bar.
+ */
 export function filterFromProfile(p: Profile | null | undefined): JobFilter {
   if (!p) return {};
   const pr = p.preferences;
-  return cleanFilter({
+  return withAllUnknown(cleanFilter({
     jobFunctions: pr.jobFunctions, employmentTypes: pr.employmentTypes, workModels: pr.workModels, levels: pr.levels,
     countries: pr.countries, places: pr.places,
-  });
+  }));
+}
+
+/**
+ * The facts this filter checks while it leaves out the jobs that do not state them, in the order the filter bar
+ * shows them. An empty list means no job is left out only because a posting is silent on a fact.
+ */
+export function unstatedLeftOut(f: JobFilter): UnknownKey[] {
+  const inc = new Set(f.includeUnknown ?? []);
+  const on: UnknownKey[] = [];
+  if (f.countries?.length || f.places?.length) on.push('place');
+  if (f.levels?.length) on.push('level');
+  if (f.employmentTypes?.length) on.push('employmentType');
+  if (f.workModels?.length) on.push('workModel');
+  if (f.remoteRegions?.length) on.push('remoteRegion');
+  if (f.postedWithin) on.push('postedAt');
+  if (f.maxYearsRequired !== undefined) on.push('years');
+  if (f.minAnnualPayUsd !== undefined && f.minAnnualPayUsd > 0) on.push('pay');
+  return on.filter((k) => !inc.has(k));
+}
+
+/** The filter with every "include jobs that do not state it" box ticked for the facts it filters on. */
+export function withAllUnknown(f: JobFilter): JobFilter {
+  const add = unstatedLeftOut(f);
+  if (!add.length) return f;
+  return { ...f, includeUnknown: [...(f.includeUnknown ?? []), ...add] };
+}
+
+/** Plain names of the facts in unstatedLeftOut, for the empty feed. */
+export const UNSTATED_NAMES: Record<UnknownKey, string> = {
+  place: 'place', level: 'level', employmentType: 'job type', workModel: 'work model', remoteRegion: 'remote region',
+  postedAt: 'posted date', years: 'years of experience', pay: 'pay',
+};
+
+function orList(items: string[]): string {
+  return items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} or ${items[items.length - 1]}`;
+}
+
+/**
+ * The words of the empty feed (JL-onboarding-28): which words and filters are on, and which facts the filters leave
+ * out when a posting does not state them, so an empty list never hides a strictness the person did not see.
+ */
+export function emptyFeedText(f: JobFilter, q: string): { text: string; leftOut: UnknownKey[] } {
+  const words = q.trim();
+  const on = summaryChips(f);
+  const what = [words ? `“${words}”` : null, on.length ? `these filters: ${on.join(', ')}` : null].filter(Boolean).join(' and ');
+  const leftOut = unstatedLeftOut(f);
+  const tail = leftOut.length
+    ? ` These filters leave out every job that does not state its ${orList(leftOut.map((k) => UNSTATED_NAMES[k]))}.`
+    : on.length ? ' Many postings do not state pay, level or a posted date; each filter can include those jobs.' : '';
+  return { text: `Nothing matches ${what || 'these filters'}.${tail}`, leftOut };
 }
 
 /** Toggles a value in an optional list. */
