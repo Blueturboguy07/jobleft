@@ -3,7 +3,7 @@
 // "unknown", never "no"), people you know there, and your notes and reminders.
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, Button, Checkbox, Input, Select, Space } from 'antd';
+import { Alert, Button, Checkbox, Input, Popconfirm, Select, Space } from 'antd';
 import { Tooltip } from '../../components/Tip.tsx';
 import { BankOutlined, DeleteOutlined, PlusOutlined, SafetyCertificateOutlined, TeamOutlined, EditOutlined, CalendarOutlined } from '@ant-design/icons';
 import {
@@ -275,7 +275,11 @@ export function NotesSection({ job, entry, onChange }: { job: Job; entry: Tracke
               <div className="jl-row" style={{ alignItems: 'flex-start' }}>
                 <p className="jl-grow" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{n.text}</p>
                 <Button size="small" type="text" icon={<EditOutlined />} aria-label="Edit note" onClick={() => setEditing({ id: n.id, text: n.text })} />
-                <Button size="small" type="text" icon={<DeleteOutlined />} aria-label="Delete note" onClick={() => { void save((f) => ({ notes: noteKeep(f).filter((k) => k.id !== n.id) }), 'Note deleted.'); }} />
+                {/* The trash sits next to the pencil: a delete asks first (JL-tracker-21). */}
+                <Popconfirm title="Delete this note?" description="It cannot be brought back." okText="Delete" cancelText="Keep" okButtonProps={{ danger: true }}
+                  onConfirm={() => { void save((f) => ({ notes: noteKeep(f).filter((k) => k.id !== n.id) }), 'Note deleted.'); }}>
+                  <Button size="small" type="text" icon={<DeleteOutlined />} aria-label="Delete note" />
+                </Popconfirm>
               </div>
             )}
             <span className="jl-source">Written {dateText(n.createdAt)}{n.updatedAt !== n.createdAt ? `, changed ${dateText(n.updatedAt)}` : ''}</span>
@@ -292,7 +296,10 @@ export function NotesSection({ job, entry, onChange }: { job: Job; entry: Tracke
           <div key={r.id} className="jl-row">
             <Checkbox checked={r.done} onChange={(e) => { const done = e.target.checked; void save((f) => ({ reminders: reminderKeep(f).map((k) => (k.id === r.id ? { ...k, done } : k)) }), done ? 'Reminder done.' : 'Reminder open again.'); }} aria-label={`Done: ${r.text}`} />
             <span className="jl-grow" style={r.done ? { textDecoration: 'line-through', color: 'var(--jl-text3)' } : undefined}>{dateTimeText(r.at)}: {r.text || 'Follow up'}</span>
-            <Button size="small" type="text" icon={<DeleteOutlined />} aria-label="Delete reminder" onClick={() => { void save((f) => ({ reminders: reminderKeep(f).filter((k) => k.id !== r.id) }), 'Reminder deleted.'); }} />
+            <Popconfirm title="Delete this reminder?" okText="Delete" cancelText="Keep" okButtonProps={{ danger: true }}
+              onConfirm={() => { void save((f) => ({ reminders: reminderKeep(f).filter((k) => k.id !== r.id) }), 'Reminder deleted.'); }}>
+              <Button size="small" type="text" icon={<DeleteOutlined />} aria-label="Delete reminder" />
+            </Popconfirm>
           </div>
         ))}
         <div className="jl-row jl-wrap">
