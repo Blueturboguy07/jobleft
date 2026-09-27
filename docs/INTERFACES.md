@@ -1012,6 +1012,13 @@ succeeds show the balance card: the balance line (`formatDollars(wallet.balanceM
 button that opens `wallet.topUpUrl` ("Link this computer & pick a plan" while `claimState` is `anonymous`, "Add a plan or
 pack" once claimed). A 402 shows the error message and exactly one link (`error.link`). Money is "balance" in dollars.
 
+Added by the network fix round (additive): `GET /api/v1/ai/chats/:chatId` carries the conversation's undecided
+proposals (`ChatThread.proposals`, still in memory only), and deciding a proposal appends one plain record of the
+decision (done, declined, not done and why) to the conversation. publik's daily spending limit for the computer is
+`PublikWallet.daily` (cap and used today when publik reports them, the reset time, and when a step was refused); a
+429 `daily_cap_reached` gives every AI step the same words (`publikDailyLimitText`): this step would go over the
+limit, nothing was charged, smaller steps may still run, and the reset in the person's own clock.
+
 Key slots: a key belongs to one provider address. `own_key.<vendor>` for own keys; `custom@<hash of origin>` and
 `local@<hash of origin>` for addresses. Secret name: `SECRET_NAMES.providerKey(slot)`. Changing the address means the
 key must be saved again: the old key never goes to the new address.
