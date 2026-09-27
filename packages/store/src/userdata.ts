@@ -115,23 +115,29 @@ export class TrackerStore {
   }
 
   list(view: TrackerView, status?: TrackerStatus): TrackerList {
-    const rows = q(this.db, `SELECT t.*, s.status AS job_status, s.id AS sid, s.closed_at, s.closed_reason, s.first_seen, s.last_seen, d.doc AS doc
+    const rows = q(this.db, `SELECT t.*, s.status AS job_status, s.id AS sid, s.closed_at, s.closed_reason, s.first_seen, s.last_seen, d.doc AS doc,
+        EXISTS (SELECT 1 FROM tracker_notes n WHERE n.job_id = t.job_id) AS has_notes,
+        EXISTS (SELECT 1 FROM tracker_reminders m WHERE m.job_id = t.job_id) AS has_reminders
       FROM tracker t JOIN job_keys k ON k.key = 'id:' || t.job_id JOIN store_jobs s ON s.rid = k.rid JOIN job_docs d ON d.rid = s.rid ORDER BY t.updated_at DESC, t.job_id`).all() as unknown as Array<TrackerRow & {
-      job_status: number; sid: string; closed_at: string | null; closed_reason: string | null; first_seen: string; last_seen: string; doc: Uint8Array }>;
+      job_status: number; sid: string; closed_at: string | null; closed_reason: string | null; first_seen: string; last_seen: string; doc: Uint8Array;
+      has_notes: number; has_reminders: number }>;
     const counts = { liked: 0, applied: 0, external: 0, hidden: 0, closed: 0, byStatus: { applied: 0, interviewing: 0, offer_received: 0, rejected: 0, archived: 0 } };
     const items: TrackerList['items'] = [];
     for (const r of rows) {
       const open = Number(r.job_status) === 1;
       const liked = Number(r.liked) === 1, hidden = Number(r.hidden) === 1, external = Number(r.external) === 1;
       const tracked = r.status !== null;
+      // Anything the person did keeps a job in the tracker view: a like, a status, an applied date, a note or a reminder.
+      const kept = liked || tracked || r.applied_at !== null || Number(r.has_notes) === 1 || Number(r.has_reminders) === 1;
       const inView: Record<TrackerView, boolean> = {
         liked: liked && open && !hidden,
         applied: tracked && open,
         external: external && !hidden,
         hidden,
         closed: !open && (liked || tracked || external),
+        tracked: kept && open,
       };
-      for (const k of Object.keys(inView) as TrackerView[]) if (inView[k]) counts[k]++;
+      for (const k of ['liked', 'applied', 'external', 'hidden', 'closed'] as const) if (inView[k]) counts[k]++;
       if (r.status && r.status in counts.byStatus) counts.byStatus[r.status as TrackerStatus]++;
       if (!inView[view]) continue;
       if (status && r.status !== status) continue;

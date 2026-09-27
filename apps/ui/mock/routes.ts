@@ -105,6 +105,7 @@ function trackerList(state: MockState, view: string, status?: string): TrackerLi
       external: e.external,
       hidden: e.hidden,
       closed: !open && (e.liked || e.status !== null || e.external),
+      tracked: e.liked || e.status !== null || e.appliedAt !== null || e.notes.length > 0 || e.reminders.length > 0,
     };
     if (inView.liked) counts.liked++;
     if (inView.applied) { counts.applied++; counts.byStatus[e.status!]++; }
@@ -127,7 +128,7 @@ export function patchTracker(state: MockState, jobId: string, patch: TrackerPatc
     if (patch.status !== undefined && patch.status !== e.status) {
       e.status = patch.status;
       e.statusHistory.push({ status: patch.status, at: now });
-      if (patch.status === 'applied' && !e.appliedAt) e.appliedAt = now;
+      if (patch.status !== null && !e.appliedAt) e.appliedAt = now;
     }
     if (patch.resumeId !== undefined) e.resumeId = patch.resumeId;
     if (patch.notes) {
