@@ -220,6 +220,8 @@ export function spreadEmployers(ids: number[], companyOf: Map<number, string>, c
 export class FeedService {
   private readonly d: FeedDeps;
   private readonly ranked = new Map<string, Ranked>();
+  /** The key of the newest order for a search (Top Matched keeps one order per fit index generation while scoring). */
+  private readonly latest = new Map<string, string>();
   /** The cache key of the plain Recommended feed, never evicted. */
   private baseKey: string | null = null;
   private readonly matches = new Map<string, MatchResult>();
@@ -368,12 +370,17 @@ export class FeedService {
     const hiddenKey = hidden.length ? createHash('sha256').update(hidden.join(',')).digest('hex').slice(0, 12) : '-';
     let ranked = cursor ? this.ranked.get(h) : undefined;
     if (!ranked) {
-      const full = `${key}:${this.stamp()}:${hiddenKey}`;
+      const base = `${key}:${this.stamp()}:${hiddenKey}`;
+      let full = this.latest.get(base) ?? base;
       ranked = this.ranked.get(full);
-      // Top Matched while the fit index is still scoring: a first page takes the newer scores into its order.
+      // Top Matched while the fit index is still scoring: a first page takes the newer scores into its order (under
+      // a new key, so the pages of the older order keep their order).
       if (ranked && ranked.waiting > 0 && ranked.gen !== (this.fitIdx?.gen ?? 0)) ranked = undefined;
       if (!ranked) {
         ranked = this.rank(req, profile, m, restrict);
+        full = ranked.waiting > 0 || this.latest.has(base) ? `${base}:${ranked.gen}` : base;
+        if (this.latest.size > 256) this.latest.clear();
+        this.latest.set(base, full);
         this.ranked.set(full, ranked);
         // The plain Recommended feed (no words, no filters) is the order every visit comes back to; a burst of
         // searches must not push it out (a re-rank of 100,000 jobs costs about 0.2 s; gate 9).
