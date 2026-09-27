@@ -9,7 +9,7 @@ import { aiComplete, aiLabel, jobBlock, TRUTH_RULES } from './ai.ts';
 import { scanFacts } from './facts.ts';
 import { jobTerms, keywordGaps, safeDictionary } from './gaps.ts';
 import { buildProfileFacts, checkLetter, checkText, headerFromProfile, jobContext, refusedFacts, workYears, type ProfileFacts } from './truth.ts';
-import { foldKey, splitSentences, termRegExp } from './text.ts';
+import { foldKey, orgKey, splitSentences, termRegExp } from './text.ts';
 
 export interface LetterResult {
   text: string;
@@ -86,7 +86,10 @@ function relevantBullets(ctx: Ctx, max: number): Array<{ text: string; company: 
   let order = 0;
   for (const s of ctx.resume.sections) {
     if (s.kind !== 'experience') continue;
+    // A resume may hold the person's own lines that the profile does not have yet: a letter uses only lines (and
+    // employers) that trace to the profile.
     for (const it of s.items) for (const b of it.bullets) {
+      if (!ctx.profile.work.some((w) => it.heading !== null && orgKey(w.company) === orgKey(it.heading)) || checkText(b, 'Letter', ctx.pf, null, 'resume').length) continue;
       const score = terms.reduce((n, f) => n + (termRegExp(f.text, f.caseSensitive, 'g').test(b) ? 1 : 0), 0);
       all.push({ text: b, company: it.heading ?? '', title: it.subheading ?? '', current: it.current, score, order: order++ });
     }
@@ -96,7 +99,8 @@ function relevantBullets(ctx: Ctx, max: number): Array<{ text: string; company: 
 
 function matchingSkills(ctx: Ctx, max: number): string[] {
   const gaps = keywordGaps(ctx.job, ctx.resume, ctx.profile, safeDictionary(ctx.skills));
-  const covered = gaps.terms.filter((t) => t.status !== 'not_in_profile' && t.matchedAs).map((t) => t.matchedAs!);
+  // Only skills that trace to the profile (a resume may name skills the profile does not have yet).
+  const covered = gaps.terms.filter((t) => t.status !== 'not_in_profile' && t.matchedAs && !checkText(t.matchedAs, 'Letter', ctx.pf, null, 'resume').length).map((t) => t.matchedAs!);
   const own = ctx.profile.skills.map((s) => s.name).filter((s) => !covered.some((c) => c.toLowerCase() === s.toLowerCase()));
   return [...new Set([...covered, ...own])].slice(0, max);
 }

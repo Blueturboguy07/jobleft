@@ -709,6 +709,7 @@ export const HANDLERS: Partial<Record<RouteName, Handler>> = {
   exportResume: ({ state, params, query }) => {
     const r = resumeOr404(state, params.resumeId!);
     const base = r.name.replace(/[^\w.-]+/g, '_');
+    if (query.format === 'original') throw fail('not_found', 404, 'This stand-in keeps no uploaded files.');
     if (query.format === 'docx') return file(`${base}.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', renderDocx(r.document));
     return file(`${base}.pdf`, 'application/pdf', renderPdf(r.document).bytes);
   },
@@ -719,7 +720,12 @@ export const HANDLERS: Partial<Record<RouteName, Handler>> = {
     return json(r.atsReport);
   },
 
-  listCoverLetters: ({ state, query }) => json(state.data.coverLetters.filter((c) => c.jobId === query.jobId)),
+  listCoverLetters: ({ state, query }) => json(state.data.coverLetters.filter((c) => query.jobId === undefined || c.jobId === query.jobId)),
+  deleteCoverLetter: ({ state, params }) => {
+    if (!state.data.coverLetters.some((c) => c.id === params.letterId)) throw fail('not_found', 404, 'That cover letter was not found.');
+    state.mutate('coverLetters', 'the deletion', (d) => { const i = d.findIndex((c) => c.id === params.letterId); if (i >= 0) d.splice(i, 1); });
+    return json({ deleted: [params.letterId!] });
+  },
   createCoverLetter: async ({ state, body }) => {
     const b = body as { jobId: string; resumeId: string };
     const rec = jobOr404(state, b.jobId);

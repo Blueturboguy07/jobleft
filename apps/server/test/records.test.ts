@@ -180,10 +180,14 @@ test('resume uploads: the real type is checked, and files come back byte for byt
     const rawUtf8 = await s.call('POST', '/api/v1/resumes/import', PDF, { 'content-type': 'application/pdf', 'x-jobleft-filename': Buffer.from(name, 'utf8').toString('latin1') });
     assert.equal(rawUtf8.json.resume.file.fileName, name);
     for (const id of [enc.json.resume.id, rawUtf8.json.resume.id]) assert.equal((await s.call('DELETE', `/api/v1/resumes/${id}`)).status, 200);
-    const back = await s.call('GET', `/api/v1/resumes/${ok.json.resume.id}/export?format=pdf`);
+    const back = await s.call('GET', `/api/v1/resumes/${ok.json.resume.id}/export?format=original`);
     assert.equal(back.status, 200);
     assert.equal(back.headers['content-type'], 'application/pdf');
     assert.ok(back.body.equals(PDF), 'the uploaded file comes back byte for byte');
+    // The PDF export is what the editor shows, rendered, never the upload handed back (JL-resume-6).
+    const pdf = await s.call('GET', `/api/v1/resumes/${ok.json.resume.id}/export?format=pdf`);
+    assert.equal(pdf.status, 200);
+    assert.ok(pdf.body.subarray(0, 5).toString() === '%PDF-' && !pdf.body.equals(PDF));
     // The resume engine renders a Word file from the read document of an uploaded PDF.
     const docx = await s.call('GET', `/api/v1/resumes/${ok.json.resume.id}/export?format=docx`);
     assert.equal(docx.status, 200, docx.text);

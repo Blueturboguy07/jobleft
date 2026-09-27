@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { Alert, Button, Checkbox, Drawer, Empty, Input, Select, Space, Table, Tag } from 'antd';
-import { CopyOutlined, EditOutlined } from '@ant-design/icons';
+import { CopyOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import type { CoverLetter, Job, KeywordGapReport, Resume, TailorProposal } from '@jobleft/contracts';
 import { call, type UiError } from '../../app/api.ts';
 import { invalidate, useApi } from '../../app/data.ts';
@@ -12,12 +12,15 @@ import { navigate } from '../../app/router.ts';
 import { useAiSettings } from '../../app/session.ts';
 import { AiNote, afterAiStep, ensureAiConsent } from '../../components/AiNote.tsx';
 import { InlineError, Loading } from '../../components/States.tsx';
+import { ago, changeName } from '../../lib/format.ts';
 
 function changeLabel(field: string): string {
   if (field === 'skills.order') return 'Change to the order of your skills (no skill is added)';
   if (field === 'bullets.order') return 'Change to the order of the bullets under one job (no bullet is changed)';
   if (field === 'summary') return 'Change to your summary';
   if (field.startsWith('bullets[')) return 'Change to one bullet';
+  if (field === 'item') return 'Your profile has other facts for this entry (a corrected date, title or name)';
+  if (field === 'skills.rename') return 'Your profile spells this skill another way';
   return 'Change to your resume';
 }
 
@@ -96,7 +99,7 @@ export function TailorDrawer({ job, open, onClose }: { job: Job; open: boolean; 
             {!prop.changes.length && <Alert type="info" showIcon message="No change was needed: your resume already fits this job as well as your profile allows." />}
             {prop.changes.map((c) => (
               <div key={c.id} className="jl-factbox" style={{ display: 'flex', gap: 12 }}>
-                <Checkbox checked={accept.includes(c.id)} onChange={(e) => setAccept(e.target.checked ? [...accept, c.id] : accept.filter((x) => x !== c.id))} aria-label={`Keep this change to ${c.field}`} />
+                <Checkbox checked={accept.includes(c.id)} onChange={(e) => setAccept(e.target.checked ? [...accept, c.id] : accept.filter((x) => x !== c.id))} aria-label={changeName(c)} />
                 <div className="jl-grow" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span className="jl-small jl-muted">{changeLabel(c.field)}</span>
                   <span className="jl-small jl-muted">Before</span>
@@ -109,7 +112,7 @@ export function TailorDrawer({ job, open, onClose }: { job: Job; open: boolean; 
             ))}
             {prop.notice && <Alert type="info" showIcon message={prop.notice} />}
             {prop.gaps.length > 0 && (
-              <Alert type="warning" showIcon message="Not on your resume"
+              <Alert type="warning" showIcon message="Not in your profile"
                 description={<>
                   <div className="jl-row jl-wrap" style={{ margin: '4px 0' }}>{prop.gaps.map((g) => <Tag key={g}>{g}</Tag>)}</div>
                   The job asks for these and your profile does not show them, so jobleft does not add them. If one is true, add it to your profile yourself; nothing goes on a resume until you do.
@@ -135,13 +138,34 @@ export function CoverLetterDrawer({ job, open, onClose }: { job: Job; open: bool
   useEffect(() => { if (letters.data && !current && letters.data.length) { const l = letters.data.at(-1)!; setCurrent(l); setText(l.text); } }, [letters.data]);
   const dirty = !!current && text !== current.text;
   useDirty('letter', dirty, 'the cover letter');
+  const all = letters.data ?? [];
+  // Every letter for this job stays reachable (a new letter never hides the older ones) and each can be deleted
+  // (JL-resume-18).
+  const show = async (id: string) => {
+    if (dirty && !(await confirmDiscard(['the cover letter']))) return;
+    const l = all.find((x) => x.id === id);
+    if (l) { setCurrent(l); setText(l.text); }
+  };
+  const remove = async () => {
+    if (!current) return;
+    const ok = await ui.modal?.confirm({ title: 'Delete this cover letter?', content: 'This cannot be undone.', okText: 'Delete', okButtonProps: { danger: true, shape: 'round' }, cancelButtonProps: { shape: 'round' } });
+    if (!ok) return;
+    setBusy('delete'); setErr(null);
+    try {
+      await call('deleteCoverLetter', { params: { letterId: current.id } });
+      const next = all.filter((l) => l.id !== current.id).at(-1) ?? null;
+      setCurrent(next); setText(next?.text ?? '');
+      invalidate('letters');
+      ui.message?.success('Cover letter deleted.');
+    } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+  };
   const create = async () => {
     if (!resumeId || !(await ensureAiConsent(ai.data, 'coverLetter'))) return;
     setBusy('create'); setErr(null);
     try {
       const l = await call('createCoverLetter', { body: { jobId: job.id, resumeId } });
       setCurrent(l); setText(l.text);
-      void letters.reload();
+      invalidate('letters');
       afterAiStep((l as CoverLetter & { costMicros?: number | null }).costMicros);
     } catch (e) { setErr(e as UiError); invalidate('ai:publik'); } finally { setBusy(null); }
   };
@@ -171,15 +195,25 @@ export function CoverLetterDrawer({ job, open, onClose }: { job: Job; open: bool
         <AiNote kind="coverLetter" what="write a cover letter" />
         <Button type="primary" shape="round" loading={busy === 'create'} disabled={!resumeId} onClick={() => { void create(); }}>{current ? 'Write a new letter' : 'Write a cover letter'}</Button>
         <InlineError error={err} />
+        {all.length > 1 && current && (
+          <label className="jl-row">Letter
+            <Select style={{ minWidth: 280 }} value={current.id} onChange={(id) => { void show(id); }} aria-label="Cover letter to show"
+              options={all.map((l, i) => ({ value: l.id, label: `Letter ${i + 1}, written ${ago(l.createdAt) ?? ''}${l.ready ? '' : ' (not ready)'}` }))} />
+          </label>
+        )}
         {current && (
           <>
-            {!current.ready && <Alert type="warning" showIcon message="This letter is not ready: some facts do not trace to your profile." description={current.violations.map((v) => v.reason).join(' ')} />}
-            {gaps.length > 0 && <Alert type="info" showIcon message={`The job asks for ${gaps.join(', ')}. Your profile does not show ${gaps.length === 1 ? 'it' : 'them'}, so the letter does not claim ${gaps.length === 1 ? 'it' : 'them'}.`} />}
+            {current.notice && <Alert type="info" showIcon message={current.notice} />}
+            {!current.ready && <Alert type="warning" showIcon message="This letter is not ready: these words do not trace to your profile. Remove them, or add them to your profile first if they are true."
+              description={<ul style={{ margin: 0, paddingLeft: 18, overflowWrap: 'anywhere' }}>{current.violations.map((v, i) => <li key={i}><strong>{v.fact}</strong> ({v.where}): {v.reason}</li>)}</ul>} />}
+            {gaps.length > 0 && <Alert type="info" showIcon message={`Not in your profile: ${gaps.join(', ')}. The letter does not claim ${gaps.length === 1 ? 'it' : 'them'}.`} />}
             <Input.TextArea value={text} onChange={(e) => setText(e.target.value)} autoSize={{ minRows: 10, maxRows: 24 }} aria-label="Cover letter text" />
             <div className="jl-row">
               <Button shape="round" icon={<CopyOutlined />} onClick={() => { void navigator.clipboard?.writeText(text).then(() => ui.message?.success('Copied.')); }}>Copy</Button>
               <Button type="primary" shape="round" icon={<EditOutlined />} disabled={!dirty} loading={busy === 'save'} onClick={() => { void saveText(); }}>Save edits</Button>
               {dirty && <span className="jl-small" style={{ color: 'var(--jl-warn)' }}>Unsaved edits</span>}
+              <span className="jl-grow" />
+              <Button shape="round" danger icon={<DeleteOutlined />} loading={busy === 'delete'} onClick={() => { void remove(); }}>Delete this letter</Button>
             </div>
             <div className="jl-row">
               <Input value={instr} onChange={(e) => setInstr(e.target.value)} placeholder="Ask for a change, for example: make it shorter" aria-label="Change the letter by request" maxLength={2000} onPressEnter={() => { void byRequest(); }} />

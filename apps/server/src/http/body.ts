@@ -1,5 +1,7 @@
-// Request bodies with hard limits (INTERFACES 6.1 rule 7): the declared length is checked before any byte is read,
-// and a body that grows past the limit stops at once (413, nothing stored, the connection closes).
+// Request bodies with hard limits (INTERFACES 6.1 rule 7): the declared length is checked before any byte is kept,
+// and a body that grows past the limit is never stored (413, nothing stored). The rest of an oversized body is read
+// and dropped before the answer (up to a cap), so a client still sending gets the plain 413 instead of a reset
+// connection (JL-resume-26); a body far past the cap, or one that trickles, is cut off.
 
 import { createWriteStream, rmSync } from 'node:fs';
 import type { IncomingMessage } from 'node:http';
@@ -17,9 +19,30 @@ function declaredLength(req: IncomingMessage): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+/** How much of an oversized body is read and dropped before the 413 (and for how long) so the client hears it. */
+const DRAIN_BYTES = 64 * 1_048_576;
+const DRAIN_MS = 15_000;
+
+/** Reads and drops the rest of a body (nothing is kept), then calls done once: at its end, past the cap, or on time. */
+function drain(req: IncomingMessage, done: () => void): void {
+  let dropped = 0;
+  let over = false;
+  const finish = () => { if (over) return; over = true; clearTimeout(timer); req.off('data', drop); done(); };
+  const drop = (c: Buffer) => { dropped += c.length; if (dropped > DRAIN_BYTES) finish(); };
+  const timer = setTimeout(finish, DRAIN_MS);
+  req.on('data', drop);
+  req.once('end', finish);
+  req.once('error', finish);
+  req.once('aborted', finish);
+  req.resume();
+}
+
 export function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
   const declared = declaredLength(req);
-  if (declared !== null && declared > limit) return Promise.reject(tooLarge(limit));
+  if (declared !== null && declared > limit) {
+    if (declared > limit + DRAIN_BYTES || req.complete) return Promise.reject(tooLarge(limit));
+    return new Promise((_, reject) => drain(req, () => reject(tooLarge(limit))));
+  }
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
@@ -29,8 +52,8 @@ export function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
       if (size > limit) {
         settled = true;
         req.off('data', onData);
-        req.pause();
-        reject(tooLarge(limit));
+        chunks.length = 0;
+        drain(req, () => reject(tooLarge(limit)));
         return;
       }
       chunks.push(c);

@@ -76,6 +76,8 @@ test('bad files get a failure and a plain message, never an empty profile', asyn
   ];
   for (const [file, failure] of cases) {
     const r = await importResume(read(file), file, 'application/pdf');
+    // The advice leads to something the app takes (it refuses .txt uploads), JL-resume-4.
+    assert.doesNotMatch(r.message ?? '', /\.txt/, file);
     assert.equal(r.report.outcome, 'failed', file);
     assert.equal(r.report.failure, failure, file);
     assert.ok(r.message && r.message.length > 20, file);

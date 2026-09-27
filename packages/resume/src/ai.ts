@@ -3,6 +3,7 @@
 // to plain messages. Job text is always passed as quoted data, never as instructions (resume O14).
 
 import type { AiClient } from '@jobleft/ai-engine';
+import { formatDollars } from '@jobleft/contracts';
 import { ResumeError } from './errors.ts';
 
 export interface AiCall { text: string; costMicros: number | null; model: string }
@@ -38,8 +39,12 @@ export async function aiComplete(client: AiClient, system: string, user: string,
   } catch (e) {
     throw mapAiError(e);
   }
-  if (res.incomplete) throw new ResumeError('provider_error', 'The AI answer was cut short, so jobleft did not use it. Nothing was saved; try again.');
-  if (!res.text || !res.text.trim()) throw new ResumeError('provider_error', 'The AI provider sent an empty answer, so nothing was changed. Try again, or tailor without AI.');
+  // A provider may charge for an answer jobleft cannot use: the message says so, in dollars (JL-resume-27).
+  const charged = res.costMicros !== null && res.costMicros > 0;
+  const cost = charged ? ` The provider still charged ${formatDollars(res.costMicros!)} for it.` : '';
+  const details = charged ? { costMicros: res.costMicros } : null;
+  if (res.incomplete) throw new ResumeError('provider_error', `The AI answer was cut short, so jobleft did not use it. Nothing was saved.${cost} Try again.`, details);
+  if (!res.text || !res.text.trim()) throw new ResumeError('provider_error', `The AI provider sent an empty answer, so nothing was changed.${cost} Try again, or tailor without AI.`, details);
   return { text: res.text, costMicros: res.costMicros, model: res.model };
 }
 

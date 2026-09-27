@@ -124,3 +124,21 @@ export function withUnknown(f: JobFilter, key: NonNullable<JobFilter['includeUnk
   if (on) set.add(key); else set.delete(key);
   return { ...f, includeUnknown: [...set] };
 }
+
+/**
+ * Search results for a job picker, closest title first: the typed words as a phrase in the title, then every word in
+ * the title, then in the title or company; ties keep the server's order (JL-resume-14: "Data Infrastructure" found the
+ * job titled that way 17th of 30).
+ */
+export function byTitleMatch<T extends { title: string; company: string }>(items: T[], q: string): T[] {
+  const k = q.trim().toLowerCase().replace(/\s+/g, ' ');
+  const words = k.split(' ').filter(Boolean);
+  const rank = (x: T) => {
+    const t = x.title.toLowerCase();
+    if (k && t.includes(k)) return 0;
+    if (words.length && words.every((w) => t.includes(w))) return 1;
+    if (words.length && words.every((w) => `${t} ${x.company.toLowerCase()}`.includes(w))) return 2;
+    return 3;
+  };
+  return items.map((x, i) => ({ x, i, r: rank(x) })).sort((a, b) => a.r - b.r || a.i - b.i).map((e) => e.x);
+}

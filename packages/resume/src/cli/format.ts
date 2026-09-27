@@ -105,7 +105,8 @@ export function proposalText(p: TailorProposal, labels: (sectionId: string, item
       L.push(`        before: ${c.before.split('\n').join(' / ')}`);
       L.push(`        after:  ${c.after.split('\n').join(' / ')}`);
     } else {
-      L.push(`  [${c.id}] ${where}: ${c.field === 'summary' ? 'reworded summary' : 'reworded bullet'}`);
+      const what = c.field === 'summary' ? 'reworded summary' : c.field === 'item' ? 'your profile\'s facts for this entry' : c.field === 'skills.rename' ? 'your profile\'s spelling of this skill' : 'reworded bullet';
+      L.push(`  [${c.id}] ${where}: ${what}`);
       L.push(`        before: ${c.before}`);
       L.push(`        after:  ${c.after}`);
       L.push(`        diff:   ${wordDiff(c.before, c.after)}`);

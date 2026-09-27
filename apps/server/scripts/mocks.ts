@@ -140,7 +140,7 @@ export function startAi(opts: { port?: number; logFile?: LogFiles; reply?: strin
 
 // ---------------------------------------------------------------- publik
 
-export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMicros?: number; chargeMicros?: number; holdMicros?: number; priceMicros?: number; walletDelayMs?: number } = {}): Promise<Mock & { setBalance(m: number): void; balance(): number; setDaily(d: { capMicros: number; spentMicros: number; refuse: boolean } | null): void }> {
+export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMicros?: number; chargeMicros?: number; holdMicros?: number; priceMicros?: number; walletDelayMs?: number; reply?: string; finishReason?: string } = {}): Promise<Mock & { setBalance(m: number): void; balance(): number; setDaily(d: { capMicros: number; spentMicros: number; refuse: boolean } | null): void }> {
   let balance = opts.balanceMicros ?? 2_000_000;
   // Like the real gateway: a streamed answer's headers carry the balance minus a temporary hold; the charge settles
   // when the answer ends (holdMicros and priceMicros, both 0 by default).
@@ -175,12 +175,14 @@ export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMi
         return;
       }
       if (balance <= 0) { json(res, 402, { error: { type: 'insufficient_balance', available_micros: balance, top_up_url: 'https://publikhq.com/claim/stand-in' } }); return; }
+      // Each answer costs chargeMicros (default nothing), like a streamed publik answer; the headers carry the balance minus a hold.
+      balance = Math.max(0, balance - (opts.chargeMicros ?? 0));
       res.writeHead(200, { 'content-type': 'text/event-stream', ...(hold ? { 'x-publik-balance': String(balance - hold) } : {}) });
-      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'publik stand-in answer' } }] })}\n\ndata: [DONE]\n\n`);
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: opts.reply ?? 'publik stand-in answer' } }] })}\n\n`);
+      if (opts.finishReason) res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: opts.finishReason }] })}\n\n`);
+      res.write('data: [DONE]\n\n');
       balance -= price;
       res.end();
-      // Like publik, a streamed answer is settled after it ends: the charge shows only in the balance.
-      balance -= opts.chargeMicros ?? 0;
       return;
     }
     json(res, 404, { error: { type: 'not_found' } });

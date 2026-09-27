@@ -133,7 +133,12 @@ function AiTab() {
   const keyFor = kind === 'own_key' ? VENDORS.find((v) => v.value === vendor)!.label : `the server at ${hostOf(baseUrl) || 'this address'}`;
   const card = (v: NonNullable<AiSettings['provider']>, icon: ReactNode, title: string, text: string) => (
     <label className={`jl-choice${kind === v ? ' on' : ''}`} style={{ alignItems: 'flex-start', padding: 14 }}>
-      <Radio checked={kind === v} onChange={() => { setKind(v); setCheck(null); if (v === 'local' && !baseUrl) setBaseUrl(LOCAL_KINDS.find((k) => k.value === localKind)!.url); }} aria-label={title} />
+      <Radio checked={kind === v} onChange={() => {
+        // A model name belongs to its provider: switching starts from that provider's saved model, or none (the
+        // publik tier "publik-balanced" is not a model on a local server, JL-resume-21).
+        setKind(v); setCheck(null); setModel(v === s.provider ? (s.model ?? '') : '');
+        if (v === 'local' && !baseUrl) setBaseUrl(LOCAL_KINDS.find((k) => k.value === localKind)!.url);
+      }} aria-label={title} />
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><strong>{icon} {title}</strong><span className="jl-small">{text}</span></span>
     </label>
   );
@@ -157,7 +162,7 @@ function AiTab() {
         {kind === 'own_key' && <label className="jl-row">Vendor <Select style={{ width: 220 }} value={vendor} options={VENDORS} onChange={setVendor} /></label>}
         {kind !== 'publik' && (
           <label className="jl-row">Model <Select showSearch allowClear style={{ width: 280 }} value={model || undefined} onChange={(v) => setModel(v ?? '')} placeholder="Choose a model (Save and test lists them)"
-            options={(check?.models ?? []).map((m) => ({ value: m, label: m }))} onSearch={(v) => { if (v) setModel(v); }} notFoundContent="Save and test to list the server's models" aria-label="Model" /></label>
+            options={(check?.models ?? []).filter((m) => !/embed/i.test(m)).map((m) => ({ value: m, label: m }))} onSearch={(v) => { if (v) setModel(v); }} notFoundContent="Save and test to list the server's models" aria-label="Model" /></label>
         )}
         {kind === 'publik' && <label className="jl-row">Speed and quality <Select style={{ width: 220 }} value={model || 'publik-balanced'} onChange={setModel} options={[{ value: 'publik-fast', label: 'Fast' }, { value: 'publik-balanced', label: 'Balanced' }, { value: 'publik-smart', label: 'Smartest' }]} aria-label="publik tier" /></label>}
         <Space wrap>

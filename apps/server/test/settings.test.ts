@@ -322,9 +322,14 @@ test('JL-settings-17: a resume uploaded without a file name comes back as .pdf i
     const up = await s.call('POST', '/api/v1/resumes/import', PDF, { 'content-type': 'application/pdf' });
     assert.equal(up.status, 200, up.text);
     const id = up.json.resume.id as string;
+    // The rendered export carries the person's name and the resume's name; the original file keeps its own name,
+    // with the extension its type gives it.
     const dl = await s.call('GET', `/api/v1/resumes/${id}/export?format=pdf`);
     assert.equal(dl.status, 200);
-    assert.match(String(dl.headers['content-disposition']), /filename="resume\.pdf"/);
+    assert.match(String(dl.headers['content-disposition']), /filename="[^"]+\.pdf"/);
+    const orig = await s.call('GET', `/api/v1/resumes/${id}/export?format=original`);
+    assert.equal(orig.status, 200);
+    assert.match(String(orig.headers['content-disposition']), /filename="resume\.pdf"/);
     const zip = (await s.call('GET', '/api/v1/export')).body;
     const names: string[] = [];
     for (let p = 0; p + 30 <= zip.length && zip.readUInt32LE(p) === 0x04034b50;) {

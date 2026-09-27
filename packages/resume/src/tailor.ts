@@ -9,12 +9,12 @@ import { nowIso } from '@jobleft/contracts';
 import type { AiClient } from '@jobleft/ai-engine';
 import type { SkillDictionary } from '@jobleft/static-data';
 import { aiComplete, aiLabel, jobBlock, TRUTH_RULES } from './ai.ts';
-import { dateRange } from './document.ts';
+import { dateRange, degreeLine } from './document.ts';
 import { ResumeError } from './errors.ts';
 import { canonicalSkill, findSkills, scanFacts } from './facts.ts';
 import { jobTerms, keywordGaps, safeDictionary } from './gaps.ts';
-import { buildProfileFacts, checkDocument, checkText, jobContext, refusedFacts, workYears, type ProfileFacts } from './truth.ts';
-import { foldKey, similarity, stableId, termRegExp } from './text.ts';
+import { buildProfileFacts, checkText, jobContext, refusedFacts, sameYm, workYears, type ProfileFacts } from './truth.ts';
+import { foldKey, orgKey, similarity, stableId, termRegExp } from './text.ts';
 import { REWORD_WORDS } from './lexicon.ts';
 
 export type TailorOp =
@@ -22,7 +22,11 @@ export type TailorOp =
   | { changeId: string; type: 'skills.order'; order: string[] }
   | { changeId: string; type: 'bullets.order'; sectionId: string; itemId: string; order: number[] }
   | { changeId: string; type: 'bullet'; sectionId: string; itemId: string; index: number; text: string }
-  | { changeId: string; type: 'summary'; sectionId: string; text: string };
+  | { changeId: string; type: 'summary'; sectionId: string; text: string }
+  /** The profile's corrected facts for one job or school entry (dates, title, name), offered as a change (resume O1). */
+  | { changeId: string; type: 'item'; sectionId: string; itemId: string; set: Partial<Pick<ResumeItem, 'heading' | 'subheading' | 'startDate' | 'endDate' | 'current'>> }
+  /** The profile's own spelling of a skill the resume names ("PostgreSQL" -> "Postgres"). */
+  | { changeId: string; type: 'skills.rename'; from: string; to: string };
 
 export interface TailorDraft { proposal: TailorProposal; ops: TailorOp[] }
 
@@ -136,14 +140,61 @@ function profileBlock(p: Profile): string {
   return L.join('\n');
 }
 
+/** "Junior Developer, Contoso Example Corp · Jan 2021 – May 2023" (how an entry reads in a change). */
+function entryLine(it: Pick<ResumeItem, 'heading' | 'subheading' | 'startDate' | 'endDate' | 'current'>): string {
+  return [[it.subheading, it.heading].filter(Boolean).join(', '), dateRange(it)].filter(Boolean).join(' · ');
+}
+
+/**
+ * The fields of a resume entry that the profile holds in another (corrected) form: dates of the same job or school,
+ * and, for an entry the profile adopted from this resume (same id), its title and name. null = nothing to correct.
+ * Leaving a date out is never corrected; an entry the profile does not have is never touched.
+ */
+function correctionFor(kind: 'experience' | 'education', it: ResumeItem, p: Profile): Extract<TailorOp, { type: 'item' }>['set'] | null {
+  const set: Extract<TailorOp, { type: 'item' }>['set'] = {};
+  const dates = (start: string | null, end: string | null, current: boolean) => {
+    if (!sameYm(it.startDate, start) && start) set.startDate = start;
+    if (it.current !== current) { set.current = current; set.endDate = current ? null : end; }
+    else if (!current && !sameYm(it.endDate, end) && end) set.endDate = end;
+  };
+  if (kind === 'experience') {
+    const byId = p.work.find((w) => w.id === it.id);
+    const w = byId ?? p.work.find((x) => it.heading !== null && orgKey(x.company) === orgKey(it.heading) && (it.subheading === null || foldKey(x.title) === foldKey(it.subheading)));
+    if (!w) return null;
+    if (byId && it.heading !== null && orgKey(it.heading) !== orgKey(w.company)) set.heading = w.company;
+    if (byId && it.subheading !== null && foldKey(it.subheading) !== foldKey(w.title)) set.subheading = w.title;
+    dates(w.startDate, w.endDate, w.current);
+  } else {
+    const byId = p.education.find((e) => e.id === it.id);
+    const e = byId ?? p.education.find((x) => it.heading !== null && orgKey(x.school) === orgKey(it.heading));
+    if (!e) return null;
+    if (byId && it.heading !== null && orgKey(it.heading) !== orgKey(e.school)) set.heading = e.school;
+    const deg = degreeLine(e.degree, e.major);
+    if (byId && it.subheading !== null && deg && foldKey(it.subheading) !== foldKey(deg)) set.subheading = deg;
+    dates(e.startDate, e.endDate, e.current);
+  }
+  return Object.keys(set).length ? set : null;
+}
+
+/** The profile's own spelling of a skill the resume names in another form, or null. */
+function profileSpelling(tag: string, p: Profile): string | null {
+  if (p.skills.some((s) => foldKey(s.name) === foldKey(tag))) return null;
+  const c = canonicalSkill(tag);
+  if (!c) return null;
+  return p.skills.find((s) => (canonicalSkill(s.name) ?? s.name).toLowerCase() === c.toLowerCase())?.name ?? null;
+}
+
+/** Facts of the profile plus one line of the person's own resume (a reworded line may keep that line's facts). */
+function withLine(profile: Profile, line: string): ProfileFacts {
+  return buildProfileFacts({ ...profile, extraSections: [...(profile.extraSections ?? []), { id: 'tailor-line', title: '', lines: [line] }] });
+}
+
 export async function draftTailoring(input: TailorInput): Promise<TailorDraft> {
   const { profile, job, base } = input;
   const pf = buildProfileFacts(profile);
-  // The base itself must trace to the profile; otherwise its extra facts would flow into every version.
-  const baseViolations = checkDocument(base, profile, null, pf);
-  if (baseViolations.length) {
-    throw new ResumeError('conflict', `This resume holds ${baseViolations.length === 1 ? 'a fact' : `${baseViolations.length} facts`} that ${baseViolations.length === 1 ? 'is' : 'are'} not in your profile (for example "${baseViolations[0]!.fact}"). Add ${baseViolations.length === 1 ? 'it' : 'them'} to your profile or remove ${baseViolations.length === 1 ? 'it' : 'them'} from the resume, then tailor again.`, { violations: baseViolations });
-  }
+  // The base is the person's own document: an upload or their own edits may hold facts the profile does not have yet.
+  // Tailoring keeps those lines as the person wrote them and adds nothing to them; every change below uses profile
+  // facts only (an AI rewrite of a line may also keep that line's own facts, never borrow another's).
   const ops: TailorOp[] = [];
   const changes: TailorProposal['changes'] = [];
   const proposalId = input.proposalId ?? stableId('tp-', input.resumeId, job.id, nowIso(), String(Math.random()));
@@ -153,8 +204,30 @@ export async function draftTailoring(input: TailorInput): Promise<TailorDraft> {
   const gaps = keywordGaps(job, base, profile, dict, input.resumeId);
   const terms = relevanceTerms(job, input.skills);
 
-  // 1. Skills the profile has and the job names, but this resume does not show.
+  // 0. Where this resume states a job, a school or a skill that the profile holds in corrected form, the profile's
+  //    version, as changes the person accepts or not (resume O1: a correction appears in later outputs).
+  for (const s of base.sections) {
+    if (s.kind !== 'experience' && s.kind !== 'education') continue;
+    for (const it of s.items) {
+      const set = correctionFor(s.kind, it, profile);
+      if (!set) continue;
+      const id = cid();
+      ops.push({ changeId: id, type: 'item', sectionId: s.id, itemId: it.id, set });
+      changes.push({ id, sectionId: s.id, itemId: it.id, field: 'item', before: entryLine(it), after: entryLine({ ...it, ...set }), warning: null });
+    }
+  }
   const sk = skillsItem(base);
+  if (sk) {
+    for (const t of sk.item.tags) {
+      const to = profileSpelling(t, profile);
+      if (!to || sk.item.tags.some((x) => foldKey(x) === foldKey(to))) continue;
+      const id = cid();
+      ops.push({ changeId: id, type: 'skills.rename', from: t, to });
+      changes.push({ id, sectionId: base.sections[sk.sectionIndex]!.id, itemId: sk.item.id, field: 'skills.rename', before: t, after: to, warning: null });
+    }
+  }
+
+  // 1. Skills the profile has and the job names, but this resume does not show.
   const allTerms = jobTerms(job, dict);
   for (const t of gaps.terms) {
     if (t.status !== 'in_profile_not_resume') continue;
@@ -228,7 +301,8 @@ export async function draftTailoring(input: TailorInput): Promise<TailorDraft> {
       for (const [key, text] of parsed) {
         if (key === 'SUMMARY') {
           if (!summarySec || text === summarySec.text) continue;
-          const v = checkText(text, 'Summary (AI)', pf, jc, 'resume');
+          let v = checkText(text, 'Summary (AI)', pf, jc, 'resume');
+          if (v.length) v = checkText(text, 'Summary (AI)', withLine(profile, summarySec.text ?? ''), jc, 'resume');
           if (v.length) { violations.push(...v); continue; }
           const id = cid();
           ops.push({ changeId: id, type: 'summary', sectionId: summarySec.id, text });
@@ -237,7 +311,10 @@ export async function draftTailoring(input: TailorInput): Promise<TailorDraft> {
         }
         const ref = refs.find((r) => r.id === key);
         if (!ref || !text || text === ref.text || text.length > ref.text.length * 2.2 + 40) continue;
-        const v = [...checkText(text, `${ref.entry.trim()}, bullet ${ref.index + 1} (AI)`, pf, jc, 'resume'), ...numbersKept(ref.text, text).map((x) => ({ ...x, where: `${ref.entry.trim()}, bullet ${ref.index + 1} (AI)` }))];
+        const where = `${ref.entry.trim()}, bullet ${ref.index + 1} (AI)`;
+        let gate = checkText(text, where, pf, jc, 'resume');
+        if (gate.length) gate = checkText(text, where, withLine(profile, ref.text), jc, 'resume');
+        const v = [...gate, ...numbersKept(ref.text, text).map((x) => ({ ...x, where }))];
         if (v.length) { violations.push(...v); continue; }
         const id = cid();
         ops.push({ changeId: id, type: 'bullet', sectionId: ref.sectionId, itemId: ref.itemId, index: ref.index, text });
@@ -275,7 +352,10 @@ export function applyChanges(base: ResumeDocument, ops: TailorOp[], acceptIds: s
   // Bullet rewrites use the original positions, so apply them before any reordering.
   for (const op of ops) {
     if (!accept.has(op.changeId)) continue;
-    if (op.type === 'bullet') {
+    if (op.type === 'item') {
+      const it = doc.sections.find((s) => s.id === op.sectionId)?.items.find((i) => i.id === op.itemId);
+      if (it) Object.assign(it, op.set);
+    } else if (op.type === 'bullet') {
       const it = doc.sections.find((s) => s.id === op.sectionId)?.items.find((i) => i.id === op.itemId);
       if (it && op.index < it.bullets.length) it.bullets[op.index] = op.text;
     } else if (op.type === 'summary') {
@@ -292,6 +372,12 @@ export function applyChanges(base: ResumeDocument, ops: TailorOp[], acceptIds: s
       const sk = skillsItem(doc);
       if (sk && op.order.length === sk.item.tags.length && op.order.every((t) => sk.item.tags.includes(t))) sk.item.tags = [...op.order];
     }
+  }
+  for (const op of ops) {
+    if (!accept.has(op.changeId) || op.type !== 'skills.rename') continue;
+    const sk = skillsItem(doc);
+    const i = sk ? sk.item.tags.indexOf(op.from) : -1;
+    if (sk && i >= 0 && !sk.item.tags.includes(op.to)) sk.item.tags[i] = op.to;
   }
   for (const op of ops) {
     if (!accept.has(op.changeId) || op.type !== 'skills.add') continue;

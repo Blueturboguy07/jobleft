@@ -76,8 +76,9 @@ Run the steps in order from the repository root, in a fresh data folder: `rm -rf
 (Jobs 2, Bullets 7, Skills 12, Degrees 1) and every field with its path. Do the same with `jordan-two-column.pdf` and
 `jordan-word.docx` (a second `--adopt` is refused: "It was NOT replaced"). Correct a date and a skill:
 `jr profile set work.1.startDate 2021-02` and `jr profile set skills.5.name Postgres`. Close the terminal, open a new
-one, set `JOBLEFT_HOME` again, and run `jr profile show`: both edits are there. Tailor (O3) and export: the version uses
-"Feb 2021" and "Postgres". Months are kept as written ("Jan 2021", never "2021").
+one, set `JOBLEFT_HOME` again, and run `jr profile show`: both edits are there. The imported resume itself stays as the
+file says (a profile edit never rewrites a resume); tailoring offers the corrections as changes. Tailor (O3), accept
+them and export: the version uses "Feb 2021" and "Postgres". Months are kept as written ("Jan 2021", never "2021").
 
 **O2 Nothing lost silently.** `jr import $F/scanned.pdf`, `$F/locked.pdf`, `$F/empty.pdf`, `$F/text-named.pdf`: each
 prints one plain sentence (no text layer / password / empty / not a real PDF) and "Nothing was saved". A file over
@@ -104,7 +105,7 @@ bullet under a different job, and a longer tool name than the profile holds ("Do
 profile says "Docker" and "Tableau"). A short form of your own name is fine ("Contoso" for "Contoso Labs", "k8s" for
 Kubernetes). In a cover letter only the name and contact lines at the top count as the header; any other line there,
 with or without a blank line after it, is checked like the body. Then
-`jr profile add-skill Kubernetes` and tailor again: Kubernetes can now appear (base resumes pick up a new profile skill).
+`jr profile add-skill Kubernetes` and tailor again: Kubernetes can now appear (tailoring offers profile skills the job names).
 
 **O5 Header never changes.** Put unusual values in the profile, for example
 `jr profile set personal.firstName José`, `jr profile set personal.email "jordan.testwell+jobs@example.com"` and a

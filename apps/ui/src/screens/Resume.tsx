@@ -5,8 +5,8 @@
 import { useRef, useState } from 'react';
 import { Alert, Button, Dropdown, Input, Modal, Space, Table, Tag } from 'antd';
 import { Tooltip } from '../components/Tip.tsx';
-import { EllipsisOutlined, FormOutlined, PlusOutlined, StarFilled, ToolOutlined, UploadOutlined, UserOutlined } from '@ant-design/icons';
-import type { ImportReport, ProfileInput, Resume } from '@jobleft/contracts';
+import { DeleteOutlined, EllipsisOutlined, FormOutlined, PlusOutlined, StarFilled, ToolOutlined, UploadOutlined, UserOutlined } from '@ant-design/icons';
+import type { CoverLetter, ImportReport, ProfileInput, Resume } from '@jobleft/contracts';
 import { call, download, type UiError } from '../app/api.ts';
 import { invalidate, useApi } from '../app/data.ts';
 import { ui } from '../app/layers.ts';
@@ -20,6 +20,7 @@ import { toInput } from './Profile.tsx';
 import { QuestionsModal, TailorForJobModal } from './resume/Extras.tsx';
 
 export const useResumeList = () => useApi<Resume[]>('resumes', () => call('listResumes'));
+const useLetterList = () => useApi<CoverLetter[]>('letters', () => call('listCoverLetters', { query: {} }));
 
 const MAX = 10 * 1024 * 1024;
 const TYPES: Record<string, string> = { pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
@@ -40,6 +41,7 @@ function ReportView({ r }: { r: ImportReport }) {
  */
 export function AddResumeModal({ open, onClose, stay = false }: { open: boolean; onClose: () => void; stay?: boolean }) {
   const profile = useProfile();
+  const resumes = useResumeList();
   const input = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<UiError | null>(null);
@@ -86,6 +88,13 @@ export function AddResumeModal({ open, onClose, stay = false }: { open: boolean;
   };
   const changes = result ? importChanges(profile.data ? toInput(profile.data) : undefined, result.proposed) : { lines: [], replaces: [] };
   const diff = changes.lines;
+  // The same file added before (same content): say so, and offer to remove the new copy (JL-resume-3).
+  const same = result?.resume.file ? (resumes.data ?? []).find((x) => x.id !== result.resume.id && x.file?.sha256 === result.resume.file!.sha256) : undefined;
+  const dropCopy = async () => {
+    if (!result) return;
+    setBusy(true);
+    try { await call('deleteResume', { params: { resumeId: result.resume.id }, query: {} }); invalidate('resumes'); ui.message?.success('The copy was removed.'); onClose(); reset(); } catch (e) { setErr(e as UiError); } finally { setBusy(false); }
+  };
   return (
     <Modal open={open} onCancel={() => { onClose(); reset(); }} footer={null} width={640} title={result ? 'Resume added' : 'Add a resume'} destroyOnClose>
       {!result && mode === 'choose' && (
@@ -111,16 +120,18 @@ export function AddResumeModal({ open, onClose, stay = false }: { open: boolean;
       )}
       {result && (
         <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          {same && <Alert type="info" showIcon message={`You already added this file on ${dateText(same.createdAt) ?? 'an earlier day'} as "${same.name}". This copy is named "${result.resume.name}".`}
+            action={<Button size="small" shape="round" loading={busy} onClick={() => { void dropCopy(); }}>Remove this copy</Button>} />}
           {result.resume.importReport && <ReportView r={result.resume.importReport} />}
           {diff.length ? (
             <div className="jl-factbox">
               <strong>Use these facts from the file in your profile?</strong>
-              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{diff.map((d) => <li key={d}>{d}</li>)}</ul>
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18, overflowWrap: 'anywhere' }}>{diff.map((d, i) => <li key={i}>{d}</li>)}</ul>
               {changes.replaces.length > 0 && (
-                <Alert style={{ marginTop: 8 }} type="warning" showIcon message="This would replace changes you made to your profile"
-                  description={<ul style={{ margin: 0, paddingLeft: 18 }}>{changes.replaces.map((d) => <li key={d}>{d}</li>)}</ul>} />
+                <Alert style={{ marginTop: 8 }} type="warning" showIcon message="This replaces or removes these parts of your profile"
+                  description={<ul style={{ margin: 0, paddingLeft: 18, overflowWrap: 'anywhere' }}>{changes.replaces.map((d, i) => <li key={i}>{d}</li>)}</ul>} />
               )}
-              <p className="jl-small jl-muted" style={{ marginTop: 6 }}>Your profile drives your match scores. Nothing changes unless you press the button. Your job preferences and answers are never changed by a file.</p>
+              <p className="jl-small jl-muted" style={{ marginTop: 6 }}>Your profile drives your match scores. Nothing changes unless you press the button, and the button changes only what is listed. Your links, your skills and any job or school the file does not mention stay. Your job preferences and answers are never changed by a file.</p>
             </div>
           ) : <p className="jl-muted">Your profile already has these facts.</p>}
           <Space wrap>
@@ -136,6 +147,7 @@ export function AddResumeModal({ open, onClose, stay = false }: { open: boolean;
 
 export function ResumeScreen() {
   const list = useResumeList();
+  const letters = useLetterList();
   const [adding, setAdding] = useState(false);
   const [tailoring, setTailoring] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -146,16 +158,20 @@ export function ResumeScreen() {
       if (key === 'open') navigate(`resume/${encodeURIComponent(r.id)}`);
       if (key === 'primary') { await call('updateResume', { params: { resumeId: r.id }, body: { isPrimary: true } }); invalidate('resumes'); ui.message?.success(`"${r.name}" is now your primary resume.`); }
       if (key === 'rename') { setRenaming(r); setRn({ name: r.name, target: r.targetTitle ?? '' }); }
-      if (key === 'pdf' || key === 'docx') { const f = await download('exportResume', { params: { resumeId: r.id }, query: { format: key } }); ui.message?.success(`Saved ${f} to your Downloads.`); }
+      if (key === 'pdf' || key === 'docx' || key === 'original') { const f = await download('exportResume', { params: { resumeId: r.id }, query: { format: key } }); ui.message?.success(`Saved ${f} to your Downloads.`); }
       if (key === 'delete') {
         const versions = (list.data ?? []).filter((x) => x.baseResumeId === r.id);
+        const ids = new Set([r.id, ...versions.map((v) => v.id)]);
+        // The confirm names everything that goes (JL-resume-24): versions and cover letters made with this resume.
+        const own = (letters.data ?? []).filter((l) => ids.has(l.resumeId)).length;
+        const also = [versions.length ? plural(versions.length, 'tailored version') : '', own ? plural(own, 'cover letter') : ''].filter(Boolean).join(' and ');
         const ok = await ui.modal?.confirm({
-          title: `Delete "${r.name}"?`, content: versions.length ? `Its ${plural(versions.length, 'tailored version')} will be deleted too. This cannot be undone.` : 'This cannot be undone.',
+          title: `Delete "${r.name}"?`, content: also ? `Its ${also} will be deleted too. This cannot be undone.` : 'This cannot be undone.',
           okText: 'Delete', okButtonProps: { danger: true, shape: 'round' }, cancelButtonProps: { shape: 'round' },
         });
         if (!ok) return;
-        await call('deleteResume', { params: { resumeId: r.id }, query: versions.length ? { withVersions: 'true' } : {} });
-        invalidate('resumes');
+        await call('deleteResume', { params: { resumeId: r.id }, query: also ? { withVersions: 'true' } : {} });
+        invalidate('resumes', 'letters');
         ui.message?.success('Deleted.');
       }
     } catch (e) { ui.message?.error((e as UiError).message); }
@@ -211,6 +227,7 @@ export function ResumeScreen() {
                         { key: 'rename', label: 'Rename and target title' },
                         { key: 'pdf', label: 'Export as PDF' },
                         { key: 'docx', label: 'Export as Word' },
+                        ...(r.file ? [{ key: 'original', label: 'Download the original file (as uploaded)' }] : []),
                         { type: 'divider' },
                         { key: 'delete', label: 'Delete', danger: true },
                       ],
@@ -224,6 +241,7 @@ export function ResumeScreen() {
           </div>
         )}
       </div>
+      <LetterList letters={letters} resumes={list.data} />
       <AddResumeModal open={adding} onClose={() => setAdding(false)} />
       <TailorForJobModal open={tailoring} onClose={() => setTailoring(false)} />
       <QuestionsModal open={asking} onClose={() => setAsking(false)} />
@@ -240,6 +258,39 @@ export function ResumeScreen() {
           <label>Target job title<Input value={rn.target} onChange={(e) => setRn({ ...rn, target: e.target.value })} placeholder="For example: Data analyst" /></label>
         </Space>
       </Modal>
+    </div>
+  );
+}
+
+/** Every cover letter in one place, with the job it is for and a delete (JL-resume-18). */
+function LetterList({ letters, resumes }: { letters: ReturnType<typeof useLetterList>; resumes: Resume[] | undefined }) {
+  const del = async (l: CoverLetter) => {
+    const what = l.jobLabel ? `${l.jobLabel.title} · ${l.jobLabel.company}` : 'this job';
+    const ok = await ui.modal?.confirm({ title: `Delete the cover letter for ${what}?`, content: 'This cannot be undone.', okText: 'Delete', okButtonProps: { danger: true, shape: 'round' }, cancelButtonProps: { shape: 'round' } });
+    if (!ok) return;
+    try { await call('deleteCoverLetter', { params: { letterId: l.id } }); invalidate('letters'); ui.message?.success('Cover letter deleted.'); } catch (e) { ui.message?.error((e as UiError).message); }
+  };
+  return (
+    <div className="jl-page-inner" style={{ marginTop: 20 }}>
+      <h2 className="jl-subhead">Cover letters</h2>
+      {letters.error && !letters.data ? <InlineError error={letters.error} onRetry={() => { void letters.reload(); }} />
+        : !letters.data ? <Loading label="Loading your cover letters" inline />
+          : !letters.data.length ? <p className="jl-muted">No cover letters yet. Open a job and choose "Write a cover letter".</p> : (
+            <div className="jl-card-box" style={{ padding: 8 }}>
+              <Table rowKey="id" dataSource={[...letters.data].reverse()} pagination={false}
+                columns={[
+                  { title: 'For job', key: 'j', render: (_, l) => <a href={`#/jobs/${encodeURIComponent(l.jobId)}`} style={{ overflowWrap: 'anywhere' }}>{l.jobLabel ? `${l.jobLabel.title} · ${l.jobLabel.company}` : 'Open the job'}</a> },
+                  { title: 'Resume used', key: 'r', render: (_, l) => <span className="jl-muted">{resumes?.find((x) => x.id === l.resumeId)?.name ?? 'Deleted'}</span> },
+                  { title: 'State', key: 's', render: (_, l) => (l.ready ? <Tag color="green">Ready</Tag> : <Tag color="gold">Not ready</Tag>) },
+                  { title: 'Last changed', key: 'u', render: (_, l) => <span title={dateText(l.updatedAt) ?? ''}>{ago(l.updatedAt)}</span> },
+                  {
+                    title: <span className="jl-sr">Actions</span>, key: 'a', width: 56, render: (_, l) => (
+                      <Tooltip title="Delete this cover letter"><Button shape="circle" icon={<DeleteOutlined />} aria-label={`Delete the cover letter for ${l.jobLabel ? `${l.jobLabel.title} at ${l.jobLabel.company}` : 'this job'}, written ${ago(l.createdAt) ?? ''}`} onClick={() => { void del(l); }} /></Tooltip>
+                    ),
+                  },
+                ]} />
+            </div>
+          )}
     </div>
   );
 }

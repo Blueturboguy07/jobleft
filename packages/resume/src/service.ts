@@ -17,13 +17,13 @@ import { migrateResume } from './db.ts';
 import { documentFromProfile } from './document.ts';
 import { ResumeError } from './errors.ts';
 import { keywordGaps, safeDictionary } from './gaps.ts';
-import { importResume, type ImportOutcome } from './import/index.ts';
+import { asProfile, importResume, type ImportOutcome } from './import/index.ts';
 import { draftLetter, editLetter } from './letter.ts';
 import { fitResume } from './render/layout.ts';
 import { renderLetterDocx, renderLetterPdf, renderResumeDocx, renderResumePdf } from './render/index.ts';
-import { linkedToProfile, snapshotOf, syncBaseDocument } from './sync.ts';
+import { snapshotOf } from './sync.ts';
 import { applyChanges, draftTailoring, type TailorOp } from './tailor.ts';
-import { checkDocument, checkLetter, headerName } from './truth.ts';
+import { checkDocument, checkLetter, headerFromProfile, headerName } from './truth.ts';
 
 export interface ResumeServiceOptions {
   db: DatabaseSync;
@@ -50,6 +50,11 @@ const parse = <T>(s: string | null): T | null => (s === null ? null : JSON.parse
 
 export function profileIsEmpty(p: Profile): boolean {
   return !headerName(p) && !p.work.length && !p.education.length && !p.skills.length;
+}
+
+/** True when the profile holds no fact a tailored version could use (a name alone is not one). */
+function profileHasNoFacts(p: Profile): boolean {
+  return !p.work.length && !p.education.length && !p.projects.length && !p.certifications.length && !p.skills.length && !(p.summary && p.summary.trim());
 }
 
 function safeFileName(s: string): string {
@@ -96,27 +101,34 @@ export class ResumeService {
     }
   }
 
-  /** A base resume's document, brought in step with the current profile (stored back when it changed). */
+  /**
+   * A base resume's document as the person sees it. The header always follows the profile ("The header comes from
+   * your profile"). The sections are the person's own: an upload keeps the file's content and a resume the person
+   * edited keeps their edits; a profile save never rewrites, removes or refills them (JL-resume-1, JL-resume-23).
+   * Only a resume built from the profile that the person has not changed follows the profile (they asked for a
+   * resume made of their profile); their first edit makes it theirs.
+   */
   #synced(r: Row): ResumeDocument {
     const doc = JSON.parse(r.document_json) as ResumeDocument;
-    if (r.kind !== 'base' || !r.snapshot_json) return doc;
+    if (r.kind !== 'base') return doc;
     const profile = this.#profile();
     if (profileIsEmpty(profile)) return doc;
-    const old = JSON.parse(r.snapshot_json) as ProfileInput;
-    const mode = r.snapshot_source === 'import' ? 'import' : 'profile';
-    const next = syncBaseDocument(doc, old, profile, mode);
-    const linked = mode === 'import' && linkedToProfile(next, profile);
-    const snapNow = snapshotOf(profile);
-    const changed = JSON.stringify(next) !== r.document_json;
-    const snapChanged = JSON.stringify(snapNow) !== r.snapshot_json;
-    if (changed || snapChanged || linked) {
-      // An import keeps its snapshot until the person adopts it into the profile; then it follows the profile.
-      const newSource = mode === 'profile' || linked ? 'profile' : 'import';
-      const snap = newSource === 'profile' ? JSON.stringify(snapNow) : r.snapshot_json;
-      this.#o.db.prepare('UPDATE resumes SET document_json = ?, snapshot_json = ?, snapshot_source = ?, updated_at = ? WHERE id = ?')
-        .run(JSON.stringify(next), snap, newSource, changed ? this.#iso() : r.updated_at, r.id);
+    if (!this.#followsProfile(r, doc)) return { ...doc, header: headerFromProfile(profile) };
+    const next = documentFromProfile(profile);
+    const snap = JSON.stringify(snapshotOf(profile));
+    const changed = JSON.stringify(next.sections) !== JSON.stringify(doc.sections);
+    if (changed || snap !== r.snapshot_json) {
+      this.#o.db.prepare('UPDATE resumes SET document_json = ?, snapshot_json = ?, updated_at = ? WHERE id = ?')
+        .run(JSON.stringify(next), snap, changed ? this.#iso() : r.updated_at, r.id);
     }
     return next;
+  }
+
+  /** True for a resume built from the profile whose sections are still exactly what the profile gave it. */
+  #followsProfile(r: Row, doc: ResumeDocument): boolean {
+    if (r.kind !== 'base' || r.file_json || r.snapshot_source !== 'profile' || !r.snapshot_json) return false;
+    const was = documentFromProfile(asProfile(JSON.parse(r.snapshot_json) as ProfileInput));
+    return JSON.stringify(was.sections) === JSON.stringify(doc.sections);
   }
 
   #toResume(r: Row, doc?: ResumeDocument): Resume {
@@ -164,7 +176,11 @@ export class ResumeService {
     const file = { fileName: fileName.slice(0, 200), mimeType: ext === 'pdf' ? 'application/pdf' : ext === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : (mimeType || 'text/plain'), bytes: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex') };
     const now = this.#iso();
     const hasPrimary = !!this.#o.db.prepare(`SELECT 1 FROM resumes WHERE kind = 'base' AND is_primary = 1`).get();
-    const name = fileName.replace(/\.[A-Za-z0-9]{1,5}$/, '').slice(0, 200) || 'Imported resume';
+    // A second resume with the same name gets a number, so two rows can be told apart (JL-resume-3).
+    const stem = fileName.replace(/\.[A-Za-z0-9]{1,5}$/, '').slice(0, 190) || 'Imported resume';
+    const taken = new Set((this.#o.db.prepare(`SELECT name FROM resumes WHERE kind = 'base'`).all() as Array<{ name: string }>).map((x) => x.name));
+    let name = stem;
+    for (let n = 2; taken.has(name); n++) name = `${stem} (${n})`;
     this.#o.db.prepare(`INSERT INTO resumes (id, name, target_title, is_primary, kind, version, file_json, document_json, import_report_json, proposed_profile_json, snapshot_json, snapshot_source, created_at, updated_at)
       VALUES (?, ?, NULL, ?, 'base', 1, ?, ?, ?, ?, ?, 'import', ?, ?)`).run(
       id, name, hasPrimary ? 0 : 1, JSON.stringify(file), JSON.stringify(outcome.document), JSON.stringify(outcome.report),
@@ -212,10 +228,12 @@ export class ResumeService {
       this.#o.db.exec('COMMIT');
     }
     if (patch.document) {
+      // The person's own words are saved as written: the truth gate is for AI drafts (tailoring, letters, requests),
+      // never for what the person types or uploads (JL-resume-5, JL-resume-25). The header stays the profile's.
       const profile = this.#profile();
-      const doc: ResumeDocument = { ...structuredClone(patch.document), header: r.kind === 'base' ? documentFromProfile(profile).header : (JSON.parse(r.document_json) as ResumeDocument).header };
-      const v = checkDocument(doc, profile, null);
-      if (v.length) throw new ResumeError('bad_request', `These edits hold facts that are not in your profile: ${v.slice(0, 5).map((x) => `"${x.fact}"`).join(', ')}. Add them to your profile first if they are true.`, { violations: v });
+      const stored = JSON.parse(r.document_json) as ResumeDocument;
+      const header = r.kind === 'base' && !profileIsEmpty(profile) ? headerFromProfile(profile) : stored.header;
+      const doc: ResumeDocument = { ...structuredClone(patch.document), header };
       this.#o.db.prepare('UPDATE resumes SET document_json = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(doc), now, id);
     }
     return this.#toResume(this.#mustRow(id));
@@ -228,7 +246,8 @@ export class ResumeService {
     const ids = [id, ...versions];
     const letters = (this.#o.db.prepare(`SELECT id FROM cover_letters WHERE resume_id IN (${ids.map(() => '?').join(',')})`).all(...ids) as Array<{ id: string }>).map((x) => x.id);
     if ((versions.length || letters.length) && !withVersions) {
-      throw new ResumeError('conflict', `This resume has ${versions.length} tailored version${versions.length === 1 ? '' : 's'} and ${letters.length} cover letter${letters.length === 1 ? '' : 's'}. Nothing was deleted. Delete them too (withVersions=true), or keep the resume.`, { versions, letters });
+      const parts = [versions.length ? `${versions.length} tailored version${versions.length === 1 ? '' : 's'}` : '', letters.length ? `${letters.length} cover letter${letters.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' and ');
+      throw new ResumeError('conflict', `This resume has ${parts}. Nothing was deleted. Delete ${versions.length + letters.length === 1 ? 'it' : 'them'} together with the resume, or keep the resume.`, { versions, letters });
     }
     this.#o.db.exec('BEGIN');
     try {
@@ -264,6 +283,8 @@ export class ResumeService {
     if (r.kind !== 'base') throw new ResumeError('bad_request', 'Pick a base resume to tailor from (this one is already a tailored version).');
     const profile = this.#profile();
     if (profileIsEmpty(profile)) throw new ResumeError('needs_profile', 'Your profile is empty. Import a resume or fill in your profile first.');
+    // Checked before any AI call, so an empty profile never costs anything (JL-resume-19).
+    if (profileHasNoFacts(profile)) throw new ResumeError('needs_profile', 'Your profile has no jobs, schools, projects or skills yet, so tailoring has no true facts to use. Fill in your profile first. Nothing was sent or charged.');
     const job = this.#job(jobId);
     const base = this.#synced(r);
     const ai = opts.useAi === false ? null : this.#ai();
@@ -298,12 +319,17 @@ export class ResumeService {
     const doc = applyChanges(base, ops, ids);
     const job = this.#job(p.job_id);
     const profile = this.#profile();
-    const v = checkDocument(doc, profile, job);
+    // The base is the person's own document, so facts it already holds stay. The gate refuses only what the accepted
+    // changes add. Two reasons, two messages: the profile changed since the draft (the header or an added skill no
+    // longer traces), or an accepted change carries a fact the gate flagged.
+    const key = (x: { kind: string; fact: string }) => `${x.kind}|${x.fact.toLowerCase()}`;
+    const had = new Set(checkDocument(base, profile, job).map(key));
+    const v = checkDocument(doc, profile, job).filter((x) => !had.has(key(x)));
+    const header = JSON.stringify(headerFromProfile(profile));
+    if (!profileIsEmpty(profile) && JSON.stringify(base.header) !== header) {
+      throw new ResumeError('conflict', 'Your profile changed since this draft was made (your name or contact details). Nothing was saved. Tailor again.', { violations: v });
+    }
     if (v.length) {
-      // Two different reasons, two different messages: the base itself no longer traces (the profile changed), or an
-      // accepted change carries a fact the gate flagged (the person ticked a warned change).
-      const baseV = checkDocument(base, profile, job);
-      if (baseV.length) throw new ResumeError('conflict', `Your profile changed since this draft was made, and ${v.length === 1 ? 'a fact' : 'some facts'} no longer trace${v.length === 1 ? 's' : ''} to it (for example "${v[0]!.fact}"). Tailor again.`, { violations: v });
       throw new ResumeError('conflict', `A change you accepted holds a fact that is not in your profile: "${v[0]!.fact}" (${v[0]!.reason}) Nothing was saved. Untick that change and save again.`, { violations: v });
     }
     const baseRow = this.#mustRow(resumeId);
@@ -346,19 +372,20 @@ export class ResumeService {
     return `${this.#renderedBase(row, doc)}.${format}`;
   }
 
-  async export(resumeId: string, format: 'pdf' | 'docx'): Promise<ExportedFile> {
+  /**
+   * The PDF and the Word file always hold what the editor shows (an edited upload exports as edited, and both files
+   * say the same, JL-resume-6). "original" is the uploaded file itself, byte for byte.
+   */
+  async export(resumeId: string, format: 'pdf' | 'docx' | 'original'): Promise<ExportedFile> {
     const { row, doc } = this.#doc(resumeId);
-    // An uploaded resume that was never edited comes back as the person's own file, byte for byte, when the format
-    // matches. Anything edited or tailored is rendered from the document.
-    if (row.kind === 'base' && row.version === 1 && row.file_json) {
+    if (format === 'original') {
       const file = parse<{ fileName?: string; mimeType?: string }>(row.file_json);
-      const path = join(this.#o.filesDir, `${row.id}.${format}`);
-      const mime = format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      if (file?.mimeType === mime && existsSync(path)) {
-        // The person's own file name, with its type's extension when the upload had none (JL-settings-17).
-        const own = file.fileName || row.id;
-        return { fileName: own.toLowerCase().endsWith(`.${format}`) ? own : `${own}.${format}`, mimeType: mime, bytes: new Uint8Array(readFileSync(path)), leftOut: [] };
-      }
+      const ext = file?.mimeType === 'application/pdf' ? 'pdf' : file?.mimeType?.includes('wordprocessingml') ? 'docx' : 'txt';
+      const path = join(this.#o.filesDir, `${row.id}.${ext}`);
+      if (!file || !existsSync(path)) throw new ResumeError('not_found', 'This resume was not made from an uploaded file, so there is no original file to download.');
+      // The person's own file name, with its type's extension when the upload had none (JL-settings-17).
+      const own = file.fileName || row.id;
+      return { fileName: own.toLowerCase().endsWith(`.${ext}`) ? own : `${own}.${ext}`, mimeType: file.mimeType || 'application/octet-stream', bytes: new Uint8Array(readFileSync(path)), leftOut: [] };
     }
     const base = this.#renderedBase(row, doc);
     if (format === 'pdf') {
@@ -369,6 +396,7 @@ export class ResumeService {
     return { fileName: `${base}.docx`, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', bytes: r.bytes, leftOut: r.leftOut };
   }
 
+  /** Grades the PDF the resume exports to now, so the grade follows the text in the editor (JL-resume-15). */
   async atsCheck(resumeId: string): Promise<AtsReport> {
     const file = await this.export(resumeId, 'pdf');
     const rep = await atsCheckPdf(file.bytes);
@@ -385,11 +413,13 @@ export class ResumeService {
   // ---------------------------------------------------------------------------------------------- cover letters
 
   #letter(r: LetterRow): CoverLetter {
-    const extra = parse<{ gaps?: string[]; notice?: string | null; provider?: string; costMicros?: number | null }>(r.extra_json) ?? {};
+    const extra = parse<{ gaps?: string[]; notice?: string | null; provider?: string; costMicros?: number | null; jobLabel?: { title: string; company: string } | null }>(r.extra_json) ?? {};
+    let jobLabel = extra.jobLabel ?? null;
+    if (!jobLabel) { const j = this.#o.job(r.job_id); jobLabel = j ? { title: j.title.slice(0, 120), company: j.company.slice(0, 120) } : null; }
     return {
       id: r.id, jobId: r.job_id, resumeId: r.resume_id, text: r.text, violations: JSON.parse(r.violations_json), ready: !!r.ready,
       createdAt: r.created_at, updatedAt: r.updated_at, gaps: extra.gaps ?? [], notice: extra.notice ?? null, provider: extra.provider ?? 'none',
-      costMicros: extra.costMicros ?? null,
+      costMicros: extra.costMicros ?? null, jobLabel,
     };
   }
 
@@ -399,8 +429,20 @@ export class ResumeService {
     return r;
   }
 
-  coverLetters(jobId: string): CoverLetter[] {
-    return (this.#o.db.prepare('SELECT * FROM cover_letters WHERE job_id = ? ORDER BY created_at, rowid').all(jobId) as unknown as LetterRow[]).map((r) => this.#letter(r));
+  /** The letters for one job, or every letter (JL-resume-18: letters are listed in one place). Oldest first. */
+  coverLetters(jobId?: string): CoverLetter[] {
+    const rows = jobId === undefined
+      ? this.#o.db.prepare('SELECT * FROM cover_letters ORDER BY created_at, rowid').all()
+      : this.#o.db.prepare('SELECT * FROM cover_letters WHERE job_id = ? ORDER BY created_at, rowid').all(jobId);
+    return (rows as unknown as LetterRow[]).map((r) => this.#letter(r));
+  }
+
+  /** Deletes one cover letter; returns its id. */
+  deleteCoverLetter(id: string): string[] {
+    this.#letterRow(id);
+    this.#o.db.prepare('DELETE FROM cover_letters WHERE id = ?').run(id);
+    try { this.#o.db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* not in WAL mode, or busy: best effort */ }
+    return [id];
   }
 
   getCoverLetter(id: string): CoverLetter {
@@ -418,7 +460,7 @@ export class ResumeService {
     const id = `cl_${randomUUID()}`;
     const now = this.#iso();
     this.#o.db.prepare('INSERT INTO cover_letters (id, job_id, resume_id, text, violations_json, ready, extra_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, jobId, resumeId, res.text, JSON.stringify(violations), violations.length ? 0 : 1, JSON.stringify({ gaps: res.gaps, notice: res.notice, provider: res.provider, costMicros: res.costMicros }), now, now);
+      .run(id, jobId, resumeId, res.text, JSON.stringify(violations), violations.length ? 0 : 1, JSON.stringify({ gaps: res.gaps, notice: res.notice, provider: res.provider, costMicros: res.costMicros, jobLabel: { title: job.title.slice(0, 120), company: job.company.slice(0, 120) } }), now, now);
     return this.getCoverLetter(id);
   }
 
@@ -443,15 +485,18 @@ export class ResumeService {
       const res = await editLetter({ current: text, instruction: patch.instruction, profile, job, resume: resumeDoc, skills: this.#o.skills, ai });
       text = res.text;
       notice = res.notice;
-      gaps = [...new Set([...gaps, ...res.gaps])];
+      // This request's gaps only: what the job asks for that the profile lacks, plus what this request asked for and
+      // was refused. A refused request never sticks to the letter as if the job had asked for it (JL-resume-17).
+      gaps = [...new Set(res.gaps)];
       if (res.changed) provider = res.provider;
       costMicros = res.costMicros;
     }
     const violations = checkLetter(text, profile, job);
     if (violations.length && !notice) notice = `This letter holds ${violations.length === 1 ? 'a fact' : 'facts'} that ${violations.length === 1 ? 'is' : 'are'} not in your profile, so it is not ready: ${violations.slice(0, 5).map((v) => `"${v.fact}"`).join(', ')}.`;
     const history = [...(extra.history ?? []), r.text].slice(-10);
+    const jobLabel = { title: job.title.slice(0, 120), company: job.company.slice(0, 120) };
     this.#o.db.prepare('UPDATE cover_letters SET text = ?, violations_json = ?, ready = ?, extra_json = ?, updated_at = ? WHERE id = ?')
-      .run(text, JSON.stringify(violations), violations.length ? 0 : 1, JSON.stringify({ gaps, notice, provider, costMicros, history }), this.#iso(), id);
+      .run(text, JSON.stringify(violations), violations.length ? 0 : 1, JSON.stringify({ gaps, notice, provider, costMicros, history, jobLabel }), this.#iso(), id);
     return this.getCoverLetter(id);
   }
 

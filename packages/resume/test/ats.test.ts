@@ -74,3 +74,16 @@ test('the score changes only when the file changes', async () => {
   assert.ok(b.findings.some((f) => f.rule === 'missing_skills_heading'));
   assert.ok(b.score < a.score);
 });
+
+test('a resume with no work history and no education, or only a line, is never graded A (JL-resume-8)', async () => {
+  const p = jordanProfile();
+  p.work = []; p.education = []; p.projects = [];
+  p.summary = 'Data analyst who uses SQL.';
+  p.skills = [{ name: 'SQL', years: null, source: 'user' }];
+  const thin = await atsCheckPdf(renderResumePdf(documentFromProfile(p)).bytes);
+  assert.ok(thin.score <= 69 && thin.grade !== 'A', `${thin.grade} ${thin.score}`);
+  assert.ok(thin.findings.some((f) => f.rule === 'no_history' && f.severity === 'urgent'));
+  assert.ok(thin.findings.some((f) => f.rule === 'very_short'));
+  const full = await atsCheckPdf(renderResumePdf(documentFromProfile(jordanProfile())).bytes);
+  assert.ok(!full.findings.some((f) => f.rule === 'no_history' || f.rule === 'very_short'), 'a full resume is not flagged');
+});

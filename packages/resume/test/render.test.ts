@@ -117,7 +117,10 @@ test('letters outside the standard fonts are kept: an embedded font when the com
     assert.equal((await readPdf(r.bytes)).pages.length, 1);
   }
   p.personal.firstName = '田中';
-  assert.throws(() => renderResumePdf(documentFromProfile(p)), /cannot show these characters/);
+  p.summary = 'Data analyst. Emoji 🎯 stay as written.';
+  // The refusal says where the characters are and what to do in the app; no environment variable (JL-resume-7).
+  assert.throws(() => renderResumePdf(documentFromProfile(p)), (e: Error) => /cannot show these characters: .*🎯/.test(e.message)
+    && /your name or contact details/.test(e.message) && /the Summary section/.test(e.message) && /Export the Word file/.test(e.message) && !/JOBLEFT_|environment/.test(e.message));
   assert.ok(renderResumeDocx(documentFromProfile(p)).bytes.byteLength > 0, 'the Word file keeps every character');
 });
 

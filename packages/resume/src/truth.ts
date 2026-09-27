@@ -220,6 +220,8 @@ export interface JobContext {
   terms: Set<string>;
   /** Folded words of the company and title (a letter may name them). */
   words: Set<string>;
+  /** The job's title as written, and without a trailing part in brackets (how a letter names the role). */
+  titleForms: string[];
 }
 
 export function jobContext(job: Job | null): JobContext | null {
@@ -239,7 +241,36 @@ export function jobContext(job: Job | null): JobContext | null {
     cities: job.places.map((p) => p.city).filter((c): c is string => !!c),
     terms,
     words: w,
+    titleForms: [...new Set([job.title, job.title.replace(/\s*[([{].*$/, '')].map((t) => t.trim()).filter((t) => t.length > 2))],
   };
+}
+
+/** Where the letter names the job's title ("the Staff Software Engineer, Risk Data Engineering role"). */
+function titleSpans(text: string, job: JobContext): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (const t of job.titleForms) {
+    const words = t.split(/[^\p{L}\p{N}+#]+/u).filter(Boolean).map(escapeRegExp);
+    if (!words.length) continue;
+    for (const m of text.matchAll(new RegExp(words.join('[^\\p{L}\\p{N}+#]+'), 'giu'))) out.push([m.index!, m.index! + m[0].length]);
+  }
+  return out;
+}
+
+/**
+ * True when the words right around the hiring company's name make it a place the person worked ("worked at Figma",
+ * "my role at Figma", "As a Data Engineer at Figma", "At Figma, I built"). "The role at Figma", "join Figma" and
+ * "help Figma" name the job.
+ */
+function companyAsHistory(text: string, start: number, end: number): boolean {
+  const before = text.slice(Math.max(0, start - 120), start);
+  if (/(?:\b(?:worked|working|served|serving|interned|interning|employed|spent|was|were|been)\b[^.;:!?]{0,40}?|\b(?:my (?:time|role|years|tenure|work|job)|while|during my)|\bas an?\s+[^,.;:!?]{1,60}?)\s+(?:at|for|with|in)\s+$/i.test(before)) return true;
+  return /(?:^|[.!?]\s+)at\s+$/i.test(before) && /^[^.!?]{0,40}?,\s*(?:I|we)\s+[a-z]+(?:ed|t)\b/i.test(text.slice(end));
+}
+
+/** True when a name in a letter is the hiring company's own name ("Figma" in "how I can help Figma"). */
+function namesCompany(text: string, job: JobContext): boolean {
+  const k = orgKey(text);
+  return !!k && (k === job.companyKey || foldKey(text) === foldKey(job.company));
 }
 
 // ------------------------------------------------------------------------------------------------ checks
@@ -315,6 +346,11 @@ function checkMentions(text: string, where: string, ctx: Ctx, opts: { sentence?:
   const scan = scanFacts(text, { extraCities: ctx.job?.cities ?? [] });
   const sentence = opts.sentence ?? text;
   const aboutJob = (s: string) => ctx.mode === 'letter' && ctx.job !== null && !HISTORY_RE.test(s);
+  // In a letter, the job's own title and the hiring company's name name the job, never a skill or a past employer
+  // of the person ("the Risk Data Engineering role at Figma", "how I can help Databricks"), JL-resume-16.
+  const spans = ctx.mode === 'letter' && ctx.job ? titleSpans(text, ctx.job) : [];
+  const namesJob = (m: Mention) => ctx.mode === 'letter' && ctx.job !== null
+    && ((aboutJob(sentence) && spans.some(([a, b]) => m.start >= a && m.end <= b)) || (namesCompany(m.text, ctx.job) && !companyAsHistory(text, m.start, m.end)));
 
   for (const m of scan.contacts) {
     if (m.key.startsWith('email:') && !pf.emails.has(m.key.slice(6))) out.push(v('contact', m.text, where, 'This email address is not in your profile.'));
@@ -326,7 +362,7 @@ function checkMentions(text: string, where: string, ctx: Ctx, opts: { sentence?:
     out.push(v('certification', m.text, where, 'This certification or licence is not in your profile.'));
   }
   for (const m of scan.skills) {
-    if (traceSkill(m, ctx)) continue;
+    if (traceSkill(m, ctx) || namesJob(m)) continue;
     const fromJob = ctx.job?.terms.has(m.key);
     out.push(v('skill', m.text, where, fromJob ? 'The job asks for this skill, but your profile does not have it.' : 'This skill is not in your profile.'));
   }
@@ -384,11 +420,11 @@ function checkMentions(text: string, where: string, ctx: Ctx, opts: { sentence?:
     out.push(v('title', m.text, where, m.seniority && !pf.titleSeniority.has(m.seniority) ? `Your profile has no "${m.seniority}" title.` : 'This job title is not in your profile.'));
   }
   for (const m of scan.orgs) {
-    if (orgTraces(m, pf)) continue;
+    if (orgTraces(m, pf) || (namesJob(m) && spans.some(([a, b]) => m.start >= a && m.end <= b))) continue;
     // Words of the job's own title ("Backend Software" in "the Backend Software Engineer role") are not an organisation.
     if (ctx.job && m.text && ctx.job.titleKey && ctx.job.titleKey.includes(foldKey(m.text)) && foldKey(m.text).length >= 3) continue;
     if (ctx.job && m.key && (m.key === ctx.job.companyKey || ctx.job.companyKey.includes(m.key) || m.key.includes(ctx.job.companyKey))) {
-      if (aboutJob(sentence)) continue;
+      if (ctx.mode === 'letter' && !companyAsHistory(text, m.start, m.end)) continue;
       out.push(v('employer', m.text, where, 'This is the hiring company, not a place you have worked.'));
       continue;
     }
@@ -417,8 +453,81 @@ function checkMentions(text: string, where: string, ctx: Ctx, opts: { sentence?:
       }
     }
     if (!k || pf.words.has(k) || pf.words.has(k.replace(/s$/, '')) || inCorpus(pf, m.text)) continue;
-    if (ctx.mode === 'letter' && ctx.job && ctx.job.words.has(k) && aboutJob(sentence)) continue;
+    if (namesJob(m) || (ctx.mode === 'letter' && ctx.job && k.split(' ').every((w) => ctx.job!.words.has(w)) && aboutJob(sentence))) continue;
     out.push(v('other', m.text, where, 'This name is not in your profile.'));
+  }
+  return out;
+}
+
+/**
+ * Claims a letter makes about the person that are not facts of one kind the scanner knows (a skill, a number, a
+ * name) but still need the profile behind them: a responsibility or a result (mentoring, managing, efficiency, fewer
+ * errors), each named by the word that makes it. Each entry is one claim; the profile backs it when any of its own
+ * words matches the same pattern.
+ */
+const CLAIM_WORDS: RegExp[] = [
+  /^mentor/, /^guid(?:ance|ed|ing)$/, /^coach(?:ed|es|ing)?$/, /^supervis/, /^manag(?:e|ed|es|ing|er|ers|ement)$/,
+  /^(?:lead|leads|leading|leader|leaders|leadership|led)$/, /^efficien/, /^errors?$/, /^accura(?:cy|te)$/, /^reliab/,
+  /^quality$/, /^revenues?$/, /^profit/, /^(?:save|saved|saves|saving|savings)$/, /^costs?$/, /^productiv/, /^satisf/,
+  /^(?:retention|retain(?:ed|ing)?)$/, /^engagement$/, /^conversions?$/, /^uptime$/, /^latenc/, /^throughput$/, /^scalab/,
+  /^downtime$/, /^stakeholders?$/, /^award/, /^promot(?:ed|ion)$/, /^(?:hired|hiring|recruited|recruiting)$/,
+  /^budgets?$/, /^roadmaps?$/,
+];
+
+/** Words that say which way a number moved; "40% faster" is not the same claim as "cut the time by 40%". */
+const NUMBER_DIRECTIONS: RegExp[] = [
+  /^(?:cut|cuts|reduced?|reduces|reducing|reduction|decrease[ds]?|decreasing|less|lower(?:ed)?|fewer|smaller|cheaper|shorter|down|drop(?:ped)?|shr[au]nk)$/,
+  /^(?:faster|quicker|speed(?:up|s)?|more|higher|larger|bigger|better|increase[ds]?|increasing|growth|grew|grow|improved?|improvement|gain(?:ed)?|up|boost(?:ed)?|raised|rise|rose)$/,
+];
+
+/** A sentence where the person says something about themselves (not the letter's fixed opening or closing). */
+function aboutPerson(sentence: string): boolean {
+  if (/^\s*(?:I am writing to apply\b|Thank you for considering my application\b)/i.test(sentence)) return false;
+  return /\b(?:I|I'm|I've|I'd)\b/.test(sentence) || /\b(?:my|me|mine)\b/i.test(sentence);
+}
+
+const wordsOf = (s: string) => foldKey(s).split(/[\s/.]+/).filter(Boolean);
+
+/** JL-resume-22: claims about the person in a letter that the profile does not back, each named by its words. */
+function checkPersonClaims(sentence: string, where: string, ctx: Ctx): TruthViolation[] {
+  const out: TruthViolation[] = [];
+  const pf = ctx.pf;
+  const words = wordsOf(sentence);
+  if (aboutPerson(sentence)) {
+    // 1. Responsibilities and results the profile never states.
+    const said = new Set<string>();
+    for (const w of words) {
+      const re = CLAIM_WORDS.find((r) => r.test(w));
+      if (!re || said.has(re.source) || [...pf.words].some((x) => re.test(x))) continue;
+      said.add(re.source);
+      out.push(v('other', w, where, 'Your profile does not say this about you (a responsibility or a result). Add it to your profile first if it is true.'));
+    }
+    // 2. A skill the job asks for, written in another form ("data warehouses" for "Data warehousing").
+    for (const term of ctx.job?.terms ?? []) {
+      if (pf.skillKeys.has(term)) continue;
+      const stems = term.split(' ').filter(Boolean).map((w) => (w.length > 6 ? w.slice(0, w.length - 3) : w));
+      if (!stems.length || stems.every((st) => [...pf.words].some((x) => x.startsWith(st)))) continue;
+      for (let i = 0; i + stems.length <= words.length; i++) {
+        if (!stems.every((st, k) => words[i + k]!.startsWith(st))) continue;
+        out.push(v('skill', words.slice(i, i + stems.length).join(' '), where, 'The job asks for this, but your profile does not show it.'));
+        break;
+      }
+    }
+  }
+  // 3. A number from the profile, said to move another way than the profile says.
+  const pieces = pf.corpus.split(' | ');
+  for (const m of scanFacts(sentence).numbers) {
+    if (!pf.numberKeys.has(m.key)) continue;
+    const near = [...wordsOf(sentence.slice(0, m.start)).slice(-1), ...wordsOf(sentence.slice(m.end)).slice(0, 1)];
+    const num = wordsOf(m.text).find((w) => /\d/.test(w));
+    if (!num) continue;
+    const own = pieces.filter((p) => p.split(' ').includes(num)).flatMap((p) => p.split(' '));
+    for (const w of near) {
+      const dir = NUMBER_DIRECTIONS.findIndex((r) => r.test(w));
+      if (dir < 0 || own.some((x) => NUMBER_DIRECTIONS[dir]!.test(x))) continue;
+      out.push(v('number', sentence.slice(m.start, m.end) + (sentence.slice(m.end).trimStart().toLowerCase().startsWith(w) ? ` ${w}` : ''), where, 'Your profile states this number another way. Keep it as your profile says it.'));
+      break;
+    }
   }
   return out;
 }
@@ -428,13 +537,13 @@ export function checkText(text: string, where: string, pf: ProfileFacts, job: Jo
   const ctx: Ctx = { pf, job, mode };
   if (mode === 'resume') return checkMentions(text, where, ctx);
   const out: TruthViolation[] = [];
-  for (const s of splitSentences(text)) out.push(...checkMentions(s, where, ctx, { sentence: s }));
+  for (const s of splitSentences(text)) out.push(...checkMentions(s, where, ctx, { sentence: s }), ...checkPersonClaims(s, where, ctx));
   return out;
 }
 
 // ------------------------------------------------------------------------------------------------ documents
 
-function sameYm(docDate: string | null, profDate: string | null): boolean {
+export function sameYm(docDate: string | null, profDate: string | null): boolean {
   if (docDate === null) return true; // leaving a date out is not a new fact
   if (profDate === null) return false;
   if (docDate === profDate) return true;

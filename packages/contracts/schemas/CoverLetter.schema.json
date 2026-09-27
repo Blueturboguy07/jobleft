@@ -106,6 +106,28 @@
           "type": "null"
         }
       ]
+    },
+    "jobLabel": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string"
+            },
+            "company": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "company"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [

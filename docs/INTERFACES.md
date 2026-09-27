@@ -337,11 +337,12 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `tailorResume` | POST | `/api/v1/resumes/:resumeId/tailor` | launch | resume | — | `{ jobId }` | `TailorProposal` | Draft a tailored version for a job (nothing saved yet) |
 | `acceptTailoring` | POST | `/api/v1/resumes/:resumeId/versions` | launch | resume | — | `{ proposalId, acceptChangeIds }` | `Resume` | Save a tailored version with the accepted changes |
 | `fitCheck` | GET | `/api/v1/resumes/:resumeId/fit-check` | launch | resume | — | — | `{ fitsOnePage, leftOut }` | Does it fit one page, and what would be left out |
-| `exportResume` | GET | `/api/v1/resumes/:resumeId/export` | launch | resume | `{ format }` | — | file | Download as a one-page PDF or a Word file |
+| `exportResume` | GET | `/api/v1/resumes/:resumeId/export` | launch | resume | `{ format }` | — | file | Download what the editor shows as a one-page PDF or a Word file, or ("original") the uploaded file as it was |
 | `atsCheck` | POST | `/api/v1/resumes/:resumeId/ats-check` | launch | resume | — | — | `AtsReport` | Grade the exported PDF |
-| `listCoverLetters` | GET | `/api/v1/cover-letters` | launch | resume | `{ jobId }` | — | `CoverLetter[]` | Cover letters for a job |
+| `listCoverLetters` | GET | `/api/v1/cover-letters` | launch | resume | `{ jobId? }` | — | `CoverLetter[]` | Cover letters for a job, or every letter when no job is given |
 | `createCoverLetter` | POST | `/api/v1/cover-letters` | launch | resume | — | `{ jobId, resumeId }` | `CoverLetter` | Draft a cover letter (truth-gated) |
 | `updateCoverLetter` | PATCH | `/api/v1/cover-letters/:letterId` | launch | resume | — | `{ text?, instruction? }` | `CoverLetter` | Edit by hand (text) or by request (instruction); truth rules hold |
+| `deleteCoverLetter` | DELETE | `/api/v1/cover-letters/:letterId` | launch | resume | — | — | `{ deleted }` | Delete one cover letter |
 | `exportCoverLetter` | GET | `/api/v1/cover-letters/:letterId/export` | launch | resume | `{ format }` | — | file | Download a cover letter as a one-page PDF or a Word file (added in contracts 1.1.0) |
 | `getMatch` | GET | `/api/v1/match/:jobId` | launch | match | — | — | `MatchResult` | Match score of a job (409 needs_profile without a profile) |
 | `fitIndexStatus` | GET | `/api/v1/index/status` | launch | store | — | — | `FitIndexStatus` | Fit indexing: indexed, waiting, last run, model |
@@ -1038,7 +1039,7 @@ ATS check. Owns: tables `resumes` (base resumes and tailored versions, `kind` = 
 `cover_letters` (migrations owner `resume`, version 1); files in `files/resumes/`; routes `listResumes`,
 `importResume`, `createResume`, `getResume`, `updateResume`, `deleteResume`, `tailorResume`, `acceptTailoring`,
 `fitCheck`, `exportResume`, `atsCheck`, `keywordGaps`, `listCoverLetters`, `createCoverLetter`, `updateCoverLetter`,
-`exportCoverLetter` (new in contracts 1.1.0).
+`exportCoverLetter` (new in contracts 1.1.0), `deleteCoverLetter`.
 
 <!-- BEGIN GENERATED: sig:packages/resume -->
 ```ts
@@ -1091,18 +1092,18 @@ for `insufficient_balance`):
 | Method | Route | Notes |
 |---|---|---|
 | `new ResumeService({ db, filesDir, profile, job, ai, skills, now? })` | — | Runs the `resume` migrations and sets `PRAGMA secure_delete = ON` on `db`. `ai()` may throw `AiError('no_provider')`: every step then uses jobleft's rules (no AI) |
-| `list(): Resume[]` | `listResumes` | Bases (primary first), each followed by its versions. Base documents are brought in step with the profile on read (three-way: a field still equal to the old profile value takes the new one; a field edited on the resume stays) |
+| `list(): Resume[]` | `listResumes` | Bases (primary first), each followed by its versions. A base's header always follows the profile. Its sections are the person's own: an upload keeps the file's content and an edited resume keeps the edits; a profile save never rewrites them. Only a resume made from the profile that the person has not changed follows the profile. Tailoring offers the profile's corrected facts (dates, titles, skill spellings) as changes to accept |
 | `import(bytes, fileName, mimeType): Promise<{ resume, proposedProfile, outcome }>` | `importResume` | PDF, .docx or text, read in a worker (30 s, `JOBLEFT_IMPORT_TIMEOUT_MS`). A failed file throws (`payload_too_large`, `unsupported_media_type` or `bad_request`) with `details.report`; nothing is saved. Never writes the profile: the caller saves `proposedProfile` only when the person confirms |
 | `create({ name, targetTitle? })` | `createResume` | `needs_profile` when the profile is empty |
-| `get(id)`, `update(id, patch)` | `getResume`, `updateResume` | A `document` patch that holds a fact not in the profile is refused (`bad_request`, `details.violations`) |
+| `get(id)`, `update(id, patch)` | `getResume`, `updateResume` | A `document` patch is the person's own words and is saved as written (the header stays the profile's). The truth gate is for AI drafts (tailoring, letters, requests), never for what the person types or uploads |
 | `delete(id, withVersions)` | `deleteResume` | `conflict` when the resume has tailored versions or cover letters and `withVersions` is false; returns every deleted id (resumes and letters) |
 | `tailor(resumeId, jobId, { instruction?, useAi? }?)` | `tailorResume` | Nothing saved but the draft. `instruction` is the person's request (the assistant's "tailor" preset passes it); facts in it that are not in the profile come back in `refused` and `gaps` |
 | `accept(resumeId, proposalId, acceptChangeIds)` | `acceptTailoring` | An empty list saves nothing (`conflict`, and the draft is marked rejected). A draft is accepted once. The saved version is checked by the truth gate again |
 | `reject(proposalId)`, `proposal(id)` | — | For a UI "reject all" and for re-showing a draft |
-| `fitCheck(id)`, `export(id, format)` | `fitCheck`, `exportResume` | `export` returns `{ fileName, mimeType, bytes, leftOut }`; the PDF is always one page; the Word file holds the same items |
-| `atsCheck(id)` | `atsCheck` | Grades the exported PDF bytes |
+| `fitCheck(id)`, `export(id, format)` | `fitCheck`, `exportResume` | `export` returns `{ fileName, mimeType, bytes, leftOut }`; the PDF and the Word file always render the current document (an edited upload exports as edited); the PDF is always one page; the Word file holds the same items; `original` returns the uploaded file byte for byte (`not_found` for a resume with no upload) |
+| `atsCheck(id)` | `atsCheck` | Grades the PDF bytes the resume exports to now (so the grade follows edits) |
 | `keywordGaps(jobId, resumeId)` | `keywordGaps` | |
-| `coverLetters(jobId)`, `getCoverLetter(id)`, `createCoverLetter(jobId, resumeId, { useAi? }?)`, `updateCoverLetter(id, { text?, instruction? }, { useAi? }?)`, `exportCoverLetter(id, format)` | cover-letter routes | A request with a fact not in the profile is refused (letter unchanged, `notice`, `gaps`). A hand edit is saved and marked `ready: false` while it holds violations; a letter that is not ready is not exported (`conflict`) |
+| `coverLetters(jobId?)` (every letter when no job is given), `getCoverLetter(id)`, `createCoverLetter(jobId, resumeId, { useAi? }?)`, `updateCoverLetter(id, { text?, instruction? }, { useAi? }?)`, `deleteCoverLetter(id)`, `exportCoverLetter(id, format)` | cover-letter routes | A request with a fact not in the profile is refused (letter unchanged, `notice`, `gaps`). A hand edit is saved and marked `ready: false` while it holds violations; a letter that is not ready is not exported (`conflict`) |
 
 Rules: the profile is the only source of facts; the job posting is data, never instructions or facts; no model call
 during import, export or the ATS check; one model call per AI step and no retry; AI failures save nothing. The CLI
