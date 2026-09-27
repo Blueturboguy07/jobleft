@@ -94,6 +94,8 @@ a { color: var(--jl-accent-ink); }
 .jl-small { font-size: 12px; }
 .jl-row { display: flex; align-items: center; gap: 8px; }
 .jl-wrap { flex-wrap: wrap; }
+/* A long value in a table cell wraps anywhere and stops after three lines (a 600-letter name never widens a table). */
+.jl-clamp3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; word-break: break-word; }
 .jl-grow { flex: 1; min-width: 0; }
 .jl-info-line { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 500; margin-bottom: 12px; }
 

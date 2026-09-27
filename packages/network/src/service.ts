@@ -87,6 +87,21 @@ const NEXT_STEP: Record<OutreachStage, string> = {
   follow_up_due: 'Follow up now with a short, friendly note.',
 };
 
+/** The words of the one follow-up notification: how many follow-ups are due now, never a name (JL-network-5). */
+export function followUpReminderText(n: number): { title: string; body: string } {
+  return { title: 'jobleft: network follow-up', body: `${n} network follow-up${n === 1 ? ' is' : 's are'} due. Open Network > Follow-ups to see ${n === 1 ? 'who' : 'them'}.` };
+}
+
+/** 2 = written with capitals and small letters ("Kroger") or a short all-capitals name ("IBM"); 1 = all capitals; 0 = all small. */
+function casing(name: string): number {
+  const letters = name.replace(/[^\p{L}]/gu, '');
+  const upper = letters === letters.toUpperCase();
+  const lower = letters === letters.toLowerCase();
+  if (!upper && !lower) return 2;
+  if (upper && !lower) return letters.length <= 4 ? 2 : 1;
+  return 0;
+}
+
 function nameKey(first: string, last: string, connectedOn: string | null): string {
   return [fold(first).trim(), fold(last).trim(), connectedOn ?? ''].join('|');
 }
@@ -214,7 +229,8 @@ export class NetworkService {
     this.counts = null;
     const warnings = [...parsed.warnings];
     if (result.missing) {
-      warnings.push(`${result.missing} ${result.missing === 1 ? 'person' : 'people'} from an earlier import ${result.missing === 1 ? 'is' : 'are'} not in this file. They are kept with their stages and notes and marked "not in latest file". Delete them one by one if you want.`);
+      // One sentence and one name for this state (the People list tags them "no longer in your file"; JL-network-3).
+      warnings.push(`${result.missing.toLocaleString('en-US')} ${result.missing === 1 ? 'person' : 'people'} from an earlier import ${result.missing === 1 ? 'is' : 'are'} not in this file. Nothing was deleted: they stay with their stages and notes, marked "no longer in your file". You can delete them one by one.`);
     }
     const summary = {
       imported: result.imported, updated: result.updated, unchanged: result.unchanged, missingFromFile: result.missing,
@@ -324,9 +340,11 @@ export class NetworkService {
       args.push(k, k);
     }
     if (q.noCompany) where.push('company_key IS NULL');
-    if (q.stage) { where.push('stage = ?'); args.push(q.stage); }
-    if (q.inPlan !== undefined) { where.push('in_plan = ?'); args.push(q.inPlan ? 1 : 0); }
     const today = this.today();
+    // "Follow-up due" means what it says: the stage picked by hand, or a follow-up date of today or earlier (JL-network-7).
+    if (q.stage === 'follow_up_due') { where.push("(stage = 'follow_up_due' OR (follow_up_on IS NOT NULL AND follow_up_on <= ?))"); args.push(today); }
+    else if (q.stage) { where.push('stage = ?'); args.push(q.stage); }
+    if (q.inPlan !== undefined) { where.push('in_plan = ?'); args.push(q.inPlan ? 1 : 0); }
     if (q.withFollowUp) where.push('follow_up_on IS NOT NULL');
     if (q.due !== undefined) {
       if (q.due) { where.push('follow_up_on IS NOT NULL AND follow_up_on <= ?'); args.push(today); }
@@ -508,7 +526,8 @@ export class NetworkService {
       const byId = new Map(list.map((c) => [c.id, c]));
       const names = new Map<string, number>();
       for (const c of list) if (c.company) names.set(c.company, (names.get(c.company) ?? 0) + 1);
-      const best = [...names.entries()].sort((a, b) => b[1] - a[1] || Number(a[0] === a[0].toLowerCase()) - Number(b[0] === b[0].toLowerCase()) || (a[0] < b[0] ? -1 : 1))[0]?.[0];
+      // The heading is the name as a person writes it: "Kroger", not one row's "KROGER" or "kroger" (JL-network-8).
+      const best = [...names.entries()].sort((a, b) => casing(b[0]) - casing(a[0]) || b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0];
       out.push({
         companyKey: key,
         companyName: best ?? 'Unknown company',
@@ -544,7 +563,7 @@ export class NetworkService {
     return {
       count: n,
       contactIds: rows.map((r) => r.id),
-      text: { title: 'jobleft: network follow-up', body: `${n} network follow-up${n === 1 ? ' is' : 's are'} due. Open Network > Due to see ${n === 1 ? 'who' : 'them'}.` },
+      text: followUpReminderText(n),
     };
   }
 

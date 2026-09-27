@@ -365,7 +365,7 @@ Kept 1 person from an earlier import who is not in this file.
 `jn show "Blake Ormond"` shows the new position with stage Replied and the note. `jn show "Jules Varga"` shows
 "not in latest file" with the note. `jn show "Yara Voss"` is To contact. No one is duplicated (`jn status`: 32 people).
 
-Reminders: `jn follow-up "Avery Quill" today`, then `jn remind`: "1 network follow-up is due. Open Network > Due to
+Reminders: `jn follow-up "Avery Quill" today`, then `jn remind`: "1 network follow-up is due. Open Network > Follow-ups to
 see who. (desktop notification shown)". `jn due` lists the person. Each date reminds once; a missed reminder shows at
 the next start. With `jn serve` running, a follow-up set to today shows a notification at once (and the server checks
 every 30 seconds). The notification holds a count, never a name. macOS shows it as coming from "Script Editor"; if

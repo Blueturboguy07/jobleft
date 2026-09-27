@@ -8,7 +8,7 @@ import { Store } from '@jobleft/crawler';
 import { createStaticDataRoutes, PoliteFetch, type StaticDataRoutes } from '@jobleft/static-data';
 import { FeedService } from './core/feed.ts';
 import { seedBoards } from './core/seed.ts';
-import { NetworkService } from '@jobleft/network';
+import { NetworkService, followUpReminderText } from '@jobleft/network';
 import { openAndMigrate } from './db/open.ts';
 import type { HomeLayout } from './home.ts';
 import { AiFacade } from './integ/engine.ts';
@@ -184,14 +184,29 @@ export class AppData {
   }
 
   /**
-   * Network follow-ups whose date is today or past, once per date. One notification carries a count and no name:
-   * the desktop notification centre keeps its own copy outside the data folder (network O12).
+   * Network follow-ups whose date is today or past. ONE unread notification carries the number due now and no name
+   * (the desktop notification centre keeps its own copy outside the data folder, network O12). A follow-up that
+   * becomes due replaces it with a new one; one that is done, moved or deleted changes its number in place, and it
+   * goes when nothing is due (JL-network-5).
    */
-  followUpReminders(): void {
-    if (!this.settings.get().notifications.reminders) return;
-    const r = this.network.takeReminders();
-    if (r.count === 0 || !r.text) return;
-    this.notifications.add({ kind: 'follow_up', title: r.text.title, body: r.text.body, target: '/network/followups' }, `follow:${r.contactIds.join(',')}`);
+  followUpReminders(opts: { afterDelete?: boolean } = {}): void {
+    if (!this.settings.get().notifications.reminders) {
+      if (opts.afterDelete) this.notifications.dropPending('follow_up'); // a deleted contact's follow-up must not fire
+      return;
+    }
+    const fresh = this.network.takeReminders();
+    const due = this.network.due().length;
+    const open = this.notifications.pending().filter((n) => n.kind === 'follow_up');
+    if (due === 0) { if (open.length) this.notifications.dropPending('follow_up'); return; }
+    const text = followUpReminderText(due);
+    if (fresh.count > 0) {
+      this.notifications.dropPending('follow_up');
+      this.notifications.add({ kind: 'follow_up', title: text.title, body: text.body, target: '/network/followups' }, `follow:${this.network.today()}:${fresh.contactIds.join(',')}`);
+      return;
+    }
+    const [keep, ...extra] = open;
+    for (const x of extra) this.notifications.remove(x.id);
+    if (keep && (keep.title !== text.title || keep.body !== text.body)) this.notifications.update(keep.id, text);
   }
 
   /** New jobs for saved filters with alerts on (after a crawl that saved new jobs). */

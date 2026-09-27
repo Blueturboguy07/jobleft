@@ -40,6 +40,16 @@ export class NotificationService {
     return tx(this.db, () => Number(this.db.prepare('DELETE FROM srv_notifications WHERE kind = ? AND acked_at IS NULL').run(kind).changes));
   }
 
+  /** Changes the words of a notification nobody has dismissed yet (a count that went down is not a new alert). */
+  update(id: string, n: { title: string; body: string }): boolean {
+    return tx(this.db, () => Number(this.db.prepare('UPDATE srv_notifications SET title = ?, body = ? WHERE id = ? AND acked_at IS NULL').run(clip(n.title, 120), clip(n.body, 400), id).changes) > 0);
+  }
+
+  /** Removes one notification nobody has dismissed yet. */
+  remove(id: string): boolean {
+    return tx(this.db, () => Number(this.db.prepare('DELETE FROM srv_notifications WHERE id = ? AND acked_at IS NULL').run(id).changes) > 0);
+  }
+
   ack(id: string): boolean {
     return tx(this.db, () => {
       const r = this.db.prepare('UPDATE srv_notifications SET acked_at = ? WHERE id = ? AND acked_at IS NULL').run(nowIso(), id);

@@ -109,7 +109,7 @@ export {
   profileSummary, draftFacts, draftMessages, checkDraft, redactContactDetails, cleanDraftText, templateDraft, draftFromTemplate,
   SHORT_CHAR_LIMIT, LONG_CHAR_LIMIT, type DraftFacts, type DraftVariant,
 } from './draft.ts';
-export { NetworkError, type NetworkContactView, type CompanyGroup, type MatchExplanation, type PlanEntry, type ListQuery } from './service.ts';
+export { NetworkError, followUpReminderText, type NetworkContactView, type CompanyGroup, type MatchExplanation, type PlanEntry, type ListQuery } from './service.ts';
 export { migrateNetwork, openNetworkDatabase, NETWORK_SCHEMA_VERSION } from './db.ts';
 export {
   handleNetworkRoute, NetworkApiError, NETWORK_ROUTES, aiErrorToApi,

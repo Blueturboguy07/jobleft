@@ -181,3 +181,35 @@ test('JL-network-2: legal names, domains and reviewed aliases count at the targe
     assert.deepEqual(x.notCounted.map((m: any) => m.name), ['Blue Bottle']);
   } finally { await s.stop(); cleanup(s.home); }
 });
+
+test('JL-network-5: one follow-up alert that says how many are due now; clearing a date updates it, clearing all removes it', async () => {
+  const s = await startTest('jl5', { env: { JOBLEFT_TZ: 'America/Chicago' } });
+  try {
+    const csv = ['First Name,Last Name,URL,Email Address,Company,Position,Connected On',
+      'Maria,Delgado,,,Kroger,Manager,04 Mar 2025', 'Priya,Raman,,,Kroger,Analyst,04 Mar 2025', 'Bo,Lindqvist,,,Nike,Designer,04 Mar 2025'].join('\n');
+    await s.call('POST', '/api/v1/network/import', Buffer.from(csv), { 'content-type': 'text/csv' });
+    const people = (await s.call('GET', '/api/v1/network/contacts')).json as Array<{ id: string; firstName: string }>;
+    const id = (n: string) => people.find((p) => p.firstName === n)!.id;
+    const follow = async () => ((await s.call('GET', '/api/v1/notifications')).json as Array<{ kind: string; body: string }>).filter((n) => n.kind === 'follow_up');
+    for (const [n, d] of [['Maria', '2026-01-01'], ['Priya', '2026-01-02'], ['Bo', '2026-01-03']] as const) {
+      assert.equal((await s.call('PATCH', `/api/v1/network/contacts/${id(n)}`, { followUpOn: d })).status, 200);
+    }
+    let f = await follow();
+    assert.equal(f.length, 1, 'one alert, not one per person');
+    assert.equal(f[0]!.body, '3 network follow-ups are due. Open Network > Follow-ups to see them.');
+    await s.call('PATCH', `/api/v1/network/contacts/${id('Maria')}`, { followUpOn: null });
+    f = await follow();
+    assert.equal(f.length, 1);
+    assert.equal(f[0]!.body, '2 network follow-ups are due. Open Network > Follow-ups to see them.', 'the number follows a cleared date');
+    await s.call('DELETE', `/api/v1/network/contacts/${id('Priya')}`);
+    assert.equal((await follow())[0]!.body, '1 network follow-up is due. Open Network > Follow-ups to see who.');
+    await s.call('PATCH', `/api/v1/network/contacts/${id('Bo')}`, { followUpOn: null });
+    assert.equal((await follow()).length, 0, 'nothing due: no alert');
+    // The People filter "Follow-up due" and the Follow-ups tab agree (JL-network-7).
+    await s.call('PATCH', `/api/v1/network/contacts/${id('Bo')}`, { followUpOn: '2026-01-05' });
+    const byStage = (await s.call('GET', '/api/v1/network/contacts?stage=follow_up_due')).json as unknown[];
+    const byDue = (await s.call('GET', '/api/v1/network/contacts?due=true')).json as unknown[];
+    assert.equal(byStage.length, 1);
+    assert.equal(byDue.length, 1);
+  } finally { await s.stop(); cleanup(s.home); }
+});

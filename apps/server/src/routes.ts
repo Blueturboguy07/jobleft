@@ -109,8 +109,9 @@ async function network<K extends NetworkRouteName>(name: K, c: Ctx<K>): Promise<
       targets: () => networkTargets(d),
       offline: app.cfg.offline,
     });
-    if (name === 'deleteNetwork' || name === 'deleteContact') d.notifications.dropPending('follow_up');
-    if (name === 'updateContact') d.followUpReminders();
+    if (name === 'deleteNetwork' || name === 'deleteContact' || name === 'updateContact' || name === 'importNetwork') {
+      d.followUpReminders({ afterDelete: name === 'deleteNetwork' || name === 'deleteContact' });
+    }
     return { json };
   } catch (e) {
     if (e instanceof NetworkApiError) {

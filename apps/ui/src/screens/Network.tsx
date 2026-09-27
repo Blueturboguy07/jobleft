@@ -16,11 +16,11 @@ import { navigate } from '../app/router.ts';
 import { DraftModal } from '../components/DraftModal.tsx';
 import { EmptyState, ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { calendarDate, plural } from '../lib/format.ts';
+import { addTopLabel, addedToast, followUpStatus, localToday, peopleCountText } from '../lib/network.ts';
 import { DeletePanel, ImportReport, Importer } from './network/Import.tsx';
 import { ContactName, MatchExplain, NobodyTag, ProfileLink, ReasonList, StageSelect, emailText, fullName, saveContact, type Contact } from './network/shared.tsx';
 
 const PAGE = 50;
-const todayText = () => new Date().toISOString().slice(0, 10);
 
 /** How many people the network holds (the sum of the company groups), and the groups themselves. */
 const useGroups = () => useApi<NetworkCompanyGroup[]>('network:companies', () => call('networkCompanies'));
@@ -67,11 +67,13 @@ function CompanyCard({ x, onOpen, onEveryone }: { x: CompanyCoverage; onOpen: (c
   const people = useApi<Contact[]>(`network:contacts:c:${x.companyKey}`, () => call('listContacts', { query: { companyKey: x.companyKey } }));
   const byId = new Map((people.data ?? []).map((c) => [c.id, c]));
   const top = (ranks.data ?? []).slice(0, 3);
+  const top2 = top.slice(0, 2).map((r) => byId.get(r.contactId)).filter((c): c is Contact => !!c);
+  const add = addTopLabel(top2.map(fullName), top2.filter((c) => c.inPlan).length);
   const addTop = async () => {
     try {
       const added = await call('planTopContacts', { body: { companyKey: x.companyKey, count: 2 } });
       invalidate('network');
-      ui.message?.success(`${plural(added.length, 'person', 'people')} from ${x.companyName} are in your coffee-chat list.`);
+      ui.message?.success(addedToast(added.length, x.companyName));
     } catch (e) { ui.message?.error((e as UiError).message); }
   };
   return (
@@ -92,7 +94,7 @@ function CompanyCard({ x, onOpen, onEveryone }: { x: CompanyCoverage; onOpen: (c
         })}
       </div>
       <div className="jl-row jl-wrap">
-        <Button size="small" shape="round" icon={<PlusOutlined />} onClick={() => { void addTop(); }}>Add top 2 to my coffee-chat list</Button>
+        {top2.length > 0 && <Button size="small" shape="round" icon={add.done ? <CheckOutlined /> : <PlusOutlined />} disabled={add.done} onClick={() => { void addTop(); }}>{add.label}</Button>}
         {x.count > 3 && <Button size="small" shape="round" onClick={onEveryone}>Everyone at {x.companyName} ({x.count})</Button>}
       </div>
       <MatchExplain companyKey={x.companyKey} companyName={x.companyName} />
@@ -143,28 +145,31 @@ function PeopleTab({ company, clearCompany, onOpen, onDraft, groups }: { company
   const total = groups ? groups.reduce((n, g) => n + g.count, 0) : null;
   const rows = list.data ?? [];
   const filtered = !!dq || stage !== 'all' || noCompany || !!company;
+  const countText = peopleCountText({ rows: rows.length, limit, filtered, total, companyKey: company?.key ?? null, noCompany, q: dq, stage, groups });
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div className="jl-row jl-wrap">
-        <Input.Search allowClear placeholder="Search name, company or title" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 320 }} aria-label="Search your connections" />
+        <Input.Search allowClear placeholder="Search name, company or title" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 320 }} aria-label="Search your connections" maxLength={200} showCount={q.length > 150} />
         <Select value={stage} onChange={setStage} style={{ width: 170 }} aria-label="Filter by stage" options={[{ value: 'all', label: 'Every stage' }, ...Object.entries(OUTREACH_STAGE_LABELS).map(([value, label]) => ({ value, label }))]} />
         <Checkbox checked={noCompany} onChange={(e) => setNoCompany(e.target.checked)}>No company in the file</Checkbox>
         {company && <Tag closable onClose={clearCompany}>Company: {company.name}</Tag>}
-        <span className="jl-muted" role="status">{list.data ? (filtered ? `${plural(rows.length, 'person', 'people')} shown` : total !== null ? `${plural(total, 'person', 'people')} in your network` : '') : ''}</span>
+        <span className="jl-muted" role="status">{list.data ? countText : ''}</span>
       </div>
       {list.error && <InlineError error={list.error} onRetry={() => { void list.reload(); }} />}
       {!list.data && !list.error && <Loading label="Loading people" />}
       {list.data && !rows.length && <EmptyState art="people" title={filtered ? 'Nobody matches' : 'No people yet'} text={filtered ? 'Change the search or the filters.' : 'Import your connections file to see people here.'} />}
       {rows.length > 0 && (
-        <Table size="middle" rowKey="id" dataSource={rows} pagination={false} scroll={{ x: 'max-content' }}
+        // Fixed column widths: one long name or pasted headline wraps or is cut in its own cell, and Stage, Follow up
+        // and the actions stay on screen (JL-network-4). Narrow windows scroll sideways instead of squeezing.
+        <Table size="middle" rowKey="id" dataSource={rows} pagination={false} tableLayout="fixed" scroll={{ x: 1060 }}
           columns={[
-            { title: 'Name', key: 'n', render: (_, c) => <div><Button type="link" style={{ padding: 0, height: 'auto', textAlign: 'left', whiteSpace: 'normal' }} onClick={() => onOpen(c)}><ContactName c={c} /></Button><div><ProfileLink c={c} /></div></div> },
-            { title: 'Company', key: 'c', render: (_, c) => c.company ?? <span className="jl-muted">Company not in file</span> },
-            { title: 'Title', key: 't', render: (_, c) => c.position ?? <span className="jl-muted">No title in file</span> },
-            { title: 'Email', key: 'e', render: (_, c) => <span className={c.email ? '' : 'jl-muted'}>{emailText(c)}</span> },
-            { title: 'Stage', key: 's', width: 170, render: (_, c) => <StageSelect c={c} /> },
-            { title: 'Follow up', key: 'f', render: (_, c) => calendarDate(c.followUpOn) ?? '' },
-            { title: <span className="jl-sr">Actions</span>, key: 'a', render: (_, c) => (
+            { title: 'Name', key: 'n', width: 190, render: (_, c) => <div style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}><Button type="link" style={{ padding: 0, height: 'auto', textAlign: 'left', whiteSpace: 'normal', maxWidth: '100%', overflowWrap: 'anywhere' }} onClick={() => onOpen(c)}><span className="jl-clamp3"><ContactName c={c} /></span></Button><div><ProfileLink c={c} /></div></div> },
+            { title: 'Company', key: 'c', width: 160, ellipsis: true, render: (_, c) => c.company ? <span title={c.company}>{c.company}</span> : <span className="jl-muted">Company not in file</span> },
+            { title: 'Title', key: 't', ellipsis: true, render: (_, c) => c.position ? <span title={c.position}>{c.position}</span> : <span className="jl-muted">No title in file</span> },
+            { title: 'Email', key: 'e', width: 170, ellipsis: true, render: (_, c) => <span className={c.email ? '' : 'jl-muted'} title={emailText(c)}>{emailText(c)}</span> },
+            { title: 'Stage', key: 's', width: 166, render: (_, c) => <StageSelect c={c} /> },
+            { title: 'Follow up', key: 'f', width: 112, render: (_, c) => calendarDate(c.followUpOn) ?? '' },
+            { title: <span className="jl-sr">Actions</span>, key: 'a', width: 186, render: (_, c) => (
               <Space size={4} wrap>
                 <Button size="small" shape="round" icon={c.inPlan ? <CheckOutlined /> : <PlusOutlined />} aria-pressed={c.inPlan} aria-label={c.inPlan ? `Remove ${fullName(c)} from my coffee-chat list` : `Add ${fullName(c)} to my coffee-chat list`}
                   onClick={() => { void saveContact(c, { inPlan: !c.inPlan }, c.inPlan ? 'Removed from your coffee-chat list.' : 'Added to your coffee-chat list.'); }}>{c.inPlan ? 'In my list' : 'Add to list'}</Button>
@@ -172,13 +177,16 @@ function PeopleTab({ company, clearCompany, onOpen, onDraft, groups }: { company
               </Space>) },
           ]} />
       )}
-      {list.data && rows.length === limit && <Button shape="round" style={{ alignSelf: 'flex-start' }} onClick={() => setPages(pages + 1)}>Show {PAGE} more</Button>}
+      {list.data && rows.length === limit && <Button shape="round" style={{ alignSelf: 'flex-start' }} onClick={() => setPages(pages + 1)}>Show more</Button>}
     </div>
   );
 }
 
 function PlanTab({ onOpen, onDraft }: { onOpen: (c: Contact) => void; onDraft: (c: Contact) => void }) {
   const plan = useApi<CoffeeChatPlanEntry[]>('network:plan', () => call('networkPlan'));
+  // A company that is also a target is headed with the target's name, as on its Companies card (JL-network-8).
+  const coverage = useApi<CompanyCoverage[]>('network:coverage', () => call('networkCoverage'));
+  const targetName = new Map((coverage.data ?? []).map((x) => [x.companyKey, x.companyName]));
   const people = useApi<Contact[]>('network:contacts:plan', () => call('listContacts', { query: { inPlan: 'true' } }));
   const byId = new Map((people.data ?? []).map((c) => [c.id, c]));
   if (plan.error && !plan.data) return <ErrorState error={plan.error} onRetry={() => { void plan.reload(); }} />;
@@ -187,8 +195,8 @@ function PlanTab({ onOpen, onDraft }: { onOpen: (c: Contact) => void; onDraft: (
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {plan.data.map((co) => (
-        <section key={co.companyKey ?? co.companyName} className="jl-card-box" aria-label={co.companyName}>
-          <strong style={{ fontSize: 16 }}>{co.companyName}</strong>
+        <section key={co.companyKey ?? co.companyName} className="jl-card-box" aria-label={(co.companyKey && targetName.get(co.companyKey)) || co.companyName}>
+          <strong style={{ fontSize: 16 }}>{(co.companyKey && targetName.get(co.companyKey)) || co.companyName}</strong>
           {co.contacts.map((p) => {
             const c = byId.get(p.contactId);
             return (
@@ -214,13 +222,24 @@ function PlanTab({ onOpen, onDraft }: { onOpen: (c: Contact) => void; onDraft: (
 function FollowUpsTab({ onOpen, onDraft }: { onOpen: (c: Contact) => void; onDraft: (c: Contact) => void }) {
   const due = useApi<Contact[]>('network:contacts:due', () => call('listContacts', { query: { due: 'true' } }));
   const soon = useApi<Contact[]>('network:contacts:soon', () => call('listContacts', { query: { withFollowUp: 'true', due: 'false' } }));
+  const today = localToday();
+  // Each row: how late it is, Done (clears the date) and a new date, next to Draft (JL-network-6).
   const table = (rows: Contact[]) => (
-    <Table size="middle" rowKey="id" dataSource={rows} pagination={{ pageSize: 20, hideOnSinglePage: true }} scroll={{ x: 'max-content' }} columns={[
-      { title: 'Name', key: 'n', render: (_, c) => <Button type="link" style={{ padding: 0 }} onClick={() => onOpen(c)}><ContactName c={c} /></Button> },
-      { title: 'Company', key: 'c', render: (_, c) => c.company ?? <span className="jl-muted">Company not in file</span> },
-      { title: 'Stage', key: 's', render: (_, c) => <StageSelect c={c} /> },
-      { title: 'Follow up', key: 'f', render: (_, c) => calendarDate(c.followUpOn) ?? '' },
-      { title: <span className="jl-sr">Actions</span>, key: 'a', render: (_, c) => <Button size="small" shape="round" icon={<MessageOutlined />} onClick={() => onDraft(c)}>Draft</Button> },
+    <Table size="middle" rowKey="id" dataSource={rows} pagination={{ pageSize: 20, hideOnSinglePage: true }} tableLayout="fixed" scroll={{ x: 980 }} columns={[
+      { title: 'Name', key: 'n', width: 200, render: (_, c) => <div style={{ overflowWrap: 'anywhere' }}><Button type="link" style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left', maxWidth: '100%' }} onClick={() => onOpen(c)}><span className="jl-clamp3"><ContactName c={c} /></span></Button></div> },
+      { title: 'Company', key: 'c', ellipsis: true, render: (_, c) => c.company ? <span title={c.company}>{c.company}</span> : <span className="jl-muted">Company not in file</span> },
+      { title: 'Stage', key: 's', width: 166, render: (_, c) => <StageSelect c={c} /> },
+      { title: 'Follow up', key: 'f', width: 170, render: (_, c) => {
+        const st = followUpStatus(c.followUpOn, today);
+        return <div>{calendarDate(c.followUpOn) ?? ''}{st.kind !== 'none' && <div className={st.kind === 'late' ? 'jl-small' : 'jl-small jl-muted'} style={st.kind === 'late' ? { color: 'var(--jl-warn)', fontWeight: 600 } : undefined}>{st.text}</div>}</div>;
+      } },
+      { title: <span className="jl-sr">Actions</span>, key: 'a', width: 300, render: (_, c) => (
+        <Space size={4} wrap>
+          <Button size="small" shape="round" icon={<CheckOutlined />} onClick={() => { void saveContact(c, { followUpOn: null }, `Follow-up with ${fullName(c)} done.`); }} aria-label={`Follow-up with ${fullName(c)} done`}>Done</Button>
+          <Input type="date" size="small" style={{ width: 130 }} value="" aria-label={`New follow-up date for ${fullName(c)}`} title="Pick a new date"
+            onChange={(e) => { if (e.target.value) void saveContact(c, { followUpOn: e.target.value }, `Follow-up with ${fullName(c)} moved to ${calendarDate(e.target.value)}.`); }} />
+          <Button size="small" shape="round" icon={<MessageOutlined />} onClick={() => onDraft(c)}>Draft</Button>
+        </Space>) },
     ]} />
   );
   const sorted = (soon.data ?? []).slice().sort((a, b) => ((a.followUpOn ?? '') < (b.followUpOn ?? '') ? -1 : 1));
@@ -274,13 +293,13 @@ export function NetworkScreen({ tab }: { tab: string | null }) {
           { key: 'companies', label: 'Companies', children: <CompaniesTab onOpen={setOpen} onEveryone={(key, name) => { setCompany({ key, name }); navigate('network/people'); }} /> },
           { key: 'people', label: `People (${(total ?? 0).toLocaleString('en-US')})`, children: <PeopleTab company={company} clearCompany={() => setCompany(null)} onOpen={setOpen} onDraft={setDraftFor} groups={groups.data} /> },
           { key: 'plan', label: `Coffee chats (${planCount.data?.length ?? 0})`, children: <PlanTab onOpen={setOpen} onDraft={setDraftFor} /> },
-          { key: 'followups', label: `Follow-ups (${due.data?.length ?? 0})`, children: <FollowUpsTab onOpen={setOpen} onDraft={setDraftFor} /> },
+          { key: 'followups', label: `Follow-ups (${due.data?.length ?? 0} due)`, children: <FollowUpsTab onOpen={setOpen} onDraft={setDraftFor} /> },
           {
             key: 'import', label: 'Import and data',
             children: (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 820 }}>
                 <Importer onDone={setSummary} />
-                <DeletePanel total={total} />
+                <DeletePanel total={total} onDeleted={() => setSummary(null)} />
               </div>
             ),
           },

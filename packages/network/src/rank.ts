@@ -115,7 +115,7 @@ export function scoreContact(c: RankInput, ctx: RankContext): ContactRank {
 
   if (c.inLatestFile === false) {
     score += RANK_POINTS.notInLatestFile;
-    reasons.push({ code: 'not_in_latest_file', text: 'Not in your latest connections file (kept from an earlier import).' });
+    reasons.push({ code: 'not_in_latest_file', text: 'No longer in your file (kept from an earlier import).' });
   }
 
   return { contactId: c.id, score, reasons };
