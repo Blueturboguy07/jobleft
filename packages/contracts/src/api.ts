@@ -191,6 +191,7 @@ export const LOCAL_API = {
   listNotifications: route({ method: 'GET', path: '/api/v1/notifications', auth: 'launch', owner: 'server', summary: 'Notifications waiting for the shell to show', response: arr(NotificationSchema) }),
   ackNotification: route({ method: 'POST', path: '/api/v1/notifications/:notificationId/ack', auth: 'launch', owner: 'server', summary: 'Mark a notification shown (it is never shown again)', response: Ok }),
   exportJobs: route({ method: 'GET', path: '/api/v1/export/jobs', auth: 'launch', owner: 'store', summary: 'Download saved jobs with their source credits (NDJSON)', response: 'file' }),
+  shutdown: route({ method: 'POST', path: '/api/v1/shutdown', auth: 'launch', owner: 'server', summary: 'Stop the server cleanly (the desktop shell uses it to quit; Windows has no SIGTERM)', body: obj({}), response: Ok }),
   devClock: route({ method: 'POST', path: '/api/v1/dev/clock', auth: 'launch', owner: 'server', summary: 'Time-skip for tests', devOnly: true, body: obj({}, { offset: str(), now: IsoDateTimeSchema }), response: obj({ now: IsoDateTimeSchema }) }),
 
   // ---- jobs and search

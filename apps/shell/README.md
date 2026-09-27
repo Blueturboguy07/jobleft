@@ -39,12 +39,22 @@ link on this workspace's install policy.
 | Path in `jobleft.app/Contents` | Source | Made by |
 |---|---|---|
 | `MacOS/jobleft` | `src-tauri/src` | `tauri build` |
-| `MacOS/node` | `src-tauri/binaries/node-aarch64-apple-darwin`: the official Node 24.18.0 arm64 binary from nodejs.org, checked against its `SHASUMS256.txt` | by hand (once): download `node-v24.18.0-darwin-arm64.tar.gz` and `SHASUMS256.txt` from `https://nodejs.org/dist/v24.18.0/`, verify with `shasum -a 256 -c`, copy `bin/node` to that path |
+| `MacOS/node` | `src-tauri/binaries/node-aarch64-apple-darwin`: the official Node 24.18.0 arm64 binary from nodejs.org, checked against its `SHASUMS256.txt` | `node apps/shell/scripts/fetch-node.mjs` (downloads, verifies the sha, extracts; skips when present). Windows: `--target win-x64` puts `node-x86_64-pc-windows-msvc.exe` next to it |
 | `Resources/server/` | `apps/server` (src, ui-fallback, package.json) with every `@jobleft/*` package it needs under `node_modules/@jobleft/<name>` and the production third-party packages flat under `node_modules/<name>` (from `pnpm deploy --prod`; `onnxruntime-node` keeps only its darwin/arm64 binary). Every `.ts` file is transpiled to `.js` by esbuild, file by file, so workers and `import.meta.url` paths still work; Node never strips types inside `node_modules` | `scripts/pack.ts` |
 | `Resources/ui/` | `apps/ui/dist` | `scripts/pack.ts` |
 | `Resources/publik-app-token.txt` | the public publik app token (`pat_jobleft_...`) from `JOBLEFT_PUBLIK_APP_TOKEN` or the git-ignored `apps/shell/publik-app-token.local`; empty when neither exists. With it, the shell starts the server with `JOBLEFT_PUBLIK_ALLOW_LIVE=1`; without it, "Connect to publik" is refused in plain words | `scripts/pack.ts` |
 
 `src-tauri/binaries/`, `src-tauri/resources/` and `src-tauri/gen/` are build inputs and outputs; git ignores them.
+
+## Windows
+
+The same shell builds on Windows (`cfg(windows)` branches in `src/lib.rs`): the sidecar is `node.exe`, the data folder is
+`%APPDATA%\jobleft`, the quit path is `POST /api/v1/shutdown` with the launch token (Windows has no SIGTERM), alerts are
+toasts through the notification plugin, and the installer is NSIS per user (`installMode: currentUser`; WebView2 is
+fetched by the bootstrapper when a machine lacks it). `.github/workflows/windows.yml` runs the tests on windows-latest,
+builds the installer (`pack.ts --target win-x64`, `tauri build --bundles nsis`), installs it silently, starts the app,
+checks health, stops it through the shutdown route, and attaches `jobleft_<version>_x64-setup.exe` to a release.
+The installer is not code-signed yet (publik lists it as unsigned).
 
 ## Test hooks (environment; the app never sets them)
 

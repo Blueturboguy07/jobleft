@@ -168,6 +168,13 @@ export const HANDLERS: HandlerTable = {
     for (const id of ids) { const j = d.jobs.get(id); if (j) lines.push(JSON.stringify(j)); }
     return { file: { fileName: `jobleft-saved-jobs-${today()}.ndjson`, mimeType: 'application/x-ndjson', bytes: Buffer.from(lines.join('\n') + (lines.length ? '\n' : '')) } };
   },
+  shutdown: ({ app }) => {
+    // The answer goes out first; the close starts a moment later (the hook is set by startServer).
+    const stop = app.cfg.requestShutdown;
+    if (!stop) throw new ApiFailure('not_ready', 'This server cannot stop itself yet.');
+    setTimeout(stop, 60);
+    return { json: { ok: true as const } };
+  },
   devClock: ({ app, d, body }) => {
     if (!app.cfg.dev) notFound('That page');
     if (body.now !== undefined) { process.env.JOBLEFT_NOW = body.now; delete process.env.JOBLEFT_CLOCK_OFFSET; }

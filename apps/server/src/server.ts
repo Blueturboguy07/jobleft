@@ -73,7 +73,7 @@ const FALLBACK_UI = fileURLToPath(new URL('../ui-fallback/', import.meta.url));
 const REPO_UI = fileURLToPath(new URL('../../ui/dist/', import.meta.url));
 
 /** Write routes that store nothing (they may run while the folder is read-only). */
-const NO_STORE_WRITES = new Set<RouteName>(['pairingCode', 'checkAi', 'cancelAi', 'backup', 'exportAll', 'devClock']);
+const NO_STORE_WRITES = new Set<RouteName>(['pairingCode', 'checkAi', 'cancelAi', 'backup', 'exportAll', 'devClock', 'shutdown']);
 
 function listen(server: Server, port: number): Promise<number | null> {
   return new Promise((resolve, reject) => {
@@ -434,6 +434,9 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     parentTimer.unref();
   }
 
+  // The shutdown route: one clean close, then the caller's onStop (main.ts exits the process).
+  let stopping = false;
+  cfg.requestShutdown = () => { if (stopping) return; stopping = true; void close().then(() => opts.onStop?.('shutdown route'), () => opts.onStop?.('shutdown route')); };
   return { port, origin, uiUrl: `${origin}/#token=${opts.launchToken}`, close };
 }
 

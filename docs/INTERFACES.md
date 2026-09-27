@@ -311,6 +311,7 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `listNotifications` | GET | `/api/v1/notifications` | launch | server | — | — | `Notification[]` | Notifications waiting for the shell to show |
 | `ackNotification` | POST | `/api/v1/notifications/:notificationId/ack` | launch | server | — | — | `Ok` | Mark a notification shown (it is never shown again) |
 | `exportJobs` | GET | `/api/v1/export/jobs` | launch | store | — | — | file | Download saved jobs with their source credits (NDJSON) |
+| `shutdown` | POST | `/api/v1/shutdown` | launch | server | — | `{}` | `Ok` | Stop the server cleanly (the desktop shell uses it to quit; Windows has no SIGTERM) |
 | `devClock` | POST | `/api/v1/dev/clock` | launch | server | — | `{ offset?, now? }` | `{ now }` | Time-skip for tests (JOBLEFT_DEV=1 only) |
 | `listJobs` | GET | `/api/v1/jobs` | launch | store | `{ q?, sort?, cursor?, limit?, status? }` | — | `JobSearchResponse` | Simple search with the saved default filter |
 | `searchJobs` | POST | `/api/v1/jobs/search` | launch | store | — | `JobSearchRequest` | `JobSearchResponse` | Search with the full filter set |

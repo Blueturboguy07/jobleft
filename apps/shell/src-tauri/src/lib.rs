@@ -32,8 +32,9 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 const READY_TIMEOUT: Duration = Duration::from_secs(15);
-/// Set by the SIGTERM handler; a thread turns it into the same clean quit as the menu bar item.
+/// Set by the SIGTERM handler (Unix); a thread turns it into the same clean quit as the menu bar item.
 static TERM: AtomicBool = AtomicBool::new(false);
+#[cfg(unix)]
 extern "C" fn on_term(_sig: libc::c_int) {
     TERM.store(true, Ordering::SeqCst);
 }
@@ -48,23 +49,35 @@ struct Shell {
     quitting: Mutex<bool>,
 }
 
-/// The data folder: `JOBLEFT_HOME`, else `~/Library/Application Support/jobleft` (docs/INTERFACES.md section 2).
+/// The data folder: `JOBLEFT_HOME`, else `~/Library/Application Support/jobleft` on macOS, `%APPDATA%\jobleft` on
+/// Windows (docs/INTERFACES.md section 2).
 fn data_home() -> PathBuf {
     if let Ok(h) = std::env::var("JOBLEFT_HOME") {
         if !h.trim().is_empty() {
             return PathBuf::from(h);
         }
     }
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    PathBuf::from(home).join("Library/Application Support/jobleft")
+    #[cfg(windows)]
+    {
+        if let Ok(a) = std::env::var("APPDATA") {
+            if !a.trim().is_empty() {
+                return PathBuf::from(a).join("jobleft");
+            }
+        }
+        let up = std::env::var("USERPROFILE").unwrap_or_else(|_| ".".into());
+        return PathBuf::from(up).join("AppData").join("Roaming").join("jobleft");
+    }
+    #[cfg(not(windows))]
+    {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        PathBuf::from(home).join("Library/Application Support/jobleft")
+    }
 }
 
-/// 32 random bytes as hex, from the system random source.
+/// 32 random bytes as hex, from the operating system's random source.
 fn new_token() -> String {
     let mut buf = [0u8; 32];
-    if let Ok(mut f) = fs::File::open("/dev/urandom") {
-        let _ = f.read_exact(&mut buf);
-    }
+    getrandom::fill(&mut buf).expect("the operating system's random source");
     buf.iter().map(|b| format!("{b:02x}")).collect()
 }
 
@@ -102,7 +115,8 @@ fn sidecar_paths(app: &AppHandle) -> Result<(PathBuf, PathBuf, Option<PathBuf>),
         Ok(p) if !p.is_empty() => PathBuf::from(p),
         _ => {
             let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-            exe.parent().ok_or("no executable folder")?.join("node")
+            let dir = exe.parent().ok_or("no executable folder")?;
+            if cfg!(windows) { dir.join("node.exe") } else { dir.join("node") }
         }
     };
     let res = app.path().resource_dir().map_err(|e| e.to_string())?;
@@ -219,13 +233,20 @@ fn error_window(app: &AppHandle, reason: &str) {
         .build();
 }
 
-/// SIGTERM to the server, then up to 5 s for it to finish; SIGKILL only if it does not.
+/// Asks the server to stop (POST /api/v1/shutdown, the launch token proves it is the shell), on Unix also sends
+/// SIGTERM, waits up to 5 s for a clean exit, and only then kills the process.
 fn stop_server(shell: &Shell) {
     let mut guard = shell.child.lock().unwrap();
     if let Some(mut child) = guard.take() {
-        let pid = child.id() as i32;
-        unsafe {
-            libc::kill(pid, libc::SIGTERM);
+        if let Some(port) = *shell.port.lock().unwrap() {
+            let _ = http(port, "POST", "/api/v1/shutdown", &shell.token, Some("{}"));
+        }
+        #[cfg(unix)]
+        {
+            let pid = child.id() as i32;
+            unsafe {
+                libc::kill(pid, libc::SIGTERM);
+            }
         }
         let start = Instant::now();
         loop {
@@ -256,10 +277,16 @@ fn quit(app: &AppHandle) {
     app.exit(0);
 }
 
-fn notify(title: &str, body: &str) {
+#[cfg(not(windows))]
+fn notify(_app: &AppHandle, title: &str, body: &str) {
     let esc = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
     let script = format!("display notification \"{}\" with title \"{}\"", esc(body), esc(title));
     let _ = Command::new("/usr/bin/osascript").arg("-e").arg(script).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn();
+}
+#[cfg(windows)]
+fn notify(app: &AppHandle, title: &str, body: &str) {
+    use tauri_plugin_notification::NotificationExt;
+    let _ = app.notification().builder().title(title).body(body).show();
 }
 
 fn last_check_text(port: u16, token: &str) -> String {
@@ -343,11 +370,15 @@ fn run_probe(app: &AppHandle, home: PathBuf, script_path: String) {
 pub fn run() {
     let home = data_home();
     let token = new_token();
+    #[cfg(unix)]
     unsafe {
         libc::signal(libc::SIGTERM, on_term as *const () as usize);
         libc::signal(libc::SIGINT, on_term as *const () as usize);
     }
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_notification::init());
+    builder
         // Links with target=_blank and window.open go to the default browser (the plugin's JS shim patches both).
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -451,12 +482,11 @@ pub fn run() {
                             if id.is_empty() {
                                 continue;
                             }
-                            notify(title, text);
+                            notify(&handle2, title, text);
                             let _ = http(port, "POST", &format!("/api/v1/notifications/{id}/ack"), &token2, Some("{}"));
                         }
                     }
                 }
-                let _ = &handle2;
             });
             Ok(())
         })

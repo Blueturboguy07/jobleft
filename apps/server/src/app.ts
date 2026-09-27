@@ -30,6 +30,8 @@ import type { ServerSecretStore } from './services/secrets.ts';
 import { APP_VERSION } from './version.ts';
 
 export interface AppConfig {
+  /** Set by the server once it is listening: stops everything cleanly and exits (the shutdown route). */
+  requestShutdown?: () => void;
   home: string;
   layout: HomeLayout;
   launchToken: string;

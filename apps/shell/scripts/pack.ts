@@ -7,7 +7,7 @@
 //   src-tauri/resources/ui/      the built UI (apps/ui/dist)
 //   src-tauri/binaries/node-<target>  the Node 24 runtime (put there by hand or by scripts/fetch-node.sh; verified
 //                                against nodejs.org's SHASUMS256.txt)
-// Usage: node apps/shell/scripts/pack.ts   (run from the repository root; safe to run again)
+// Usage: node apps/shell/scripts/pack.ts [--target darwin-arm64|win-x64]   (run from the repository root; safe to run again)
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -17,9 +17,13 @@ const ROOT = resolve(fileURLToPath(new URL('../../../', import.meta.url)));
 // esbuild comes with the UI's Vite; it is used here only as a TypeScript-to-JavaScript transform, one file at a time.
 const esbuildDir = readdirSync(join(ROOT, 'node_modules/.pnpm')).find((d) => /^esbuild@\d/.test(d));
 if (!esbuildDir) throw new Error('esbuild not found under node_modules/.pnpm (pnpm install first)');
-const { transformSync } = await import(pathToFileURL(join(ROOT, 'node_modules/.pnpm', esbuildDir, 'node_modules/esbuild/lib/main.js')).href) as typeof import('esbuild');
+type Transform = (code: string, opts: Record<string, unknown>) => { code: string };
+const { transformSync } = (await import(pathToFileURL(join(ROOT, 'node_modules/.pnpm', esbuildDir, 'node_modules/esbuild/lib/main.js')).href)) as { transformSync: Transform };
 /** Relative specifiers and URL literals that end in .ts point at the transpiled .js next to them. */
 const relinkSpecifiers = (code: string) => code.replace(/(['"])(\.{1,2}\/[^'"\n]+?)\.ts\1/g, '$1$2.js$1');
+const argTarget = process.argv.indexOf('--target') >= 0 ? process.argv[process.argv.indexOf('--target') + 1] : null;
+const TARGET = argTarget ?? (process.platform === 'win32' ? 'win-x64' : 'darwin-arm64');
+const ONNX = { 'darwin-arm64': ['darwin', 'arm64'], 'win-x64': ['win32', 'x64'] }[TARGET] ?? ['darwin', 'arm64'];
 const OUT = join(ROOT, 'apps/shell/src-tauri/resources');
 const SKIP = new Set(['node_modules', 'test', 'tests', 'testkit', 'scripts', 'docs', 'fixtures', 'jobsync', 'README.md', 'tsconfig.json', '.DS_Store', 'reports', 'dev', 'dist-placeholder', 'public', 'manifest.json', 'vite.config.ts']);
 
@@ -66,7 +70,8 @@ while (queue.length) {
 // stops if one appears). onnxruntime-node ships binaries for every platform; only this Mac's stay.
 const deployDir = join(ROOT, '.cache/shell-deploy');
 rmSync(deployDir, { recursive: true, force: true });
-const dep = spawnSync('pnpm', ['--filter', '@jobleft/server', 'deploy', '--prod', '--legacy', deployDir], { cwd: ROOT, encoding: 'utf8' });
+const PNPM = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+const dep = spawnSync(PNPM, ['--filter', '@jobleft/server', 'deploy', '--prod', '--legacy', deployDir], { cwd: ROOT, encoding: 'utf8', shell: process.platform === 'win32' });
 if (dep.status !== 0) throw new Error(`pnpm deploy failed: ${dep.stderr.slice(0, 400)}`);
 const pnpmDir = join(deployDir, 'node_modules/.pnpm');
 const third: string[] = [];
@@ -84,12 +89,12 @@ for (const entry of readdirSync(pnpmDir)) {
 }
 const onnxBin = join(serverOut, 'node_modules/onnxruntime-node/bin/napi-v6');
 if (existsSync(onnxBin)) for (const os of readdirSync(onnxBin)) {
-  if (os !== 'darwin') { rmSync(join(onnxBin, os), { recursive: true, force: true }); continue; }
-  for (const arch of readdirSync(join(onnxBin, os))) if (arch !== 'arm64') rmSync(join(onnxBin, os, arch), { recursive: true, force: true });
+  if (os !== ONNX[0]) { rmSync(join(onnxBin, os), { recursive: true, force: true }); continue; }
+  for (const arch of readdirSync(join(onnxBin, os))) if (arch !== ONNX[1]) rmSync(join(onnxBin, os, arch), { recursive: true, force: true });
 }
 rmSync(deployDir, { recursive: true, force: true });
 // pnpm deploy re-resolves the workspace and drops the other packages' bin links (vite, tauri); put them back.
-const relink = spawnSync('pnpm', ['install', '--offline'], { cwd: ROOT, encoding: 'utf8' });
+const relink = spawnSync(PNPM, ['install', '--offline'], { cwd: ROOT, encoding: 'utf8', shell: process.platform === 'win32' });
 if (relink.status !== 0) throw new Error(`pnpm install --offline failed after deploy: ${relink.stderr.slice(0, 300)}`);
 const ui = join(ROOT, 'apps/ui/dist');
 if (!existsSync(join(ui, 'index.html'))) throw new Error('build the UI first: pnpm --filter @jobleft/ui build');
@@ -99,6 +104,6 @@ cpSync(ui, join(OUT, 'ui'), { recursive: true });
 const localTok = join(ROOT, 'apps/shell/publik-app-token.local');
 const tok = (process.env.JOBLEFT_PUBLIK_APP_TOKEN ?? (existsSync(localTok) ? readFileSync(localTok, 'utf8') : '')).trim();
 writeFileSync(join(OUT, 'publik-app-token.txt'), /^pat_jobleft_[A-Za-z0-9]+$/.test(tok) ? tok + '\n' : '');
-const node = join(ROOT, 'apps/shell/src-tauri/binaries/node-aarch64-apple-darwin');
+const node = join(ROOT, 'apps/shell/src-tauri/binaries', TARGET === 'win-x64' ? 'node-x86_64-pc-windows-msvc.exe' : 'node-aarch64-apple-darwin');
 const size = (dir: string): number => readdirSync(dir).reduce((n, f) => { const p = join(dir, f); const s = statSync(p); return n + (s.isDirectory() ? size(p) : s.size); }, 0);
-console.log(`third-party: ${third.join(', ')}\nserver tree: ${[...seen].sort().join(', ')}; ${transpiled} files transpiled (${(size(serverOut) / 1e6).toFixed(1)} MB); ui: ${(size(join(OUT, 'ui')) / 1e6).toFixed(1)} MB; node runtime: ${existsSync(node) ? `${(statSync(node).size / 1e6).toFixed(0)} MB` : 'MISSING (apps/shell/README.md says how to fetch it)'}; publik app token: ${tok ? 'shipped' : 'none (Connect to publik stays off)'}`);
+console.log(`target ${TARGET}; third-party: ${third.join(', ')}\nserver tree: ${[...seen].sort().join(', ')}; ${transpiled} files transpiled (${(size(serverOut) / 1e6).toFixed(1)} MB); ui: ${(size(join(OUT, 'ui')) / 1e6).toFixed(1)} MB; node runtime: ${existsSync(node) ? `${(statSync(node).size / 1e6).toFixed(0)} MB` : 'MISSING (apps/shell/README.md says how to fetch it)'}; publik app token: ${tok ? 'shipped' : 'none (Connect to publik stays off)'}`);

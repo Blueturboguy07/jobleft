@@ -1,0 +1,117 @@
+# Windows: the workspace's tests on windows-latest, then the NSIS installer (the Windows shell with the Node sidecar),
+# installed silently on the runner and proven to start, answer health and stop. On a published release, or on
+# workflow_dispatch with a tag, the installer is attached to that release. No secrets beyond the public app token.
+name: windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Attach the installer to this existing release tag (optional)"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/shell/src-tauri
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Tests on Windows
+        run: pnpm -r --if-present test
+
+      - name: Build the UI
+        run: pnpm --filter @jobleft/ui build
+
+      - name: Node runtime for the sidecar
+        run: node apps/shell/scripts/fetch-node.mjs --target win-x64
+
+      - name: Sidecar tree
+        env:
+          JOBLEFT_PUBLIK_APP_TOKEN: ${{ secrets.PUBLIK_APP_TOKEN }}
+        run: node apps/shell/scripts/pack.ts --target win-x64
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $cli = Get-ChildItem -Path node_modules/.pnpm -Directory -Filter '@tauri-apps+cli@*' | Select-Object -First 1
+          Set-Location apps/shell
+          node "$($cli.FullName)/node_modules/@tauri-apps/cli/tauri.js" build --bundles nsis
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Smoke: install, start, health, stop
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem -Path apps/shell/src-tauri/target/release/bundle/nsis -Filter '*.exe' | Select-Object -First 1
+          "installer: $($setup.Name) ($([math]::Round($setup.Length/1MB)) MB)"
+          Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait
+          $exe = "$env:LOCALAPPDATA\jobleft\jobleft.exe"
+          if (-not (Test-Path $exe)) { $exe = (Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Recurse -Filter 'jobleft.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
+          "installed at: $exe"
+          $env:JOBLEFT_AUTO_CRAWL = '0'
+          $env:JOBLEFT_SEED_BOARDS = 'none'
+          $p = Start-Process -FilePath $exe -PassThru
+          $run = "$env:APPDATA\jobleft\run\server.json"
+          $deadline = (Get-Date).AddSeconds(40)
+          while (-not (Test-Path $run) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+          if (-not (Test-Path $run)) { Get-Content "$env:APPDATA\jobleft\logs\sidecar.log" -ErrorAction SilentlyContinue | Select-Object -Last 30; throw "no run/server.json after 40 s" }
+          $j = Get-Content $run | ConvertFrom-Json
+          $health = Invoke-RestMethod -Uri "http://127.0.0.1:$($j.port)/api/v1/health"
+          "health: $($health | ConvertTo-Json -Compress)"
+          if ($health.app -ne 'jobleft') { throw "health did not answer jobleft" }
+          $shellFile = "$env:APPDATA\jobleft\run\shell.json"
+          $deadline = (Get-Date).AddSeconds(20)
+          while (-not (Test-Path $shellFile) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+          "window: $(if (Test-Path $shellFile) { Get-Content $shellFile } else { 'no run/shell.json (window not reported)' })"
+          Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$($j.port)/api/v1/shutdown" -Headers @{ 'x-jobleft-token' = $j.token } -ContentType 'application/json' -Body '{}' | Out-Null
+          Start-Sleep -Seconds 4
+          $alive = Get-Process -Id $j.pid -ErrorAction SilentlyContinue
+          if ($alive) { throw "server still running after shutdown" }
+          "server stopped cleanly; run file gone: $(-not (Test-Path $run))"
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+
+      - name: Keep the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobleft-windows-setup
+          path: apps/shell/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = if ('${{ github.event_name }}' -eq 'release') { '${{ github.event.release.tag_name }}' } else { '${{ github.event.inputs.release_tag }}' }
+          $setup = Get-ChildItem -Path apps/shell/src-tauri/target/release/bundle/nsis -Filter '*.exe' | Select-Object -First 1
+          gh release upload $tag $setup.FullName --clobber
