@@ -4,7 +4,7 @@
 // either. You can skip at any step: what you chose is kept, and the setup does not open by itself again.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, Checkbox, Input, InputNumber, Progress, Select, Space, Steps, Tag } from 'antd';
+import { Alert, Button, Checkbox, Input, Progress, Select, Space, Steps, Tag } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import type { OnboardingState, Profile, ProfileInput } from '@jobleft/contracts';
 import { call, type UiError } from '../app/api.ts';
@@ -18,9 +18,9 @@ import { COMMON_COUNTRY_OPTIONS, COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVE
 import { countrySort } from '../lib/countries.ts';
 import { plural, yearMonthText } from '../lib/format.ts';
 import { PlacePicker } from './jobs/Filters.tsx';
-import { YesNo } from './Profile.tsx';
+import { NumberBox, YesNo } from './Profile.tsx';
 import { importChanges } from '../lib/importMerge.ts';
-import { cleanForSave, problemsIn, serverProblems, type FieldProblem } from '../lib/profileErrors.ts';
+import { PAY_RULE, cleanForSave, problemsIn, serverProblems, type FieldProblem } from '../lib/profileErrors.ts';
 import { LAST_STEP, MAX_FUNCTION_LENGTH, addJobFunction, bodyToSave, closedState, keptState, replaceUpload, resumeSetup, toInput, type PendingImport } from '../lib/onboarding.ts';
 
 /** jobleft 0.1.2 and earlier kept "skipped" only in this browser; read once to carry it over, never written again. */
@@ -221,7 +221,7 @@ export function Onboarding() {
         <strong>Experience level</strong>
         <div className="jl-choice-grid">{LEVEL_OPTIONS.map((o) => <Choice key={o.value} on={pr.levels.includes(o.value)} onClick={() => setPr({ levels: toggle(pr.levels, o.value) })}>{o.label}</Choice>)}</div>
         <strong>Minimum yearly pay (US dollars, optional)</strong>
-        <InputNumber min={0} step={5000} precision={0} style={{ width: 220 }} status={problems.some((x) => x.path === '/preferences/minAnnualPayUsd') ? 'error' : undefined} value={pr.minAnnualPayUsd ?? undefined} onChange={(v) => { setPr({ minAnnualPayUsd: v ?? null }); setProblems([]); }} placeholder="Not set" aria-label="Minimum yearly pay in US dollars" />
+        <NumberBox rule={PAY_RULE} step={5000} precision={0} style={{ width: 220 }} status={problems.some((x) => x.path === '/preferences/minAnnualPayUsd') ? 'error' : undefined} value={pr.minAnnualPayUsd} onChange={(v) => { setPr({ minAnnualPayUsd: v }); setProblems([]); }} placeholder="Not set" aria-label="Minimum yearly pay in US dollars" />
         {problems.filter((x) => x.path === '/preferences/minAnnualPayUsd').map((x) => <span key={x.path} role="alert" style={{ color: 'var(--jl-error)', fontSize: 13 }}>{x.message}</span>)}
         <p className="jl-note">A job that does not state its pay is never hidden by this. It is marked "pay not stated".</p>
       </Space>
