@@ -56,6 +56,22 @@ const fail = {
   bad: (message: string) => new ApiFailure(400, 'bad_request', message),
 };
 
+/** What the person decided about a proposal, in plain words, for the conversation. Only the stored summaries are used. */
+export function decisionText(actions: StoredAction[], r: { applied: string[]; declined: string[]; failed: Array<{ id: string; message: string }>; notes: string[] }): string {
+  const summary = (id: string) => actions.find((a) => a.id === id)?.summary.replace(/[.\s]+$/, '') ?? 'A change';
+  const lines = [
+    ...r.applied.map((id) => `- Done: ${summary(id)}.`),
+    ...r.failed.map((f) => `- Not done: ${summary(f.id)}. ${f.message}`),
+    ...r.declined.map((id) => `- Not done, because you declined it: ${summary(id)}.`),
+  ];
+  const one = actions.length === 1;
+  const head = r.applied.length === actions.length ? (one ? 'You approved the suggested change. It is done:' : 'You approved the suggested changes. They are done:')
+    : r.applied.length ? 'You approved some of the suggested changes:'
+      : r.failed.length ? 'Nothing was changed:'
+        : one ? 'You declined the suggested change. Nothing was changed:' : 'You declined the suggested changes. Nothing was changed:';
+  return [head, ...lines, ...r.notes].join('\n');
+}
+
 export class Assistant {
   readonly engine: AiEngine;
   readonly data: Data;
@@ -253,7 +269,13 @@ export class Assistant {
   // ------------------------------------------------------------------ conversations
 
   listChats(): Array<{ id: string; title: string; jobId: string | null; updatedAt: string }> { return this.chats.list(); }
-  getChat(id: string): ChatThread { const c = this.chats.get(id); if (!c) throw fail.notFound('That conversation'); return c; }
+  /** One conversation, with the proposals it still waits on (a reload of the window shows them again). */
+  getChat(id: string): ChatThread {
+    const c = this.chats.get(id);
+    if (!c) throw fail.notFound('That conversation');
+    const pending = this.book.pendingFor(id);
+    return pending.length ? { ...c, proposals: pending } : c;
+  }
   deleteChat(id: string): void { if (!this.chats.delete(id)) throw fail.notFound('That conversation'); }
 
   // ------------------------------------------------------------------ proposals
@@ -275,6 +297,9 @@ export class Assistant {
         else failed.push({ id: a.id, message: e instanceof LocalApiError ? plainError(e) : e instanceof ApiFailure ? e.message : asAiError(e).message });
       }
     }
+    // The decision goes into the conversation, so the answer above it ("nothing has changed yet") is never the last
+    // word, and the model sees what really happened on the next turn.
+    if (p.chatId && this.chats.exists(p.chatId)) this.chats.append(p.chatId, 'assistant', decisionText(p.actions, { applied, declined, failed, notes }), { jobId: null });
     return { applied, declined, ...(failed.length ? { failed } : {}), ...(notes.length ? { notes } : {}) };
   }
 

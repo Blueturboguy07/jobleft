@@ -1,5 +1,6 @@
 // The assistant, full screen: saved conversations (kept on this Mac) and the chat.
 
+import { useRef } from 'react';
 import { Button, Popconfirm } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ChatThread } from '@jobleft/contracts';
@@ -10,6 +11,7 @@ import { navigate } from '../app/router.ts';
 import { Chat } from '../components/Chat.tsx';
 import { InlineError } from '../components/States.tsx';
 import { ago } from '../lib/format.ts';
+import { adoptChat, chatKeyFor, type ChatKeyState } from '../lib/chatState.ts';
 
 type Item = { id: string; title: string; jobId: string | null; updatedAt: string };
 
@@ -18,6 +20,9 @@ export function AssistantScreen({ chatId }: { chatId: string | null }) {
   const thread = useApi<ChatThread>(chatId ? `chat:${chatId}` : null, () => call('getChat', { params: { chatId: chatId! } }));
   const job = thread.data?.jobId ?? null;
   const jobInfo = useApi(job ? `job:${job}` : null, () => call('getJob', { params: { jobId: job! } }));
+  // The same chat stays on screen when a new conversation gets its id (its open suggestion must not vanish).
+  const keyState = useRef<ChatKeyState>({ key: 0, chatId, adopted: null });
+  keyState.current = chatKeyFor(keyState.current, chatId);
   return (
     <div className="jl-2col">
       <aside style={{ width: 280, flex: '0 0 280px', background: '#fff', borderRight: '1px solid var(--jl-line)', display: 'flex', flexDirection: 'column', minHeight: 0 }} aria-label="Conversations">
@@ -43,8 +48,8 @@ export function AssistantScreen({ chatId }: { chatId: string | null }) {
       <section style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: '#fff' }} aria-label="Chat">
         <div style={{ maxWidth: 860, width: '100%', margin: '0 auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           {thread.error && <InlineError error={thread.error} onRetry={() => { void thread.reload(); }} />}
-          <Chat key={chatId ?? 'new'} chatId={chatId} jobId={job} jobTitle={jobInfo.data ? `${jobInfo.data.job.title} at ${jobInfo.data.job.company}` : null}
-            onThread={(id) => { invalidate('chats'); if (id !== chatId) navigate(`assistant/${encodeURIComponent(id)}`, { replace: true }); }} autoFocus />
+          <Chat key={keyState.current.key} chatId={chatId} jobId={job} jobTitle={jobInfo.data ? `${jobInfo.data.job.title} at ${jobInfo.data.job.company}` : null}
+            onThread={(id) => { invalidate('chats'); if (id !== chatId) { keyState.current = adoptChat(keyState.current, id); navigate(`assistant/${encodeURIComponent(id)}`, { replace: true }); } }} autoFocus />
         </div>
       </section>
     </div>

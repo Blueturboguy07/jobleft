@@ -1,5 +1,7 @@
 // The assistant chat. Answers stream in; Stop cancels the request upstream too. The assistant may SUGGEST changes
-// (a status, a like, a note); nothing changes until the person ticks each one and presses "Apply selected".
+// (a status, a like, a note); nothing changes until the person presses Apply (one change) or ticks each one and
+// presses "Apply selected". A suggestion stays under the answer until the person decides, also after a reload, and
+// the decision is written into the conversation (lib/chatState.ts).
 // Suggested questions only fill the box; nothing is sent without pressing Send.
 
 import { useEffect, useRef, useState } from 'react';
@@ -7,6 +9,7 @@ import { Button, Checkbox, Input } from 'antd';
 import { Tooltip } from './Tip.tsx';
 import { CloseOutlined, SendOutlined, StopOutlined, ReloadOutlined } from '@ant-design/icons';
 import { formatDollars, type ActionProposal, type ChatThread } from '@jobleft/contracts';
+import { EMPTY_CHAT, afterDecision, dropEmptyAnswer, onStreamEvent, proposalMode, startTurn, viewOfThread, type ChatView } from '../lib/chatState.ts';
 import { call, streamChat, type UiError } from '../app/api.ts';
 import { invalidate } from '../app/data.ts';
 import { ui } from '../app/layers.ts';
@@ -14,28 +17,49 @@ import { afterTrackerChange, useAiSettings } from '../app/session.ts';
 import { AiNote, afterAiStep, ensureAiConsent } from './AiNote.tsx';
 import { InlineError } from './States.tsx';
 
-interface Msg {
-  role: 'user' | 'assistant';
-  content: string;
-  incomplete?: boolean;
-  costMicros?: number | null;
-}
-
 let reqSeq = 0;
+
+/** One suggestion: what would change, and the buttons that decide it. Nothing is ticked for the person. */
+function ProposalCard({ p, onDecide }: { p: ActionProposal; onDecide: (p: ActionProposal, approve: string[]) => Promise<void> }) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const decide = async (approve: string[]) => { setBusy(true); try { await onDecide(p, approve); } finally { setBusy(false); } };
+  const single = proposalMode(p) === 'single';
+  return (
+    <div className="jl-factbox" role="group" aria-label="Suggested changes">
+      <strong>{single ? 'The assistant suggests this change. Nothing changes until you choose.' : 'The assistant suggests these changes. Nothing changes until you choose.'}</strong>
+      {single
+        ? <div style={{ margin: '8px 0' }}>{p.actions[0]!.summary}</div>
+        : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '8px 0' }}>
+            {p.actions.map((a) => (
+              <Checkbox key={a.id} checked={picked.includes(a.id)} onChange={(e) => setPicked(e.target.checked ? [...picked, a.id] : picked.filter((x) => x !== a.id))}>{a.summary}</Checkbox>
+            ))}
+            <span className="jl-small jl-muted">Tick the changes you want, then press Apply selected.</span>
+          </div>
+        )}
+      <div className="jl-row">
+        {single
+          ? <Button size="small" type="primary" shape="round" loading={busy} onClick={() => { void decide([p.actions[0]!.id]); }}>Apply this change</Button>
+          : <Button size="small" type="primary" shape="round" loading={busy} disabled={!picked.length} onClick={() => { void decide(picked); }}>Apply selected</Button>}
+        <Button size="small" shape="round" disabled={busy} onClick={() => { void decide([]); }}>{single ? 'Decline' : 'Decline all'}</Button>
+      </div>
+    </div>
+  );
+}
 
 export function Chat({ jobId, jobTitle, chatId: initialChatId, draft, onThread, onClearJob, autoFocus = false }: {
   jobId: string | null; jobTitle: string | null; chatId?: string | null; draft?: string; onThread?: (id: string) => void; onClearJob?: () => void; autoFocus?: boolean;
 }) {
   const ai = useAiSettings();
-  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [view, setView] = useState<ChatView>(EMPTY_CHAT);
+  const msgs = view.msgs;
   const [chatId, setChatIdState] = useState<string | null>(initialChatId ?? null);
   const chatIdRef = useRef<string | null>(initialChatId ?? null);
   const setChatId = (id: string | null) => { chatIdRef.current = id; setChatIdState(id); };
   const [text, setText] = useState(draft ?? '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<UiError | null>(null);
-  const [proposal, setProposal] = useState<ActionProposal | null>(null);
-  const [picked, setPicked] = useState<string[]>([]);
   const abort = useRef<AbortController | null>(null);
   const reqId = useRef<string | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
@@ -45,12 +69,11 @@ export function Chat({ jobId, jobTitle, chatId: initialChatId, draft, onThread, 
   useEffect(() => {
     if (initialChatId && initialChatId === chatIdRef.current && msgs.length) return;
     setChatId(initialChatId ?? null);
-    setProposal(null);
     setErr(null);
-    if (!initialChatId) { setMsgs([]); return; }
+    if (!initialChatId) { setView(EMPTY_CHAT); return; }
     let alive = true;
     call('getChat', { params: { chatId: initialChatId } }).then((t: ChatThread) => {
-      if (alive) setMsgs(t.messages.map((m) => ({ role: m.role, content: m.content, incomplete: m.incomplete })));
+      if (alive) setView(viewOfThread(t));
     }, (e) => { if (alive) setErr(e as UiError); });
     return () => { alive = false; };
   }, [initialChatId]);
@@ -62,9 +85,8 @@ export function Chat({ jobId, jobTitle, chatId: initialChatId, draft, onThread, 
     if (!q || busy) return;
     if (!(await ensureAiConsent(ai.data, 'chatTurn'))) return;
     setErr(null);
-    setProposal(null);
     const history = [...msgs.filter((m) => m.content).map((m) => ({ role: m.role, content: m.content })), { role: 'user' as const, content: q }];
-    setMsgs((m) => [...m, { role: 'user', content: q }, { role: 'assistant', content: '' }]);
+    setView((v) => startTurn(v, q));
     setText('');
     setBusy(true);
     const ac = new AbortController();
@@ -74,23 +96,18 @@ export function Chat({ jobId, jobTitle, chatId: initialChatId, draft, onThread, 
     let cost: number | null = null;
     try {
       await streamChat({ requestId: rid, messages: history, ...(chatId ? { chatId } : {}), ...(jobId ? { jobId } : {}) }, (ev) => {
-        if (ev.type === 'delta') setMsgs((m) => { const c = [...m]; const last = c.at(-1)!; c[c.length - 1] = { ...last, content: last.content + ev.text }; return c; });
-        if (ev.type === 'proposal') { setProposal(ev.proposal); setPicked([]); }
+        setView((v) => onStreamEvent(v, ev));
         if (ev.type === 'done') {
           cost = ev.costMicros;
-          setMsgs((m) => { const c = [...m]; const last = c.at(-1)!; c[c.length - 1] = { ...last, incomplete: ev.incomplete, costMicros: ev.costMicros }; return c; });
           if (ev.chatId) { setChatId(ev.chatId); onThread?.(ev.chatId); }
         }
-        if (ev.type === 'error') {
-          setErr({ code: ev.error.code, status: null, message: ev.error.message, link: ev.error.link ?? null });
-          setMsgs((m) => (m.at(-1)?.content === '' ? m.slice(0, -1) : m));
-        }
+        if (ev.type === 'error') setErr({ code: ev.error.code, status: null, message: ev.error.message, link: ev.error.link ?? null });
       }, ac.signal);
       invalidate('chats');
       afterAiStep(cost);
     } catch (e) {
       setErr(e as UiError);
-      setMsgs((m) => (m.at(-1)?.content === '' ? m.slice(0, -1) : m));
+      setView(dropEmptyAnswer);
       invalidate('ai:publik');
     } finally {
       setBusy(false);
@@ -103,14 +120,21 @@ export function Chat({ jobId, jobTitle, chatId: initialChatId, draft, onThread, 
     if (reqId.current) void call('cancelAi', { params: { requestId: reqId.current } }).catch(() => undefined);
   };
 
-  const decide = async (approve: string[]) => {
-    if (!proposal) return;
+  const decide = async (p: ActionProposal, approve: string[]) => {
     try {
-      const r = await call('decideProposal', { params: { proposalId: proposal.id }, body: { approveActionIds: approve } });
-      setProposal(null);
+      const r = await call('decideProposal', { params: { proposalId: p.id }, body: { approveActionIds: approve } });
+      setView((v) => afterDecision(v, p.id));
       afterTrackerChange();
+      invalidate('chats');
       ui.message?.success(r.applied.length ? `Applied ${r.applied.length} ${r.applied.length === 1 ? 'change' : 'changes'}.` : 'No change was made.');
-    } catch (e) { setErr(e as UiError); }
+      // The server wrote the decision into the conversation: show it as saved.
+      const id = chatIdRef.current;
+      if (id) { try { const t = await call('getChat', { params: { chatId: id } }); setView(viewOfThread(t)); } catch { /* the toast said what happened */ } }
+    } catch (e) {
+      setErr(e as UiError);
+      // Expired or already decided: it cannot be decided here any more, so it leaves the screen.
+      if ((e as UiError).code === 'not_found') setView((v) => afterDecision(v, p.id));
+    }
   };
 
   const lastUser = [...msgs].reverse().find((m) => m.role === 'user')?.content;
@@ -135,24 +159,11 @@ export function Chat({ jobId, jobTitle, chatId: initialChatId, draft, onThread, 
             {m.costMicros ? <div className="jl-small" style={{ marginTop: 6, opacity: 0.8 }}>Cost: {formatDollars(m.costMicros)} from your balance</div> : null}
           </div>
         ))}
-        {proposal && (
-          <div className="jl-factbox" role="group" aria-label="Suggested changes">
-            <strong>The assistant suggests these changes. Nothing changes until you choose.</strong>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '8px 0' }}>
-              {proposal.actions.map((a) => (
-                <Checkbox key={a.id} checked={picked.includes(a.id)} onChange={(e) => setPicked(e.target.checked ? [...picked, a.id] : picked.filter((x) => x !== a.id))}>{a.summary}</Checkbox>
-              ))}
-            </div>
-            <div className="jl-row">
-              <Button size="small" type="primary" shape="round" disabled={!picked.length} onClick={() => { void decide(picked); }}>Apply selected</Button>
-              <Button size="small" shape="round" onClick={() => { void decide([]); }}>Decline all</Button>
-            </div>
-          </div>
-        )}
+        {view.proposals.map((p) => <ProposalCard key={p.id} p={p} onDecide={decide} />)}
         {err && (
           <div>
             <InlineError error={err} />
-            {lastUser && <Button size="small" type="link" icon={<ReloadOutlined />} onClick={() => { setMsgs((m) => m.slice(0, -1)); void send(lastUser); }}>Send again</Button>}
+            {lastUser && <Button size="small" type="link" icon={<ReloadOutlined />} onClick={() => { setView((v) => (v.msgs.at(-1)?.role === 'user' ? { ...v, msgs: v.msgs.slice(0, -1) } : v)); void send(lastUser); }}>Send again</Button>}
           </div>
         )}
       </div>
