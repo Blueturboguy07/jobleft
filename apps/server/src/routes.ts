@@ -6,7 +6,7 @@ import { rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
-  CONTRACTS_VERSION, EXTENSION_PROTOCOL_VERSION, LOCAL_API_VERSION, nowIso, parseDuration,
+  CONTRACTS_VERSION, EXTENSION_PROTOCOL_VERSION, LOCAL_API_VERSION, blankToNull, nowIso, parseDuration, profileIssues,
   type ChatStreamEvent, type RouteBody, type RouteName, type RouteQuery,
 } from '@jobleft/contracts';
 import { AiError, type AiClient } from '@jobleft/ai-engine';
@@ -224,7 +224,16 @@ export const HANDLERS: HandlerTable = {
   // ---------------------------------------------------------------- profile and resumes
   getProfile: ({ d }) => ({ json: d.profile.get() }),
   putProfile: ({ d, body }) => {
-    const saved = d.profile.put(body);
+    // Plain checks of what the person typed (JL-onboarding-5, -15, -16): only new or changed values, so a value stored
+    // earlier or a fact a resume brought in never blocks another save. Blank-only text is empty.
+    const input = blankToNull(body);
+    const prev = d.profile.exists() ? d.profile.get() : null;
+    const issues = profileIssues(input, prev);
+    if (issues.length) {
+      throw new ApiFailure('bad_request', `${issues[0]!.message}${issues.length > 1 ? ` (${issues.length - 1} more ${issues.length === 2 ? 'problem' : 'problems'} to fix.)` : ''} Nothing was saved.`,
+        { details: { issues: issues.map(({ path, message }) => ({ path, message })) } });
+    }
+    const saved = d.profile.put(input);
     try { d.afterProfileSaved(); } catch { /* the first-run choice never fails a save */ }
     return { json: saved };
   },

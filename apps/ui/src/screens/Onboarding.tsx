@@ -20,6 +20,7 @@ import { plural, yearMonthText } from '../lib/format.ts';
 import { PlacePicker } from './jobs/Filters.tsx';
 import { YesNo } from './Profile.tsx';
 import { importChanges } from '../lib/importMerge.ts';
+import { cleanForSave, problemsIn, serverProblems, type FieldProblem } from '../lib/profileErrors.ts';
 import { LAST_STEP, MAX_FUNCTION_LENGTH, addJobFunction, bodyToSave, closedState, keptState, replaceUpload, resumeSetup, toInput, type PendingImport } from '../lib/onboarding.ts';
 
 /** jobleft 0.1.2 and earlier kept "skipped" only in this browser; read once to carry it over, never written again. */
@@ -32,14 +33,18 @@ function forgetLegacySkip(): void {
 }
 
 /** A box with its name above it, so a filled box still says what it holds (JL-onboarding-8). */
-function Labeled({ label, children }: { label: string; children: ReactNode }) {
+function Labeled({ label, children, problem }: { label: string; children: ReactNode; problem?: string | null }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 220px', minWidth: 0 }}>
       <span style={{ fontWeight: 600, fontSize: 13 }}>{label}</span>
       {children}
+      {problem && <span role="alert" style={{ color: 'var(--jl-error)', fontSize: 13 }}>{problem}</span>}
     </label>
   );
 }
+
+/** The boxes of the About-you step, checked before Next (JL-onboarding-5). */
+const ABOUT_PATHS = ['firstName', 'lastName', 'email', 'phone', 'city', 'region'].map((k) => `/personal/${k}`);
 
 const STEPS = ['Looking for', 'Job type', 'Where', 'Resume', 'About you', 'AI'];
 
@@ -55,6 +60,7 @@ export function Onboarding() {
   const [d, setD] = useState<ProfileInput | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<UiError | null>(null);
+  const [problems, setProblems] = useState<FieldProblem[]>([]);
   const [imported, setImported] = useState<PendingImport | null>(null);
   /** The choice that ends the setup, once one was made: every other way out waits (JL-onboarding-10). */
   const [leaving, setLeaving] = useState<string | null>(null);
@@ -123,7 +129,11 @@ export function Onboarding() {
   const pr = d.preferences;
   const setPr = (patch: Partial<ProfileInput['preferences']>) => setD({ ...d, preferences: { ...pr, ...patch } });
   const p = d.personal;
-  const setP = (patch: Partial<ProfileInput['personal']>) => setD({ ...d, personal: { ...p, ...patch } });
+  const setP = (patch: Partial<ProfileInput['personal']>) => {
+    setD({ ...d, personal: { ...p, ...patch } });
+    if (problems.length) setProblems(problems.filter((x) => !Object.keys(patch).some((k) => x.path === `/personal/${k}`)));
+  };
+  const problem = (k: string) => problems.find((x) => x.path === `/personal/${k}`)?.message ?? null;
 
   const persist = async (next: ProfileInput): Promise<Profile | null> => {
     setBusy(true); setErr(null);
@@ -131,12 +141,18 @@ export function Onboarding() {
       const saved = await call('putProfile', { body: next });
       setCached('profile', () => saved);
       invalidate('jobs:', 'job:', 'match:');
+      setProblems([]);
       return saved;
-    } catch (e) { setErr(e as UiError); return null; } finally { setBusy(false); }
+    } catch (e) { setErr(e as UiError); setProblems(serverProblems((e as UiError).details)); return null; } finally { setBusy(false); }
   };
   const goTo = (n: number) => { if (!leavingRef.current) setStep(Math.min(Math.max(0, n), LAST_STEP)); };
   const next = async () => {
-    const saved = await persist(bodyToSave(d, imported));
+    if (step === 4) {
+      const found = problemsIn(d, ['personal'], ABOUT_PATHS);
+      setProblems(found);
+      if (found.length) return;
+    }
+    const saved = await persist(bodyToSave(cleanForSave(d), imported));
     if (!saved) return;
     const n = Math.min(step + 1, LAST_STEP);
     setD(toInput(saved));
@@ -148,7 +164,7 @@ export function Onboarding() {
   const leave = async (goto: string, how: 'done' | 'skipped') => {
     if (leavingRef.current) return;
     leavingRef.current = true; setLeaving(goto);
-    const saved = await persist(bodyToSave(d, imported));
+    const saved = await persist(bodyToSave(cleanForSave(d), imported));
     if (!saved) { leavingRef.current = false; setLeaving(null); return; }
     await keep(closedState(status.current, how), true);
     if (how === 'done' || !getFeed().initialized) setFeed({ filter: filterFromProfile(saved), initialized: true, savedId: null });
@@ -259,9 +275,9 @@ export function Onboarding() {
       <Space direction="vertical" size={12} style={{ width: '100%' }} key="4">
         <h2 className="jl-display" style={{ fontSize: 28 }}>About you</h2>
         <p className="jl-muted">Stays on this Mac. Used on your resumes and application forms.</p>
-        <div className="jl-row jl-wrap" style={{ alignItems: 'flex-start' }}><Labeled label="First name"><Input value={p.firstName ?? ''} onChange={(e) => setP({ firstName: e.target.value || null })} aria-label="First name" /></Labeled><Labeled label="Last name"><Input value={p.lastName ?? ''} onChange={(e) => setP({ lastName: e.target.value || null })} aria-label="Last name" /></Labeled></div>
-        <div className="jl-row jl-wrap" style={{ alignItems: 'flex-start' }}><Labeled label="Email"><Input type="email" value={p.email ?? ''} onChange={(e) => setP({ email: e.target.value || null })} placeholder="name@example.com" aria-label="Email" /></Labeled><Labeled label="Phone"><Input value={p.phone ?? ''} onChange={(e) => setP({ phone: e.target.value || null })} placeholder="+1 555 010 0100" aria-label="Phone" /></Labeled></div>
-        <div className="jl-row jl-wrap" style={{ alignItems: 'flex-start' }}><Labeled label="City"><Input value={p.city ?? ''} onChange={(e) => setP({ city: e.target.value || null })} aria-label="City" /></Labeled><Labeled label="State or region"><Input value={p.region ?? ''} onChange={(e) => setP({ region: e.target.value || null })} aria-label="State or region" /></Labeled></div>
+        <div className="jl-row jl-wrap" style={{ alignItems: 'flex-start' }}><Labeled label="First name" problem={problem('firstName')}><Input status={problem('firstName') ? 'error' : undefined} value={p.firstName ?? ''} onChange={(e) => setP({ firstName: e.target.value || null })} aria-label="First name" /></Labeled><Labeled label="Last name" problem={problem('lastName')}><Input status={problem('lastName') ? 'error' : undefined} value={p.lastName ?? ''} onChange={(e) => setP({ lastName: e.target.value || null })} aria-label="Last name" /></Labeled></div>
+        <div className="jl-row jl-wrap" style={{ alignItems: 'flex-start' }}><Labeled label="Email" problem={problem('email')}><Input status={problem('email') ? 'error' : undefined} type="email" value={p.email ?? ''} onChange={(e) => setP({ email: e.target.value || null })} placeholder="name@example.com" aria-label="Email" /></Labeled><Labeled label="Phone" problem={problem('phone')}><Input status={problem('phone') ? 'error' : undefined} value={p.phone ?? ''} onChange={(e) => setP({ phone: e.target.value || null })} placeholder="+1 555 010 0100" aria-label="Phone" /></Labeled></div>
+        <div className="jl-row jl-wrap" style={{ alignItems: 'flex-start' }}><Labeled label="City" problem={problem('city')}><Input status={problem('city') ? 'error' : undefined} value={p.city ?? ''} onChange={(e) => setP({ city: e.target.value || null })} aria-label="City" /></Labeled><Labeled label="State or region" problem={problem('region')}><Input status={problem('region') ? 'error' : undefined} value={p.region ?? ''} onChange={(e) => setP({ region: e.target.value || null })} aria-label="State or region" /></Labeled></div>
       </Space>
     ),
     (

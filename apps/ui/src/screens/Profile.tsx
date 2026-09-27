@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Checkbox, Drawer, Input, InputNumber, Segmented, Select, Space, Tag } from 'antd';
 import { EditOutlined, PlusOutlined, DeleteOutlined, ArrowUpOutlined, LockOutlined } from '@ant-design/icons';
-import type { EducationEntry, Profile, ProfileInput, WorkEntry } from '@jobleft/contracts';
+import type { EducationEntry, Profile, ProfileBlock, ProfileInput, WorkEntry } from '@jobleft/contracts';
 import { EXPERIENCE_LEVEL_LABELS } from '@jobleft/contracts';
 import { call, type UiError } from '../app/api.ts';
 import { invalidate, setCached } from '../app/data.ts';
@@ -19,6 +19,7 @@ import { typeText, yearMonthText } from '../lib/format.ts';
 import { INDUSTRY_SUGGESTIONS, PlacePicker, SKILL_SUGGESTIONS } from './jobs/Filters.tsx';
 import { AddResumeModal } from './Resume.tsx';
 import { toInput } from '../lib/onboarding.ts';
+import { cleanForSave, problemsIn, serverProblems, uniqueNames, type FieldProblem } from '../lib/profileErrors.ts';
 
 type Block = 'personal' | 'prefs' | 'education' | 'work' | 'skills' | 'auth' | 'eeo';
 const BLOCKS: Array<{ id: Block; label: string }> = [
@@ -41,14 +42,18 @@ export function YesNo({ value, onChange, decline = false, label }: { value: stri
   );
 }
 
-function Field({ label, children, required }: { label: string; children: ReactNode; required?: boolean }) {
+function Field({ label, children, required, problem }: { label: string; children: ReactNode; required?: boolean; problem?: string | null }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 220px' }}>
       <span style={{ fontWeight: 600, fontSize: 13 }}>{label}{required && <span style={{ color: 'var(--jl-error)' }}> *</span>}</span>
       {children}
+      {problem && <span role="alert" style={{ color: 'var(--jl-error)', fontSize: 13 }}>{problem}</span>}
     </label>
   );
 }
+
+/** The checks each editor runs before it saves (the whole block it edits). */
+const CHECKED: Partial<Record<Block, ProfileBlock[]>> = { personal: ['personal'], education: ['education'], work: ['work'] };
 
 const Row = ({ children }: { children: ReactNode }) => <div className="jl-row jl-wrap" style={{ gap: 12, alignItems: 'flex-start' }}>{children}</div>;
 
@@ -57,13 +62,21 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<UiError | null>(null);
   const [newer, setNewer] = useState<Profile | null>(null);
+  const [problems, setProblems] = useState<FieldProblem[]>([]);
   const openedVersion = useRef(profile.version);
-  useEffect(() => { if (block) { setD(toInput(profile)); setErr(null); setNewer(null); openedVersion.current = profile.version; } }, [block]);
+  useEffect(() => { if (block) { setD(toInput(profile)); setErr(null); setNewer(null); setProblems([]); openedVersion.current = profile.version; } }, [block]);
+  const bad = (path: string) => problems.find((x) => x.path === path)?.message ?? null;
+  const badStatus = (path: string) => (bad(path) ? 'error' as const : undefined);
   const base = useMemo(() => JSON.stringify(toInput(profile)), [profile]);
   const dirty = !!block && JSON.stringify(d) !== base;
   useDirty('profile-drawer', dirty, 'your profile');
   const close = async () => { if (await confirmDiscard(dirty ? ['your profile'] : [])) onClose(); };
   const save = async (overwrite = false) => {
+    // plain checks first, next to the boxes: an empty link row is dropped, a wrong value is named (JL-onboarding-5, -15, -16)
+    const found = block && CHECKED[block] ? problemsIn(d, CHECKED[block]!) : [];
+    setProblems(found);
+    if (found.length) return;
+    const body = cleanForSave(d);
     setBusy(true); setErr(null);
     try {
       // another window may have saved the profile since this drawer opened: ask before overwriting it
@@ -71,12 +84,12 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
         const latest = await call('getProfile');
         if (latest.version !== openedVersion.current) { setNewer(latest); return; }
       }
-      const p = await call('putProfile', { body: d });
+      const p = await call('putProfile', { body });
       setCached('profile', () => p);
       invalidate('jobs:', 'job:', 'match:', 'dashboard');
       ui.message?.success('Profile saved.');
       onClose();
-    } catch (e) { setErr(e as UiError); } finally { setBusy(false); }
+    } catch (e) { setErr(e as UiError); setProblems(serverProblems((e as UiError).details)); } finally { setBusy(false); }
   };
   const p = d.personal;
   const setP = (patch: Partial<ProfileInput['personal']>) => setD({ ...d, personal: { ...p, ...patch } });
@@ -93,19 +106,23 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
   switch (block) {
     case 'personal':
       body = (<Space direction="vertical" size={12} style={{ width: '100%' }}>
-        <Row><Field label="First name"><Input value={p.firstName ?? ''} onChange={(e) => setP({ firstName: e.target.value || null })} /></Field><Field label="Middle name"><Input value={p.middleName ?? ''} onChange={(e) => setP({ middleName: e.target.value || null })} /></Field><Field label="Last name"><Input value={p.lastName ?? ''} onChange={(e) => setP({ lastName: e.target.value || null })} /></Field></Row>
-        <Row><Field label="Email"><Input type="email" value={p.email ?? ''} onChange={(e) => setP({ email: e.target.value || null })} /></Field><Field label="Phone"><Input value={p.phone ?? ''} onChange={(e) => setP({ phone: e.target.value || null })} /></Field></Row>
+        <Row><Field label="First name" problem={bad('/personal/firstName')}><Input status={badStatus('/personal/firstName')} value={p.firstName ?? ''} onChange={(e) => setP({ firstName: e.target.value || null })} /></Field><Field label="Middle name" problem={bad('/personal/middleName')}><Input status={badStatus('/personal/middleName')} value={p.middleName ?? ''} onChange={(e) => setP({ middleName: e.target.value || null })} /></Field><Field label="Last name" problem={bad('/personal/lastName')}><Input status={badStatus('/personal/lastName')} value={p.lastName ?? ''} onChange={(e) => setP({ lastName: e.target.value || null })} /></Field></Row>
+        <Row><Field label="Email" problem={bad('/personal/email')}><Input status={badStatus('/personal/email')} type="email" value={p.email ?? ''} onChange={(e) => setP({ email: e.target.value || null })} /></Field><Field label="Phone" problem={bad('/personal/phone')}><Input status={badStatus('/personal/phone')} value={p.phone ?? ''} onChange={(e) => setP({ phone: e.target.value || null })} /></Field></Row>
         <Row><Field label="Street address"><Input value={p.addressLine ?? ''} onChange={(e) => setP({ addressLine: e.target.value || null })} /></Field></Row>
-        <Row><Field label="City"><Input value={p.city ?? ''} onChange={(e) => setP({ city: e.target.value || null })} /></Field><Field label="State or region"><Input value={p.region ?? ''} onChange={(e) => setP({ region: e.target.value || null })} /></Field><Field label="Postal code"><Input value={p.postalCode ?? ''} onChange={(e) => setP({ postalCode: e.target.value || null })} /></Field></Row>
+        <Row><Field label="City" problem={bad('/personal/city')}><Input status={badStatus('/personal/city')} value={p.city ?? ''} onChange={(e) => setP({ city: e.target.value || null })} /></Field><Field label="State or region" problem={bad('/personal/region')}><Input status={badStatus('/personal/region')} value={p.region ?? ''} onChange={(e) => setP({ region: e.target.value || null })} /></Field><Field label="Postal code"><Input value={p.postalCode ?? ''} onChange={(e) => setP({ postalCode: e.target.value || null })} /></Field></Row>
         <Field label="Country"><Select allowClear showSearch optionFilterProp="label" filterSort={countrySort} value={p.country ?? undefined} onChange={(v) => setP({ country: (v ?? null) as never })} options={COUNTRY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))} placeholder="Choose a country" /></Field>
         <span style={{ fontWeight: 600 }}>Links</span>
         {p.links.map((l, i) => (
-          <Row key={i}>
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <Row>
             <Input style={{ width: 160 }} value={l.label} onChange={(e) => setP({ links: p.links.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} placeholder="Label" aria-label="Link label" />
-            <Input style={{ flex: 1 }} value={l.url} onChange={(e) => setP({ links: p.links.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)) })} placeholder="https://" aria-label="Link address" status={l.url && !/^https?:\/\//.test(l.url) ? 'error' : undefined} />
+            <Input style={{ flex: 1 }} value={l.url} onChange={(e) => setP({ links: p.links.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)) })} placeholder="https://" aria-label="Link address" status={(l.url && !/^https?:\/\//.test(l.url)) || bad(`/personal/links/${i}/url`) ? 'error' : undefined} />
             <Button type="text" icon={<DeleteOutlined />} aria-label="Remove link" onClick={() => setP({ links: p.links.filter((_, j) => j !== i) })} />
           </Row>
+          {(bad(`/personal/links/${i}/url`) ?? bad(`/personal/links/${i}/label`)) && <span role="alert" style={{ color: 'var(--jl-error)', fontSize: 13 }}>{bad(`/personal/links/${i}/url`) ?? bad(`/personal/links/${i}/label`)}</span>}
+          </div>
         ))}
+        {p.links.length > 0 && <span className="jl-small jl-muted">A row with no address is left out when you save.</span>}
         <Button type="dashed" icon={<PlusOutlined />} onClick={() => setP({ links: [...p.links, { label: 'Portfolio', url: 'https://' }] })}>Add a link</Button>
         <Field label="Summary"><Input.TextArea value={d.summary ?? ''} autoSize={{ minRows: 2 }} onChange={(e) => setD({ ...d, summary: e.target.value || null })} /></Field>
       </Space>);
@@ -133,7 +150,7 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
             <div className="jl-row"><strong className="jl-grow">School {i + 1}</strong><Button type="text" icon={<DeleteOutlined />} aria-label={`Remove school ${i + 1}`} onClick={() => setD({ ...d, education: d.education.filter((_, j) => j !== i) })} /></div>
             <Row><Field label="School"><Input value={e.school} onChange={(x) => setEdu(i, { ...e, school: x.target.value })} /></Field><Field label="Degree"><Input value={e.degree ?? ''} onChange={(x) => setEdu(i, { ...e, degree: x.target.value || null })} /></Field></Row>
             <Row><Field label="Major"><Input value={e.major ?? ''} onChange={(x) => setEdu(i, { ...e, major: x.target.value || null })} /></Field><Field label="GPA"><Input value={e.gpa ?? ''} onChange={(x) => setEdu(i, { ...e, gpa: x.target.value || null })} /></Field></Row>
-            <Row><Field label="Start"><Input type="month" value={e.startDate?.length === 7 ? e.startDate : ''} onChange={(x) => setEdu(i, { ...e, startDate: x.target.value || null })} /></Field><Field label="End"><Input type="month" disabled={e.current} value={e.endDate?.length === 7 ? e.endDate : ''} onChange={(x) => setEdu(i, { ...e, endDate: x.target.value || null })} /></Field></Row>
+            <Row><Field label="Start"><Input type="month" value={e.startDate?.length === 7 ? e.startDate : ''} onChange={(x) => setEdu(i, { ...e, startDate: x.target.value || null })} /></Field><Field label="End" problem={bad(`/education/${i}/endDate`)}><Input type="month" status={badStatus(`/education/${i}/endDate`)} disabled={e.current} value={e.endDate?.length === 7 ? e.endDate : ''} onChange={(x) => setEdu(i, { ...e, endDate: x.target.value || null })} /></Field></Row>
             <Checkbox checked={e.current} onChange={(x) => setEdu(i, { ...e, current: x.target.checked, endDate: x.target.checked ? null : e.endDate })}>I study here now</Checkbox>
           </div>
         ))}
@@ -148,9 +165,9 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
               <Button type="text" icon={<ArrowUpOutlined />} disabled={i === 0} aria-label={`Move job ${i + 1} up`} onClick={() => { const a = [...d.work]; [a[i - 1], a[i]] = [a[i]!, a[i - 1]!]; setD({ ...d, work: a }); }} />
               <Button type="text" icon={<DeleteOutlined />} aria-label={`Remove job ${i + 1}`} onClick={() => setD({ ...d, work: d.work.filter((_, j) => j !== i) })} />
             </div>
-            <Row><Field label="Job title"><Input value={w.title} onChange={(x) => setWork(i, { ...w, title: x.target.value })} /></Field><Field label="Company"><Input value={w.company} onChange={(x) => setWork(i, { ...w, company: x.target.value })} /></Field></Row>
+            <Row><Field label="Job title"><Input value={w.title} onChange={(x) => setWork(i, { ...w, title: x.target.value })} /></Field><Field label="Company" problem={bad(`/work/${i}/company`)}><Input status={badStatus(`/work/${i}/company`)} value={w.company} onChange={(x) => setWork(i, { ...w, company: x.target.value })} /></Field></Row>
             <Row><Field label="Job type"><Select allowClear value={w.employmentType ?? undefined} onChange={(v) => setWork(i, { ...w, employmentType: v ?? null })} options={TYPE_OPTIONS} /></Field><Field label="Location"><Input value={w.location ?? ''} onChange={(x) => setWork(i, { ...w, location: x.target.value || null })} /></Field></Row>
-            <Row><Field label="Start"><Input type="month" value={w.startDate?.length === 7 ? w.startDate : ''} onChange={(x) => setWork(i, { ...w, startDate: x.target.value || null })} /></Field><Field label="End"><Input type="month" disabled={w.current} value={w.endDate?.length === 7 ? w.endDate : ''} onChange={(x) => setWork(i, { ...w, endDate: x.target.value || null })} /></Field></Row>
+            <Row><Field label="Start"><Input type="month" value={w.startDate?.length === 7 ? w.startDate : ''} onChange={(x) => setWork(i, { ...w, startDate: x.target.value || null })} /></Field><Field label="End" problem={bad(`/work/${i}/endDate`)}><Input type="month" status={badStatus(`/work/${i}/endDate`)} disabled={w.current} value={w.endDate?.length === 7 ? w.endDate : ''} onChange={(x) => setWork(i, { ...w, endDate: x.target.value || null })} /></Field></Row>
             <Checkbox checked={w.current} onChange={(x) => setWork(i, { ...w, current: x.target.checked, endDate: x.target.checked ? null : w.endDate })}>I work here now</Checkbox>
             <span style={{ fontWeight: 600, fontSize: 13 }}>What you did</span>
             {w.bullets.map((b, k) => (
@@ -168,7 +185,7 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
     case 'skills':
       body = (<Space direction="vertical" size={12} style={{ width: '100%' }}>
         <Field label="Skills"><Select mode="tags" value={d.skills.map((s) => s.name)} options={SKILL_SUGGESTIONS.map((x) => ({ value: x, label: x }))}
-          onChange={(names: string[]) => setD({ ...d, skills: names.map((n) => d.skills.find((s) => s.name === n) ?? { name: n, years: null, source: 'user' as const }) })} /></Field>
+          onChange={(names: string[]) => setD({ ...d, skills: uniqueNames(names).map((n) => d.skills.find((s) => s.name === n) ?? { name: n, years: null, source: 'user' as const }) })} /></Field>
         {d.skills.map((s, i) => (
           <div key={s.name} className="jl-row"><span className="jl-grow">{s.name}</span>
             <InputNumber min={0} max={60} step={0.5} value={s.years ?? undefined} placeholder="Years" aria-label={`Years of ${s.name}`} onChange={(v) => setD({ ...d, skills: d.skills.map((x, j) => (j === i ? { ...x, years: v ?? null, source: 'user' } : x)) })} />
@@ -205,7 +222,8 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
     <Drawer open={!!block} width="min(760px, 94vw)" title={`Edit: ${BLOCKS.find((b) => b.id === block)?.label ?? ''}`} onClose={() => { void close(); }}
       footer={<div className="jl-row"><span className="jl-grow">{err ? '' : dirty ? <span style={{ color: 'var(--jl-warn)' }}>Unsaved changes</span> : <span className="jl-muted">No changes</span>}</span><Button shape="round" onClick={() => { void close(); }}>Cancel</Button><Button type="primary" shape="round" loading={busy} disabled={!dirty} onClick={() => { void save(); }}>Save</Button></div>}>
       {newer && <div style={{ marginBottom: 12 }}><ConflictNotice what="profile" busy={busy} onKeepMine={() => { setNewer(null); void save(true); }} onLoadNewer={() => { setCached('profile', () => newer); setD(toInput(newer)); openedVersion.current = newer.version; setNewer(null); }} /></div>}
-      {err && <div style={{ marginBottom: 12 }}><InlineError error={err} onRetry={() => { void save(); }} /><p className="jl-small" style={{ marginTop: 6 }}>Your changes are still here. Nothing was saved.</p></div>}
+      {problems.length > 0 && !err && <Alert type="error" showIcon style={{ marginBottom: 12 }} message="Fix these before saving. Your changes are still here." description={<ul style={{ margin: 0, paddingLeft: 18 }}>{problems.map((x) => <li key={x.path}>{x.message}</li>)}</ul>} />}
+      {err && <div style={{ marginBottom: 12 }}><InlineError error={err} onRetry={problems.length ? undefined : () => { void save(); }} />{problems.length > 1 && <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{problems.map((x) => <li key={x.path}>{x.message}</li>)}</ul>}<p className="jl-small" style={{ marginTop: 6 }}>Your changes are still here. Nothing was saved.</p></div>}
       {body}
     </Drawer>
   );
