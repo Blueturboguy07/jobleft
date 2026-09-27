@@ -71,6 +71,31 @@ export function cutOtherJobs(text: string): string {
   return text;
 }
 
+/** "Not a match for this role?", "Other roles available": a block that lists the employer's other roles starts. */
+const OTHER_ROLES_HEADING = /^\s*(?:#+\s*)?(?:not\s+(?:a\s+(?:match|fit)|(?:quite\s+)?(?:the\s+)?right\s+(?:fit|match|role))(?:\s+for\s+(?:this\s+(?:role|position|job|opening)|you))?|(?:other|more)\s+(?:roles?|positions?|openings?|jobs?)\s+(?:we\s+(?:are|re)\s+hiring\s+for|available|you\s+(?:could|can|might)\s+apply\s+(?:for|to)))\s*[?:.!]?\s*$/i;
+/** A heading after that block that is this job's own again ("General qualifications and requirements", "Pay Range"). */
+const OWN_HEADING = /^\s*(?:#+\s*)?(?:[\w&,'-]+\s+){0,3}(?:qualifications?|requirements?|pay|salary|compensation|schedule|shift|benefits|perks|responsibilities|duties|about\s+(?:the\s+)?(?:role|job|position|you|us)|what\s+you|who\s+you|how\s+to\s+apply)\b[^.!?]{0,40}:?\s*$/i;
+
+/**
+ * Removes a block that lists the employer's other roles with their own requirements ("Not a match for this role? We
+ * have a variety of paint roles ... - Experienced Painter (min 5 years ...)"), so those years and levels never become
+ * this job's (JL-feed-3). The block ends at the next heading of this job's own ("General qualifications and
+ * requirements", "Pay Range: ..."), so pay and statements after it stay. For years and level only.
+ */
+export function dropOtherRoles(text: string): string {
+  if (!text) return '';
+  const lines = text.split('\n');
+  const out: string[] = [];
+  let seen = 0;
+  let skipping = false;
+  for (const line of lines) {
+    if (!skipping && seen >= 1 && line.length <= 90 && OTHER_ROLES_HEADING.test(line)) { skipping = true; continue; }
+    if (skipping && line.length <= 80 && !/^\s*[-•*]/.test(line) && OWN_HEADING.test(line)) skipping = false;
+    if (!skipping) { out.push(line); if (line.trim()) seen++; }
+  }
+  return out.join('\n');
+}
+
 /** A short quote around [start, end) for evidence: whole words, at most `max` characters. */
 export function snippet(text: string, start: number, end: number, max = 240): string {
   const s = Math.max(0, start), e = Math.min(text.length, Math.max(end, s));

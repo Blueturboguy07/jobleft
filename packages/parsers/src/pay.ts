@@ -449,6 +449,9 @@ function contextKind(text: string, start: number, end: number, prevEnd: number, 
   return { kind, excluded, cue: kind !== 'none' };
 }
 
+/** The words between a figure and the same figure said another way: "(", "or", "=", "i.e.", "which is", "about". */
+const RESTATED = /^\s*(?:(?:[(\[]|or|=|i\.e\.,?|that\s+is|which\s+is|about|around|approx\.?|approximately|roughly|~)\s*)+$/i;
+
 const HEADING_CUE = /\b(?:pay|salary|salaries|compensation|wages?|rates?|remuneration|rémunération|salario|sueldo|gehalt|vergütung|pay\s+transparency|pay\s+range|pay\s+zones?|base\s+pay)\b/i;
 
 function headingCue(text: string, start: number): boolean {
@@ -465,13 +468,16 @@ function buildCandidates(text: string, opts: PayParseOptions): Cand[] {
   let prevEnd = 0;
   let prevKind: Kind = 'none';
   let prevCandEnd = -1;
+  let lastExcluded = false;
   for (const { a, b } of pairs) {
     const start = a.start;
     const last = b ?? a;
     const end = Math.max(last.periodEnd, last.end);
     const thisPrevEnd = prevEnd;
     prevEnd = end;
-    if (a.big || (b && b.big) || a.pct || (b && b.pct) || a.unit || (b && b.unit)) continue;
+    const afterExcluded = lastExcluded;
+    lastExcluded = false;
+    if (a.big || (b && b.big) || a.pct || (b && b.pct) || a.unit || (b && b.unit)) { lastExcluded = true; continue; }
     const marker = a.marker ?? b?.marker ?? null;
     let currency = resolveCurrency(marker, opts.country);
     // A marker right after the range ("80,000 - 95,000 (CAD)") names the currency of a bare "$".
@@ -501,6 +507,10 @@ function buildCandidates(text: string, opts: PayParseOptions): Cand[] {
     if (b && a.period && b.period && a.period !== b.period) continue;
     const explicit = period !== null;
     const ctx = contextKind(text, start, end, thisPrevEnd, opts.title);
+    // The same figure said again right after one that is not pay ("a quarterly sales quota of $165,000 ($55,000/month)")
+    // is not pay either (JL-feed-4).
+    if (!ctx.excluded && afterExcluded && RESTATED.test(text.slice(thisPrevEnd, start))) ctx.excluded = true;
+    lastExcluded = ctx.excluded;
     if (ctx.excluded) continue;
     // Tiers in one sentence share the first tier's kind: "OTE is $120K to $140K in Phoenix, $125K to $150K in Denver".
     if (ctx.kind === 'none' && prevCandEnd >= 0 && !/[.!?;\n]/.test(text.slice(prevCandEnd, start).replace(/\b(?:[A-Z]|[a-z]{1,3})\.(?=\s*[a-z0-9])/g, ''))) {

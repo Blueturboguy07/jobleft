@@ -68,6 +68,13 @@ export function startBoards(opts: { file: string; port?: number; logFile?: LogFi
     if (url.pathname === '/robots.txt') { res.writeHead(404); res.end(); return; }
     const page = b.pages?.[url.pathname];
     if (page !== undefined) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(page); return; }
+    if ((m = /^\/v1\/boards\/([^/]+)\/jobs\/([^/]+)$/.exec(url.pathname))) {
+      // One job, as the Greenhouse job endpoint answers it (the job pages themselves redirect).
+      const one = (b.greenhouse?.[decodeURIComponent(m[1]!)] as Array<{ id?: unknown }> | undefined)?.find((j) => String(j.id) === m![2]);
+      if (!one) { json(res, 404, { status: 404, error: 'Job not found' }); return; }
+      json(res, 200, one);
+      return;
+    }
     if ((m = /^\/v1\/boards\/([^/]+)\/jobs$/.exec(url.pathname))) {
       const jobs = b.greenhouse?.[decodeURIComponent(m[1]!)];
       if (!jobs) { json(res, 404, { status: 404, error: 'Job not found' }); return; }

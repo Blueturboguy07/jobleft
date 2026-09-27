@@ -14,8 +14,8 @@ import { getFeed, profileIsSet, setFeed, useCrawl, useFeed, useProfile, useTrack
 import { JobCard, type CardItem } from '../../components/JobCard.tsx';
 import { EmptyState, ErrorState, InlineError, SkeletonCards } from '../../components/States.tsx';
 import { VirtualList } from '../../components/VirtualList.tsx';
-import { activeCount, filterFromProfile } from '../../lib/filters.ts';
-import { plural } from '../../lib/format.ts';
+import { activeCount, filterFromProfile, noDataFilters, withoutNoDataFilters } from '../../lib/filters.ts';
+import { clipWords, plural, searchable } from '../../lib/format.ts';
 import { AllFiltersDrawer } from './AllFilters.tsx';
 import { useCardActions } from './cardActions.tsx';
 import { FilterBar } from './Filters.tsx';
@@ -29,7 +29,7 @@ export const GAP = 8;
 const PAGE = 100;
 
 export function toCard(i: JobListItem): CardItem {
-  return { job: i.job, match: i.match, liked: i.liked, hidden: i.hidden, trackerStatus: i.trackerStatus, networkCount: i.networkCount, h1bTag: i.h1bTag };
+  return { job: i.job, match: i.match, liked: i.liked, hidden: i.hidden, trackerStatus: i.trackerStatus, networkCount: i.networkCount, h1bTag: i.h1bTag, h1bNote: i.h1bNote ?? null };
 }
 
 interface Pages {
@@ -60,7 +60,9 @@ export function useJobPages(filter: JobFilter, sort: JobSort, q: string) {
       setSt({ items: r.items.map(toCard), total: r.total, next: r.nextCursor, loading: false, loadingMore: false, error: null, moreError: null, fit: r.fit });
     } catch (e) {
       if (my !== seq.current) return;
-      setSt((s) => ({ ...s, loading: false, error: e as UiError }));
+      // A new search that failed shows no results: the old list would sit under words it was not searched for
+      // (JL-feed-17). A quiet reload keeps what is on screen.
+      setSt((s) => ({ ...s, loading: false, error: e as UiError, ...(silent ? {} : { items: [], total: null, next: null }) }));
     }
   }, [body]);
 
@@ -132,6 +134,15 @@ export function Feed() {
   }, [seen]);
   useEffect(() => { if (progress && !progress.running) setNewJobs(false); }, [progress?.running]);
 
+  // Top matched while jobleft is still scoring jobs: the scored jobs come first; the order updates by itself while
+  // the list is at the top (JL-feed-6).
+  const indexing = st.fit?.state === 'indexing' ? st.fit.waiting : 0;
+  useEffect(() => {
+    if (!indexing) return;
+    const t = setTimeout(() => { if ((scrollRef.current?.scrollTop ?? 0) < 200) void load(true); }, 3000);
+    return () => clearTimeout(t);
+  }, [indexing, st.items]);
+
   // A saved filter brings back its search words too (none = no words), so it shows what was saved (JL-tracker-15).
   const applySaved = (s: SavedFilter) => { setFeed({ filter: s.filter, sort: s.sort, q: s.q ?? '', savedId: s.id, initialized: true }); scrollRef.current?.scrollTo({ top: 0 }); };
   const onFilter = (f: JobFilter) => { setFeed({ filter: f, initialized: true }); scrollRef.current?.scrollTo({ top: 0 }); };
@@ -143,7 +154,8 @@ export function Feed() {
   const savedApplied = saved.data?.find((x) => x.id === getFeed().savedId) ?? null;
 
   let body;
-  if (st.error && !st.items.length) body = <ErrorState error={st.error} onRetry={() => { void load(); }} />;
+  // A refused request (400) fails the same way again: no "Try again" for it.
+  if (st.error && !st.items.length) body = <ErrorState error={st.error} title={st.error.code === 'bad_request' ? 'This search could not run' : undefined} onRetry={st.error.code === 'bad_request' ? undefined : () => { void load(); }} />;
   else if (st.loading && !st.items.length) body = <SkeletonCards n={4} />;
   else if (!st.items.length) {
     if (progress?.running) body = <EmptyState art="search" title="Your job boards are being read" text={`Jobs appear here as each board finishes: ${progress.boardsDone} of ${plural(progress.boardsTotal, 'board')} done so far.`} />;
@@ -186,12 +198,24 @@ export function Feed() {
           <div className="jl-results-line">
             <span aria-live="polite" aria-atomic="true">
               {st.total !== null && <strong style={{ color: '#000' }}>{plural(st.total, 'job')}</strong>}
-              {feed.q.trim() && <> for “{feed.q.trim()}”</>}
+              {st.total !== null && feed.q.trim() && (searchable(feed.q)
+                ? <> for “{clipWords(feed.q.trim())}”</>
+                : <>: “{clipWords(feed.q.trim())}” has no letters or digits to search for, so no words were applied</>)}
               {savedApplied && <> · filter “{savedApplied.name}”</>}
             </span>
             {st.loading && st.items.length > 0 && <span className="jl-muted">Updating…</span>}
             {feed.q.trim() && <Button size="small" type="link" onClick={() => setFeed({ q: '' })}>Clear words</Button>}
           </div>
+          {noDataFilters(feed.filter).length > 0 && (
+            <Alert type="warning" showIcon style={{ marginBottom: 8 }}
+              message={`These filters ask for ${noDataFilters(feed.filter).join(', ')}, which jobleft does not know for any company yet, so they cannot pick jobs.`}
+              action={<Button size="small" onClick={() => onFilter(withoutNoDataFilters(feed.filter))}>Remove them</Button>} />
+          )}
+          {indexing > 0 && (
+            <Alert type="info" showIcon style={{ marginBottom: 8 }}
+              message={`jobleft is still scoring ${plural(indexing, 'job')} for you. They are listed after the scored jobs until their score is ready; the order updates by itself.`}
+              action={<Button size="small" onClick={() => { scrollRef.current?.scrollTo({ top: 0 }); void load(true); }}>Update now</Button>} />
+          )}
           {needsProfile && <Alert type="info" showIcon style={{ marginBottom: 8 }} message="Top matched needs your profile, so this list uses the recommended order." action={<Button size="small" onClick={() => navigate('profile')}>Add profile</Button>} />}
           {progress?.running && (
             <div className="jl-progress" role="status" style={{ marginBottom: 8 }}>

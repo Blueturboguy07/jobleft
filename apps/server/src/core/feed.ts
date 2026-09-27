@@ -20,50 +20,12 @@ import { ENGINE_VERSION, distanceFromPlaceIndex, scoreMatch, summarize } from '@
 import { h1bTagFor, type H1bIndex, type H1bLookupDetail, type H1bTag } from '@jobleft/static-data';
 import { ApiFailure } from '../errors.ts';
 import { companyKey } from '../interim/company-key.ts';
-import { contractJobId, toSummary, type CandidateRow, type JobsService, type SearchDeps } from '../interim/jobs.ts';
+import { contractJobId, familiesOfFunction, titleFamily, toSummary, type CandidateRow, type JobsService, type SearchDeps } from '../interim/jobs.ts';
+import { STATES, STATE_BY_NAME, STATE_NAME_RE, memo, statesIn } from './places.ts';
+
+export { statesIn };
 
 // ---------------------------------------------------------------- preferences
-
-const STATES: Record<string, string> = {
-  AL: 'alabama', AK: 'alaska', AZ: 'arizona', AR: 'arkansas', CA: 'california', CO: 'colorado', CT: 'connecticut', DE: 'delaware',
-  FL: 'florida', GA: 'georgia', HI: 'hawaii', ID: 'idaho', IL: 'illinois', IN: 'indiana', IA: 'iowa', KS: 'kansas', KY: 'kentucky',
-  LA: 'louisiana', ME: 'maine', MD: 'maryland', MA: 'massachusetts', MI: 'michigan', MN: 'minnesota', MS: 'mississippi',
-  MO: 'missouri', MT: 'montana', NE: 'nebraska', NV: 'nevada', NH: 'new hampshire', NJ: 'new jersey', NM: 'new mexico',
-  NY: 'new york', NC: 'north carolina', ND: 'north dakota', OH: 'ohio', OK: 'oklahoma', OR: 'oregon', PA: 'pennsylvania',
-  RI: 'rhode island', SC: 'south carolina', SD: 'south dakota', TN: 'tennessee', TX: 'texas', UT: 'utah', VT: 'vermont',
-  VA: 'virginia', WA: 'washington', WV: 'west virginia', WI: 'wisconsin', WY: 'wyoming', DC: 'district of columbia',
-};
-const STATE_BY_NAME = new Map(Object.entries(STATES).map(([c, n]) => [n, c]));
-const STATE_NAME_RE = new RegExp(`\\b(${[...STATE_BY_NAME.keys()].sort((a, b) => b.length - a.length).join('|')})\\b`, 'gi');
-// Big cities whose postings often omit the state.
-const CITY_STATE: Record<string, string> = {
-  houston: 'TX', dallas: 'TX', austin: 'TX', 'san antonio': 'TX', 'fort worth': 'TX', 'el paso': 'TX', plano: 'TX', irving: 'TX',
-  'new york city': 'NY', nyc: 'NY', manhattan: 'NY', brooklyn: 'NY', 'san francisco': 'CA', 'los angeles': 'CA', 'san diego': 'CA',
-  'san jose': 'CA', seattle: 'WA', chicago: 'IL', boston: 'MA', atlanta: 'GA', denver: 'CO', miami: 'FL', phoenix: 'AZ',
-  philadelphia: 'PA', detroit: 'MI', minneapolis: 'MN', nashville: 'TN', portland: 'OR', 'salt lake city': 'UT',
-};
-const CITY_RE = new RegExp(`\\b(${Object.keys(CITY_STATE).sort((a, b) => b.length - a.length).join('|')})\\b`, 'gi');
-
-function memo<T>(fn: (s: string) => T, max = 100_000): (s: string) => T {
-  const cache = new Map<string, T>();
-  return (s: string) => {
-    let v = cache.get(s);
-    if (v === undefined) { v = fn(s); if (cache.size >= max) cache.clear(); cache.set(s, v); }
-    return v;
-  };
-}
-
-/** US state codes a place text names ("Austin, TX", "Dallas, Texas", "Houston"). */
-export const statesIn = memo(statesInRaw);
-function statesInRaw(text: string): Set<string> {
-  const out = new Set<string>();
-  for (const m of text.matchAll(/(?:^|[,(/;|\s-])([A-Z]{2})(?=$|[\s,)/;|.-])/g)) if (STATES[m[1]!]) out.add(m[1]!);
-  for (const m of text.matchAll(STATE_NAME_RE)) out.add(STATE_BY_NAME.get(m[1]!.toLowerCase())!);
-  for (const m of text.matchAll(CITY_RE)) out.add(CITY_STATE[m[1]!.toLowerCase()]!);
-  // "Washington, DC" is DC, not the state.
-  if (/washington,?\s*d\.?c\.?/i.test(text)) { out.add('DC'); if (!/washington state|, wa\b/i.test(text)) out.delete('WA'); }
-  return out;
-}
 
 const LEVEL_WORDS = new Set(['senior', 'sr', 'junior', 'jr', 'lead', 'staff', 'principal', 'intern', 'internship', 'entry', 'mid', 'level', 'i', 'ii', 'iii', 'iv', 'head', 'chief', 'associate']);
 const STOP = new Set(['and', 'or', 'of', 'the', 'a', 'an', 'in', 'for', 'to', 'at', 'with', 'remote', 'hybrid', 'onsite', 'full', 'time', 'part', 'us']);
@@ -94,7 +56,7 @@ function titleWordsRaw(text: string): string[] {
   });
 }
 
-interface Target { label: string; words: string[]; weight: number }
+interface Target { label: string; words: string[]; weight: number; /** A job function's kinds of work: a title of one of them fits in full. */ families?: string[] }
 
 // Words that name a kind of role in many fields ("engineer", "manager"). They count half, so the distinctive word of a
 // target ("backend", "registered") decides the match.
@@ -179,7 +141,8 @@ export function prefModel(p: Profile, placeData: FeedPlaces | null = null): Pref
     const all = titleWords(t);
     for (const w of all) if (LEVEL_OF_WORD[w] && pr.levels.length === 0) levels.add(LEVEL_OF_WORD[w]!);
     const words = [...new Set(all.filter((w) => !LEVEL_WORDS.has(w) && !STOP.has(w)))];
-    if (words.length) targets.push({ label: t.trim(), words, weight });
+    const families = weight < 1 ? familiesOfFunction(t) : null;
+    if (words.length) targets.push({ label: t.trim(), words, weight, ...(families ? { families } : {}) });
   }
   // Places: a chosen city counts only within its radius of THAT city (its place id), never the whole state it is in
   // and never another city of the same name (JL-onboarding-17).
@@ -235,7 +198,7 @@ export function scoreRow(m: PrefModel, r: CandidateRow): Scored {
     let full = false;
     for (const t of m.targets) {
       const total = t.words.reduce((a, w) => a + wordWeight(w), 0);
-      const frac = t.words.filter((w) => have.has(w)).reduce((a, w) => a + wordWeight(w), 0) / total;
+      const frac = t.families?.includes(titleFamily(r.title)) ? 1 : t.words.filter((w) => have.has(w)).reduce((a, w) => a + wordWeight(w), 0) / total;
       const hit = frac * t.weight;
       if (hit > title) { title = hit; bestLabel = t.label; full = frac >= 0.999; }
     }
@@ -278,7 +241,16 @@ function clip(s: string): string { return s.length <= 60 ? s : s.slice(0, 59) + 
 
 // ---------------------------------------------------------------- the service
 
-interface Ranked { ids: number[]; scores: Map<number, Scored>; fit: Map<number, number>; at: number }
+interface Ranked {
+  ids: number[]; scores: Map<number, Scored>; fit: Map<number, number>; at: number;
+  /** Top Matched: jobs not scored yet (they follow the scored ones), and the fit index generation the order used. */
+  waiting: number; gen: number;
+}
+/**
+ * Match percents of the open jobs for one profile (Top Matched). Keyed by crawler row id; `h` is the posting's content
+ * hash, so a changed posting is scored again. `p` null = the job could not be scored.
+ */
+interface FitIndex { version: string; pct: Map<number, { h: string; p: number | null }>; gen: number; running: boolean }
 interface PCursor { p: 1; h: string; o: number }
 
 export interface FeedDeps {
@@ -293,6 +265,10 @@ export interface FeedDeps {
 type PlaceDistance = Parameters<typeof distanceFromPlaceIndex>[0];
 
 const TOP_MATCHED_POOL = 200;
+/** Top Matched: after the first TOP_MATCHED_POOL jobs, a search scores more jobs itself for at most this long. */
+const TOP_MATCHED_SYNC_MS = 250;
+/** The background fit index scores jobs in slices of this length, so other requests are served in between. */
+const FIT_SLICE_MS = 40;
 const EMPLOYER_CAP = 3;
 const EMPLOYER_WINDOW = 20;
 const EMPLOYER_LOOKAHEAD = 400;
@@ -335,13 +311,20 @@ export function spreadEmployers(ids: number[], companyOf: Map<number, string>, c
 export class FeedService {
   private readonly d: FeedDeps;
   private readonly ranked = new Map<string, Ranked>();
+  /** The key of the newest order for a search (Top Matched keeps one order per fit index generation while scoring). */
+  private readonly latest = new Map<string, string>();
   /** The cache key of the plain Recommended feed, never evicted. */
   private baseKey: string | null = null;
   private readonly matches = new Map<string, MatchResult>();
   private readonly h1bCache = new Map<string, H1bLookupDetail>();
   private h1bSet: { stamp: string; ids: number[] } | null = null;
+  private fitIdx: FitIndex | null = null;
+  private stopped = false;
 
   constructor(d: FeedDeps) { this.d = d; }
+
+  /** Stops the background fit index (the app is closing). */
+  stop(): void { this.stopped = true; }
 
   /** Changes whenever an open job is added, closed or merged, or a board leaves or rejoins the feed (the rank cache key). */
   private stamp(): string {
@@ -375,9 +358,12 @@ export class FeedService {
     return r;
   }
 
-  /** The sponsor tag of a job and its plain note (basis and data date). */
-  h1b(job: Pick<Job, 'company' | 'statements'>): { tag: H1bTag | null; note: string | null } {
-    const look = this.h1bLookup(job.company);
+  /**
+   * The sponsor tag of a job and its plain note (basis and data date). H-1B is a US visa: US filing history gives no
+   * tag to a job whose places are all outside the US (JL-feed-21); the posting's own words still do.
+   */
+  h1b(job: Pick<Job, 'company' | 'statements'> & { isUs?: boolean | null }): { tag: H1bTag | null; note: string | null } {
+    const look = job.isUs === false ? null : this.h1bLookup(job.company);
     const summary = look?.status === 'found' ? look.summary : null;
     const t = h1bTagFor(job.statements ?? null, summary);
     if (!t.tag) return { tag: null, note: null };
@@ -404,13 +390,13 @@ export class FeedService {
       for (const r of this.d.db.prepare(`SELECT rowid AS id FROM jobs_fts WHERE jobs_fts MATCH 'sponsor* OR visa OR h1b OR "h 1b"'`).all() as Array<{ id: number }>) cand.add(Number(r.id));
     } catch { /* no FTS: filing history only */ }
     const ids: number[] = [];
-    const st = this.d.db.prepare('SELECT j.company AS company, j.statements_json AS s FROM jobs j WHERE j.id = ? AND j.closed_at IS NULL AND j.duplicate_of IS NULL');
+    const st = this.d.db.prepare('SELECT j.company AS company, j.statements_json AS s, j.is_us AS is_us FROM jobs j WHERE j.id = ? AND j.closed_at IS NULL AND j.duplicate_of IS NULL');
     for (const id of [...cand].sort((a, b) => a - b)) {
-      const r = st.get(id) as { company: string; s: string | null } | undefined;
+      const r = st.get(id) as { company: string; s: string | null; is_us: number | null } | undefined;
       if (!r) continue;
       let statements: Job['statements'] | null = null;
       try { statements = r.s ? JSON.parse(r.s) : null; } catch { statements = null; }
-      const t = this.h1b({ company: r.company, statements: statements as Job['statements'] }).tag;
+      const t = this.h1b({ company: r.company, statements: statements as Job['statements'], isUs: r.is_us === null ? null : r.is_us === 1 }).tag;
       if (t === 'likely_by_history' || t === 'post_says_yes') ids.push(id);
     }
     this.h1bSet = { stamp, ids };
@@ -435,12 +421,21 @@ export class FeedService {
     const key = `${profile.version}|${job.id}|${job.contentHash}`;
     let m = this.matches.get(key);
     if (!m) {
-      const places = profile.preferences.places.length ? this.distance() : undefined;
-      try { m = scoreMatch({ profile, job, company: null, now: nowMs(), ...(places ? { distanceMiles: places } : {}) }) as MatchResult; } catch { return null; }
+      m = this.scoreOne(profile, job) ?? undefined;
+      if (!m) return null;
       if (this.matches.size > 50_000) this.matches.clear();
       this.matches.set(key, m);
     }
     return m;
+  }
+
+  /**
+   * One match of the engine, with the same inputs everywhere (the card, the detail and the Top Matched fit index), so
+   * the percent a job is ordered by is the percent it shows. Null when the job cannot be scored.
+   */
+  private scoreOne(profile: Profile, job: Job): MatchResult | null {
+    const places = profile.preferences.places.length ? this.distance() : undefined;
+    try { return scoreMatch({ profile, job, company: null, now: nowMs(), ...(places ? { distanceMiles: places } : {}) }) as MatchResult; } catch { return null; }
   }
 
   search(req: JobSearchRequest, deps: SearchDeps): JobSearchResponse {
@@ -460,7 +455,10 @@ export class FeedService {
       res = this.d.jobs.search(req, deps, restrict);
     }
     res.items = res.items.map((it) => this.decorate(it, profile, ranked));
-    if (personal) res.fit = { state: 'ready', waiting: 0, model: `jobleft-match ${ENGINE_VERSION}` };
+    if (personal) {
+      const waiting = ranked?.waiting ?? 0;
+      res.fit = { state: waiting > 0 ? 'indexing' : 'ready', waiting, model: `jobleft-match ${ENGINE_VERSION}` };
+    }
     res.tookMs = Math.round(performance.now() - t0);
     return res;
   }
@@ -482,12 +480,23 @@ export class FeedService {
     }
     // First page: a fresh order for the current data. Later pages: the order the first page used (kept in memory), so
     // paging never repeats or skips a job while a crawl adds jobs.
+    // Hidden jobs never appear and never count (JL-feed-11): the set of hidden jobs is part of the cached order's key,
+    // so a hide or an unhide gives a fresh order at once; a later page of an older order skips jobs hidden since.
+    const hidden = this.d.jobs.hiddenRowIds().sort((a, b) => a - b);
+    const hiddenKey = hidden.length ? createHash('sha256').update(hidden.join(',')).digest('hex').slice(0, 12) : '-';
     let ranked = cursor ? this.ranked.get(h) : undefined;
     if (!ranked) {
-      const full = `${key}:${this.stamp()}`;
+      const base = `${key}:${this.stamp()}:${hiddenKey}`;
+      let full = this.latest.get(base) ?? base;
       ranked = this.ranked.get(full);
+      // Top Matched while the fit index is still scoring: a first page takes the newer scores into its order (under
+      // a new key, so the pages of the older order keep their order).
+      if (ranked && ranked.waiting > 0 && ranked.gen !== (this.fitIdx?.gen ?? 0)) ranked = undefined;
       if (!ranked) {
         ranked = this.rank(req, profile, m, restrict);
+        full = ranked.waiting > 0 || this.latest.has(base) ? `${base}:${ranked.gen}` : base;
+        if (this.latest.size > 256) this.latest.clear();
+        this.latest.set(base, full);
         this.ranked.set(full, ranked);
         // The plain Recommended feed (no words, no filters) is the order every visit comes back to; a burst of
         // searches must not push it out (a re-rank of 100,000 jobs costs about 0.2 s; gate 9).
@@ -498,10 +507,12 @@ export class FeedService {
       h = full;
     }
     const limit = req.limit ?? 20;
-    const page = ranked.ids.slice(offset, offset + limit);
+    const hiddenNow = new Set(hidden);
+    const page = ranked.ids.slice(offset, offset + limit).filter((id) => !hiddenNow.has(id));
     const items = this.d.jobs.itemsFor(page, deps);
     const next = offset + limit < ranked.ids.length ? Buffer.from(JSON.stringify({ p: 1, h, o: offset + limit } satisfies PCursor)).toString('base64url') : null;
-    return { res: { items, total: ranked.ids.length, nextCursor: next, fit: { state: 'ready', waiting: 0, model: null }, tookMs: 0 }, ranked };
+    const total = hiddenNow.size ? ranked.ids.reduce((n, id) => n + (hiddenNow.has(id) ? 0 : 1), 0) : ranked.ids.length;
+    return { res: { items, total, nextCursor: next, fit: { state: 'ready', waiting: 0, model: null }, tookMs: 0 }, ranked };
   }
 
   private rank(req: JobSearchRequest, profile: Profile, m: PrefModel, restrict: number[] | null): Ranked {
@@ -514,6 +525,7 @@ export class FeedService {
     // The match engine scores the best preference candidates. Top Matched orders them by the match percent (the rest
     // follow, marked "not scored"); Recommended adds 0.3 x the percent to the preference score, so a better match
     // wins among jobs that fit the preferences alike, while a firm preference (title, place) still decides first.
+    if (req.sort === 'top_matched') return this.rankTopMatched(ids, scores, byPref, profile);
     const fit = new Map<number, number>();
     const pool = ids.slice(0, TOP_MATCHED_POOL);
     const idOf = this.d.db.prepare('SELECT ats, board, job_id FROM jobs WHERE id = ?');
@@ -525,19 +537,102 @@ export class FeedService {
     }
     const inPool = new Set(pool);
     const rest = ids.filter((id) => !inPool.has(id));
-    if (req.sort === 'top_matched') {
-      const scored = pool.filter((id) => fit.has(id)).sort((a, b) => (fit.get(b)! - fit.get(a)!) || byPref(a, b));
-      ids = [...scored, ...pool.filter((id) => !fit.has(id)), ...rest];
-    } else {
-      const key = (id: number) => scores.get(id)!.score + 0.3 * (fit.get(id) ?? 0);
-      ids = [...[...pool].sort((a, b) => (key(b) - key(a)) || byPref(a, b)), ...rest];
-      fit.clear();
-    }
+    const key = (id: number) => scores.get(id)!.score + 0.3 * (fit.get(id) ?? 0);
+    ids = [...[...pool].sort((a, b) => (key(b) - key(a)) || byPref(a, b)), ...rest];
+    fit.clear();
     // One employer never fills a screen: the top of the feed used to be six near-identical postings from one company
     // (gate 7 note; the founder's review on 2026-09-27). At most EMPLOYER_CAP jobs of one employer in every run of
     // EMPLOYER_WINDOW results; its other jobs keep their order further down.
     ids = spreadEmployers(ids, new Map(rows.map((r) => [r.id, r.company])));
-    return { ids, scores, fit, at: nowMs() };
+    return { ids, scores, fit, at: nowMs(), waiting: 0, gen: 0 };
+  }
+
+  /**
+   * Top Matched (JL-feed-6): every matching job in the order of its match percent, highest first, across all pages
+   * (ties by preference, then row id). The percent is the one the card and the detail show. Jobs the fit index has not
+   * scored yet follow the scored ones in preference order and are counted as `waiting`; the index scores them in the
+   * background, and the next first page puts them in their place. No employer spreading here: it would break the order.
+   */
+  private rankTopMatched(prefOrder: number[], scores: Map<number, Scored>, byPref: (a: number, b: number) => number, profile: Profile): Ranked {
+    const idx = this.fitIndexFor(profile);
+    const hashes = this.contentHashes();
+    const fit = new Map<number, number>();
+    const unscorable = new Set<number>();
+    const missing: number[] = [];
+    for (const id of prefOrder) {
+      const e = idx.pct.get(id);
+      if (e && e.h === hashes.get(id)) { if (e.p === null) unscorable.add(id); else fit.set(id, e.p); } else missing.push(id);
+    }
+    // The best preference candidates are scored now, then more while the time allows; the rest in the background.
+    const t0 = performance.now();
+    let k = 0;
+    for (; k < missing.length; k++) {
+      if (k >= TOP_MATCHED_POOL && performance.now() - t0 > TOP_MATCHED_SYNC_MS) break;
+      const id = missing[k]!;
+      const p = this.scoreInto(idx, profile, id, hashes.get(id) ?? '');
+      if (p === null) unscorable.add(id); else fit.set(id, p);
+    }
+    const waiting = missing.length - k;
+    if (waiting > 0) this.startFitIndex(profile);
+    const scored = prefOrder.filter((id) => fit.has(id)).sort((a, b) => (fit.get(b)! - fit.get(a)!) || byPref(a, b));
+    const ids = [...scored, ...prefOrder.filter((id) => !fit.has(id) && !unscorable.has(id)), ...prefOrder.filter((id) => unscorable.has(id))];
+    return { ids, scores, fit, at: nowMs(), waiting, gen: idx.gen };
+  }
+
+  /** The fit index of this profile (a new one when the profile or the month changes: the score counts months). */
+  private fitIndexFor(profile: Profile): FitIndex {
+    const version = `${profile.version}|${new Date(nowMs()).toISOString().slice(0, 7)}`;
+    if (!this.fitIdx || this.fitIdx.version !== version) this.fitIdx = { version, pct: new Map(), gen: (this.fitIdx?.gen ?? 0) + 1, running: false };
+    return this.fitIdx;
+  }
+
+  /** Content hash of every open job (crawler row id -> hash). */
+  private contentHashes(): Map<number, string> {
+    const out = new Map<number, string>();
+    for (const r of this.d.db.prepare('SELECT j.id AS id, j.content_hash AS h FROM srv_job_index x JOIN jobs j ON j.id = x.id').all() as Array<{ id: number; h: string }>) out.set(Number(r.id), String(r.h));
+    return out;
+  }
+
+  /** Scores one job for the profile and keeps only its percent in the index (null when it cannot be scored). */
+  private scoreInto(idx: FitIndex, profile: Profile, id: number, hash: string): number | null {
+    const r = this.d.db.prepare('SELECT ats, board, job_id FROM jobs WHERE id = ?').get(id) as { ats: string; board: string; job_id: string } | undefined;
+    const job = r ? this.job(contractJobId(r)) : null;
+    let p: number | null = null;
+    if (job) {
+      const cached = this.matches.get(`${profile.version}|${job.id}|${job.contentHash}`);
+      if (cached) p = cached.percent;
+      else p = this.scoreOne(profile, job)?.percent ?? null;
+    }
+    idx.pct.set(id, { h: hash || job?.contentHash || '', p });
+    return p;
+  }
+
+  /** Scores the open jobs the index lacks, in short slices between other requests, until all are done. */
+  private startFitIndex(profile: Profile): void {
+    const idx = this.fitIndexFor(profile);
+    if (idx.running || this.stopped) return;
+    idx.running = true;
+    let todo: Array<[number, string]> | null = null;
+    let at = 0;
+    const slice = () => {
+      try {
+        if (this.stopped || this.fitIdx !== idx) { idx.running = false; return; }
+        const cur = this.d.profile();
+        if (!cur || cur.version !== profile.version) { idx.running = false; return; }
+        if (!todo) todo = [...this.contentHashes()].filter(([id, h]) => idx.pct.get(id)?.h !== h);
+        const t0 = performance.now();
+        while (at < todo.length && performance.now() - t0 < FIT_SLICE_MS) {
+          const [id, h] = todo[at++]!;
+          if (idx.pct.get(id)?.h !== h) this.scoreInto(idx, profile, id, h);
+        }
+        idx.gen++;
+        if (at < todo.length) { setTimeout(slice, 0).unref?.(); return; }
+        idx.running = false;
+      } catch {
+        idx.running = false; // the database closed (restore, delete-all, shutdown): the next search starts again
+      }
+    };
+    setTimeout(slice, 0).unref?.();
   }
 
   /** Full facts, the match percent with its reasons, and the sponsor tag on one card. */
@@ -553,6 +648,8 @@ export class FeedService {
       const rowId = this.rowId(job.id);
       const pref = ranked && rowId !== null ? ranked.scores.get(rowId) : undefined;
       if (res) {
+        const idx = this.fitIdx;
+        if (idx && rowId !== null && idx.version.startsWith(`${profile.version}|`) && idx.pct.get(rowId)?.h !== job.contentHash) idx.pct.set(rowId, { h: job.contentHash, p: res.percent });
         const sum = summarize(res);
         const chips = [...(pref?.chips ?? []), ...sum.whyFit.filter((c) => !(pref?.chips ?? []).some((p) => p.kind === c.kind))];
         out.match = { ...sum, whyFit: chips.slice(0, 2) };

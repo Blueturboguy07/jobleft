@@ -17,23 +17,25 @@ import { confirmDiscard, dirtyLabels, ui, useLayer } from '../../app/layers.ts';
 import { navigate } from '../../app/router.ts';
 import { afterTrackerChange, profileIsSet, useH1bSource, useProfile } from '../../app/session.ts';
 import { openChat } from '../../components/chatStore.ts';
-import { NO_LINK_TEXT, realLink } from '../../lib/external.ts';
+import { NO_LINK_TEXT } from '../../lib/external.ts';
 import { IconAssistant, IconInterview, IconResume } from '../../components/Icons.tsx';
 import { CompanyMark, sponsorChip, sponsorTip } from '../../components/JobCard.tsx';
 import { BAND_WORD, bandOf, chipText, pct, type MatchResultX } from '../../components/Match.tsx';
 import { EmptyState, ErrorState, Loading } from '../../components/States.tsx';
 import {
-  ago, dateText, dateTimeText, levelsText, payConvertedText, payNotes, payText, statusLabel, textBlocks, typeText, workModelText, yearsText,
+  ago, dateText, dateTimeText, jobLink, levelsText, payConvertedText, payExactText, payNotes, payText, statusLabel, textBlocks, typeText, workModelText, yearsText,
 } from '../../lib/format.ts';
 import { CompanySection, NetworkSection, NotesSection, SecHead, SponsorSection } from './Panels.tsx';
 import { CoverLetterDrawer, GapsDrawer, TailorDrawer } from './Tools.tsx';
 
-function Fact({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
-  if (children === null || children === undefined || children === '') return null;
+/** One fact of the posting. `unknown` (JL-feed-10): what to say when the posting does not state it; without it, an unstated fact is left out. */
+function Fact({ icon, label, children, unknown }: { icon: ReactNode; label: string; children: ReactNode; unknown?: string }) {
+  const empty = children === null || children === undefined || children === '' || children === false;
+  if (empty && !unknown) return null;
   return (
     <div className="jl-fact" style={{ alignItems: 'flex-start', whiteSpace: 'normal' }}>
       <span aria-hidden="true" style={{ marginTop: 2 }}>{icon}</span>
-      <span><span className="jl-sr">{label}: </span>{children}</span>
+      <span><span className="jl-sr">{label}: </span>{empty ? <span className="jl-muted">{unknown}</span> : children}</span>
     </div>
   );
 }
@@ -184,9 +186,11 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
   const match = d.data.match as MatchResultX | null;
   const profileSet = profileIsSet(profile.data);
   const closed = job.status === 'closed';
-  const applyUrl = realLink(job.applyUrl) ?? realLink(job.url);
-  const pageUrl = realLink(job.url);
-  const sponsor = sponsorChip(h1bTag);
+  // A job pasted without a link has no page to open or copy (JL-feed-16: never the placeholder address).
+  const link = jobLink(job.url);
+  const applyUrl = jobLink(job.applyUrl) ?? link;
+  const h1bNote = (d.data as { h1bNote?: string }).h1bNote ?? null;
+  const sponsor = sponsorChip(h1bTag, h1bNote);
   const posted = job.postedAt ? `Posted ${ago(job.postedAt)}` : 'Posted date not listed';
   const blocks = textBlocks(job.description);
   const tools = [
@@ -255,8 +259,10 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
             <button type="button" role="tab" aria-selected={tab === 'overview'} className="jl-detail-tab" onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}>Overview</button>
             <button type="button" role="tab" aria-selected={tab === 'company'} className="jl-detail-tab" onClick={() => document.getElementById('sec-company-anchor')?.scrollIntoView({ behavior: 'smooth' })}>Company</button>
             <span style={{ marginLeft: 'auto' }} />
-            {pageUrl && <Button type="text" icon={<CopyOutlined />} onClick={() => { void navigator.clipboard?.writeText(pageUrl).then(() => ui.message?.success('Link copied.')); }}>Copy link</Button>}
-            {pageUrl && <Button type="text" icon={<FileTextOutlined />} href={pageUrl} target="_blank" rel="noopener noreferrer">Original posting</Button>}
+            {link ? (<>
+              <Button type="text" icon={<CopyOutlined />} onClick={() => { void navigator.clipboard?.writeText(link).then(() => ui.message?.success('Link copied.')); }}>Copy link</Button>
+              <Button type="text" icon={<FileTextOutlined />} href={link} target="_blank" rel="noopener noreferrer">Original posting</Button>
+            </>) : <span className="jl-small jl-muted">Pasted without a link</span>}
           </div>
 
           <section className="jl-detail-sec" aria-label="Job summary">
@@ -268,27 +274,27 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
                 </div>
                 <h1 style={{ fontSize: 24, fontWeight: 700, margin: '12px 0', overflowWrap: 'anywhere' }}>{job.title}</h1>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '8px 24px' }}>
-                  <Fact icon={<EnvironmentOutlined />} label="Location">{job.places.some((p) => p.text) ? <Places job={job} /> : <span className="jl-muted">Location not stated in the posting</span>}</Fact>
-                  <Fact icon={<HomeOutlined />} label="Work model">{workModelText(job)}</Fact>
-                  <Fact icon={<ClockCircleOutlined />} label="Job type">{typeText(job.employmentType)}</Fact>
-                  <Fact icon={<IdcardOutlined />} label="Level">{levelsText(job.levels)}</Fact>
-                  <Fact icon={<CalendarOutlined />} label="Experience">{yearsText(job.yearsRequired)}</Fact>
+                  <Fact icon={<EnvironmentOutlined />} label="Location" unknown="Place not stated">{job.places.some((p) => p.text) ? <Places job={job} /> : null}</Fact>
+                  <Fact icon={<HomeOutlined />} label="Work model" unknown="Work model not stated">{workModelText(job)}</Fact>
+                  <Fact icon={<ClockCircleOutlined />} label="Job type" unknown="Job type not stated">{typeText(job.employmentType)}</Fact>
+                  <Fact icon={<IdcardOutlined />} label="Level" unknown="Level not stated">{levelsText(job.levels)}</Fact>
+                  <Fact icon={<CalendarOutlined />} label="Experience" unknown="Years of experience not stated">{yearsText(job.yearsRequired)}</Fact>
                   <Fact icon={<ApartmentOutlined />} label="Department">{job.department}</Fact>
-                  <Fact icon={<DollarOutlined />} label="Pay">
+                  <Fact icon={<DollarOutlined />} label="Pay" unknown="Pay not listed in the posting">
                     {payText(job.pay) && (
                       <span>
                         {payText(job.pay)}
+                        {payExactText(job.pay) && <span className="jl-small jl-muted" style={{ display: 'block' }}>{payExactText(job.pay)}</span>}
                         {payConvertedText(job.pay) && <span className="jl-small jl-muted" style={{ display: 'block' }}>{payConvertedText(job.pay)}</span>}
                         {payNotes(job.pay).map((n) => <span key={n} className="jl-small jl-muted" style={{ display: 'block' }}>{n}</span>)}
                       </span>
                     )}
                   </Fact>
                 </div>
-                {!payText(job.pay) && <p className="jl-small jl-muted" style={{ marginTop: 8 }}>Pay: not listed in the posting.</p>}
                 <div className="jl-row jl-wrap" style={{ marginTop: 12 }}>
                   {/* A "no sponsorship" statement is a fact to know, not a plus: no green tick (JL-tracker-18). */}
-                  {sponsor && <Tooltip title={sponsorTip(h1bTag, h1bSrc)}><span className={`jl-fitchip${h1bTag === 'post_says_no' ? ' neg' : ''}`} tabIndex={0}><span className="tick" aria-hidden="true">{h1bTag === 'post_says_no' ? '•' : '✓'}</span>{sponsor.text}</span></Tooltip>}
-                  {match?.whyFit.filter((c) => !(sponsor && /sponsor/i.test(chipText(c)))).map((c, i) => (
+                  {sponsor && <Tooltip title={sponsorTip(h1bTag, h1bSrc, h1bNote)}><span className={`jl-fitchip${h1bTag === 'post_says_no' ? ' neg' : ''}`} tabIndex={0}><span className="tick" aria-hidden="true">{h1bTag === 'post_says_no' ? '•' : '✓'}</span>{sponsor.text}</span></Tooltip>}
+                  {match?.whyFit.filter((c) => !(sponsor && /sponsor|citizen|clearance/i.test(chipText(c)))).map((c, i) => (
                     <span key={i} className={`jl-fitchip${c.positive ? '' : ' neg'}`}><span className="tick" aria-hidden="true">{c.positive ? '✓' : '•'}</span>{chipText(c)}</span>
                   ))}
                 </div>
@@ -315,7 +321,7 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
             {blocks.length ? blocks.map((b, i) => b.kind === 'h' ? <h3 key={i}>{b.text}</h3> : b.kind === 'p' ? <p key={i}>{b.text}</p> : <ul key={i}>{b.items.map((x, j) => <li key={j}>{x}</li>)}</ul>)
               : <p className="jl-muted">The posting has no description text.</p>}
             <p className="jl-source" style={{ marginTop: 12 }}>
-              Seen on {job.sources.map((s, i) => <span key={s.sourceId + i}>{i > 0 && ', '}<a href={s.url} target="_blank" rel="noopener noreferrer">{s.name}</a>{s.credit && <> ({s.credit.text})</>}</span>)}. First seen by jobleft {dateText(job.firstSeenAt)}.
+              Seen on {job.sources.map((s, i) => <span key={s.sourceId + i}>{i > 0 && ', '}{jobLink(s.url) ? <a href={jobLink(s.url)!} target="_blank" rel="noopener noreferrer">{s.name}</a> : s.name}{s.credit && <> ({s.credit.text})</>}</span>)}. First seen by jobleft {dateText(job.firstSeenAt)}.
             </p>
           </section>
 

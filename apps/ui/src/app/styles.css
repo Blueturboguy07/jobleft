@@ -136,6 +136,8 @@ a { color: var(--jl-accent-ink); }
 .jl-filter-btn.ant-btn.active { background: var(--jl-accent-tint2); box-shadow: inset 0 0 0 1px rgba(4,122,82,0.35); font-weight: 600; }
 .jl-filter-btn.ant-btn:not(:disabled):hover { color: #000 !important; box-shadow: inset 0 0 0 1px #9AA0A6 !important; }
 .jl-results-line { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--jl-text2); min-height: 24px; }
+.jl-results-line { flex-wrap: wrap; }
+.jl-results-line > span { min-width: 0; overflow-wrap: anywhere; }
 
 .jl-card { position: relative; background: #fff; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--jl-line); display: flex; height: 232px; overflow: hidden; }
 .jl-card:hover { background: #FCFCFC; }

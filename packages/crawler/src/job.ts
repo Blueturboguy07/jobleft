@@ -7,10 +7,10 @@
 
 import * as parsers from '@jobleft/parsers';
 import {
-  annualize, htmlToText, isRemoteText, isUsLocation, levelFromDescription, levelFromTitle, parsePayFromText,
+  annualize, htmlToText, isRemoteText, isUsLocation, levelFromTitle, parseLevel, parsePayFromText,
 } from '@jobleft/parsers';
 import {
-  EXPERIENCE_LEVELS, ExperienceLevelSchema, PlaceSchema, PostingStatementsSchema, experienceLevelOf, isValid,
+  ExperienceLevelSchema, PlaceSchema, PostingStatementsSchema, isValid,
 } from '@jobleft/contracts';
 import type { EmploymentType, ExperienceLevel, FactEvidence, JobEvidence, Place, PostingStatements } from '@jobleft/contracts';
 import { canonicalizeUrl, cleanText, contentHash, dedupHash, normalizeCompany, normalizeTitle } from './normalize.ts';
@@ -39,7 +39,7 @@ function tryHook<T>(name: string, args: unknown[], check: (v: unknown) => v is T
  * board's stored validators are tied to it, so the next reading is a full one (not a 304) and every job is stored again
  * under the new rules.
  */
-export const NORMALIZER_VERSION = 3;
+export const NORMALIZER_VERSION = 4;
 
 /** Only absolute http(s) links survive; anything else (javascript:, file:, custom schemes, relative) is dropped. */
 export function httpUrl(v: string | null | undefined): string | null {
@@ -104,9 +104,6 @@ function isYears(v: unknown): v is { min: number | null; max: number | null } {
   const ok = (x: unknown) => x === null || (typeof x === 'number' && Number.isInteger(x) && x >= 0 && x <= 60);
   return ok(o.min) && ok(o.max) && !(o.min === null && o.max === null);
 }
-function isLevels(v: unknown): v is ExperienceLevel[] {
-  return Array.isArray(v) && v.every((x) => (EXPERIENCE_LEVELS as readonly string[]).includes(x as string));
-}
 
 /**
  * A key for "the same opening on another board": company, title, the places (in any order) and the posting's details
@@ -160,13 +157,18 @@ export function normalizeJob(board: BoardRef, raw: RawJob): Job | null {
   }
   const description = htmlToText(raw.descriptionHtml);
 
-  // Level: title first, description second; never a default.
-  let level = levelFromTitle(title);
-  let levelSource: Job['levelSource'] = level ? 'title' : null;
-  if (!level) {
-    level = levelFromDescription(description);
-    levelSource = level ? 'description' : null;
-  }
+  // Years and level (JL-feed-3, JL-feed-9): one reading gives both the level and the filter levels, from the title,
+  // the years the posting states and its own words, so the two never disagree. Years come from the posting's own
+  // sentence (kept as evidence), never from a block about other roles. A level read only from the kind of job
+  // ("Cashier", "Registered Nurse") with nothing in the posting behind it is not stated: it stays unknown.
+  const yearsRead = tryHook('parseYearsRequired', [description], isYears) as ({ min: number | null; max: number | null; evidence?: FactEvidence } | null);
+  const years = yearsRead ? { min: yearsRead.min, max: yearsRead.max } : null;
+  const employment = EMPLOYMENT[raw.employmentType] ?? null;
+  const read = parseLevel({ title, text: description, years: yearsRead, employmentType: employment });
+  const occupationOnly = read.evidence?.source === 'title' && levelFromTitle(title) === null;
+  const level = occupationOnly ? null : read.level;
+  const levels: ExperienceLevel[] = occupationOnly ? [] : read.levels;
+  const levelSource: Job['levelSource'] = !level ? null : read.evidence?.source === 'title' ? 'title' : 'description';
 
   // Pay: the board's pay field wins; otherwise the posting text (wage lines only). Never an estimate.
   let payMin: number | null = null, payMax: number | null = null;
@@ -192,25 +194,15 @@ export function normalizeJob(board: BoardRef, raw: RawJob): Job | null {
 
   const wm = workModelOf(raw.workMode, uniqueTexts, raw.workModeEvidence);
   const remote = raw.remote || raw.workMode === 'remote' || isRemoteText(location) || wm.workModel === 'remote';
-  const employment = EMPLOYMENT[raw.employmentType] ?? null;
 
-  const years = tryHook('parseYearsRequired', [description], isYears);
   const statementsHook = tryHook('parseStatements', [description], isStatements);
   const statements: PostingStatements = statementsHook
     ? { sponsorship: statementsHook.sponsorship, clearanceRequired: statementsHook.clearanceRequired, usCitizenOnly: statementsHook.usCitizenOnly }
     : { sponsorship: null, clearanceRequired: null, usCitizenOnly: null };
-  let levels: ExperienceLevel[] = level ? [experienceLevelOf(level)] : [];
-  const levelsHook = tryHook('levelsOf', [level, years], isLevels);
-  if (levelsHook && levelsHook.length > 0) levels = [...new Set(levelsHook)];
 
   const evidence: JobEvidence = {};
   if (payEvidence) evidence.pay = payEvidence;
-  if (level) {
-    // The evidence of a level read from the description is the line that level was read from (its years of
-    // experience), never the first line that merely says "year" ("16 hours of paid volunteer time per year").
-    const e = levelSource === 'title' ? ev('title', title) : ev('description', description.split('\n').find((l) => levelFromDescription(l) === level) ?? '');
-    if (e) evidence.level = e;
-  }
+  if (level && read.evidence) { const e = ev(read.evidence.source, read.evidence.text); if (e) evidence.level = e; }
   if (places.length > 0) { const e = ev('board_field', raw.location || uniqueTexts.join('; ')); if (e) evidence.places = e; }
   if (wm.workModel && wm.source) { const e = ev(wm.source, wm.evidence); if (e) evidence.workModel = e; }
   if (wm.remoteScope) { const e = ev(wm.source === 'board_field' ? 'board_field' : 'location_text', wm.remoteScope.text); if (e) evidence.remoteScope = e; }
@@ -222,7 +214,7 @@ export function normalizeJob(board: BoardRef, raw: RawJob): Job | null {
       if (statements[k] !== null && e && typeof e.text === 'string') evidence[k] = { source: 'description', text: e.text.slice(0, 500) };
     }
   }
-  if (years) { const e = ev('description', description.split('\n').find((l) => /years?/i.test(l)) ?? ''); if (e) evidence.years = e; }
+  if (years && yearsRead?.evidence) { const e = ev('description', yearsRead.evidence.text); if (e) evidence.years = e; }
 
   const job: Job = {
     ats: board.ats,

@@ -155,3 +155,16 @@ test('pay (O3): wage records, prevailing wages and third-party averages are not 
   for (const t of texts) assert.equal(parsePay(t)?.pay ?? null, null, t);
   assert.equal(parsePay('The base salary range for this role is $120,000 - $150,000 per year.')?.pay?.min, 120000, 'the job\'s own stated range still reads');
 });
+
+// JL-feed-4 (black-box feed finding): "Account Executive, SMB" got $55,000 a month ($660K a year) from its sales quota.
+test('pay (JL-feed-4): a sales quota, and the same figure said again in brackets, is never pay', () => {
+  const quota = '- Consistently meet or exceed a quarterly sales quota of $165,000 ($55,000/month).';
+  assert.equal(parsePay(quota)?.pay ?? null, null);
+  assert.equal(parsePay('Carry an annual quota of $1,200,000 (about $100,000 per month).')?.pay ?? null, null);
+  const posting = `${quota}\n- Close around 15 deals monthly, ranging from $5,000 to $20,000 each.\n\nAnnual Pay Range\n\n$120,000—$140,000 USD`;
+  const p = parsePay(posting)?.pay;
+  assert.deepEqual([p?.min, p?.max, p?.period], [120000, 140000, 'year']);
+  // A stated pay said again in another unit is still pay.
+  const r = parsePay('Base salary: $120,000 ($10,000/month).')?.pay;
+  assert.deepEqual([r?.min, r?.period], [120000, 'year']);
+});

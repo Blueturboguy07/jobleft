@@ -29,6 +29,12 @@ export const JOB_FUNCTION_SUGGESTIONS = [
   'Sales', 'Customer Success', 'Operations', 'Human Resources', 'Legal',
 ];
 
+/**
+ * How the minimum yearly pay filter decides (JL-feed-25): the top of a stated range counts, so a range can start
+ * below the amount ("$19.50-$60 an hour" passes $100K, its top being $124.8K a year).
+ */
+export const PAY_FILTER_NOTE = 'A job counts when the top of its stated pay range reaches this amount, so its range can start lower. Jobs with no stated pay are left out unless you tick the box above. Hourly pay counts as its yearly amount (2,080 hours). Pay in other currencies is not compared.';
+
 /** Removes empty lists and false switches so equal filters compare equal and saved filters stay small. */
 export function cleanFilter(f: JobFilter): JobFilter {
   const out: Record<string, unknown> = {};
@@ -103,6 +109,37 @@ export function suggestName(f: JobFilter): string {
   return (parts.join(', ') || 'My filter').slice(0, 120);
 }
 
+/**
+ * Filters on facts this build has for no job (company industry, stage, staffing agency). They can only match nothing
+ * (or, for an exclusion, change nothing), so the screens do not offer them; an older saved filter may still hold them.
+ */
+export function noDataFilters(f: JobFilter): string[] {
+  const out: string[] = [];
+  if (f.industries?.length) out.push('industry');
+  if (f.excludedIndustries?.length) out.push('industries to leave out');
+  if (f.companyStages?.length) out.push('company stage');
+  if (f.excludeStaffingAgencies) out.push('staffing agencies');
+  return out;
+}
+
+export function withoutNoDataFilters(f: JobFilter): JobFilter {
+  const { industries: _i, excludedIndustries: _e, companyStages: _c, excludeStaffingAgencies: _s, ...rest } = f;
+  return cleanFilter(rest);
+}
+
+/**
+ * The name of a place from the place list, with its region and (outside the US) its country, so that five towns
+ * called Austin read apart (JL-feed-5): "Austin, TX", "Portland, Victoria, Australia".
+ */
+export function placeLabel(p: { text: string; city?: string | null; region?: string | null; country?: string | null }): string {
+  const name = (p.city || p.text).trim();
+  let country: string | null = null;
+  if (p.country && p.country !== 'US') {
+    try { country = new Intl.DisplayNames(['en'], { type: 'region' }).of(p.country) ?? p.country; } catch { country = p.country; }
+  }
+  return [name, p.region?.trim() || null, country].filter(Boolean).join(', ');
+}
+
 /** The starting filter from the profile's preferences. */
 export function filterFromProfile(p: Profile | null | undefined): JobFilter {
   if (!p) return {};
@@ -117,6 +154,44 @@ export function filterFromProfile(p: Profile | null | undefined): JobFilter {
 export function toggle<T>(list: T[] | undefined, v: T): T[] {
   const l = list ?? [];
   return l.includes(v) ? l.filter((x) => x !== v) : [...l, v];
+}
+
+/** The filter-bar popovers. Each one owns some fields of the filter and the "include unknown" boxes of those fields. */
+export type FilterSection = 'location' | 'function' | 'level' | 'type' | 'model' | 'posted' | 'industry' | 'years' | 'pay';
+type UnknownKey = NonNullable<JobFilter['includeUnknown']>[number];
+const SECTION_FIELDS: Record<FilterSection, { keys: Array<keyof JobFilter>; unknown: UnknownKey[] }> = {
+  location: { keys: ['countries', 'places'], unknown: ['place'] },
+  function: { keys: ['jobFunctions'], unknown: [] },
+  level: { keys: ['levels'], unknown: ['level'] },
+  type: { keys: ['employmentTypes'], unknown: ['employmentType'] },
+  model: { keys: ['workModels'], unknown: ['workModel'] },
+  posted: { keys: ['postedWithin'], unknown: ['postedAt'] },
+  industry: { keys: ['industries'], unknown: [] },
+  years: { keys: ['maxYearsRequired'], unknown: ['years'] },
+  pay: { keys: ['minAnnualPayUsd'], unknown: ['pay'] },
+};
+
+/**
+ * The filter after one popover's Apply (JL-feed-1): the popover's own fields come from its draft, every other field
+ * from the filter in use at the moment of Apply. So an Apply never drops a filter set in another popover, even when
+ * the draft was copied from an older filter.
+ */
+export function applySection(current: JobFilter, draft: JobFilter, section: FilterSection): JobFilter {
+  const { keys, unknown } = SECTION_FIELDS[section];
+  const out: Record<string, unknown> = { ...current };
+  for (const k of keys) {
+    if (draft[k] === undefined) delete out[k];
+    else out[k] = draft[k];
+  }
+  const kept = (current.includeUnknown ?? []).filter((u) => !unknown.includes(u));
+  const mine = (draft.includeUnknown ?? []).filter((u) => unknown.includes(u));
+  out.includeUnknown = [...kept, ...mine];
+  return cleanFilter(out as JobFilter);
+}
+
+/** The filter without one popover's fields (its Reset button). */
+export function resetSection(f: JobFilter, section: FilterSection): JobFilter {
+  return applySection(f, {}, section);
 }
 
 export function withUnknown(f: JobFilter, key: NonNullable<JobFilter['includeUnknown']>[number], on: boolean): JobFilter {

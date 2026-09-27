@@ -15,8 +15,10 @@ import {
 } from '@jobleft/contracts';
 import { makeJobId } from '@jobleft/store';
 import { canonicalizeUrl } from '@jobleft/crawler';
+import { FAMILIES, familyOfTitle } from '@jobleft/match';
 import { ApiFailure } from '../errors.ts';
 import { companyKey } from './company-key.ts';
+import { placeMatches } from '../core/places.ts';
 
 export interface JobRow {
   id: number;
@@ -64,6 +66,64 @@ const EMPLOYMENT_SET = new Set<string>((EmploymentTypeSchema.enum ?? []) as read
 const CLOSED_REASONS = new Set(['unseen', 'board_empty', 'source_removed', 'user']);
 const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 const ATS_LABEL: Record<string, string> = { greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workable: 'Workable', recruitee: 'Recruitee', personio: 'Personio' };
+/**
+ * Remote areas (RemoteScope.regions) that include a country: a job "Remote - EMEA" is open to people in Germany.
+ * WORLDWIDE includes every country.
+ */
+const AREAS_OF_COUNTRY: Record<string, string[]> = {
+  CA: ['NA'], MX: ['NA', 'LATAM'], GB: ['EMEA'], IE: ['EU', 'EMEA'], DE: ['EU', 'EMEA'], FR: ['EU', 'EMEA'], NL: ['EU', 'EMEA'], ES: ['EU', 'EMEA'],
+  IT: ['EU', 'EMEA'], PL: ['EU', 'EMEA'], SE: ['EU', 'EMEA'], DK: ['EU', 'EMEA'], PT: ['EU', 'EMEA'], AU: ['APAC'], NZ: ['APAC'], SG: ['APAC'],
+  IN: ['APAC'], JP: ['APAC'], KR: ['APAC'], BR: ['LATAM'], AR: ['LATAM'], CO: ['LATAM'], AE: ['EMEA'], IL: ['EMEA'],
+};
+/** A JSON column read as JSON only when it is valid (json_each on broken text would fail the whole search). */
+const jsonOr = (col: string, path: string | null, fallback: string) =>
+  `CASE WHEN json_valid(${col}) THEN ${path ? `json_extract(${col}, '${path}')` : col} ELSE '${fallback}' END`;
+/** Role type from the level the posting states: people managers and above, or individual contributors. */
+const ROLE_LEVELS: Record<'ic' | 'manager', string[]> = {
+  manager: ['manager', 'director', 'vp', 'exec'],
+  ic: ['intern', 'entry', 'mid', 'senior', 'staff', 'principal'],
+};
+
+/**
+ * Job functions (the onboarding and filter choices) as kinds of work in the match lane's title taxonomy (JL-feed-8,
+ * JL-onboarding-28): "Software Engineering" is every title that names software work ("Backend Developer", "SWE II",
+ * "Site Reliability Engineer"), not only titles with those two words. A family's own label or id works too.
+ */
+const FUNCTION_FAMILIES: Record<string, string[]> = {
+  'software engineering': ['software'], 'software': ['software'], 'engineering': ['software', 'engineering'],
+  'data and analytics': ['data', 'business_analysis'], 'data': ['data', 'business_analysis'], 'analytics': ['data', 'business_analysis'],
+  'product': ['product'], 'product management': ['product'], 'design': ['design'],
+  'nursing': ['nursing'], 'healthcare': ['nursing', 'health_support', 'health_clinical', 'health_admin'],
+  'health care': ['nursing', 'health_support', 'health_clinical', 'health_admin'],
+  'accounting and finance': ['accounting', 'finance', 'payroll'], 'accounting': ['accounting', 'payroll'], 'finance': ['finance', 'accounting'],
+  'marketing': ['marketing'], 'sales': ['sales', 'sales_eng'], 'customer success': ['support'], 'customer service': ['support'],
+  'operations': ['operations', 'logistics'], 'human resources': ['hr', 'payroll'], 'hr': ['hr', 'payroll'], 'legal': ['legal'],
+  'education': ['teaching', 'childcare', 'training'], 'teaching': ['teaching'],
+};
+const functionKey = (s: string) => s.toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+const FAMILY_BY_NAME = new Map<string, string>();
+for (const [id, f] of FAMILIES) { FAMILY_BY_NAME.set(functionKey(id), id); FAMILY_BY_NAME.set(functionKey(f.label), id); }
+
+/** The title families a job function stands for, or null when it names none (then its words must be in the title). */
+export function familiesOfFunction(fn: string): string[] | null {
+  const k = functionKey(fn);
+  if (FUNCTION_FAMILIES[k]) return FUNCTION_FAMILIES[k]!;
+  const one = FAMILY_BY_NAME.get(k);
+  return one ? [one] : null;
+}
+
+const familyMemo = new Map<string, string>();
+/** The kind of work a title names ('' when the taxonomy cannot tell). */
+export function titleFamily(title: string): string {
+  let f = familyMemo.get(title);
+  if (f === undefined) {
+    try { f = familyOfTitle(title)?.family ?? ''; } catch { f = ''; }
+    if (familyMemo.size > 200_000) familyMemo.clear();
+    familyMemo.set(title, f);
+  }
+  return f;
+}
+
 /** The link of a pasted job with no link: a reserved name that never resolves (RFC 2606). The UI shows "no link". */
 export const NO_LINK_HOST = 'jobleft.invalid';
 
@@ -107,7 +167,10 @@ function snippetOf(text: string): string {
 export function rowToJob(r: CrawlRow): Job {
   const external = r.ats === 'external';
   const id = contractJobId(r);
-  const url = httpUrl(r.canonical_url) ?? `https://${NO_LINK_HOST}/job/${encodeURIComponent(id)}`;
+  // The link as the person or the board gave it (JL-feed-13: an http link stays http); the canonical form is only the
+  // key that finds the same posting again.
+  const canonical = httpUrl(r.canonical_url);
+  const url = httpUrl(r.page_url) ?? canonical ?? `https://${NO_LINK_HOST}/job/${encodeURIComponent(id)}`;
   const apply = httpUrl(r.apply_url);
   const level = r.level && LEVEL_SET.has(r.level) ? (r.level as Level) : null;
   const employment = r.employment_type && EMPLOYMENT_SET.has(r.employment_type) ? (r.employment_type as Job['employmentType']) : null;
@@ -126,7 +189,7 @@ export function rowToJob(r: CrawlRow): Job {
     externalId: external ? null : r.job_id,
     url,
     applyUrl: apply && apply !== url ? apply : null,
-    canonicalUrl: url,
+    canonicalUrl: canonical ?? url,
     places: r.location ? [{ text: r.location, city: null, region: null, country: null, placeId: null }] : [],
     isUs: r.is_us === null ? null : r.is_us === 1,
     workModel: workModelOf(r),
@@ -172,7 +235,7 @@ const SELECT = `SELECT j.*, d.ats AS d_ats, d.board AS d_board, d.job_id AS d_jo
   LEFT JOIN srv_tracker t ON t.job_id = (lower(j.ats) || ':' || lower(j.board) || ':' || j.job_id)`;
 
 // levels_json, years_min and years_max are crawler columns (SELECT j.*) that JobRow's type does not list yet.
-type CrawlRow = JobRow & { levels_json?: string | null; years_min?: number | null; years_max?: number | null };
+type CrawlRow = JobRow & { levels_json?: string | null; years_min?: number | null; years_max?: number | null; page_url?: string | null };
 type Row = CrawlRow & { t_liked: number | null; t_hidden: number | null; t_status: string | null; sort_key?: number | null };
 
 interface Cursor { s: string; h: string; k: number | null; i: number }
@@ -195,11 +258,20 @@ function levelsOf(levelsJson: string | null | undefined, level: Level | null): E
   return level ? [experienceLevelOf(level)] : [];
 }
 
-/** Words for FTS5, each quoted as a phrase (operators and quotes are words, never syntax). */
+/**
+ * Words for FTS5, each quoted as a phrase (operators are words, never syntax). Words in quotes ("data analyst") must
+ * appear together in that order (JL-feed-18); every other word must appear somewhere in the posting.
+ */
 function ftsQuery(q: string): { match: string | null; exact: string[] } {
-  const words = q.split(/\s+/).map((w) => w.trim()).filter(Boolean).slice(0, 20);
   const tokens: string[] = [];
   const exact: string[] = [];
+  const words: string[] = [];
+  for (const m of q.matchAll(/["“”]([^"“”]*)["“”]|(\S+)/g)) {
+    if (tokens.length + words.length >= 20) break;
+    if (m[1] === undefined) { words.push(m[2]!); continue; }
+    const inner = m[1].replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    if (inner) tokens.push(`"${inner}"`);
+  }
   for (const raw of words) {
     const w = raw.replace(/^["'“”‘’]+|["'“”‘’,;:!?]+$/g, '');
     const inner = w.replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -224,6 +296,8 @@ export class JobsService {
   constructor(db: DatabaseSync) {
     this.db = db;
     db.function('jl_company_key', { deterministic: true }, (s: unknown) => companyKey(String(s ?? '')));
+    db.function('jl_title_family', { deterministic: true }, (s: unknown) => titleFamily(String(s ?? '')));
+    db.function('jl_place_match', { deterministic: true }, (loc: unknown, q: unknown) => (placeMatches(String(loc ?? ''), String(q ?? '')) ? 1 : 0));
     this.ensureIndexes();
   }
 
@@ -277,7 +351,7 @@ export class JobsService {
   }
 
   /** Crawler row ids of the jobs the person hid. */
-  private hiddenRowIds(): number[] {
+  hiddenRowIds(): number[] {
     const out: number[] = [];
     for (const r of this.db.prepare('SELECT job_id FROM srv_tracker WHERE hidden = 1').all() as Array<{ job_id: string }>) {
       const row = this.getRow(r.job_id);
@@ -385,15 +459,24 @@ export class JobsService {
     if (filter.countries?.length) {
       const parts: string[] = [];
       if (filter.countries.includes('US')) parts.push('x.is_us = 1');
-      if (filter.countries.some((c) => c !== 'US')) parts.push('x.is_us = 0');
+      // Other countries (JL-feed-2): a place of the job is in one of them, or its remote area is open to people there.
+      // "Not in the US" is not a country: a job whose places name no country never matches.
+      const others = [...new Set(filter.countries.filter((c) => c !== 'US'))];
+      if (others.length) {
+        parts.push(`x.id IN (SELECT j.id FROM jobs j, json_each(${jsonOr('j.places_json', null, '[]')}) p WHERE json_extract(p.value, '$.country') IN (${others.map(() => '?').join(',')}))`);
+        args.push(...others);
+        const areas = [...new Set([...others, 'WORLDWIDE', ...others.flatMap((c) => AREAS_OF_COUNTRY[c] ?? [])])];
+        parts.push(`x.id IN (SELECT j.id FROM jobs j, json_each(${jsonOr('j.remote_scope_json', '$.regions', '[]')}) r WHERE r.value IN (${areas.map(() => '?').join(',')}))`);
+        args.push(...areas);
+      }
       if (unknownOk.has('place')) parts.push('x.is_us IS NULL');
       where.push(`(${parts.join(' OR ')})`);
     }
     if (filter.places?.length) {
-      const parts = filter.places.map(() => 'instr(lower(x.location), ?) > 0');
-      // The city part of the text: a chosen place is saved with its state or country ("Austin, TX"), and postings
-      // write it in many ways ("Austin, Texas").
-      args.push(...filter.places.map((p) => (p.text.split(',')[0] ?? p.text).trim().toLowerCase() || p.text.toLowerCase()));
+      // A chosen place is saved with its state or country ("Austin, TX") and postings write it in many ways ("Austin,
+      // Texas", "Austin"): jl_place_match reads the city and its region apart, so "Austin, MN" is not "Austin, TX".
+      const parts = filter.places.map(() => 'jl_place_match(x.location, ?) = 1');
+      args.push(...filter.places.map((p) => p.text));
       if (unknownOk.has('place')) parts.push("x.location = ''");
       where.push(`(${parts.join(' OR ')})`);
     }
@@ -407,8 +490,14 @@ export class JobsService {
     }
     for (const t of filter.excludedTitles ?? []) { where.push('instr(lower(x.title), ?) = 0'); args.push(t.toLowerCase()); }
     if (filter.jobFunctions?.length) {
-      where.push(`(${filter.jobFunctions.map(() => 'instr(lower(x.title), ?) > 0').join(' OR ')})`);
-      args.push(...filter.jobFunctions.map((f) => f.toLowerCase()));
+      // A listed field matches every title that names that kind of work; other typed words must be in the title.
+      const parts: string[] = [];
+      for (const f of filter.jobFunctions) {
+        const fams = familiesOfFunction(f);
+        if (fams) { parts.push(`jl_title_family(x.title) IN (${fams.map(() => '?').join(',')})`); args.push(...fams); }
+        else { parts.push('instr(lower(x.title), ?) > 0'); args.push(f.toLowerCase()); }
+      }
+      where.push(`(${parts.join(' OR ')})`);
     }
     for (const sk of filter.skills ?? []) {
       const m = fts(sk);
@@ -444,7 +533,19 @@ export class JobsService {
     }
     if (restrictIds) { where.push('x.id IN (SELECT value FROM json_each(?))'); args.push(JSON.stringify(restrictIds)); }
     else if (filter.h1bSponsorship) nothing();
-    if (filter.industries?.length || filter.companyStages?.length || filter.roleTypes?.length) nothing();
+    // Role type from the stated level (JL-feed-7); a job with no stated level, or a "lead" (which may or may not manage
+    // people), is not judged and so is left out.
+    if (filter.roleTypes?.length) {
+      const lv = [...new Set(filter.roleTypes.flatMap((r) => ROLE_LEVELS[r] ?? []))];
+      where.push(lv.length ? `x.level IN (${lv.map(() => '?').join(',')})` : '0');
+      args.push(...lv);
+    }
+    // Limits the posting states in its own words: only a posting that says so is left out.
+    if (filter.excludeClearanceRequired) where.push(`x.id NOT IN (SELECT id FROM jobs WHERE json_extract(${jsonOr('statements_json', null, '{}')}, '$.clearanceRequired') = 1)`);
+    if (filter.excludeUsCitizenOnly) where.push(`x.id NOT IN (SELECT id FROM jobs WHERE json_extract(${jsonOr('statements_json', null, '{}')}, '$.usCitizenOnly') = 1)`);
+    // Industry and company stage come from company facts, which this build has for no company: they match nothing
+    // rather than pass an unknown (the screens do not offer them; an old saved filter says so).
+    if (filter.industries?.length || filter.companyStages?.length) nothing();
 
     // Jobs the person hid never appear: a short list of row ids (hidden jobs are few).
     const hidden = this.hiddenRowIds();

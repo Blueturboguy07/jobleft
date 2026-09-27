@@ -7,11 +7,11 @@ import { Tooltip } from '../../components/Tip.tsx';
 import { RightOutlined, DeleteOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import type { JobFilter, JobSort, SavedFilter } from '@jobleft/contracts';
 import {
-  JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, STAGE_OPTIONS, TYPE_OPTIONS, COUNTRY_OPTIONS,
-  cleanFilter, sameFilter, summaryChips, toggle,
+  JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, COUNTRY_OPTIONS,
+  PAY_FILTER_NOTE, cleanFilter, sameFilter, summaryChips, toggle,
 } from '../../lib/filters.ts';
 import { countrySort } from '../../lib/countries.ts';
-import { INDUSTRY_SUGGESTIONS, PlacePicker, SKILL_SUGGESTIONS, UnknownBox } from './Filters.tsx';
+import { PlacePicker, SKILL_SUGGESTIONS, UnknownBox } from './Filters.tsx';
 import { call } from '../../app/api.ts';
 import { confirmDiscard, ui } from '../../app/layers.ts';
 
@@ -19,8 +19,8 @@ type Group = 'basics' | 'pay' | 'interests' | 'companies';
 const GROUPS: Array<{ id: Group; t: string; s: string }> = [
   { id: 'basics', t: 'Basics', s: 'Job function, type, work model, place, level, years, date' },
   { id: 'pay', t: 'Pay and visa', s: 'Minimum yearly pay, H-1B, limits' },
-  { id: 'interests', t: 'Interests', s: 'Industry, skill, role type' },
-  { id: 'companies', t: 'Companies', s: 'Include, exclude, stage, staffing agencies' },
+  { id: 'interests', t: 'Interests', s: 'Skill, role type' },
+  { id: 'companies', t: 'Companies', s: 'Include, exclude' },
 ];
 
 function Box({ title, children, clear, help }: { title: string; children: ReactNode; clear?: () => void; help?: string }) {
@@ -201,7 +201,7 @@ export function AllFiltersDrawer({ open, onClose, filter, sort, saved, onApply, 
           <Slider min={20000} max={300000} step={5000} value={draft.minAnnualPayUsd} onChange={(v) => set({ minAnnualPayUsd: v })} aria-label="Minimum yearly pay" tooltip={{ formatter: (v) => `$${Math.round((v ?? 0) / 1000)}K` }} />
         </>)}
         <UnknownBox f={draft} k="pay" onChange={setDraft} />
-        <p className="jl-note">Jobs with no stated pay are left out unless you tick the box above. Hourly pay counts as its yearly amount (2,080 hours). Pay in other currencies is not compared.</p>
+        <p className="jl-note">{PAY_FILTER_NOTE}</p>
       </Box>
       <Box title="Visa sponsorship" help="Past filings are public US Department of Labor data. They show a company has sponsored H-1B workers; they do not promise sponsorship for a role.">
         <label className={`jl-choice${draft.h1bSponsorship ? ' on' : ''}`}><Checkbox checked={!!draft.h1bSponsorship} onChange={(e) => set({ h1bSponsorship: e.target.checked })} /> H-1B sponsor likely</label>
@@ -214,12 +214,6 @@ export function AllFiltersDrawer({ open, onClose, filter, sort, saved, onApply, 
       </Box>
     </>),
     interests: (<>
-      <Box title="Industry" clear={() => set({ industries: [], excludedIndustries: [] })}>
-        <Select mode="tags" value={draft.industries ?? []} onChange={(v) => set({ industries: v })} options={INDUSTRY_SUGGESTIONS.map((x) => ({ value: x, label: x }))} placeholder="Add an industry" aria-label="Industries" />
-        <span className="jl-small jl-muted">Leave out these industries</span>
-        <Select mode="tags" value={draft.excludedIndustries ?? []} onChange={(v) => set({ excludedIndustries: v })} options={INDUSTRY_SUGGESTIONS.map((x) => ({ value: x, label: x }))} placeholder="Add an industry to leave out" aria-label="Excluded industries" />
-        <p className="jl-note">Uses company facts. With an industry chosen, jobs at companies whose industry is unknown are left out.</p>
-      </Box>
       <Box title="Skill" clear={() => set({ skills: [], excludedSkills: [] })}>
         <Select mode="tags" value={draft.skills ?? []} onChange={(v) => set({ skills: v })} options={SKILL_SUGGESTIONS.map((x) => ({ value: x, label: x }))} placeholder="Jobs that name any of these skills" aria-label="Skills" />
         <span className="jl-small jl-muted">Leave out jobs that name these skills</span>
@@ -227,21 +221,18 @@ export function AllFiltersDrawer({ open, onClose, filter, sort, saved, onApply, 
       </Box>
       <Box title="Role type" clear={() => set({ roleTypes: [] })}>
         <Tiles options={[{ value: 'ic', label: 'Individual contributor' }, { value: 'manager', label: 'Manager' }]} value={draft.roleTypes} onChange={(v) => set({ roleTypes: v })} label="Role type" />
+        <p className="jl-note">Uses the level the posting states: managers, directors and executives are Manager; interns to principals are Individual contributor. Jobs with no stated level, and leads, are left out while this is on.</p>
       </Box>
+      <p className="jl-note">Industry is not offered: jobleft has no industry facts for these companies yet, so the filter could only match nothing.</p>
     </>),
     companies: (<>
       <Box title="Only these companies" clear={() => set({ companies: [] })}>
         <CompanyPicker value={draft.companies ?? []} onChange={(v) => set({ companies: v })} label="Add a company to include" />
       </Box>
-      <Box title="Company stage" clear={() => set({ companyStages: [] })} help="From company facts. Companies with an unknown stage are left out while this is on.">
-        <Tiles options={STAGE_OPTIONS} value={draft.companyStages} onChange={(v) => set({ companyStages: v })} label="Company stage" />
-      </Box>
-      <Box title="Staffing agencies">
-        <label className={`jl-choice${draft.excludeStaffingAgencies ? ' on' : ''}`}><Checkbox checked={!!draft.excludeStaffingAgencies} onChange={(e) => set({ excludeStaffingAgencies: e.target.checked })} /> Leave out staffing agencies</label>
-      </Box>
       <Box title="Leave out these companies" clear={() => set({ excludedCompanies: [] })}>
         <CompanyPicker value={draft.excludedCompanies ?? []} onChange={(v) => set({ excludedCompanies: v })} label="Add a company to leave out" />
       </Box>
+      <p className="jl-note">Company stage and staffing agency are not offered: jobleft has no such facts for these companies yet, so those filters could only match nothing.</p>
     </>),
   };
 

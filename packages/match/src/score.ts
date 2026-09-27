@@ -70,6 +70,15 @@ function saidOf(quote: string): string {
   return quote ? `(${q(quote)})` : '(from the job data; no quote from the posting text)';
 }
 
+/** A quote of at most `max` characters, cut at a word and marked with "…" when cut. */
+function clipQuote(s: string, max = 160): string {
+  const t = s.replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max - 1);
+  const sp = cut.lastIndexOf(' ');
+  return `${(sp > max * 0.6 ? cut.slice(0, sp) : cut).replace(/[\s,;:.-]+$/, '')}…`;
+}
+
 function article(word: string): string {
   return /^[aeiou]/i.test(word) ? 'an' : 'a';
 }
@@ -259,9 +268,16 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
   const levelFromYearsOnly = jf.levelSource === 'years';
   if (jf.level && !levelFromYearsOnly) {
     const jobOrd = LEVEL_ORD[scale][jf.level];
+    // JL-tracker-16: a level that came with the job from the years it asks for says so and quotes that line; a board's
+    // own level field quotes the board. JL-feed-23: only the title is quoted as the title; a level the posting states in
+    // its text quotes that sentence, cut at a word to at most 160 characters (it once quoted a 450-character paragraph
+    // as the "title").
     const fromBoard = jf.levelSource === 'job' && jf.job.evidence?.level?.source === 'board_field';
-    const levelSrc = jf.levelFromPostingYears ? `from the years it asks for${jf.levelEvidence ? `, ${q(jf.levelEvidence)}` : ''}`
-      : fromBoard ? `the job board says ${q(jf.levelEvidence ?? '')}` : jf.levelSource === 'title' || jf.levelSource === 'job' ? `title ${q(jf.job.title)}` : q(jf.levelEvidence ?? '');
+    const fromTitle = jf.levelSource === 'title' || (jf.levelSource === 'job' && !fromBoard && (!jf.levelEvidence || jf.levelEvidence === jf.job.title));
+    const levelSrc = jf.levelFromPostingYears ? `from the years it asks for${jf.levelEvidence ? `; the posting says ${q(clipQuote(jf.levelEvidence))}` : ''}`
+      : fromBoard ? `the job board says ${q(clipQuote(jf.levelEvidence ?? ''))}`
+      : fromTitle ? `title ${q(jf.job.title)}`
+      : jf.levelEvidence ? `the posting says ${q(clipQuote(jf.levelEvidence))}` : 'from the job data';
     if (years === null) {
       if (!levelFromYearsOnly) levelReasons.push({ code: 'level_no_dates', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); your work dates are not in your profile, so the level cannot be checked.`, points: 0 });
     } else {
