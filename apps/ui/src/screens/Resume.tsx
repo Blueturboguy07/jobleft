@@ -37,6 +37,7 @@ function ReportView({ r }: { r: ImportReport }) {
 
 export function AddResumeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const profile = useProfile();
+  const resumes = useResumeList();
   const input = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<UiError | null>(null);
@@ -80,6 +81,13 @@ export function AddResumeModal({ open, onClose }: { open: boolean; onClose: () =
   };
   const changes = result ? importChanges(profile.data ? toInput(profile.data) : undefined, result.proposed) : { lines: [], replaces: [] };
   const diff = changes.lines;
+  // The same file added before (same content): say so, and offer to remove the new copy (JL-resume-3).
+  const same = result?.resume.file ? (resumes.data ?? []).find((x) => x.id !== result.resume.id && x.file?.sha256 === result.resume.file!.sha256) : undefined;
+  const dropCopy = async () => {
+    if (!result) return;
+    setBusy(true);
+    try { await call('deleteResume', { params: { resumeId: result.resume.id }, query: {} }); invalidate('resumes'); ui.message?.success('The copy was removed.'); onClose(); reset(); } catch (e) { setErr(e as UiError); } finally { setBusy(false); }
+  };
   return (
     <Modal open={open} onCancel={() => { onClose(); reset(); }} footer={null} width={640} title={result ? 'Resume added' : 'Add a resume'} destroyOnClose>
       {!result && mode === 'choose' && (
@@ -105,6 +113,8 @@ export function AddResumeModal({ open, onClose }: { open: boolean; onClose: () =
       )}
       {result && (
         <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          {same && <Alert type="info" showIcon message={`You already added this file on ${dateText(same.createdAt) ?? 'an earlier day'} as "${same.name}". This copy is named "${result.resume.name}".`}
+            action={<Button size="small" shape="round" loading={busy} onClick={() => { void dropCopy(); }}>Remove this copy</Button>} />}
           {result.resume.importReport && <ReportView r={result.resume.importReport} />}
           {diff.length ? (
             <div className="jl-factbox">

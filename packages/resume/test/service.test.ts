@@ -150,6 +150,11 @@ test('an upload is the file\'s own content; profile saves never rewrite it (JL-r
     // A second import proposes a profile but never writes one.
     await s.svc.import(read('jordan-one-column.pdf'), 'again.pdf', 'application/pdf');
     assert.equal(s.getProfile().work[0]!.summary, 'asdf');
+    // The same file again gets a name the list can tell apart (JL-resume-3).
+    const twice = await s.svc.import(read('jordan-one-column.pdf'), 'jordan-one-column.pdf', 'application/pdf');
+    const third = await s.svc.import(read('jordan-one-column.pdf'), 'jordan-one-column.pdf', 'application/pdf');
+    assert.deepEqual([resume.name, twice.resume.name, third.resume.name], ['jordan-one-column', 'jordan-one-column (2)', 'jordan-one-column (3)']);
+    assert.equal(twice.resume.file!.sha256, resume.file!.sha256, 'the screen can see it is the same file');
   } finally { s.done(); }
 });
 

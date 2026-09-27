@@ -175,7 +175,11 @@ export class ResumeService {
     const file = { fileName: fileName.slice(0, 200), mimeType: mimeType || (ext === 'pdf' ? 'application/pdf' : ext === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'text/plain'), bytes: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex') };
     const now = this.#iso();
     const hasPrimary = !!this.#o.db.prepare(`SELECT 1 FROM resumes WHERE kind = 'base' AND is_primary = 1`).get();
-    const name = fileName.replace(/\.[A-Za-z0-9]{1,5}$/, '').slice(0, 200) || 'Imported resume';
+    // A second resume with the same name gets a number, so two rows can be told apart (JL-resume-3).
+    const stem = fileName.replace(/\.[A-Za-z0-9]{1,5}$/, '').slice(0, 190) || 'Imported resume';
+    const taken = new Set((this.#o.db.prepare(`SELECT name FROM resumes WHERE kind = 'base'`).all() as Array<{ name: string }>).map((x) => x.name));
+    let name = stem;
+    for (let n = 2; taken.has(name); n++) name = `${stem} (${n})`;
     this.#o.db.prepare(`INSERT INTO resumes (id, name, target_title, is_primary, kind, version, file_json, document_json, import_report_json, proposed_profile_json, snapshot_json, snapshot_source, created_at, updated_at)
       VALUES (?, ?, NULL, ?, 'base', 1, ?, ?, ?, ?, ?, 'import', ?, ?)`).run(
       id, name, hasPrimary ? 0 : 1, JSON.stringify(file), JSON.stringify(outcome.document), JSON.stringify(outcome.report),
