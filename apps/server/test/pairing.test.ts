@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { cleanup, PERSONA, raw, startTest } from './helpers.ts';
+import { withExtension } from '../src/services/extension.ts';
 
 const EXT = 'abcdefghijklmnopabcdefghijklmnop';
 const ORIGIN = `chrome-extension://${EXT}`;
@@ -161,5 +162,31 @@ test('a resume made in the app is offered and attached as a PDF the app makes (J
     assert.equal(fill2.json.files.length, 1, JSON.stringify(fill2.json.warnings));
     assert.match(fill2.json.files[0].fileName, /\.docx$/);
     assert.equal(Buffer.from(fill2.json.files[0].base64, 'base64').subarray(0, 2).toString(), 'PK');
+  } finally { await s.stop(); cleanup(s.home); }
+});
+
+test('a resume uploaded with no file name is stored and attached with its type\'s extension (JL-extension-6)', async () => {
+  // Resumes stored before this fix ("resume", application/pdf) get the extension when they are attached.
+  assert.equal(withExtension('resume', 'application/pdf'), 'resume.pdf');
+  assert.equal(withExtension('Jordan CV', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'), 'Jordan CV.docx');
+  assert.equal(withExtension('jordan-two-column.pdf', 'application/pdf'), 'jordan-two-column.pdf');
+  assert.equal(withExtension('CV.PDF', 'application/pdf'), 'CV.PDF');
+  assert.equal(withExtension('notes', 'application/octet-stream'), 'notes', 'an unknown type gets no made-up extension');
+
+  const s = await startTest('noname');
+  try {
+    await s.call('PUT', '/api/v1/profile', PERSONA);
+    const up = await s.call('POST', '/api/v1/resumes/import', PDF, { 'content-type': 'application/pdf' });
+    assert.equal(up.status, 200, up.text);
+    assert.equal(up.json.resume.file.fileName, 'resume.pdf');
+    const code = (await s.call('POST', '/api/v1/extension/pairing-code')).json.code;
+    const token = (await raw(s.port, { method: 'POST', path: '/api/v1/extension/pair', headers: { origin: ORIGIN, 'content-type': 'application/json' }, body: JSON.stringify({ code, extensionId: EXT, extensionVersion: '0.1.0', protocolVersion: 1, browser: 'Chrome' }) })).json.pairingToken;
+    const fill = await raw(s.port, {
+      method: 'POST', path: '/api/v1/extension/fill', headers: { origin: ORIGIN, 'x-jobleft-pairing': token, 'content-type': 'application/json' },
+      body: JSON.stringify({ requestId: 'r-noname', pageUrl: 'https://boards.greenhouse.io/acme/jobs/1', ats: 'greenhouse', step: null, resumeId: null,
+        fields: [{ fieldId: 'cv', label: 'Resume/CV', name: 'resume', kind: 'file', required: true, options: [], maxLength: null, section: null, accept: '.pdf,.doc,.docx,.txt,.rtf' }] }),
+    });
+    assert.equal(fill.status, 200, fill.text);
+    assert.equal(fill.json.files[0].fileName, 'resume.pdf');
   } finally { await s.stop(); cleanup(s.home); }
 });

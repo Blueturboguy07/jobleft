@@ -60,7 +60,7 @@ export class ExtensionService {
 
   /** The name the page shows for a resume: its uploaded file, or the PDF the app will make of it. */
   private attachName(r: Resume): string {
-    if (r.file) return r.file.fileName;
+    if (r.file) return withExtension(r.file.fileName, r.file.mimeType);
     try { return this.d.resumes.svc.renderedFileName(r.id, 'pdf'); } catch { return `${r.name}.pdf`; }
   }
 
@@ -70,7 +70,7 @@ export class ExtensionService {
    */
   private async attachFile(r: Resume): Promise<{ file: ResumeFile | null; why: string | null }> {
     const f = r.file ? this.d.resumes.file(r.id) : null;
-    if (f) return { file: { id: r.id, fileName: f.fileName, mimeType: f.mimeType, base64: f.bytes.toString('base64') }, why: null };
+    if (f) return { file: { id: r.id, fileName: withExtension(f.fileName, f.mimeType), mimeType: f.mimeType, base64: f.bytes.toString('base64') }, why: null };
     let why: string | null = null;
     for (const format of ['pdf', 'docx'] as const) {
       try {
@@ -225,6 +225,25 @@ export class ExtensionService {
     if (cur && cur.status !== null) return { trackerEntry: cur };
     return { trackerEntry: this.d.tracker.patch(jobId, { status: 'applied', resumeId }) };
   }
+}
+
+const EXTENSIONS: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/msword': '.doc',
+  'text/plain': '.txt',
+  'application/rtf': '.rtf',
+};
+
+/**
+ * A stored file name with the extension its type has (JL-extension-6). An upload sent with no name was stored as
+ * "resume": an application form's upload box checks the name ("accepts .pdf,.docx"), so "resume" was refused
+ * although the file is a PDF. A name that already ends in an extension of its type is kept as it is.
+ */
+export function withExtension(fileName: string, mimeType: string): string {
+  const ext = EXTENSIONS[mimeType.toLowerCase()];
+  if (!ext || fileName.toLowerCase().endsWith(ext) || (ext === '.doc' && /\.docx?$/i.test(fileName))) return fileName;
+  return `${fileName}${ext}`;
 }
 
 function labelKey(s: string): string {
