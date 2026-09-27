@@ -19,7 +19,7 @@ const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 export { startMockBoards };
 export type { MockBoard, MockJob, MockMode, MockServer };
 
-export const TEST_UA = 'jobleft/0.1.2 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
+export const TEST_UA = 'jobleft/0.1.3 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
 
 export function tempDir(): { dir: string; cleanup: () => void } {
   const dir = mkdtempSync(join(TMP, 'jobleft-crawler-test-'));

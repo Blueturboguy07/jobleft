@@ -30,7 +30,7 @@ test('every request carries the neutral User-Agent and nothing personal', async 
   await c.getJson('https://boards-api.greenhouse.io/v1/x');
   assert.ok(calls.length >= 2);
   for (const call of calls) assert.equal(call.ua, USER_AGENT);
-  assert.equal(USER_AGENT, 'jobleft/0.1.2 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
+  assert.equal(USER_AGENT, 'jobleft/0.1.3 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
 });
 
 test('pacer: two requests to one host are at least 1000 ms apart; a second host is not delayed', async () => {

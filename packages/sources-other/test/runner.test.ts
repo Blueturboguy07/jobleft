@@ -344,7 +344,7 @@ test('O11: requests go only to the approved hosts with the fixed identity, and a
     for (const h of hosts) assert.ok(['remoteok.com', 'raw.githubusercontent.com'].includes(String(h)), `unexpected host ${h}`);
     for (const l of log) {
       const ua = String((l.headers as Record<string, string>)['user-agent']);
-      assert.equal(ua, 'jobleft/0.1.2 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
+      assert.equal(ua, 'jobleft/0.1.3 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
       assert.ok(!JSON.stringify(l).includes('Jordan') && !JSON.stringify(l).includes('jordan.testwell'));
     }
     const byHost = new Map<string, number[]>();

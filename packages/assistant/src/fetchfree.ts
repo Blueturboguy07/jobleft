@@ -12,7 +12,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { checkUrl, isPrivateAddress } from './urlsafe.ts';
 
-export const USER_AGENT = 'jobleft/0.1.2 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
+export const USER_AGENT = 'jobleft/0.1.3 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
 export const FREE_FETCH_MAX_BYTES = 2 * 1024 * 1024;
 const TIMEOUT_MS = 15_000;
 const MAX_REDIRECTS = 5;

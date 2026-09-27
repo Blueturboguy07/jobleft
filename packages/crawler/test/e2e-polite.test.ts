@@ -58,7 +58,7 @@ test('O6 + O7: at most one request per second per host, robots.txt obeyed, Crawl
     for (const r of all) {
       const names = Object.keys(r.headers).filter((h) => !['if-none-match', 'if-modified-since'].includes(h)).sort();
       assert.deepEqual(names, ['accept', 'accept-encoding', 'connection', 'host', 'user-agent'], `headers of ${r.path}`);
-      assert.equal(r.headers['user-agent'], 'jobleft/0.1.2 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
+      assert.equal(r.headers['user-agent'], 'jobleft/0.1.3 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
       assert.doesNotMatch(JSON.stringify(r), /jordan|testwell|mozilla|chrome|safari|cookie|referer/i);
     }
     const a1 = servers.busy!.requests.filter((r) => r.path.startsWith('/v1/boards/a1'));

@@ -56,7 +56,7 @@ test('README flow: failed, empty and garbage answers close nothing; a proven abs
     const report = JSON.parse(readFileSync(join(t.dir, 'report.json'), 'utf8'));
     assert.equal(report.health.boards[0].closed, 1);
     assert.equal(report.health.boards[0].read, 4);
-    assert.equal(report.userAgent, 'jobleft/0.1.2 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
+    assert.equal(report.userAgent, 'jobleft/0.1.3 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
     // The health report from the database names the board and its counts.
     const rep = JSON.parse(await cli(['report', '--db', db, '--json']));
     assert.deepEqual([rep.boards[0].openJobs, rep.boards[0].closedJobs, rep.boards[0].state], [4, 1, 'ok']);
