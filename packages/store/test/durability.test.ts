@@ -49,8 +49,10 @@ test('a force quit in the middle of an import loses nothing that was saved befor
     const s2 = JSON.parse(run(home, 'search', '--q', 'engineer', '--limit', '10').stdout) as { items: Array<{ job: { id: string } }>; total: number };
     assert.ok(s2.total >= s1.items.length);
     // Private files.
-    assert.equal(statSync(join(home, 'data')).mode & 0o077, 0);
-    assert.equal(statSync(join(home, 'data', 'jobleft.db')).mode & 0o077, 0);
+    if (process.platform !== 'win32') { // POSIX modes only; Windows has no group/other bits
+      assert.equal(statSync(join(home, 'data')).mode & 0o077, 0);
+      assert.equal(statSync(join(home, 'data', 'jobleft.db')).mode & 0o077, 0);
+    }
   } finally {
     rmSync(home, { recursive: true, force: true });
   }

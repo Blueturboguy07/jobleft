@@ -464,7 +464,7 @@ test('a run lease left by a process that is gone is taken over; a live one is re
     t.store.db.prepare('UPDATE source_state SET lease_until_ms = ?, lease_owner = ? WHERE source_id = ?').run(far, '999999:gone', 'remoteok');
     assert.equal((await t.svc.refresh({ ids: ['remoteok'] })).results[0]!.outcome, 'ok', 'dead owner: taken over');
     t.clock.advance(2 * HOUR);
-    t.store.db.prepare('UPDATE source_state SET lease_until_ms = ?, lease_owner = ? WHERE source_id = ?').run(far, '1:launchd', 'remoteok');
+    t.store.db.prepare('UPDATE source_state SET lease_until_ms = ?, lease_owner = ? WHERE source_id = ?').run(far, `${process.pid}:this-test`, 'remoteok');
     assert.equal((await t.svc.refresh({ ids: ['remoteok'] })).results[0]!.skipReason, 'running', 'live owner: respected');
   } finally { await t.done(); }
 });

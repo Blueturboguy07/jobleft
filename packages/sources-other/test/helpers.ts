@@ -26,7 +26,8 @@ export function openTestStore(dir: string): Store {
 }
 
 export function cleanup(dir: string): void {
-  rmSync(dir, { recursive: true, force: true });
+  // Windows keeps a just-closed database file busy for a moment; a few retries make the removal reliable there.
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 }
 
 /** A pacer that never waits (tests that are not about pacing). */

@@ -66,7 +66,7 @@ test('model download: resumes after a cut, verifies every file, refuses a damage
     assert.ok(!existsSync(p) && !existsSync(`${p}.part`));
     damage = false;
     await ensureModel(dir, source);
-    assert.equal(statSync(p).mode & 0o077, 0, 'model files are private to the account');
+    if (process.platform !== 'win32') assert.equal(statSync(p).mode & 0o077, 0, 'model files are private to the account'); // POSIX modes only
     // Offline with no model: a plain error, no request.
     const dir2 = mkdtempSync(join(TMP, 'jobleft-model-test-'));
     const before = log.length;

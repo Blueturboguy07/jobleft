@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { bandFor, MatchResultSchema, summarizeMatch, validate } from '@jobleft/contracts';
 import { cardText, detailText } from '../src/index.ts';
 import { NURSE, NOW, SWE, job, profileOf, quotesOf, score, view } from './helpers.ts';
+import { fileURLToPath } from 'node:url';
 
 const swe = profileOf(SWE);
 const backend = job({ title: 'Backend Engineer', description: 'We build SaaS software.\n\nRequirements\n- 3+ years of experience\n- TypeScript and Node.js\n- PostgreSQL and AWS\n- Kubernetes is a plus' });
@@ -185,8 +186,8 @@ test('O5: across every fixture posting and profile, every quote shown is in the 
   const { readJobs, readProfile } = await import('../src/io.ts');
   const { readdirSync } = await import('node:fs');
   const { join } = await import('node:path');
-  const root = new URL('../../../evals/match/ranking-pairs/data/', import.meta.url).pathname;
-  const examples = new URL('../examples/', import.meta.url).pathname;
+  const root = fileURLToPath(new URL('../../../evals/match/ranking-pairs/data/', import.meta.url));
+  const examples = fileURLToPath(new URL('../examples/', import.meta.url));
   const jobs = [...readJobs([join(examples, 'jobs')]), ...readdirSync(root).flatMap((f) => readJobs([join(root, f, 'jobs')]))];
   const profiles = [...readdirSync(join(examples, 'profiles')).map((f) => readProfile(join(examples, 'profiles', f))), ...readdirSync(root).map((f) => readProfile(join(root, f, 'profile.json')))];
   let n = 0;
@@ -209,7 +210,7 @@ test('O5: a crawler evidence text that is not in the posting is never shown as a
 
 test('O1: across the example postings, jobs with different titles never share a part reason', async () => {
   const { readJobs } = await import('../src/io.ts');
-  const jobs = readJobs([new URL('../examples/jobs', import.meta.url).pathname]);
+  const jobs = readJobs([fileURLToPath(new URL('../examples/jobs', import.meta.url))]);
   const seen = new Map<string, string>();
   for (const j of jobs) {
     const r = score(swe, j);
