@@ -149,3 +149,35 @@ test('JL-network-19: publik\'s daily limit is named the same way by every AI ste
     assert.equal(after.wallet.balanceMicros, 100_000, 'the balance itself is untouched');
   } finally { await s.stop(); await pub.close(); cleanup(s.home); }
 });
+
+test('JL-network-2: legal names, domains and reviewed aliases count at the target, look-alikes do not, and the job card agrees', async () => {
+  const s = await startTest('jl2');
+  try {
+    const ids: Record<string, string> = {};
+    for (const c of ['Coinbase', 'Meta', 'EY', 'Palantir Technologies', 'Gong', 'Stripe', 'Blue Bottle Coffee']) ids[c] = await addJob(s, 'Data Analyst', c);
+    const csv = ['First Name,Last Name,URL,Email Address,Company,Position,Connected On',
+      'Ada,One,,,"Coinbase Global, Inc.",Analyst,04 Mar 2025', 'Flo,Six,,,"Meta Platforms, Inc.",Analyst,04 Mar 2025', 'Gus,Seven,,,Meta,Analyst,04 Mar 2025',
+      'Hal,Eight,,,Ernst & Young LLP,Analyst,04 Mar 2025', 'Bo,Two,,,Palantir,Analyst,04 Mar 2025', 'Cy,Three,,,Gong.io,Analyst,04 Mar 2025',
+      'Jo,Ten,,,Blue Bottle,Barista,04 Mar 2025', 'Kai,Eleven,,,Stripe Press,Editor,04 Mar 2025', 'Lu,Twelve,,,Metabase,Engineer,04 Mar 2025',
+      'Ned,Fourteen,,,Gong Cha,Manager,04 Mar 2025'].join('\n');
+    assert.equal((await s.call('POST', '/api/v1/network/import', Buffer.from(csv), { 'content-type': 'text/csv' })).status, 200);
+    const cov = (await s.call('GET', '/api/v1/network/coverage')).json as Array<{ companyKey: string; companyName: string; count: number }>;
+    const n = (name: string) => cov.find((c) => c.companyName === name)?.count;
+    assert.equal(n('Coinbase'), 1);
+    assert.equal(n('Meta'), 2);
+    assert.equal(n('EY'), 1);
+    assert.equal(n('Palantir Technologies'), 1);
+    assert.equal(n('Gong'), 1);
+    assert.equal(n('Stripe'), 0, 'Stripe Press is another company');
+    assert.equal(n('Blue Bottle Coffee'), 0, 'not in the reviewed list: not counted');
+    // The job card shows the same count as the Network screen.
+    for (const [name, id] of Object.entries(ids)) {
+      const card = (await s.call('GET', `/api/v1/jobs/${encodeURIComponent(id)}`)).json.networkCount ?? 0;
+      assert.equal(card, n(name), `card and Companies agree for ${name}`);
+    }
+    // The near miss is shown next to the target, with the reason.
+    const bb = cov.find((c) => c.companyName === 'Blue Bottle Coffee')!;
+    const x = (await s.call('GET', `/api/v1/network/match?companyKey=${bb.companyKey}&companyName=${encodeURIComponent('Blue Bottle Coffee')}`)).json;
+    assert.deepEqual(x.notCounted.map((m: any) => m.name), ['Blue Bottle']);
+  } finally { await s.stop(); cleanup(s.home); }
+});

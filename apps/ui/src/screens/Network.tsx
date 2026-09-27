@@ -17,7 +17,7 @@ import { DraftModal } from '../components/DraftModal.tsx';
 import { EmptyState, ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { calendarDate, plural } from '../lib/format.ts';
 import { DeletePanel, ImportReport, Importer } from './network/Import.tsx';
-import { ContactName, MatchExplain, ProfileLink, ReasonList, StageSelect, emailText, fullName, saveContact, type Contact } from './network/shared.tsx';
+import { ContactName, MatchExplain, NobodyTag, ProfileLink, ReasonList, StageSelect, emailText, fullName, saveContact, type Contact } from './network/shared.tsx';
 
 const PAGE = 50;
 const todayText = () => new Date().toISOString().slice(0, 10);
@@ -119,7 +119,7 @@ function CompaniesTab({ onOpen, onEveryone }: { onOpen: (c: Contact) => void; on
         <section className="jl-card-box" aria-labelledby="nobody-h">
           <h2 id="nobody-h" className="jl-section-title" style={{ fontSize: 17 }}>Where you know nobody yet ({nobody.length})</h2>
           {nobody.length
-            ? <><p className="jl-muted">These target companies have nobody from your file. These are the places to build new contacts.</p><div className="jl-row jl-wrap">{nobody.map((x) => <Tag key={x.companyKey}>{x.companyName}</Tag>)}</div></>
+            ? <><p className="jl-muted">These target companies have nobody from your file. These are the places to build new contacts. Click a company to see similar names in your file that were not counted, and why.</p><div className="jl-row jl-wrap">{nobody.map((x) => <NobodyTag key={x.companyKey} companyKey={x.companyKey} companyName={x.companyName} />)}</div></>
             : <p className="jl-muted">You know someone at every target company.</p>}
         </section>
       )}

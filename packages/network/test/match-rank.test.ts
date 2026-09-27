@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { interimCompanyKey, isPlaceholderCompany, keysForCompany } from '../src/company.ts';
+import { howMatched, interimCompanyKey, isPlaceholderCompany, keysForCompany } from '../src/company.ts';
 import { readTitle } from '../src/titles.ts';
 import { rankContacts } from '../src/rank.ts';
 import { demoFixture, fileText } from '../src/dev/fixture.ts';
@@ -29,7 +29,8 @@ test('placeholders and blanks have no key; a trailing short form is matched both
     assert.deepEqual(keysForCompany(p, interimCompanyKey), { key: null, rawKey: null });
   }
   assert.deepEqual(keysForCompany(null, interimCompanyKey), { key: null, rawKey: null });
-  assert.deepEqual(keysForCompany('Amazon Web Services (AWS)', interimCompanyKey), { key: 'amazonwebservices', rawKey: 'amazonwebservicesaws' });
+  // AWS is in Amazon's family in the reviewed alias table (JL-network-2), so its key is Amazon's.
+  assert.deepEqual(keysForCompany('Amazon Web Services (AWS)', interimCompanyKey), { key: 'amazon', rawKey: 'amazonwebservicesaws' });
   assert.deepEqual(keysForCompany('Google (via Randstad)', interimCompanyKey).key, 'googleviarandstad');
   assert.equal(isPlaceholderCompany('Stripe'), false);
 });
@@ -165,4 +166,50 @@ test('a future or unknown Connected On gives no recency reason', () => {
     contact({ id: 'c2', firstName: 'C', lastName: 'D', connectedOn: null }),
   ], { companyKey: 'stripe', job: null, now: NOW });
   for (const x of r) assert.ok(!x.reasons.some((y) => y.code === 'connected_recently' || y.code === 'connected_years'));
+});
+
+test('JL-network-2: the same company under its legal name, its domain or its short name is counted', () => {
+  const s = memoryService();
+  const rows = [
+    ['Ada', 'One', 'Coinbase Global, Inc.'], ['Bo', 'Two', 'Palantir'], ['Cy', 'Three', 'Gong.io'], ['Di', 'Four', 'Abnormal Security'],
+    ['Ed', 'Five', '2K Games'], ['Flo', 'Six', 'Meta Platforms, Inc.'], ['Gus', 'Seven', 'Meta'], ['Hal', 'Eight', 'Ernst & Young LLP'],
+    ['Ivy', 'Nine', 'Ernst and Young'], ['Jo', 'Ten', 'Blue Bottle'],
+    // look-alikes that are other companies
+    ['Kai', 'Eleven', 'Stripe Press'], ['Lu', 'Twelve', 'Metabase'], ['Mo', 'Thirteen', 'Metaview'], ['Ned', 'Fourteen', 'Gong Cha'],
+    ['Oz', 'Fifteen', 'H&R Block'], ['Pam', 'Sixteen', 'Blockchain.com'], ['Quin', 'Seventeen', 'Apollo Global Management'],
+    ['Rex', 'Eighteen', 'Chime Solutions'], ['Sue', 'Nineteen', 'Kaiser Aluminum'], ['Tim', 'Twenty', 'Data Dog Studios'], ['Uma', 'TwentyOne', 'X.AI Corp'],
+  ];
+  const csv = ['First Name,Last Name,URL,Email Address,Company,Position,Connected On', ...rows.map(([f, l, c]) => `${f},${l},,,"${c}",Analyst,04 Mar 2025`)].join('\n');
+  s.import(csv);
+  const count = (jobCompany: string) => s.countFor(interimCompanyKey(jobCompany));
+  assert.equal(count('Coinbase'), 1, 'Coinbase Global, Inc. is Coinbase');
+  assert.equal(count('Palantir Technologies'), 1, 'Palantir is Palantir Technologies (reviewed alias)');
+  assert.equal(count('Gong'), 1, 'Gong.io is Gong; Gong Cha is not');
+  assert.equal(count('Abnormal'), 1);
+  assert.equal(count('2K'), 1);
+  assert.equal(count('Meta'), 2, 'Meta and Meta Platforms, Inc.; never Metabase or Metaview');
+  assert.equal(count('EY'), 2, 'Ernst & Young LLP and Ernst and Young are EY');
+  assert.equal(count('Stripe'), null, 'Stripe Press is not Stripe');
+  assert.equal(count('Block'), null, 'H&R Block and Blockchain.com are not Block');
+  assert.equal(count('Apollo'), null, 'Apollo Global Management keeps "Global" (not at the end)');
+  assert.equal(count('Chime'), null);
+  assert.equal(count('Kaiser Permanente'), null);
+  assert.equal(count('Datadog'), null);
+  assert.equal(count('X'), null, '"X.AI" is not "X": a web ending is only dropped after 3 or more letters');
+  // The list behind each count is the same people.
+  assert.deepEqual(s.list({ companyKey: interimCompanyKey('Meta') }).map((c) => c.company).sort(), ['Meta', 'Meta Platforms, Inc.']);
+  // The coverage of the target companies uses the same key.
+  const cov = s.coverage([{ companyKey: interimCompanyKey('Palantir Technologies'), companyName: 'Palantir Technologies' }, { companyKey: interimCompanyKey('Blue Bottle Coffee'), companyName: 'Blue Bottle Coffee' }]);
+  assert.equal(cov.find((c) => c.companyName === 'Palantir Technologies')!.count, 1);
+  // A near name that is not the same company is shown as not counted, with the reason, next to the target.
+  const bb = s.explain(interimCompanyKey('Blue Bottle Coffee'), 'Blue Bottle Coffee');
+  assert.equal(bb.count, 0);
+  assert.deepEqual(bb.notCounted.map((x) => x.name), ['Blue Bottle']);
+  assert.match(bb.notCounted[0]!.why, /lacks the word "coffee"/);
+  // How each name was counted, in plain words.
+  const ey = s.explain(interimCompanyKey('EY'), 'EY');
+  assert.equal(ey.count, 2);
+  assert.match(ey.matched.find((m) => m.name === 'Ernst & Young LLP')!.how, /reviewed list of company names lists "Ernst & Young LLP" and "EY" as the same company/);
+  assert.match(howMatched('Gong.io', 'Gong', interimCompanyKey), /web ending "\.io" is ignored/);
+  assert.match(howMatched('Coinbase Global, Inc.', 'Coinbase', interimCompanyKey), /legal suffix "inc" is ignored and the word "global" at the end of the legal name is ignored/);
 });

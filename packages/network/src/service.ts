@@ -10,7 +10,7 @@ import type {
 import { nowMs, OUTREACH_STAGES } from '@jobleft/contracts';
 import { parseConnectionsCsv, urlIdentity, type ParsedConnection } from './csv.ts';
 import {
-  howMatched, isNearName, keyFingerprint, keysForCompany, whyNotCounted, type CompanyKeyFn,
+  familyKey, howMatched, isNearName, keyFingerprint, keysForCompany, networkKey, whyNotCounted, type CompanyKeyFn,
 } from './company.ts';
 import { checkpoint, migrateNetwork, type ContactRow } from './db.ts';
 import { rankContacts } from './rank.ts';
@@ -129,8 +129,9 @@ export class NetworkService {
   /** A company key from a key or a name. Keys pass through unchanged ("stripe" stays "stripe"); "Stripe, Inc." becomes "stripe". */
   normalizeKey(keyOrName: string): string {
     if (!keyOrName) return '';
-    if (/^[\p{Ll}\p{N}\p{Lo}]+$/u.test(keyOrName)) return keyOrName;
-    try { return this.keyFn(keyOrName) || keyOrName; } catch { return keyOrName; }
+    // A key is put in its reviewed alias family ("palantirtechnologies" -> "palantir"), the way stored keys are.
+    if (/^[\p{Ll}\p{N}\p{Lo}]+$/u.test(keyOrName)) return familyKey(keyOrName);
+    return networkKey(keyOrName, this.keyFn) || keyOrName;
   }
 
   /** Today's calendar date in the person's time zone. */
@@ -318,8 +319,9 @@ export class NetworkService {
     const args: Array<string | number> = [];
     if (q.companyKey !== undefined) {
       if (!q.companyKey) return [];
+      const k = familyKey(q.companyKey);
       where.push('(company_key = ? OR company_raw_key = ?)');
-      args.push(q.companyKey, q.companyKey);
+      args.push(k, k);
     }
     if (q.noCompany) where.push('company_key IS NULL');
     if (q.stage) { where.push('stage = ?'); args.push(q.stage); }
@@ -373,14 +375,14 @@ export class NetworkService {
   /** How many connections work at a company (null when none, so cards show nothing). Same rule as list({ companyKey }). */
   countFor(companyKey: string): number | null {
     if (!companyKey) return null;
-    return this.countCache().get(companyKey) ?? null;
+    return this.countCache().get(familyKey(companyKey)) ?? null;
   }
 
   /** countFor for many keys at once (a job feed page). One cached map; no query per card. */
   countsFor(keys: Iterable<string>): Map<string, number | null> {
     const cache = this.countCache();
     const out = new Map<string, number | null>();
-    for (const k of keys) out.set(k, k ? cache.get(k) ?? null : null);
+    for (const k of keys) out.set(k, k ? cache.get(familyKey(k)) ?? null : null);
     return out;
   }
 
@@ -403,6 +405,7 @@ export class NetworkService {
 
   /** How a company's count was made: which names were counted and why, and which near names were not. */
   explain(companyKey: string, companyName: string | null = null): MatchExplanation {
+    companyKey = familyKey(companyKey);
     const matched = new Map<string, number>();
     const contacts = companyKey ? this.list({ companyKey }) : [];
     for (const c of contacts) matched.set(c.company ?? '', (matched.get(c.company ?? '') ?? 0) + 1);
@@ -428,7 +431,8 @@ export class NetworkService {
   coverage(targetCompanies: Array<{ companyKey: string; companyName: string }>): CompanyCoverage[] {
     const seen = new Map<string, { companyKey: string; companyName: string }>();
     for (const t of targetCompanies) {
-      const key = t.companyKey || keysForCompany(t.companyName, this.keyFn).rawKey || '';
+      // The same key as the job card's count (the job's key, in its alias family), so both always agree.
+      const key = familyKey(t.companyKey || keysForCompany(t.companyName, this.keyFn).rawKey || '');
       if (!key || seen.has(key)) continue;
       seen.set(key, { companyKey: key, companyName: t.companyName });
     }
@@ -444,6 +448,7 @@ export class NetworkService {
 
   rank(companyKey: string, job: Job | null): ContactRank[] {
     if (!companyKey) return [];
+    companyKey = familyKey(companyKey);
     const contacts = this.list({ companyKey }).map((c) => ({ ...c, companyKey, matchKeys: [companyKey] }));
     return rankContacts(contacts, { companyKey, job, now: this.nowFn(), timeZone: this.tz });
   }
