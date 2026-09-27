@@ -12,7 +12,7 @@ import { navigate } from '../../app/router.ts';
 import { useAiSettings } from '../../app/session.ts';
 import { AiNote, afterAiStep, ensureAiConsent } from '../../components/AiNote.tsx';
 import { InlineError, Loading } from '../../components/States.tsx';
-import { ago } from '../../lib/format.ts';
+import { ago, changeName } from '../../lib/format.ts';
 
 function changeLabel(field: string): string {
   if (field === 'skills.order') return 'Change to the order of your skills (no skill is added)';
@@ -99,7 +99,7 @@ export function TailorDrawer({ job, open, onClose }: { job: Job; open: boolean; 
             {!prop.changes.length && <Alert type="info" showIcon message="No change was needed: your resume already fits this job as well as your profile allows." />}
             {prop.changes.map((c) => (
               <div key={c.id} className="jl-factbox" style={{ display: 'flex', gap: 12 }}>
-                <Checkbox checked={accept.includes(c.id)} onChange={(e) => setAccept(e.target.checked ? [...accept, c.id] : accept.filter((x) => x !== c.id))} aria-label={`Keep this change to ${c.field}`} />
+                <Checkbox checked={accept.includes(c.id)} onChange={(e) => setAccept(e.target.checked ? [...accept, c.id] : accept.filter((x) => x !== c.id))} aria-label={changeName(c)} />
                 <div className="jl-grow" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span className="jl-small jl-muted">{changeLabel(c.field)}</span>
                   <span className="jl-small jl-muted">Before</span>

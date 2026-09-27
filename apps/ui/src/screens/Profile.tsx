@@ -239,6 +239,8 @@ export function ProfileScreen() {
     !name && 'your name', !p.personal.email && 'an email', !p.work.length && 'work experience', !p.skills.length && 'skills',
     !p.preferences.jobFunctions.length && 'job functions', p.workAuthorization.usAuthorized === null && 'work authorization',
   ].filter(Boolean) as string[];
+  // Every preference the card can show; "No preferences yet" only when there are none (JL-resume-10).
+  const prefTags = [...p.preferences.jobFunctions, ...p.preferences.targetTitles, ...p.preferences.employmentTypes.map((t) => typeText(t)!), ...p.preferences.workModels.map((m) => MODEL_OPTIONS.find((o) => o.value === m)?.label ?? m), ...p.preferences.levels.map((l) => EXPERIENCE_LEVEL_LABELS[l]), ...p.preferences.places.map((x) => x.text), ...p.preferences.countries.map((c) => COUNTRY_OPTIONS.find((o) => o.value === c)?.label ?? c)];
   const wa = p.workAuthorization;
   const eeoAnswered = Object.values(p.eeo).filter((v) => (Array.isArray(v) ? v.length : v !== null)).length;
   return (
@@ -258,10 +260,9 @@ export function ProfileScreen() {
             {p.summary && <p style={{ marginTop: 10 }}>{p.summary}</p>}
           </Block>
           <Block id="prefs" title="Job preferences" onEdit={() => setEdit('prefs')}>
-            {p.preferences.jobFunctions.length || p.preferences.levels.length ? (
+            {prefTags.length || p.preferences.minAnnualPayUsd !== null ? (
               <div className="jl-row jl-wrap">
-                {[...p.preferences.jobFunctions, ...p.preferences.targetTitles, ...p.preferences.employmentTypes.map((t) => typeText(t)!), ...p.preferences.workModels.map((m) => MODEL_OPTIONS.find((o) => o.value === m)?.label ?? m), ...p.preferences.levels.map((l) => EXPERIENCE_LEVEL_LABELS[l]), ...p.preferences.places.map((x) => x.text), ...p.preferences.countries.map((c) => COUNTRY_OPTIONS.find((o) => o.value === c)?.label ?? c)]
-                  .map((x, i) => <Tag key={`${x}-${i}`}>{x}</Tag>)}
+                {prefTags.map((x, i) => <Tag key={`${x}-${i}`}>{x}</Tag>)}
                 {p.preferences.minAnnualPayUsd !== null && <Tag>At least ${Math.round(p.preferences.minAnnualPayUsd / 1000)}K a year</Tag>}
               </div>
             ) : <None what="preferences" onAdd={() => setEdit('prefs')} />}

@@ -10,6 +10,7 @@ import { ui } from '../../app/layers.ts';
 import { useProfile } from '../../app/session.ts';
 import { InlineError } from '../../components/States.tsx';
 import { ANSWER_MAX, answerProblem, applyAnswer, profileQuestions, type Question } from '../../lib/profileQuestions.ts';
+import { byTitleMatch } from '../../lib/filters.ts';
 import { TailorDrawer } from '../detail/Tools.tsx';
 import { toInput } from '../Profile.tsx';
 
@@ -27,7 +28,7 @@ export function TailorForJobModal({ open, onClose }: { open: boolean; onClose: (
     const h = setTimeout(async () => {
       try {
         const r = await call('searchJobs', { body: { sort: 'recommended', q: t, limit: 30, filter: {} } });
-        if (alive) setOpts(r.items.map((it) => ({ value: it.job.id, label: `${it.job.title} · ${it.job.company}` })));
+        if (alive) setOpts(byTitleMatch(r.items.map((it) => it.job), t).map((j) => ({ value: j.id, label: `${j.title} · ${j.company}` })));
       } catch { if (alive) setOpts([]); }
     }, 250);
     return () => { alive = false; clearTimeout(h); };

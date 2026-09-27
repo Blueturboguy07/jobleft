@@ -210,3 +210,16 @@ export function safeUrl(u: string | null | undefined): string | null {
 export function hostOf(u: string): string {
   try { return new URL(u).host; } catch { return u; }
 }
+
+/** What a screen reader says for a change's "keep" box: which change, in words, one name per change (JL-resume-13). */
+export function changeName(c: { field: string; before: string; after: string }): string {
+  const cut = (t: string) => { const x = t.replace(/\s+/g, ' ').trim(); return `"${x.length > 60 ? `${x.slice(0, 59)}…` : x}"`; };
+  if (c.field === 'skills.order') return 'Keep the new order of your skills';
+  if (c.field === 'skills.add') return `Keep: add ${c.after} to your skills`;
+  if (c.field === 'skills.rename') return `Keep: write ${c.before} as ${c.after}`;
+  if (c.field === 'bullets.order') return `Keep the new order of the bullets that start with ${cut(c.before.split('\n')[0] ?? '')}`;
+  if (c.field === 'summary') return 'Keep the change to your summary';
+  if (c.field === 'item') return `Keep your profile's facts for ${cut(c.before)}`;
+  if (c.field.startsWith('bullets[')) return `Keep the change to the bullet ${cut(c.before)}`;
+  return `Keep the change to ${cut(c.after)}`;
+}
