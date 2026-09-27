@@ -30,3 +30,9 @@ test('every country can be chosen, the common ones first (JL-onboarding-27)', ()
   assert.equal(new Set(ALL_COUNTRIES.map((c) => c.value)).size, ALL_COUNTRIES.length);
   assert.equal(countryName('IN'), 'India');
 });
+
+test('a country search lists names that start with the typed text first', async () => {
+  const { countrySort } = await import('../src/lib/countries.ts');
+  const found = [{ label: 'British Indian Ocean Territory' }, { label: 'India' }].sort((a, b) => countrySort(a, b, { searchValue: 'India' }));
+  assert.equal(found[0]!.label, 'India');
+});

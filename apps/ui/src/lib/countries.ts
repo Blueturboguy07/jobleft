@@ -25,3 +25,10 @@ export const ALL_COUNTRIES: Array<{ value: string; label: string }> = [
   ...COMMON_COUNTRY_CODES.map((c) => ({ value: c, label: countryName(c) })),
   ...CODES.filter((c) => !COMMON_COUNTRY_CODES.includes(c)).map((c) => ({ value: c, label: countryName(c) })).sort((a, b) => a.label.localeCompare(b.label, 'en')),
 ];
+
+/** Search order of a country picker: names that start with the typed text come first ("India" before "British Indian Ocean Territory"). */
+export function countrySort(a: { label?: unknown }, b: { label?: unknown }, info?: { searchValue?: string }): number {
+  const q = (info?.searchValue ?? '').trim().toLowerCase();
+  const rank = (o: { label?: unknown }) => (q && String(o.label ?? '').toLowerCase().startsWith(q) ? 0 : 1);
+  return rank(a) - rank(b);
+}

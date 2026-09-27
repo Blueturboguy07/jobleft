@@ -11,6 +11,7 @@ import {
   COMMON_COUNTRY_OPTIONS, COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, activeCount, cleanFilter,
   countryLabel, functionLabel, industryLabel, levelLabel, modelLabel, payLabel, postedLabel, toggle, typeLabel, withUnknown, yearsLabel,
 } from '../../lib/filters.ts';
+import { countrySort } from '../../lib/countries.ts';
 import { call } from '../../app/api.ts';
 import { placeOptions, placeText } from '../../lib/places.ts';
 
@@ -144,7 +145,7 @@ function FilterButton({ section, label, filter, onApply }: { section: Section; l
           <Radio value="any">Any country</Radio>
           {COUNTRY_OPTIONS.filter((c) => COMMON_COUNTRY_OPTIONS.includes(c) || c.value === draft.countries?.[0]).map((c) => <Radio key={c.value} value={c.value}>{c.label}</Radio>)}
         </Radio.Group>
-        <Select showSearch optionFilterProp="label" value={null} placeholder="Another country" aria-label="Another country" style={{ width: '100%' }}
+        <Select showSearch optionFilterProp="label" filterSort={countrySort} value={null} placeholder="Another country" aria-label="Another country" style={{ width: '100%' }}
           options={COUNTRY_OPTIONS.filter((c) => !COMMON_COUNTRY_OPTIONS.includes(c))} onChange={(v: string) => set({ countries: [v] })} />
         <strong style={{ fontSize: 13 }}>Near a city</strong>
         <PlacePicker places={draft.places ?? []} onChange={(places) => set({ places })} />

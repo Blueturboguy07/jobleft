@@ -3,7 +3,7 @@
 
 import type { ServerResponse } from 'node:http';
 import {
-  bandFor, nowIso, nowMs, type AiSettings, type AppSettings, type ChatThread, type Company, type CoverLetter, type Job, type JobFilter, type JobSearchRequest,
+  bandFor, nowIso, nowMs, type AiSettings, type AppSettings, type OnboardingState, type ChatThread, type Company, type CoverLetter, type Job, type JobFilter, type JobSearchRequest,
   type MatchResult, type NetworkContact, type Notification, type PairingInfo, type PracticeItem, type PracticeSession, type Profile, type ProfileInput,
   type ProviderCheck, type PublikConnection, type PublikWallet, type Resume, type ResumeDocument, type RouteName, type SavedFilter, type SourceInfo,
   type TailorProposal, type TrackerEntry, type TrackerList, type TrackerPatch, type ActionProposal, type BoardEntry, type DatasetInfo,
@@ -388,6 +388,8 @@ export const HANDLERS: Partial<Record<RouteName, Handler>> = {
 
   getSettings: ({ state }) => json(state.data.settings),
   putSettings: ({ state, body, crawler }) => { const s = state.set('settings', 'your settings', body as AppSettings); crawler.schedule(); return json(s); },
+  getOnboarding: ({ state }) => json(state.data.onboarding ?? { status: state.data.profile ? 'done' : 'new', step: 0, draft: null, pendingImport: null }),
+  putOnboarding: ({ state, body }) => json(state.set('onboarding', 'your setup', body as OnboardingState)),
 
   storage: ({ state }) => {
     let bytes = 0;

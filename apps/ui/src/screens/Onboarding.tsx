@@ -1,27 +1,44 @@
 // First run: what you look for (job function, job type, work model, level, place), your resume, your basics, and
-// where AI answers come from. Each step is saved when you press Next, so a quit never loses what you typed. You can
-// skip at any step; nothing opens by itself afterwards.
+// where AI answers come from. Each step is saved to the profile when you press Next; until then the local service
+// keeps what you chose or typed (a draft, saved as you go), and the step you are on, so a quit or a reload never loses
+// either. You can skip at any step: what you chose is kept, and the setup does not open by itself again.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Checkbox, Input, InputNumber, Progress, Select, Space, Steps, Tag } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
-import type { ImportReport, Profile, ProfileInput } from '@jobleft/contracts';
+import type { OnboardingState, Profile, ProfileInput } from '@jobleft/contracts';
 import { call, type UiError } from '../app/api.ts';
 import { invalidate, setCached } from '../app/data.ts';
 import { ui } from '../app/layers.ts';
 import { navigate } from '../app/router.ts';
-import { setFeed, useCrawl, useProfile } from '../app/session.ts';
+import { getFeed, setFeed, useCrawl, useOnboarding, useProfile } from '../app/session.ts';
 import { Art, LogoMark, Wordmark } from '../components/Art.tsx';
 import { InlineError, Loading } from '../components/States.tsx';
 import { COMMON_COUNTRY_OPTIONS, COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, TYPE_OPTIONS, filterFromProfile, toggle } from '../lib/filters.ts';
+import { countrySort } from '../lib/countries.ts';
 import { plural, yearMonthText } from '../lib/format.ts';
 import { PlacePicker } from './jobs/Filters.tsx';
-import { YesNo, toInput } from './Profile.tsx';
-import { importChanges, mergeImported } from '../lib/importMerge.ts';
+import { YesNo } from './Profile.tsx';
+import { importChanges } from '../lib/importMerge.ts';
+import { LAST_STEP, MAX_FUNCTION_LENGTH, addJobFunction, bodyToSave, closedState, keptState, resumeSetup, toInput, type PendingImport } from '../lib/onboarding.ts';
 
+/** jobleft 0.1.2 and earlier kept "skipped" only in this browser; read once to carry it over, never written again. */
 const SKIP_KEY = 'jobleft.onboarding.skipped';
 export function onboardingSkipped(): boolean {
   try { return localStorage.getItem(SKIP_KEY) === '1'; } catch { return false; }
+}
+function forgetLegacySkip(): void {
+  try { localStorage.removeItem(SKIP_KEY); } catch { /* per-viewer convenience only */ }
+}
+
+/** A box with its name above it, so a filled box still says what it holds (JL-onboarding-8). */
+function Labeled({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 220px', minWidth: 0 }}>
+      <span style={{ fontWeight: 600, fontSize: 13 }}>{label}</span>
+      {children}
+    </label>
+  );
 }
 
 const STEPS = ['Looking for', 'Job type', 'Where', 'Resume', 'About you', 'AI'];
@@ -32,19 +49,77 @@ function Choice({ on, onClick, children }: { on: boolean; onClick: () => void; c
 
 export function Onboarding() {
   const profile = useProfile();
+  const setup = useOnboarding();
   const { progress } = useCrawl();
   const [step, setStep] = useState(0);
   const [d, setD] = useState<ProfileInput | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<UiError | null>(null);
-  const [imported, setImported] = useState<{ report: ImportReport; proposed: ProfileInput } | null>(null);
-  const [useFacts, setUseFacts] = useState(true);
+  const [imported, setImported] = useState<PendingImport | null>(null);
+  /** The choice that ends the setup, once one was made: every other way out waits (JL-onboarding-10). */
+  const [leaving, setLeaving] = useState<string | null>(null);
+  const leavingRef = useRef(false);
+  const status = useRef<OnboardingState['status']>('new');
   const hadFacts = !!(profile.data && (profile.data.work.length || profile.data.skills.length || profile.data.education.length));
   const [custom, setCustom] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
-  useEffect(() => { if (profile.data && !d) setD(toInput(profile.data)); }, [profile.data]);
-  if (profile.error && !profile.data) return <main className="jl-onboard"><InlineError error={profile.error} onRetry={() => { void profile.reload(); }} /></main>;
-  if (!d) return <main className="jl-onboard"><Loading label="Getting ready" /></main>;
+
+  const pending = useRef<OnboardingState | null>(null);
+  const savedKey = useRef('');
+  const chain = useRef<Promise<void>>(Promise.resolve());
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Open where the person was: the saved step and what they had chosen or typed (JL-onboarding-2, -11).
+  useEffect(() => {
+    if (d || !profile.data || !setup.data) return;
+    const r = resumeSetup(setup.data, profile.data);
+    status.current = setup.data.status;
+    savedKey.current = JSON.stringify(setup.data);
+    setStep(r.step); setD(r.d); setImported(r.pending);
+    forgetLegacySkip();
+  }, [profile.data, setup.data]);
+
+  // Keep the state on the local service as the person works: every change, 300 ms after the last one, one write at a
+  // time and always the newest, and at once when the window is hidden or closed.
+  const flush = (): Promise<void> => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    chain.current = chain.current.then(async () => {
+      const s = pending.current;
+      pending.current = null;
+      if (!s) return;
+      const key = JSON.stringify(s);
+      if (key === savedKey.current) return;
+      try {
+        const r = await call('putOnboarding', { body: s });
+        savedKey.current = key;
+        setCached('onboarding', () => r);
+      } catch { if (!pending.current) pending.current = s; /* the next change or leave tries again */ }
+    });
+    return chain.current;
+  };
+  const keep = (s: OnboardingState, now = false): Promise<void> => {
+    pending.current = s;
+    status.current = s.status;
+    if (now) return flush();
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => { void flush(); }, 300);
+    return Promise.resolve();
+  };
+  useEffect(() => {
+    if (!d || !profile.data || leavingRef.current) return;
+    void keep(keptState(status.current, step, d, imported, profile.data));
+  }, [d, step, imported]);
+  useEffect(() => {
+    const now = () => { void flush(); };
+    const hidden = () => { if (document.visibilityState === 'hidden') void flush(); };
+    window.addEventListener('pagehide', now);
+    document.addEventListener('visibilitychange', hidden);
+    return () => { window.removeEventListener('pagehide', now); document.removeEventListener('visibilitychange', hidden); void flush(); };
+  }, []);
+
+  const loadError = profile.error ?? setup.error;
+  if (loadError && !(profile.data && setup.data)) return <main className="jl-onboard"><InlineError error={loadError} onRetry={() => { void profile.reload(); void setup.reload(); }} /></main>;
+  if (!d || !profile.data) return <main className="jl-onboard"><Loading label="Getting ready" /></main>;
   const pr = d.preferences;
   const setPr = (patch: Partial<ProfileInput['preferences']>) => setD({ ...d, preferences: { ...pr, ...patch } });
   const p = d.personal;
@@ -59,27 +134,28 @@ export function Onboarding() {
       return saved;
     } catch (e) { setErr(e as UiError); return null; } finally { setBusy(false); }
   };
+  const goTo = (n: number) => { if (!leavingRef.current) setStep(Math.min(Math.max(0, n), LAST_STEP)); };
   const next = async () => {
-    let body = d;
-    if (step === 3 && imported && useFacts) {
-      body = mergeImported(d, imported.proposed);
-      setD(body);
-    }
-    const saved = await persist(body);
+    const saved = await persist(bodyToSave(d, imported));
     if (!saved) return;
-    if (step < STEPS.length - 1) setStep(step + 1);
+    const n = Math.min(step + 1, LAST_STEP);
+    setD(toInput(saved));
+    if (imported) setImported(null);
+    setStep(n);
+    await keep(keptState(status.current, n, toInput(saved), null, saved), true);
   };
-  const finish = async (goto: string) => {
-    const saved = await persist(d);
-    if (!saved) return;
-    setFeed({ filter: filterFromProfile(saved), initialized: true, savedId: null });
-    try { localStorage.setItem(SKIP_KEY, '1'); } catch { /* ignore */ }
-    navigate(goto, { replace: true });
+  /** Ends the setup: saves what is on screen, marks the setup finished or skipped, sets the starting filters, then goes on. */
+  const leave = async (goto: string, how: 'done' | 'skipped') => {
+    if (leavingRef.current) return;
+    leavingRef.current = true; setLeaving(goto);
+    const saved = await persist(bodyToSave(d, imported));
+    if (!saved) { leavingRef.current = false; setLeaving(null); return; }
+    await keep(closedState(status.current, how), true);
+    if (how === 'done' || !getFeed().initialized) setFeed({ filter: filterFromProfile(saved), initialized: true, savedId: null });
+    navigate(goto, { replace: true, force: true });
   };
-  const skip = () => {
-    try { localStorage.setItem(SKIP_KEY, '1'); } catch { /* ignore */ }
-    navigate('jobs', { replace: true });
-  };
+  const finish = (goto: string) => leave(goto, 'done');
+  const skip = () => leave('jobs', 'skipped');
   const upload = async (f: File) => {
     const ext = f.name.split('.').pop()?.toLowerCase();
     const type = ext === 'pdf' ? 'application/pdf' : ext === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : null;
@@ -89,11 +165,21 @@ export function Onboarding() {
     setBusy(true);
     try {
       const r = await call('importResume', { body: new Uint8Array(await f.arrayBuffer()), contentType: type, fileName: f.name });
-      setImported({ report: r.resume.importReport!, proposed: r.proposedProfile });
-      setUseFacts(!hadFacts);
+      const before = imported?.resumeId ?? null;
+      setImported({ resumeId: r.resume.id, report: r.resume.importReport!, proposed: r.proposedProfile, useFacts: !hadFacts });
+      // "Use another file" replaces the file the person did not keep; the kept file takes its place as the primary
+      // resume (JL-onboarding-4).
+      if (before && before !== r.resume.id) {
+        try {
+          const old = await call('getResume', { params: { resumeId: before } });
+          await call('deleteResume', { params: { resumeId: before }, query: {} });
+          if (old.isPrimary) await call('updateResume', { params: { resumeId: r.resume.id }, body: { isPrimary: true } });
+        } catch { /* already gone, or it has tailored versions: it stays a resume of its own */ }
+      }
       invalidate('resumes');
     } catch (e) { setErr(e as UiError); } finally { setBusy(false); if (fileRef.current) fileRef.current.value = ''; }
   };
+  const addCustom = () => { setPr({ jobFunctions: addJobFunction(pr.jobFunctions, custom, JOB_FUNCTION_SUGGESTIONS) }); setCustom(''); };
 
   const body = [
     (
@@ -104,11 +190,11 @@ export function Onboarding() {
           {JOB_FUNCTION_SUGGESTIONS.map((f) => <Choice key={f} on={pr.jobFunctions.includes(f)} onClick={() => setPr({ jobFunctions: toggle(pr.jobFunctions, f) })}>{f}</Choice>)}
         </div>
         <div className="jl-row">
-          <Input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Something else? Type it" aria-label="Other job function" onPressEnter={() => { if (custom.trim()) { setPr({ jobFunctions: [...pr.jobFunctions, custom.trim()] }); setCustom(''); } }} />
-          <Button onClick={() => { if (custom.trim()) { setPr({ jobFunctions: [...pr.jobFunctions, custom.trim()] }); setCustom(''); } }}>Add</Button>
+          <Input value={custom} maxLength={MAX_FUNCTION_LENGTH} onChange={(e) => setCustom(e.target.value)} placeholder="Something else? Type it" aria-label="Other job function" onPressEnter={addCustom} />
+          <Button onClick={addCustom}>Add</Button>
         </div>
-        {pr.jobFunctions.filter((f) => !JOB_FUNCTION_SUGGESTIONS.includes(f)).map((f) => <Choice key={f} on onClick={() => setPr({ jobFunctions: pr.jobFunctions.filter((x) => x !== f) })}>{f} ×</Choice>)}
-        <Select mode="tags" value={pr.targetTitles} onChange={(v) => setPr({ targetTitles: v })} placeholder="Target job titles (optional), for example Backend engineer" aria-label="Target job titles" open={false} suffixIcon={null} />
+        {pr.jobFunctions.filter((f) => !JOB_FUNCTION_SUGGESTIONS.includes(f)).map((f) => <Choice key={f} on onClick={() => setPr({ jobFunctions: pr.jobFunctions.filter((x) => x !== f) })}><span style={{ overflowWrap: 'anywhere' }}>{f} ×</span></Choice>)}
+        <Select mode="tags" style={{ width: '100%' }} value={pr.targetTitles} onChange={(v) => setPr({ targetTitles: v })} placeholder="Target job titles (optional), for example Backend engineer" aria-label="Target job titles" open={false} suffixIcon={null} />
       </Space>
     ),
     (
@@ -130,7 +216,7 @@ export function Onboarding() {
         <h2 className="jl-display" style={{ fontSize: 28 }}>Where do you want to work?</h2>
         <strong>Countries</strong>
         <div className="jl-choice-grid">{COUNTRY_OPTIONS.filter((o) => COMMON_COUNTRY_OPTIONS.includes(o) || pr.countries.includes(o.value)).map((o) => <Choice key={o.value} on={pr.countries.includes(o.value)} onClick={() => setPr({ countries: toggle(pr.countries, o.value) })}>{o.label}</Choice>)}</div>
-        <Select showSearch optionFilterProp="label" value={null} placeholder="Another country? Type its name" aria-label="Another country" style={{ maxWidth: 360 }}
+        <Select showSearch optionFilterProp="label" filterSort={countrySort} value={null} placeholder="Another country? Type its name" aria-label="Another country" style={{ maxWidth: 360 }}
           options={COUNTRY_OPTIONS.filter((o) => !COMMON_COUNTRY_OPTIONS.includes(o) && !pr.countries.includes(o.value))} onChange={(v: string) => setPr({ countries: [...pr.countries, v] })} />
         <strong>Cities (optional)</strong>
         <PlacePicker places={pr.places} onChange={(places) => setPr({ places })} />
@@ -163,8 +249,9 @@ export function Onboarding() {
               <p className="jl-small jl-muted" style={{ marginTop: 6 }}>Check every line. You can correct anything on the Profile screen after setup.</p>
             </div>
             {importChanges(d, imported.proposed).replaces.length > 0 && <Alert type="warning" showIcon message="This would replace changes you already made" description={<ul style={{ margin: 0, paddingLeft: 18 }}>{importChanges(d, imported.proposed).replaces.map((x) => <li key={x}>{x}</li>)}</ul>} />}
-            <Checkbox checked={useFacts} onChange={(e) => setUseFacts(e.target.checked)}>Use the facts from this file in my profile</Checkbox>
-            <Button onClick={() => fileRef.current?.click()} icon={<UploadOutlined />}>Use another file</Button>
+            <Checkbox checked={imported.useFacts} onChange={(e) => setImported({ ...imported, useFacts: e.target.checked })}>Use the facts from this file in my profile</Checkbox>
+            <Button onClick={() => fileRef.current?.click()} icon={<UploadOutlined />} loading={busy}>Use another file</Button>
+            <p className="jl-small jl-muted" style={{ margin: 0 }}>Another file replaces this one.</p>
           </>
         )}
         <p className="jl-small jl-muted">No resume at hand? Press Next; you can add one later.</p>
@@ -174,9 +261,9 @@ export function Onboarding() {
       <Space direction="vertical" size={12} style={{ width: '100%' }} key="4">
         <h2 className="jl-display" style={{ fontSize: 28 }}>About you</h2>
         <p className="jl-muted">Stays on this Mac. Used on your resumes and application forms.</p>
-        <div className="jl-row jl-wrap"><Input style={{ flex: 1 }} value={p.firstName ?? ''} onChange={(e) => setP({ firstName: e.target.value || null })} placeholder="First name" aria-label="First name" /><Input style={{ flex: 1 }} value={p.lastName ?? ''} onChange={(e) => setP({ lastName: e.target.value || null })} placeholder="Last name" aria-label="Last name" /></div>
-        <div className="jl-row jl-wrap"><Input style={{ flex: 1 }} type="email" value={p.email ?? ''} onChange={(e) => setP({ email: e.target.value || null })} placeholder="Email" aria-label="Email" /><Input style={{ flex: 1 }} value={p.phone ?? ''} onChange={(e) => setP({ phone: e.target.value || null })} placeholder="Phone" aria-label="Phone" /></div>
-        <div className="jl-row jl-wrap"><Input style={{ flex: 1 }} value={p.city ?? ''} onChange={(e) => setP({ city: e.target.value || null })} placeholder="City" aria-label="City" /><Input style={{ flex: 1 }} value={p.region ?? ''} onChange={(e) => setP({ region: e.target.value || null })} placeholder="State or region" aria-label="State or region" /></div>
+        <div className="jl-row jl-wrap" style={{ alignItems: 'flex-start' }}><Labeled label="First name"><Input value={p.firstName ?? ''} onChange={(e) => setP({ firstName: e.target.value || null })} aria-label="First name" /></Labeled><Labeled label="Last name"><Input value={p.lastName ?? ''} onChange={(e) => setP({ lastName: e.target.value || null })} aria-label="Last name" /></Labeled></div>
+        <div className="jl-row jl-wrap" style={{ alignItems: 'flex-start' }}><Labeled label="Email"><Input type="email" value={p.email ?? ''} onChange={(e) => setP({ email: e.target.value || null })} placeholder="name@example.com" aria-label="Email" /></Labeled><Labeled label="Phone"><Input value={p.phone ?? ''} onChange={(e) => setP({ phone: e.target.value || null })} placeholder="+1 555 010 0100" aria-label="Phone" /></Labeled></div>
+        <div className="jl-row jl-wrap" style={{ alignItems: 'flex-start' }}><Labeled label="City"><Input value={p.city ?? ''} onChange={(e) => setP({ city: e.target.value || null })} aria-label="City" /></Labeled><Labeled label="State or region"><Input value={p.region ?? ''} onChange={(e) => setP({ region: e.target.value || null })} aria-label="State or region" /></Labeled></div>
       </Space>
     ),
     (
@@ -185,11 +272,12 @@ export function Onboarding() {
         <p className="jl-muted">AI is the one part of jobleft that costs money: tailoring a resume or a letter runs a model, and the model's provider charges for each run. Through publik you pay only for those runs, from a dollar balance, which comes to about 2% of what the subscription job-search apps charge each month.</p>
         <p className="jl-muted">AI is optional. Search, filters, match scores and the tracker work without it.</p>
         <div className="jl-choice-grid">
-          <button type="button" className="jl-choice" onClick={() => { void finish('settings/balance'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><span className="jl-row" style={{ gap: 8 }}><strong>publik API</strong><Tag color="green" style={{ margin: 0 }}>Cheapest</Tag></span><span className="jl-small">Pay per use from a dollar balance; a free starter amount is included. You read the terms and connect on the next screen.</span></button>
-          <button type="button" className="jl-choice" onClick={() => { void finish('settings/ai'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>A model on this computer</strong><span className="jl-small">Ollama, LM Studio and similar. Nothing leaves this Mac. Be warned: the small models that fit on a laptop tailor resumes and answer questions noticeably worse than the hosted ones.</span></button>
+          <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/balance'} onClick={() => { void finish('settings/balance'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><span className="jl-row" style={{ gap: 8 }}><strong>publik API</strong><Tag color="green" style={{ margin: 0 }}>Cheapest</Tag></span><span className="jl-small">Pay per use from a dollar balance; a free starter amount is included. You read the terms and connect on the next screen.</span></button>
+          <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/ai?pick=local'} onClick={() => { void finish('settings/ai?pick=local'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>A model on this computer</strong><span className="jl-small">Ollama, LM Studio and similar. Nothing leaves this Mac. Be warned: the small models that fit on a laptop tailor resumes and answer questions noticeably worse than the hosted ones. You pick the server and test it on the next screen.</span></button>
+          <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/ai?pick=own_key'} onClick={() => { void finish('settings/ai?pick=own_key'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>Your own key</strong><span className="jl-small">Your account with OpenAI, Anthropic, OpenRouter or Google. The vendor bills you. You paste the key on the next screen; it stays in the macOS Keychain.</span></button>
         </div>
         <p className="jl-small">Want more than the starter amount? <a href="https://publikhq.com/pricing" target="_blank" rel="noopener noreferrer">See the plans and prices on publikhq.com</a>. A plan adds a weekly budget to your balance; you still pay only for what you use.</p>
-        <Button type="link" style={{ alignSelf: 'flex-start', padding: 0 }} onClick={() => { void finish('jobs'); }}>Decide later and see my jobs</Button>
+        {leaving && <p className="jl-small jl-muted" role="status">Saving your answers…</p>}
       </Space>
     ),
   ];
@@ -199,19 +287,20 @@ export function Onboarding() {
       <div className="jl-row" style={{ width: '100%', maxWidth: 760 }}>
         <LogoMark size={36} /><Wordmark size={24} />
         <span className="jl-grow" />
-        <Button type="text" onClick={skip}>Skip setup</Button>
+        <Button type="text" disabled={!!leaving} loading={leaving === 'jobs' && step < LAST_STEP} onClick={() => { void skip(); }}>Skip setup</Button>
       </div>
       <div className="jl-onboard-card">
-        <Steps size="small" current={step} items={STEPS.map((t) => ({ title: t }))} responsive={false} style={{ marginBottom: 24 }} />
+        {/* Earlier steps can be opened from their names; later ones need Next, which saves (JL-onboarding-7). */}
+        <Steps size="small" current={step} onChange={(n) => { if (n < step) goTo(n); }} items={STEPS.map((t, i) => ({ title: t, disabled: i > step || !!leaving }))} responsive={false} style={{ marginBottom: 24 }} />
         {body[step]}
         <InlineError error={err} />
-        {step < STEPS.length - 1 && (
-          <div className="jl-row" style={{ marginTop: 24 }}>
-            {step > 0 && <Button shape="round" onClick={() => setStep(step - 1)}>Back</Button>}
-            <span className="jl-grow" />
-            <Button type="primary" shape="round" size="large" loading={busy} onClick={() => { void next(); }}>Next</Button>
-          </div>
-        )}
+        <div className="jl-row" style={{ marginTop: 24 }}>
+          {step > 0 && <Button shape="round" disabled={!!leaving} onClick={() => goTo(step - 1)}>Back</Button>}
+          <span className="jl-grow" />
+          {step < LAST_STEP
+            ? <Button type="primary" shape="round" size="large" loading={busy} onClick={() => { void next(); }}>Next</Button>
+            : <Button type="link" style={{ padding: 0 }} disabled={!!leaving} loading={leaving === 'jobs'} onClick={() => { void finish('jobs'); }}>Decide later and see my jobs</Button>}
+        </div>
       </div>
       {progress?.running && (
         <div className="jl-progress" style={{ marginTop: 16, width: '100%', maxWidth: 760 }} role="status">

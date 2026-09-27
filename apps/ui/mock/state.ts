@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
-  AiSettings, AppSettings, ChatThread, Company, CoverLetter, CrawlBoardReport, CrawlRunSummary, Job, NetworkContact, Notification,
+  AiSettings, AppSettings, ChatThread, OnboardingState, Company, CoverLetter, CrawlBoardReport, CrawlRunSummary, Job, NetworkContact, Notification,
   PairingInfo, PracticeItem, PracticeSession, Profile, Resume, SavedFilter, TailorProposal, TrackerEntry,
 } from '@jobleft/contracts';
 import type { BoardFile, CompanyFixture } from './fixtures.ts';
@@ -57,6 +57,7 @@ export interface Persisted {
   crawlRuns: CrawlRunSummary[];
   lastReport: CrawlBoardReport[];
   externalJobs: Job[];
+  onboarding: OnboardingState | null;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -78,7 +79,7 @@ function defaults(): Persisted {
     tracker: {}, filters: [], profile: null, resumes: [], coverLetters: [], proposals: [], chats: [], contacts: [],
     settings: DEFAULT_SETTINGS, ai: defaultAi(), publik: { state: 'disconnected', key: null, disclosureVersion: null },
     notifications: [], practiceSessions: [], practiceItems: [], pairings: [], boardPrefs: {}, boardStatus: {}, sources: {},
-    crawlRuns: [], lastReport: [], externalJobs: [],
+    crawlRuns: [], lastReport: [], externalJobs: [], onboarding: null,
   };
 }
 

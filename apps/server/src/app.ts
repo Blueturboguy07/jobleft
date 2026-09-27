@@ -23,7 +23,7 @@ import { JobsService, rowToJob, toSummary } from './interim/jobs.ts';
 import { ProfileService } from './interim/profile.ts';
 import { TrackerService } from './interim/tracker.ts';
 import type { Logger } from './log.ts';
-import { Kv, SettingsService } from './services/kv.ts';
+import { Kv, OnboardingService, SettingsService } from './services/kv.ts';
 import { NotificationService } from './services/notifications.ts';
 import { PairingService } from './services/pairing.ts';
 import type { ServerSecretStore } from './services/secrets.ts';
@@ -53,6 +53,7 @@ export class AppData {
   readonly crawlStore: Store;
   readonly kv: Kv;
   readonly settings: SettingsService;
+  readonly onboarding: OnboardingService;
   readonly notifications: NotificationService;
   readonly pairing: PairingService;
   readonly profile: ProfileService;
@@ -84,6 +85,7 @@ export class AppData {
     this.notifications = new NotificationService(this.db);
     this.pairing = new PairingService(this.db);
     this.profile = new ProfileService(this.db, () => this.settings.createdAt());
+    this.onboarding = new OnboardingService(this.kv, () => this.profile.exists());
     this.jobs = new JobsService(this.db);
     this.network = new NetworkService({ db: this.db, companyKey });
     this.tracker = new TrackerService(this.db, {

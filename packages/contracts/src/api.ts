@@ -32,7 +32,7 @@ import {
 } from './network.ts';
 import { ProfileInputSchema, ProfileSchema } from './profile.ts';
 import {
-  AtsReportSchema, CoverLetterSchema, KeywordGapReportSchema, ResumeDocumentSchema, ResumeSchema, TailorProposalSchema,
+  AtsReportSchema, CoverLetterSchema, ImportReportSchema, KeywordGapReportSchema, ResumeDocumentSchema, ResumeSchema, TailorProposalSchema,
 } from './resume.ts';
 import {
   BoardEntrySchema, BoardResolveResponseSchema, CrawlBoardReportSchema, CrawlProgressSchema, CrawlRunSummarySchema,
@@ -150,6 +150,22 @@ export const AppSettingsSchema = named(obj({
   notifications: obj({ reminders: bool(), alerts: bool() }),
 }), 'AppSettings');
 
+/**
+ * Where the first-run setup stands, kept by the local service (not the browser), so a quit, a reload or a new port
+ * never loses a step or what was typed on it. Added after contracts 1.1.0 (new route; additive).
+ */
+export const OnboardingStateSchema = named(obj({
+  /** new = never started; active = started, not finished; done = finished; skipped = the person chose "Skip setup". */
+  status: enm(['new', 'active', 'done', 'skipped']),
+  /** The step the person is on: 0 Looking for, 1 Job type, 2 Where, 3 Resume, 4 About you, 5 AI. */
+  step: int({ minimum: 0, maximum: 5 }),
+  /** What the person chose or typed on the steps and has not saved with Next yet; null = nothing waiting. */
+  draft: nullable(ProfileInputSchema),
+}, {
+  /** A resume read on the resume step whose facts are not in the profile yet, and whether to use them. */
+  pendingImport: nullable(obj({ resumeId: IdSchema, report: ImportReportSchema, proposed: ProfileInputSchema, useFacts: bool() })),
+}), 'OnboardingState', 'Where the first-run setup stands');
+
 // ---------------------------------------------------------------- the route table
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -183,6 +199,8 @@ export const LOCAL_API = {
   health: route({ method: 'GET', path: '/api/v1/health', auth: 'none', owner: 'server', summary: 'Liveness and versions. Reveals no data.', response: HealthSchema }),
   getSettings: route({ method: 'GET', path: '/api/v1/settings', auth: 'launch', owner: 'server', summary: 'App settings', response: AppSettingsSchema }),
   putSettings: route({ method: 'PUT', path: '/api/v1/settings', auth: 'launch', owner: 'server', summary: 'Change app settings', body: AppSettingsSchema, response: AppSettingsSchema }),
+  getOnboarding: route({ method: 'GET', path: '/api/v1/onboarding', auth: 'launch', owner: 'server', summary: 'Where the first-run setup stands (step, status, what was typed and not saved yet)', response: OnboardingStateSchema }),
+  putOnboarding: route({ method: 'PUT', path: '/api/v1/onboarding', auth: 'launch', owner: 'server', summary: 'Keep the first-run setup state (saved as the person types, so a quit never loses it)', body: OnboardingStateSchema, response: OnboardingStateSchema }),
   storage: route({ method: 'GET', path: '/api/v1/storage', auth: 'launch', owner: 'store', summary: 'Where the data lives and how big it is', response: StorageInfoSchema }),
   backup: route({ method: 'POST', path: '/api/v1/backup', auth: 'launch', owner: 'server', summary: 'Download one backup file of everything, uploaded files included (never a key or a token)', response: 'file' }),
   restore: route({ method: 'POST', path: '/api/v1/restore', auth: 'launch', owner: 'server', summary: 'Restore a backup file; a damaged or foreign file is refused and nothing changes', body: { raw: ['application/zip', 'application/octet-stream'] }, response: obj({ restored: rec(int({ minimum: 0 })) }) }),
@@ -375,3 +393,4 @@ export type Health = Infer<typeof HealthSchema>;
 export type JobDetail = Infer<typeof JobDetailSchema>;
 export type TrackerList = Infer<typeof TrackerListSchema>;
 export type AppSettings = Infer<typeof AppSettingsSchema>;
+export type OnboardingState = Infer<typeof OnboardingStateSchema>;

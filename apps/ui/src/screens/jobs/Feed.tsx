@@ -106,10 +106,11 @@ export function Feed() {
   const [noticeClosed, setNoticeClosed] = useState(closedNotice);
   const profileSet = profileIsSet(profile.data);
 
-  // the first time a profile exists, start from its preferences
+  // the first time a profile exists, start from its preferences; an empty profile (a first launch that opens the
+  // setup) never marks the filters as set, or the setup's choices would be skipped later (JL-onboarding-12)
   useEffect(() => {
-    if (feed.initialized || !profile.data) return;
-    setFeed({ filter: profileIsSet(profile.data) ? filterFromProfile(profile.data) : {}, initialized: true });
+    if (feed.initialized || !profile.data || !profileIsSet(profile.data)) return;
+    setFeed({ filter: filterFromProfile(profile.data), initialized: true });
   }, [profile.data, feed.initialized]);
 
   const { st, load, more, ops, retryMore } = useJobPages(feed.filter, feed.sort, feed.q);

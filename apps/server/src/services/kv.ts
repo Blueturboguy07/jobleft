@@ -2,7 +2,7 @@
 // (never the key), the data folder's creation time.
 
 import type { DatabaseSync } from 'node:sqlite';
-import { AppSettingsSchema, nowIso, type AppSettings } from '@jobleft/contracts';
+import { AppSettingsSchema, OnboardingStateSchema, nowIso, type AppSettings, type OnboardingState } from '@jobleft/contracts';
 import { parseJson, prune, tx } from '../db/util.ts';
 
 export class Kv {
@@ -52,5 +52,29 @@ export class SettingsService {
   /** When this data folder was first set up (used where the contract needs a time and nothing else is known). */
   createdAt(): string {
     return this.kv.get<string>('created_at') ?? nowIso();
+  }
+}
+
+/**
+ * Where the first-run setup stands (JL-onboarding-2, -11, -14): the step, whether it was finished or skipped, and what
+ * the person chose or typed and did not save with Next yet. Kept here, not in the browser, so a quit, a reload or a
+ * new port never loses it. A data folder from before this record whose profile was saved counts as set up.
+ */
+export class OnboardingService {
+  private readonly kv: Kv;
+  private readonly hasProfile: () => boolean;
+  constructor(kv: Kv, hasProfile: () => boolean) { this.kv = kv; this.hasProfile = hasProfile; }
+
+  get(): OnboardingState {
+    const s = this.kv.get<OnboardingState>('onboarding');
+    if (s && typeof s === 'object' && typeof s.status === 'string') {
+      return { status: s.status, step: s.step ?? 0, draft: s.draft ?? null, pendingImport: s.pendingImport ?? null };
+    }
+    return { status: this.hasProfile() ? 'done' : 'new', step: 0, draft: null, pendingImport: null };
+  }
+
+  put(s: OnboardingState): OnboardingState {
+    this.kv.set('onboarding', prune(OnboardingStateSchema, s));
+    return this.get();
   }
 }

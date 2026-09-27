@@ -14,9 +14,11 @@ import { navigate } from '../app/router.ts';
 import { displayName, useProfile } from '../app/session.ts';
 import { ConflictNotice, ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, STAGE_OPTIONS, TYPE_OPTIONS } from '../lib/filters.ts';
+import { countrySort } from '../lib/countries.ts';
 import { typeText, yearMonthText } from '../lib/format.ts';
 import { INDUSTRY_SUGGESTIONS, PlacePicker, SKILL_SUGGESTIONS } from './jobs/Filters.tsx';
 import { AddResumeModal } from './Resume.tsx';
+import { toInput } from '../lib/onboarding.ts';
 
 type Block = 'personal' | 'prefs' | 'education' | 'work' | 'skills' | 'auth' | 'eeo';
 const BLOCKS: Array<{ id: Block; label: string }> = [
@@ -24,10 +26,7 @@ const BLOCKS: Array<{ id: Block; label: string }> = [
   { id: 'skills', label: 'Skills' }, { id: 'auth', label: 'Work authorization' }, { id: 'eeo', label: 'Equal employment' },
 ];
 
-export function toInput(p: Profile): ProfileInput {
-  const { id: _i, version: _v, updatedAt: _u, ...rest } = p;
-  return rest;
-}
+export { toInput };
 
 let seq = 0;
 const nid = (p: string) => `${p}${Date.now().toString(36)}${++seq}`;
@@ -98,7 +97,7 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
         <Row><Field label="Email"><Input type="email" value={p.email ?? ''} onChange={(e) => setP({ email: e.target.value || null })} /></Field><Field label="Phone"><Input value={p.phone ?? ''} onChange={(e) => setP({ phone: e.target.value || null })} /></Field></Row>
         <Row><Field label="Street address"><Input value={p.addressLine ?? ''} onChange={(e) => setP({ addressLine: e.target.value || null })} /></Field></Row>
         <Row><Field label="City"><Input value={p.city ?? ''} onChange={(e) => setP({ city: e.target.value || null })} /></Field><Field label="State or region"><Input value={p.region ?? ''} onChange={(e) => setP({ region: e.target.value || null })} /></Field><Field label="Postal code"><Input value={p.postalCode ?? ''} onChange={(e) => setP({ postalCode: e.target.value || null })} /></Field></Row>
-        <Field label="Country"><Select allowClear showSearch optionFilterProp="label" value={p.country ?? undefined} onChange={(v) => setP({ country: (v ?? null) as never })} options={COUNTRY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))} placeholder="Choose a country" /></Field>
+        <Field label="Country"><Select allowClear showSearch optionFilterProp="label" filterSort={countrySort} value={p.country ?? undefined} onChange={(v) => setP({ country: (v ?? null) as never })} options={COUNTRY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))} placeholder="Choose a country" /></Field>
         <span style={{ fontWeight: 600 }}>Links</span>
         {p.links.map((l, i) => (
           <Row key={i}>
@@ -118,7 +117,7 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
         <Field label="Job types"><Checkbox.Group value={pr.employmentTypes} onChange={(v) => setPr({ employmentTypes: v as never })} options={TYPE_OPTIONS} /></Field>
         <Field label="Work models"><Checkbox.Group value={pr.workModels} onChange={(v) => setPr({ workModels: v as never })} options={MODEL_OPTIONS} /></Field>
         <Field label="Experience levels"><Checkbox.Group value={pr.levels} onChange={(v) => setPr({ levels: v as never })} options={LEVEL_OPTIONS} /></Field>
-        <Field label="Countries"><Select mode="multiple" optionFilterProp="label" value={pr.countries} onChange={(v) => setPr({ countries: v })} options={COUNTRY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))} /></Field>
+        <Field label="Countries"><Select mode="multiple" optionFilterProp="label" filterSort={countrySort} value={pr.countries} onChange={(v) => setPr({ countries: v })} options={COUNTRY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))} /></Field>
         <Field label="Cities"><PlacePicker places={pr.places} onChange={(places) => setPr({ places })} /></Field>
         <Field label="Minimum yearly pay (US dollars)"><InputNumber min={0} step={5000} style={{ width: 200 }} value={pr.minAnnualPayUsd ?? undefined} onChange={(v) => setPr({ minAnnualPayUsd: v ?? null })} placeholder="Not set" /></Field>
         <Field label="Industries"><Select mode="tags" value={pr.industries} onChange={(v) => setPr({ industries: v })} options={INDUSTRY_SUGGESTIONS.map((x) => ({ value: x, label: x }))} /></Field>
@@ -184,7 +183,7 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
         <YesNo label="Will you need visa sponsorship now or later?" value={wa.needsSponsorship} onChange={(v) => setWa({ needsSponsorship: v })} />
         <YesNo label="Are you a US citizen?" value={wa.usCitizen} onChange={(v) => setWa({ usCitizen: v })} />
         <YesNo label="Do you hold a security clearance?" value={wa.hasSecurityClearance} onChange={(v) => setWa({ hasSecurityClearance: v })} />
-        <Field label="Other countries where you may work"><Select mode="multiple" optionFilterProp="label" value={wa.authorizedCountries} onChange={(v) => setWa({ authorizedCountries: v })} options={COUNTRY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))} /></Field>
+        <Field label="Other countries where you may work"><Select mode="multiple" optionFilterProp="label" filterSort={countrySort} value={wa.authorizedCountries} onChange={(v) => setWa({ authorizedCountries: v })} options={COUNTRY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))} /></Field>
       </Space>);
       break;
     case 'eeo':

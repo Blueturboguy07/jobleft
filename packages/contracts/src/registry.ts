@@ -5,7 +5,7 @@ import {
   ActionProposalSchema, AiSettingsSchema, AiSettingsUpdateSchema, ChatMessageSchema, ChatRequestSchema, ChatStreamEventSchema,
   ChatThreadSchema, PracticeItemSchema, PracticeSessionSchema, ProviderCheckSchema,
 } from './ai.ts';
-import { ApiErrorSchema, AppSettingsSchema, HealthSchema, JobDetailSchema, TrackerListSchema } from './api.ts';
+import { ApiErrorSchema, AppSettingsSchema, HealthSchema, JobDetailSchema, OnboardingStateSchema, TrackerListSchema } from './api.ts';
 import { CompanySchema, H1bSummarySchema } from './company.ts';
 import {
   DraftOfferSchema, DraftRequestSchema, DraftResponseSchema, ExtensionStatusSchema, FieldNoteSchema, FillRequestSchema,
@@ -65,7 +65,7 @@ export const SCHEMAS: Readonly<Record<string, JsonSchema>> = {
   PracticeItem: PracticeItemSchema,
   // local API
   ApiError: ApiErrorSchema, Health: HealthSchema, JobDetail: JobDetailSchema, TrackerList: TrackerListSchema,
-  AppSettings: AppSettingsSchema,
+  AppSettings: AppSettingsSchema, OnboardingState: OnboardingStateSchema,
   // extension protocol
   PairingCode: PairingCodeSchema, PairingInfo: PairingInfoSchema, PairRequest: PairRequestSchema, PairResponse: PairResponseSchema,
   ExtensionStatus: ExtensionStatusSchema, FormField: FormFieldSchema, FillRequest: FillRequestSchema,

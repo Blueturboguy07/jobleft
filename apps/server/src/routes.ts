@@ -125,6 +125,8 @@ export const HANDLERS: HandlerTable = {
   health: () => ({ json: { app: 'jobleft', version: APP_VERSION, apiVersion: LOCAL_API_VERSION, extensionProtocol: EXTENSION_PROTOCOL_VERSION } }),
   getSettings: ({ d }) => ({ json: d.settings.get() }),
   putSettings: ({ d, body }) => ({ json: d.settings.put(body) }),
+  getOnboarding: ({ d }) => ({ json: d.onboarding.get() }),
+  putOnboarding: ({ d, body }) => ({ json: d.onboarding.put(body) }),
   storage: ({ app, d }) => {
     let dbBytes = 0;
     for (const suffix of ['', '-wal']) {
