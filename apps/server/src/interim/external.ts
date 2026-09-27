@@ -153,11 +153,27 @@ export function rawFromText(text: string, applyUrl: string | null): RawJob {
   if (!company && at) { company = at[2]!.trim(); title = at[1]!.trim(); }
   const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
   const id = hash16(text);
+  // No apply link given: the text's own "Apply at https://..." line is the apply link (JL-tracker-12). Only a link the
+  // text offers for applying, never any link it holds. The job's own address stays the no-link one (the text is not
+  // a page, and two postings that share one careers link stay two jobs).
+  const stated = applyUrl ? null : statedApplyLink(lines);
   return {
-    externalId: id, url: applyUrl ?? `https://${NO_LINK_HOST}/job/${id}`, applyUrl: applyUrl ?? '', title,
+    externalId: id, url: applyUrl ?? `https://${NO_LINK_HOST}/job/${id}`, applyUrl: applyUrl ?? stated ?? '', title,
     company: company ?? 'Company not stated', location, descriptionHtml: escaped, remote: workMode === 'remote', workMode, countries: [],
     postedAt, employmentType, department, pay: null,
   };
+}
+
+/** The link on a line that offers it for applying ("Apply at https://...", "To apply: https://..."), or null. */
+export function statedApplyLink(lines: string[]): string | null {
+  for (const l of lines) {
+    if (!/\bapply\b|\bapplication\b/i.test(l)) continue;
+    const m = /\bhttps?:\/\/[^\s<>"'()]+/i.exec(l);
+    if (!m) continue;
+    const url = m[0].replace(/[.,;:!?]+$/, '');
+    try { const u = new URL(url); if (u.hostname.includes('.') && !u.username && !u.password) return u.toString(); } catch { /* not a link */ }
+  }
+  return null;
 }
 
 export interface ExternalDeps {
