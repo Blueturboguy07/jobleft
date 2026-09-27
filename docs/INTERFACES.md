@@ -437,7 +437,8 @@ What the extension never gets: network contacts, AI keys, the publik key, backup
 profile. Sensitive questions (EEO, work authorization, sponsorship, pay expectation, date of birth, age, criminal
 history, ID numbers) stay empty unless the person saved an answer for that exact topic; pay, age, date of birth,
 criminal history and ID numbers are never answered. The extension never reads, fills or adds anything on LinkedIn,
-Indeed or Glassdoor (every country domain and subdomain).
+Indeed or Glassdoor (every country domain and subdomain), and the app refuses those page addresses on the page,
+fill, drafts, add-job and review routes (422 `forbidden_source`), so a broken or spoofed client gets nothing either.
 Support levels (`ATS_SUPPORT` in apps/extension): Greenhouse, Lever, Ashby and Workable supported; Workday partial
 (built last); iCIMS partial (not testable: no live iCIMS request is allowed); everything else "not supported".
 

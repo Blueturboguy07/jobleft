@@ -190,3 +190,30 @@ test('a resume uploaded with no file name is stored and attached with its type\'
     assert.equal(fill.json.files[0].fileName, 'resume.pdf');
   } finally { await s.stop(); cleanup(s.home); }
 });
+
+test('the app answers nothing for a LinkedIn, Indeed or Glassdoor page, even to a paired extension (JL-extension-10)', async () => {
+  const s = await startTest('never-host');
+  try {
+    const ext = (path: string, token: string, body: unknown) => raw(s.port, { method: 'POST', path, body: JSON.stringify(body), headers: { origin: ORIGIN, 'x-jobleft-pairing': token, 'content-type': 'application/json' } });
+    const code = (await s.call('POST', '/api/v1/extension/pairing-code')).json.code;
+    const token = (await raw(s.port, { method: 'POST', path: '/api/v1/extension/pair', headers: { origin: ORIGIN, 'content-type': 'application/json' }, body: JSON.stringify({ code, extensionId: EXT, extensionVersion: '0.1.0', protocolVersion: 1, browser: 'Chrome' }) })).json.pairingToken;
+    await s.call('PUT', '/api/v1/profile', PERSONA);
+    const fields = [
+      { fieldId: 'e', label: 'Email', name: 'email', kind: 'email', required: true, options: [], maxLength: null, section: null },
+      { fieldId: 'q', label: 'Why do you want to work here?', name: 'why', kind: 'textarea', required: false, options: [], maxLength: null, section: null },
+    ];
+    for (const pageUrl of ['https://www.linkedin.com/jobs/apply/123', 'https://uk.indeed.com/viewjob?jk=1', 'https://www.glassdoor.co.uk/job/1']) {
+      const fill = await ext('/api/v1/extension/fill', token, { requestId: 'r-li', pageUrl, ats: 'other', step: null, resumeId: null, fields });
+      assert.equal(fill.status, 422, `${pageUrl}: ${fill.text}`);
+      assert.equal(fill.json.error.code, 'forbidden_source');
+      assert.ok(!fill.text.includes('jordan.testwell@example.com'), 'no profile value in the answer');
+      assert.equal((await ext('/api/v1/extension/page', token, { pageUrl })).status, 422);
+      assert.equal((await ext('/api/v1/extension/drafts', token, { requestId: 'r-li', pageUrl, jobId: null, fields: [fields[1]], maxCostMicros: 0 })).status, 422);
+      assert.equal((await ext('/api/v1/extension/review', token, { requestId: 'r-li', pageUrl, jobId: null, ats: 'other', filledFieldIds: [], editedFieldIds: [], submittedByUser: false, savedAnswers: [], at: '2026-09-27T10:00:00Z' })).status, 422);
+    }
+    // Other pages still work.
+    const ok = await ext('/api/v1/extension/fill', token, { requestId: 'r-ok', pageUrl: 'https://boards.greenhouse.io/acme/jobs/1', ats: 'greenhouse', step: null, resumeId: null, fields });
+    assert.equal(ok.status, 200, ok.text);
+    assert.equal(ok.json.fills[0].values[0], 'jordan.testwell@example.com');
+  } finally { await s.stop(); cleanup(s.home); }
+});

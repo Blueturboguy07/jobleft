@@ -10,6 +10,7 @@
 //   * a draft uses only profile facts (the template never names the employer of the page or any contact detail) and is
 //     never written into a form by the app; drafts made here are free and local, so no balance is touched;
 //   * the tracker says Applied only after review() with submittedByUser = true, once per job, with the resume version.
+//   * a LinkedIn, Indeed or Glassdoor page address gets nothing on any route (the browser blocks them too).
 
 import type { DatabaseSync } from 'node:sqlite';
 import {
@@ -99,6 +100,7 @@ export class ExtensionService {
   }
 
   page(req: PageInfoRequest): PageInfo {
+    refuseNeverHost(req.pageUrl);
     const jobId = this.jobIdOf(req.pageUrl);
     const job = jobId ? this.d.jobs.get(jobId) : null;
     const tracked = jobId ? this.d.tracker.get(jobId) : null;
@@ -119,9 +121,7 @@ export class ExtensionService {
 
   /** Adds the job on the person's tab, the same way add-by-link does (never a never-crawl site). */
   async addJob(req: PageInfoRequest): Promise<PageInfo> {
-    if (isNeverHost(new URL(req.pageUrl).hostname)) {
-      throw new ApiFailure('forbidden_source', 'jobleft never reads that site, so nothing was sent to it. Open the job in the app and paste its text instead.');
-    }
+    refuseNeverHost(req.pageUrl, 'jobleft never reads that site, so nothing was sent to it. Open the job in the app and paste its text instead.');
     const known = this.jobIdOf(req.pageUrl);
     if (!known) {
       const id = await addExternal({ url: req.pageUrl }, { crawlStore: this.d.crawlStore, hostMap: this.deps.hostMap, offline: this.deps.offline });
@@ -131,6 +131,7 @@ export class ExtensionService {
   }
 
   async fill(req: FillRequest): Promise<FillResponse> {
+    refuseNeverHost(req.pageUrl);
     const profile = this.d.profile.get();
     const jobId = this.jobIdOf(req.pageUrl);
     const list = this.attachable();
@@ -187,6 +188,7 @@ export class ExtensionService {
   }
 
   drafts(req: DraftRequest): DraftResponse {
+    refuseNeverHost(req.pageUrl);
     const profile = this.d.profile.get();
     const open = openQuestions(req.fields);
     const skipped = req.fields.filter((f) => !open.includes(f)).map((f) => ({ fieldId: f.fieldId, message: 'This is not an open question, so jobleft does not draft it.' }));
@@ -198,6 +200,7 @@ export class ExtensionService {
   }
 
   review(r: ReviewResult, extensionId: string | null): ReviewResponse {
+    refuseNeverHost(r.pageUrl);
     const known = r.jobId && this.d.jobs.exists(r.jobId) ? r.jobId : null;
     const jobId = known ?? this.jobIdOf(r.pageUrl);
     if (r.submittedByUser && !jobId) {
@@ -244,6 +247,16 @@ export function withExtension(fileName: string, mimeType: string): string {
   const ext = EXTENSIONS[mimeType.toLowerCase()];
   if (!ext || fileName.toLowerCase().endsWith(ext) || (ext === '.doc' && /\.docx?$/i.test(fileName))) return fileName;
   return `${fileName}${ext}`;
+}
+
+/**
+ * The app never answers for LinkedIn, Indeed or Glassdoor pages, whatever the client says (JL-extension-10): the
+ * extension blocks them in the browser, and a broken or spoofed client gets nothing here either.
+ */
+function refuseNeverHost(pageUrl: string, message = 'jobleft never reads or fills anything on LinkedIn, Indeed or Glassdoor, so the app sent nothing for this page.'): void {
+  let host: string;
+  try { host = new URL(pageUrl).hostname; } catch { return; }
+  if (isNeverHost(host)) throw new ApiFailure('forbidden_source', message);
 }
 
 function labelKey(s: string): string {
