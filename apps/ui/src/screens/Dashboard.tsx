@@ -8,7 +8,8 @@ import { useApi } from '../app/data.ts';
 import { navigate } from '../app/router.ts';
 import { useCrawl, useNotifications } from '../app/session.ts';
 import { ErrorState, Loading } from '../components/States.tsx';
-import { ago, dateTimeText, plural } from '../lib/format.ts';
+import { ago, dateText, dateTimeText, plural } from '../lib/format.ts';
+import { applicationsPerWeek, openReminders } from '../lib/trackerView.ts';
 import { useTrackerView } from './jobs/TrackerTabs.tsx';
 
 function Kpi({ n, label, to }: { n: number | null | undefined; label: string; to: string }) {
@@ -20,18 +21,11 @@ function Kpi({ n, label, to }: { n: number | null | undefined; label: string; to
   );
 }
 
-function weekStart(t: number): number {
-  const d = new Date(t);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  return d.getTime();
-}
-
 export function Dashboard() {
   const storage = useApi<StorageInfo>('dashboard:storage', () => call('storage'));
   const recent = useApi<number>('dashboard:recent', async () => (await call('searchJobs', { body: { sort: 'most_recent', filter: { postedWithin: '7d' }, limit: 1 } })).total);
-  const applied = useTrackerView('applied');
-  const liked = useTrackerView('liked');
+  // One tracker answer: counts, applications and every open reminder (liked jobs too, JL-tracker-1).
+  const applied = useTrackerView('tracked');
   const contacts = useApi<NetworkContact[]>('network:contacts:', () => call('listContacts', { query: {} }));
   const filters = useApi<SavedFilter[]>('filters', () => call('listFilters'));
   const report = useApi<{ run: CrawlRunSummary | null; boards: CrawlBoardReport[] }>('dashboard:report', () => call('crawlReport'));
@@ -46,19 +40,12 @@ export function Dashboard() {
   const due = (contacts.data ?? []).filter((c) => c.followUpOn && c.followUpOn <= today).length;
   const maxBy = Math.max(1, ...TRACKER_STATUSES.map((s) => by[s]));
 
-  // applications per week (last 8 weeks), from each job's status history
+  // applications per week (last 8 weeks): every application counts, whatever stage it went to first
   const now = Date.now();
-  const weeks = Array.from({ length: 8 }, (_, i) => weekStart(now) - (7 - i) * 7 * 86_400_000);
-  const perWeek = weeks.map(() => 0);
-  for (const it of applied.data.items) {
-    const at = it.entry.appliedAt ? Date.parse(it.entry.appliedAt) : null;
-    if (at === null) continue;
-    const w = weekStart(at);
-    const idx = weeks.indexOf(w);
-    if (idx >= 0) perWeek[idx]!++;
-  }
+  const { weeks, counts: perWeek, earlier } = applicationsPerWeek(applied.data.items, now);
   const maxWeek = Math.max(1, ...perWeek);
-  const reminders = applied.data.items.flatMap((it) => it.entry.reminders.filter((r) => !r.done).map((r) => ({ r, it }))).sort((a, b) => (a.r.at < b.r.at ? -1 : 1)).slice(0, 5);
+  const allReminders = openReminders(applied.data.items, now);
+  const reminders = allReminders.slice(0, 5);
   const failing = (report.data?.boards ?? []).filter((b) => b.status !== 'ok');
 
   return (
@@ -67,7 +54,7 @@ export function Dashboard() {
         <div className="jl-kpis">
           <Kpi n={storage.data?.openJobs} label="Open jobs stored" to="jobs" />
           <Kpi n={recent.data} label="Posted in the last 7 days" to="jobs" />
-          <Kpi n={liked.data?.counts.liked} label="Liked" to="jobs/liked" />
+          <Kpi n={applied.data.counts.liked} label="Liked" to="jobs/liked" />
           <Kpi n={applied.data.counts.applied} label="Applications" to="tracker" />
           <Kpi n={by.interviewing} label="Interviewing" to="tracker" />
           <Kpi n={by.offer_received} label="Offers" to="tracker" />
@@ -94,15 +81,17 @@ export function Dashboard() {
                 <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                   <span className="jl-small">{n}</span>
                   <div style={{ width: '100%', height: `${(90 * n) / maxWeek}px`, minHeight: 2, background: n ? '#0A8F5C' : 'var(--jl-chip)', borderRadius: 4 }} />
-                  <span className="jl-small jl-muted">{new Date(weeks[i]!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  <span className="jl-small jl-muted" style={{ whiteSpace: 'nowrap' }}>{new Date(weeks[i]!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                 </div>
               ))}
             </div>
+            {earlier > 0 && <p className="jl-small jl-muted" style={{ marginTop: 8 }}>Plus {plural(earlier, 'application')} before {dateText(new Date(weeks[0]!).toISOString())}.</p>}
           </section>
           <section className="jl-card-box" aria-labelledby="rem2-h">
             <h2 id="rem2-h" className="jl-section-title" style={{ fontSize: 17 }}>Next reminders</h2>
             {!reminders.length && <p className="jl-muted">No open reminders.</p>}
-            {reminders.map(({ r, it }) => <p key={r.id} style={{ margin: '4px 0' }}><strong>{dateTimeText(r.at)}</strong>: {r.text} · <a href={`#/jobs/${encodeURIComponent(it.job.id)}`}>{it.job.company}</a></p>)}
+            {reminders.map(({ r, it, overdue }) => <p key={r.id} style={{ margin: '4px 0' }}>{overdue && <span className="jl-chip warn" style={{ marginRight: 6 }}>Overdue</span>}<strong>{dateTimeText(r.at)}</strong>: {r.text} · <a href={`#/jobs/${encodeURIComponent(it.job.id)}`}>{it.job.company}</a></p>)}
+            {allReminders.length > reminders.length && <Button type="link" style={{ padding: 0 }} onClick={() => navigate('tracker')}>{plural(allReminders.length - reminders.length, 'more open reminder')} in the Tracker</Button>}
           </section>
           <section className="jl-card-box" aria-labelledby="ref-h">
             <h2 id="ref-h" className="jl-section-title" style={{ fontSize: 17 }}>Job boards</h2>

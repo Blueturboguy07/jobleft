@@ -20,6 +20,7 @@ import { CompanyMark } from '../../components/JobCard.tsx';
 import { InlineError } from '../../components/States.tsx';
 import { calendarDate, dateText, dateTimeText, plural } from '../../lib/format.ts';
 import { noteKeep, patchFresh, reminderKeep } from '../../lib/trackerEdit.ts';
+import { reminderTimeProblem } from '../../lib/trackerView.ts';
 import { ContactName, MatchExplain, ProfileLink, ReasonList, StageSelect, saveContact } from '../network/shared.tsx';
 
 export function SecHead({ icon, title, id, right }: { icon: ReactNode; title: string; id?: string; right?: ReactNode }) {
@@ -231,6 +232,7 @@ export function NotesSection({ job, entry, onChange }: { job: Job; entry: Tracke
   const [err, setErr] = useState<UiError | null>(null);
   const notes = entry?.notes ?? [];
   const reminders = entry?.reminders ?? [];
+  const remProblem = reminderTimeProblem(remAt, Date.now());
   useDirty(`note:${job.id}`, !!newNote.trim() || (!!editing && editing.text !== (notes.find((n) => n.id === editing.id)?.text ?? '')), 'your note');
   // every save reads the newest copy first (see lib/trackerEdit.ts), so a second window never overwrites the first
   const save = async (build: (fresh: TrackerEntry | null) => TrackerPatch | null, ok: string): Promise<boolean> => {
@@ -293,9 +295,15 @@ export function NotesSection({ job, entry, onChange }: { job: Job; entry: Tracke
         <div className="jl-row jl-wrap">
           <Input type="datetime-local" value={remAt} onChange={(e) => setRemAt(e.target.value)} style={{ width: 220 }} aria-label="Reminder date and time" min={toLocalInput(new Date().toISOString())} />
           <Input value={remText} onChange={(e) => setRemText(e.target.value)} placeholder="What to do" aria-label="Reminder text" style={{ width: 240 }} maxLength={500} />
-          <Button shape="round" icon={<PlusOutlined />} disabled={!remAt} loading={busy}
-            onClick={async () => { const at = new Date(remAt).toISOString(); const text = remText.trim() || 'Follow up'; if (await save((f) => ({ reminders: [...reminderKeep(f), { at, text, done: false }] }), 'Reminder set.')) { setRemAt(''); setRemText(''); } }}>Add reminder</Button>
+          <Button shape="round" icon={<PlusOutlined />} disabled={!!remProblem} loading={busy}
+            onClick={async () => {
+              // checked again at the click: the time may have passed since it was typed
+              const problem = reminderTimeProblem(remAt, Date.now());
+              if (problem) { setErr({ code: 'bad_request', status: 400, message: problem, link: null }); return; }
+              const at = new Date(remAt).toISOString(); const text = remText.trim() || 'Follow up'; if (await save((f) => ({ reminders: [...reminderKeep(f), { at, text, done: false }] }), 'Reminder set.')) { setRemAt(''); setRemText(''); }
+            }}>Add reminder</Button>
         </div>
+        {remAt && remProblem && <span className="jl-small" role="alert" style={{ color: 'var(--jl-warn)' }}>{remProblem}</span>}
       </div>
     </section>
   );
