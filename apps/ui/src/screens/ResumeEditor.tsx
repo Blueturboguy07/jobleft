@@ -58,6 +58,20 @@ function ItemEditor({ kind, item, onChange, onRemove }: { kind: ResumeSection['k
   );
 }
 
+/** Plain headings for the readability rules (the report carries program codes such as "missing_education_heading"). */
+const RULE_TITLES: Record<string, string> = {
+  file_empty: 'The file is empty', encrypted: 'Password or encryption', not_a_pdf: 'Not a readable PDF', no_text_layer: 'No text layer',
+  pages_without_text: 'Pages without text', invisible_text: 'Invisible text', white_text: 'White text', ligatures: 'Joined letters',
+  unmapped_characters: 'Unreadable characters', garbled_text: 'Garbled text', tiny_text: 'Very small text', text_off_page: 'Text off the page',
+  file_size: 'Large file', multi_column: 'Two columns or a table', page_count: 'Number of pages', images: 'Pictures',
+  missing_experience_heading: 'No Experience heading', missing_education_heading: 'No Education heading', missing_skills_heading: 'No Skills heading',
+  nonstandard_headings: 'Unusual heading names', no_jobs_read: 'No job could be read', no_history: 'No work history and no education',
+  very_short: 'Very short resume', missing_name: 'No name', missing_email: 'No email address', missing_phone: 'No phone number',
+  contact_in_margin: 'Contact details in the margin', no_dates: 'No dates', jobs_without_dates: 'Jobs without dates',
+  end_before_start: 'A job ends before it starts', mixed_date_formats: 'Dates in more than one style',
+};
+export const ruleTitle = (rule: string): string => RULE_TITLES[rule] ?? (rule.charAt(0).toUpperCase() + rule.slice(1)).replace(/_/g, ' ');
+
 function ReportDrawer({ report, open, onClose }: { report: AtsReport | null; open: boolean; onClose: () => void }) {
   const groups = ['urgent', 'critical', 'optional'] as const;
   return (
@@ -74,7 +88,7 @@ function ReportDrawer({ report, open, onClose }: { report: AtsReport | null; ope
                 <h3 className="jl-subhead">{g === 'urgent' ? 'Fix first' : g === 'critical' ? 'Important' : 'Nice to fix'} ({list.length})</h3>
                 {list.map((f) => (
                   <div key={f.id} className={`jl-sev ${g}`} style={{ marginBottom: 8 }}>
-                    <strong>{f.rule}</strong>
+                    <strong>{ruleTitle(f.rule)}</strong>
                     <p style={{ margin: '4px 0' }}>{f.message}</p>
                     <span className="jl-small jl-muted">{f.evidence}</span>
                   </div>
@@ -180,7 +194,7 @@ export function ResumeEditor({ id }: { id: string }) {
           {rep ? <span className={`jl-grade ${rep.grade}`} style={{ width: 48, height: 48, fontSize: 22 }} aria-label={`Grade ${rep.grade}`}>{rep.grade}</span> : <span className="jl-grade" style={{ width: 48, height: 48, background: 'var(--jl-chip)' }} aria-label="Not graded">–</span>}
           <div className="jl-grow">
             <strong>{rep ? `Readability ${rep.score} of 100` : 'Not checked yet'}</strong>
-            <div className="jl-small jl-muted">{rep ? `Checked ${ago(rep.checkedAt)}.` : 'Run the check to grade the PDF this resume exports to.'} {fit.data ? (fit.data.fitsOnePage ? 'Fits on one page.' : `Too long for one page: ${plural(fit.data.leftOut.length, 'line')} would be left out.`) : ''}</div>
+            <div className="jl-small jl-muted">{rep ? `Checked ${ago(rep.checkedAt)}.` : 'Run the check to grade the PDF this resume exports to.'} {fit.data ? (fit.data.fitsOnePage ? 'Fits on one page.' : `Too long for one page: ${plural(fit.data.leftOut.length, 'item')} would be left out of the files (listed below).`) : ''}</div>
             {rep && <Button type="link" size="small" style={{ padding: 0 }} onClick={() => setReport(true)}>View the full report</Button>}
           </div>
           <div className="jl-sev urgent"><strong>{count('urgent')}</strong> <span className="jl-small">fix first</span></div>

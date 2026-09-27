@@ -129,6 +129,11 @@ export async function atsCheckPdf(bytes: Uint8Array): Promise<AtsReport> {
   if (!kinds.has('skills')) add({ id: 'sections-skills', rule: 'missing_skills_heading', severity: 'critical', part: 'sections', message: 'No standard "Skills" heading was found.', evidence: `Headings found: ${seenHeads}.` });
   if (parsed.unreadSections.length) add({ id: 'sections-nonstandard', rule: 'nonstandard_headings', severity: 'optional', part: 'sections', message: 'Some headings are not standard names; systems may file their content under "other".', evidence: `Headings: ${parsed.unreadSections.map((s) => q(s, 30)).join(', ')}.` });
   if (kinds.has('experience') && parsed.counts.jobs === 0) add({ id: 'sections-no-jobs', rule: 'no_jobs_read', severity: 'critical', part: 'sections', message: 'An experience heading is there, but no job could be read under it.', evidence: 'Jobs read: 0.' });
+  // A file can be easy to read and still hold almost nothing to match: a grade of A must never mean "ready to send"
+  // for a resume with no work history and no education, or only a few lines (JL-resume-8).
+  if (!kinds.has('experience') && !kinds.has('education') && parsed.counts.jobs === 0) add({ id: 'content-thin', rule: 'no_history', severity: 'urgent', part: 'sections', cap: 69, message: 'The resume shows no work history and no education, so systems and recruiters find little to match. Add them before you send it.', evidence: `Headings found: ${seenHeads}. Jobs read: 0.` });
+  const wordCount = allText.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length;
+  if (wordCount < 80) add({ id: 'content-short', rule: 'very_short', severity: 'critical', part: 'text', message: 'The resume is very short. Systems match on the words it holds.', evidence: `${wordCount} words.` });
 
   // ---- contact
   const pr = parsed.profile.personal;
