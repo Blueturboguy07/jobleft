@@ -88,6 +88,117 @@
       "type": "string",
       "format": "date-time",
       "description": "RFC 3339 date-time, UTC (\"Z\")"
+    },
+    "proposals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "tracker_status",
+                    "like",
+                    "unlike",
+                    "hide",
+                    "unhide",
+                    "note_add",
+                    "reminder_add",
+                    "profile_edit",
+                    "resume_delete",
+                    "filter_save",
+                    "contact_stage",
+                    "cover_letter",
+                    "debrief_save",
+                    "paid_fetch",
+                    "paid_search"
+                  ]
+                },
+                "summary": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "target": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "job",
+                        "resume",
+                        "profile",
+                        "filter",
+                        "contact",
+                        "web"
+                      ]
+                    },
+                    "id": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 300
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ]
+                },
+                "costMicros": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "description": "Integer millionths of a US dollar"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "summary",
+                "target"
+              ]
+            },
+            "minItems": 1
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 date-time, UTC (\"Z\")"
+          }
+        },
+        "required": [
+          "id",
+          "actions",
+          "expiresAt"
+        ],
+        "title": "ActionProposal"
+      }
     }
   },
   "required": [

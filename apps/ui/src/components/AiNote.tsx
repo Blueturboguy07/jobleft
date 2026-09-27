@@ -9,8 +9,9 @@ import { formatDollars } from '@jobleft/contracts';
 import { invalidate } from '../app/data.ts';
 import { ui } from '../app/layers.ts';
 import { navigate } from '../app/router.ts';
-import { useAiSettings } from '../app/session.ts';
+import { useAiSettings, usePublik } from '../app/session.ts';
 import { hostOf } from '../lib/format.ts';
+import { dailyLimitReached } from '../lib/dailyLimit.ts';
 
 export type AiKind = 'chatTurn' | 'tailor' | 'coverLetter' | 'outreachDraft' | 'practice';
 
@@ -45,6 +46,8 @@ export function destinationOf(s: AiSettings | undefined, kind: AiKind): Destinat
 export function AiNote({ kind, what }: { kind: AiKind; what: string }) {
   const ai = useAiSettings();
   const d = destinationOf(ai.data, kind);
+  const pub = usePublik(d.charges);
+  const limited = d.charges && dailyLimitReached(pub.data?.wallet);
   if (!ai.data) return null;
   if (!d.set) {
     return (
@@ -59,7 +62,7 @@ export function AiNote({ kind, what }: { kind: AiKind; what: string }) {
       {d.remote ? <CloudOutlined /> : <DesktopOutlined />}
       <span>
         {d.charges
-          ? <>Charges your publik balance{d.costMicros !== null ? <>: about <strong>{formatDollars(d.costMicros)}</strong></> : '. The exact charge shows when it finishes'}. Sends the text to publik.</>
+          ? <>Charges your publik balance{d.costMicros !== null ? <>: about <strong>{formatDollars(d.costMicros)}</strong></> : '. The exact charge shows when it finishes'}. Sends the text to publik.{limited ? <> Today's publik spending limit for this computer was reached: a step that would go over it is refused (see Settings &gt; Balance).</> : null}</>
           : d.remote ? <>Sends the text to {d.label}. No charge to your publik balance.</>
             : <>Runs on {d.label}. Nothing leaves this Mac and nothing is charged.</>}
       </span>

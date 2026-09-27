@@ -10,7 +10,7 @@ import type {
 import { nowMs, OUTREACH_STAGES } from '@jobleft/contracts';
 import { parseConnectionsCsv, urlIdentity, type ParsedConnection } from './csv.ts';
 import {
-  howMatched, isNearName, keyFingerprint, keysForCompany, whyNotCounted, type CompanyKeyFn,
+  familyKey, howMatched, isNearName, keyFingerprint, keysForCompany, networkKey, whyNotCounted, type CompanyKeyFn,
 } from './company.ts';
 import { checkpoint, migrateNetwork, type ContactRow } from './db.ts';
 import { rankContacts } from './rank.ts';
@@ -87,6 +87,21 @@ const NEXT_STEP: Record<OutreachStage, string> = {
   follow_up_due: 'Follow up now with a short, friendly note.',
 };
 
+/** The words of the one follow-up notification: how many follow-ups are due now, never a name (JL-network-5). */
+export function followUpReminderText(n: number): { title: string; body: string } {
+  return { title: 'jobleft: network follow-up', body: `${n} network follow-up${n === 1 ? ' is' : 's are'} due. Open Network > Follow-ups to see ${n === 1 ? 'who' : 'them'}.` };
+}
+
+/** 2 = written with capitals and small letters ("Kroger") or a short all-capitals name ("IBM"); 1 = all capitals; 0 = all small. */
+function casing(name: string): number {
+  const letters = name.replace(/[^\p{L}]/gu, '');
+  const upper = letters === letters.toUpperCase();
+  const lower = letters === letters.toLowerCase();
+  if (!upper && !lower) return 2;
+  if (upper && !lower) return letters.length <= 4 ? 2 : 1;
+  return 0;
+}
+
 function nameKey(first: string, last: string, connectedOn: string | null): string {
   return [fold(first).trim(), fold(last).trim(), connectedOn ?? ''].join('|');
 }
@@ -129,8 +144,9 @@ export class NetworkService {
   /** A company key from a key or a name. Keys pass through unchanged ("stripe" stays "stripe"); "Stripe, Inc." becomes "stripe". */
   normalizeKey(keyOrName: string): string {
     if (!keyOrName) return '';
-    if (/^[\p{Ll}\p{N}\p{Lo}]+$/u.test(keyOrName)) return keyOrName;
-    try { return this.keyFn(keyOrName) || keyOrName; } catch { return keyOrName; }
+    // A key is put in its reviewed alias family ("palantirtechnologies" -> "palantir"), the way stored keys are.
+    if (/^[\p{Ll}\p{N}\p{Lo}]+$/u.test(keyOrName)) return familyKey(keyOrName);
+    return networkKey(keyOrName, this.keyFn) || keyOrName;
   }
 
   /** Today's calendar date in the person's time zone. */
@@ -213,7 +229,8 @@ export class NetworkService {
     this.counts = null;
     const warnings = [...parsed.warnings];
     if (result.missing) {
-      warnings.push(`${result.missing} ${result.missing === 1 ? 'person' : 'people'} from an earlier import ${result.missing === 1 ? 'is' : 'are'} not in this file. They are kept with their stages and notes and marked "not in latest file". Delete them one by one if you want.`);
+      // One sentence and one name for this state (the People list tags them "no longer in your file"; JL-network-3).
+      warnings.push(`${result.missing.toLocaleString('en-US')} ${result.missing === 1 ? 'person' : 'people'} from an earlier import ${result.missing === 1 ? 'is' : 'are'} not in this file. Nothing was deleted: they stay with their stages and notes, marked "no longer in your file". You can delete them one by one.`);
     }
     const summary = {
       imported: result.imported, updated: result.updated, unchanged: result.unchanged, missingFromFile: result.missing,
@@ -318,13 +335,16 @@ export class NetworkService {
     const args: Array<string | number> = [];
     if (q.companyKey !== undefined) {
       if (!q.companyKey) return [];
+      const k = familyKey(q.companyKey);
       where.push('(company_key = ? OR company_raw_key = ?)');
-      args.push(q.companyKey, q.companyKey);
+      args.push(k, k);
     }
     if (q.noCompany) where.push('company_key IS NULL');
-    if (q.stage) { where.push('stage = ?'); args.push(q.stage); }
-    if (q.inPlan !== undefined) { where.push('in_plan = ?'); args.push(q.inPlan ? 1 : 0); }
     const today = this.today();
+    // "Follow-up due" means what it says: the stage picked by hand, or a follow-up date of today or earlier (JL-network-7).
+    if (q.stage === 'follow_up_due') { where.push("(stage = 'follow_up_due' OR (follow_up_on IS NOT NULL AND follow_up_on <= ?))"); args.push(today); }
+    else if (q.stage) { where.push('stage = ?'); args.push(q.stage); }
+    if (q.inPlan !== undefined) { where.push('in_plan = ?'); args.push(q.inPlan ? 1 : 0); }
     if (q.withFollowUp) where.push('follow_up_on IS NOT NULL');
     if (q.due !== undefined) {
       if (q.due) { where.push('follow_up_on IS NOT NULL AND follow_up_on <= ?'); args.push(today); }
@@ -373,14 +393,14 @@ export class NetworkService {
   /** How many connections work at a company (null when none, so cards show nothing). Same rule as list({ companyKey }). */
   countFor(companyKey: string): number | null {
     if (!companyKey) return null;
-    return this.countCache().get(companyKey) ?? null;
+    return this.countCache().get(familyKey(companyKey)) ?? null;
   }
 
   /** countFor for many keys at once (a job feed page). One cached map; no query per card. */
   countsFor(keys: Iterable<string>): Map<string, number | null> {
     const cache = this.countCache();
     const out = new Map<string, number | null>();
-    for (const k of keys) out.set(k, k ? cache.get(k) ?? null : null);
+    for (const k of keys) out.set(k, k ? cache.get(familyKey(k)) ?? null : null);
     return out;
   }
 
@@ -403,6 +423,7 @@ export class NetworkService {
 
   /** How a company's count was made: which names were counted and why, and which near names were not. */
   explain(companyKey: string, companyName: string | null = null): MatchExplanation {
+    companyKey = familyKey(companyKey);
     const matched = new Map<string, number>();
     const contacts = companyKey ? this.list({ companyKey }) : [];
     for (const c of contacts) matched.set(c.company ?? '', (matched.get(c.company ?? '') ?? 0) + 1);
@@ -425,18 +446,21 @@ export class NetworkService {
     return out;
   }
 
-  coverage(targetCompanies: Array<{ companyKey: string; companyName: string }>): CompanyCoverage[] {
-    const seen = new Map<string, { companyKey: string; companyName: string }>();
+  coverage(targetCompanies: Array<{ companyKey: string; companyName: string; jobs?: Array<{ id: string; title: string }> }>): CompanyCoverage[] {
+    const seen = new Map<string, { companyKey: string; companyName: string; jobs: Array<{ id: string; title: string }> }>();
     for (const t of targetCompanies) {
-      const key = t.companyKey || keysForCompany(t.companyName, this.keyFn).rawKey || '';
-      if (!key || seen.has(key)) continue;
-      seen.set(key, { companyKey: key, companyName: t.companyName });
+      // The same key as the job card's count (the job's key, in its alias family), so both always agree.
+      const key = familyKey(t.companyKey || keysForCompany(t.companyName, this.keyFn).rawKey || '');
+      if (!key) continue;
+      const cur = seen.get(key);
+      if (cur) { for (const j of t.jobs ?? []) if (!cur.jobs.some((x) => x.id === j.id)) cur.jobs.push(j); continue; }
+      seen.set(key, { companyKey: key, companyName: t.companyName, jobs: [...(t.jobs ?? [])] });
     }
     const out: CompanyCoverage[] = [];
     for (const t of seen.values()) {
       const count = this.countFor(t.companyKey) ?? 0;
       const top = count ? this.rank(t.companyKey, null).slice(0, 3).map((r) => r.contactId) : [];
-      out.push({ companyKey: t.companyKey, companyName: t.companyName, count, topContactIds: top });
+      out.push({ companyKey: t.companyKey, companyName: t.companyName, count, topContactIds: top, ...(t.jobs.length ? { jobs: t.jobs.slice(0, 20) } : {}) });
     }
     return out.sort((a, b) => (b.count > 0 ? 1 : 0) - (a.count > 0 ? 1 : 0) || b.count - a.count
       || (a.companyName.toLowerCase() < b.companyName.toLowerCase() ? -1 : a.companyName.toLowerCase() > b.companyName.toLowerCase() ? 1 : 0));
@@ -444,6 +468,7 @@ export class NetworkService {
 
   rank(companyKey: string, job: Job | null): ContactRank[] {
     if (!companyKey) return [];
+    companyKey = familyKey(companyKey);
     const contacts = this.list({ companyKey }).map((c) => ({ ...c, companyKey, matchKeys: [companyKey] }));
     return rankContacts(contacts, { companyKey, job, now: this.nowFn(), timeZone: this.tz });
   }
@@ -503,7 +528,8 @@ export class NetworkService {
       const byId = new Map(list.map((c) => [c.id, c]));
       const names = new Map<string, number>();
       for (const c of list) if (c.company) names.set(c.company, (names.get(c.company) ?? 0) + 1);
-      const best = [...names.entries()].sort((a, b) => b[1] - a[1] || Number(a[0] === a[0].toLowerCase()) - Number(b[0] === b[0].toLowerCase()) || (a[0] < b[0] ? -1 : 1))[0]?.[0];
+      // The heading is the name as a person writes it: "Kroger", not one row's "KROGER" or "kroger" (JL-network-8).
+      const best = [...names.entries()].sort((a, b) => casing(b[0]) - casing(a[0]) || b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0];
       out.push({
         companyKey: key,
         companyName: best ?? 'Unknown company',
@@ -539,7 +565,7 @@ export class NetworkService {
     return {
       count: n,
       contactIds: rows.map((r) => r.id),
-      text: { title: 'jobleft: network follow-up', body: `${n} network follow-up${n === 1 ? ' is' : 's are'} due. Open Network > Due to see ${n === 1 ? 'who' : 'them'}.` },
+      text: followUpReminderText(n),
     };
   }
 

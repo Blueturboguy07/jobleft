@@ -304,7 +304,7 @@ export function parseConnectionsCsv(input: string): ParseResult {
   if (badUrls) warnings.push(`${badUrls} ${badUrls === 1 ? 'row has' : 'rows have'} a URL that is not a web address; it is not shown.`);
   if (badDates) warnings.push(`${badDates} ${badDates === 1 ? 'row has' : 'rows have'} a Connected On date that could not be read without guessing; it shows as unknown.`);
   if (garbled) warnings.push(`${garbled} ${garbled === 1 ? 'name looks' : 'names look'} garbled by the export. ${garbled === 1 ? 'It is' : 'They are'} shown exactly as in the file.`);
-  if (blankEmails) warnings.push(`${blankEmails} of ${rows.length} people have no email address in the file (normal for this export). No email is guessed.`);
+  if (blankEmails) warnings.push(`${blankEmails.toLocaleString('en-US')} of ${rows.length.toLocaleString('en-US')} people have no email address in the file (normal for this export). No email is guessed.`);
   if (!rows.length && !skipped.length) warnings.push('The file has the header row but no people.');
   return { rows, skipped, notAConnectionsFile: false, warnings, headerLine: header.line, dataRows };
 }

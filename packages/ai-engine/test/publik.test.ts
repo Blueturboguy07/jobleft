@@ -213,3 +213,22 @@ test('a streamed answer never shows its temporary hold as the balance; the re-re
     assert.equal(w.balanceMicros, p.state().balanceMicros);
   });
 });
+
+test('JL-network-19: a daily-limit refusal says what happened (this step, not the balance), with the amounts and a local reset time', async () => {
+  await withPublik({ balanceUsd: 5 }, async (p) => {
+    const { engine } = makeEngine({ publikBaseUrl: p.baseUrl });
+    await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
+    const e = await engine.publik.failure(429, { 'retry-after': '3600' }, JSON.stringify({ error: { type: 'daily_cap_reached', daily_cap_micros: 250_000, spent_today_micros: 145_795 } }));
+    assert.equal(e.code, 'provider_error');
+    assert.match(e.message, /^This AI step would go over today's publik spending limit for this computer \(\$0\.25 a day, \$0\.14 used so far\), so publik did not run it and nothing was charged\./);
+    assert.match(e.message, /smaller AI steps may still run\. The limit starts again (today|tomorrow) at \d{1,2}:\d{2} [AP]M/);
+    assert.doesNotMatch(e.message, /midnight UTC/, 'a reset one hour away is not called midnight');
+    const w = (await engine.publik.status()).wallet!;
+    assert.equal(w.daily?.capMicros, 250_000);
+    assert.ok(w.daily?.reachedAt);
+    assert.equal(w.balanceMicros, 5_000_000);
+    // Without amounts from publik, no amount is guessed.
+    const bare = await engine.publik.failure(429, {}, JSON.stringify({ error: { type: 'daily_cap_reached' } }));
+    assert.doesNotMatch(bare.message.replace(/\$0\.25 a day, \$0\.14 used so far/, ''), /\$/);
+  });
+});

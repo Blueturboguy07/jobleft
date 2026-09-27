@@ -21,7 +21,7 @@ export interface StoredAction {
   payload: Record<string, unknown>;
 }
 
-interface Stored { id: string; chatId: string | null; actions: StoredAction[]; expiresAt: number }
+interface Stored { id: string; chatId: string | null; actions: StoredAction[]; expiresAt: number; view: ActionProposal }
 
 export const PROPOSAL_TTL_MS = 60 * 60_000;
 
@@ -32,12 +32,19 @@ export class ProposalBook {
     this.sweep();
     const id = newId('prop');
     const expiresAt = nowMs() + PROPOSAL_TTL_MS;
-    this.items.set(id, { id, chatId, actions, expiresAt });
-    return {
+    const view: ActionProposal = {
       id,
       actions: actions.map((a) => ({ id: a.id, kind: a.kind, summary: a.summary, target: a.target, ...(a.costMicros !== null ? { costMicros: a.costMicros } : {}) })),
       expiresAt: new Date(expiresAt).toISOString(),
     };
+    this.items.set(id, { id, chatId, actions, expiresAt, view });
+    return view;
+  }
+
+  /** The proposals of one conversation that are still waiting for the person's decision, oldest first. */
+  pendingFor(chatId: string): ActionProposal[] {
+    this.sweep();
+    return [...this.items.values()].filter((s) => s.chatId === chatId).map((s) => s.view);
   }
 
   /** Takes the proposal out for a decision. null = unknown, already decided or expired. */

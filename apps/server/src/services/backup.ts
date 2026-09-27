@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, s
 import { dirname, join, relative, sep } from 'node:path';
 import { DatabaseSync, backup as sqliteBackup } from 'node:sqlite';
 import { SECRET_NAMES, nowIso } from '@jobleft/contracts';
+import { ChatStore, PracticeStore, UsageLedger } from '@jobleft/assistant';
 import type { App, AppData } from '../app.ts';
 import { AppData as AppDataClass } from '../app.ts';
 import { ApiFailure, storageProblem, writeFailed } from '../errors.ts';
@@ -60,7 +61,7 @@ export function countsOf(db: DatabaseSync): Record<string, number> {
     resumeFiles: q('resumes', "WHERE file_json IS NOT NULL") + q('srv_resumes', notAdopted('file_path IS NOT NULL')),
     contacts: q('network_contacts'),
     chats: q('srv_chats') + q('ai_chats'),
-    chatMessages: q('srv_chat_messages'),
+    chatMessages: q('srv_chat_messages') + q('ai_chat_messages'),
     savedAnswers: q('srv_saved_answers'),
     boards: q('srv_boards'),
     jobs: q('jobs'),
@@ -337,7 +338,9 @@ export async function exportAll(d: AppData, l: HomeLayout): Promise<{ path: stri
       'saved-filters.json      your saved searches',
       'resumes.json            your resumes; the uploaded files are in files/resumes/',
       'network-contacts.csv    your imported connections, with your stages and notes (also as .json)',
-      'chats.json              your saved conversations',
+      'chats.json              your saved conversations with the assistant',
+      'interview-practice.json your practice sessions (questions, your answers, feedback) and your question bank (saved questions and debriefs)',
+      'ai-charges.json         every charge an AI step made to your publik balance',
       'boards.json             the job boards you added',
       'settings.json           app settings (crawl schedule, notifications)',
       '',
@@ -364,7 +367,18 @@ export async function exportAll(d: AppData, l: HomeLayout): Promise<{ path: stri
     j('network-contacts.json', contacts);
     const cols = ['firstName', 'lastName', 'profileUrl', 'email', 'company', 'position', 'connectedOn', 'stage', 'note', 'followUpOn', 'inPlan'] as const;
     zip.addBuffer('network-contacts.csv', Buffer.from([cols.join(','), ...contacts.map((c) => cols.map((k) => csvCell(c[k])).join(','))].join('\r\n') + '\r\n'));
-    j('chats.json', d.chats.list().map((c) => d.chats.get(c.id)).filter(Boolean));
+    // Conversations: the assistant's own store (ai_chats), plus any left in the older stand-in tables (JL-network-23).
+    const aiChats = hasTable(d.db, 'ai_chats') ? new ChatStore(d.db) : null;
+    j('chats.json', [
+      ...(aiChats ? aiChats.list().map((c) => aiChats.get(c.id)) : []),
+      ...d.chats.list().map((c) => d.chats.get(c.id)),
+    ].filter(Boolean));
+    const practice = hasTable(d.db, 'practice_sessions') ? new PracticeStore(d.db) : null;
+    j('interview-practice.json', practice ? {
+      sessions: (d.db.prepare('SELECT id FROM practice_sessions ORDER BY created_at, rowid').all() as Array<{ id: string }>).map((r) => practice.get(r.id)).filter(Boolean),
+      questionBank: practice.listItems(),
+    } : { sessions: [], questionBank: [] });
+    j('ai-charges.json', hasTable(d.db, 'ai_usage') ? new UsageLedger(d.db).list(1_000_000) : []);
     j('saved-answers.json', d.db.prepare('SELECT label, value, created_at AS createdAt, updated_at AS updatedAt FROM srv_saved_answers ORDER BY label').all());
     j('boards.json', d.boards.list({ limit: 100_000 }).items);
     j('settings.json', d.settings.get());

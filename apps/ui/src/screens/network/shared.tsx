@@ -3,7 +3,7 @@
 // a missing value is said plainly ("No email in your file"), never "undefined" or "null".
 
 import { useState } from 'react';
-import { Button, Select, Tag } from 'antd';
+import { Button, Popover, Select, Tag } from 'antd';
 import { ExportOutlined } from '@ant-design/icons';
 import { OUTREACH_STAGES, OUTREACH_STAGE_LABELS, type CompanyMatchExplanation, type NetworkContact, type OutreachStage } from '@jobleft/contracts';
 import { Tooltip } from '../../components/Tip.tsx';
@@ -70,14 +70,52 @@ export function MatchExplain({ companyKey, companyName }: { companyKey: string; 
       <Button type="link" size="small" style={{ padding: 0 }} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide how this was counted' : 'How was this counted?'}</Button>
       {open && x.data && (
         <div className="jl-small" style={{ marginTop: 4 }}>
-          <div>Counted: {x.data.matched.map((m) => `"${m.name}" (${m.count})`).join(', ')}</div>
-          {x.data.notCounted.length > 0
-            ? <div>Not counted, because they are different companies: {x.data.notCounted.map((m) => `"${m.name}" (${m.count})`).join(', ')}</div>
-            : <div className="jl-muted">No similar company names were left out.</div>}
+          <div>Counted:</div>
+          <ul style={{ margin: '2px 0 4px', paddingLeft: 18 }}>
+            {x.data.matched.map((m) => <li key={m.name}>"{m.name}" ({m.count}): {m.how}</li>)}
+          </ul>
+          <NotCounted items={x.data.notCounted} />
         </div>
       )}
       {open && x.error && <InlineError error={x.error} />}
     </div>
+  );
+}
+
+/** Near names in the person's file that were NOT counted, each with the reason, so the person can decide. */
+function NotCounted({ items }: { items: CompanyMatchExplanation['notCounted'] }) {
+  if (!items.length) return <div className="jl-muted">No similar company names were left out.</div>;
+  return (
+    <>
+      <div>Not counted, because they can be different companies:</div>
+      <ul style={{ margin: '2px 0 0', paddingLeft: 18 }}>
+        {items.map((m) => <li key={m.name}>"{m.name}" ({m.count}): {m.why.replace(/^Not counted: /, '')}</li>)}
+      </ul>
+    </>
+  );
+}
+
+/**
+ * A target company where nobody from the file was counted (JL-network-2). A click shows the similar names in the
+ * file that were not counted and why, so a near miss is never hidden.
+ */
+export function NobodyTag({ companyKey, companyName }: { companyKey: string; companyName: string }) {
+  const [open, setOpen] = useState(false);
+  const x = useApi<CompanyMatchExplanation>(open ? `network:match:${companyKey}:${companyName}` : null, () => call('explainCompanyMatch', { query: { companyKey, companyName } }));
+  return (
+    <Popover trigger="click" open={open} onOpenChange={setOpen} title={`Nobody counted at ${companyName}`}
+      content={(
+        <div className="jl-small" style={{ maxWidth: 360 }}>
+          {x.error && <InlineError error={x.error} />}
+          {!x.data && !x.error && <span className="jl-muted">Looking for similar names in your file…</span>}
+          {x.data && (x.data.notCounted.length
+            ? <NotCounted items={x.data.notCounted} />
+            : <span className="jl-muted">No name in your file is close to {companyName}. You know nobody there yet.</span>)}
+        </div>
+      )}>
+      <Tag style={{ cursor: 'pointer' }} role="button" tabIndex={0} aria-label={`${companyName}: see similar names in your file`}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); } }}>{companyName}</Tag>
+    </Popover>
   );
 }
 

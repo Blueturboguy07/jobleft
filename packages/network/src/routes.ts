@@ -50,7 +50,7 @@ export interface NetworkRouteDeps {
   /** Where the chosen provider sends text; null when none is set up. */
   aiDestination: () => AiDestination | null;
   /** Target companies: the companies of the jobs the person liked, applied to or tracks. */
-  targets: () => Array<{ companyKey: string; companyName: string }>;
+  targets: () => Array<{ companyKey: string; companyName: string; jobs?: Array<{ id: string; title: string }> }>;
   /** true = no outbound request at all (JOBLEFT_OFFLINE=1). Drafts then need a local provider or the template. */
   offline?: boolean;
 }

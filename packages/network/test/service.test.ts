@@ -249,3 +249,44 @@ test('a changed profile link keeps the person (same name and Connected On, old l
   assert.equal(s.get(avery.id)!.note, 'still me');
   assert.equal(s.get(avery.id)!.profileUrl, 'https://www.linkedin.com/in/avery-q-new');
 });
+
+test('JL-network-7: the "Follow-up due" filter finds people whose follow-up date is due, not only the stage picked by hand', () => {
+  const service = memoryService(Date.parse('2026-09-27T15:00:00Z'));
+  service.import(fileText(base));
+  const people = service.list();
+  service.update(people[0]!.id, { followUpOn: '2026-09-27' }); // today, stage stays To contact
+  service.update(people[1]!.id, { followUpOn: '2026-09-20' }); // past
+  service.update(people[2]!.id, { followUpOn: '2026-10-05' }); // coming up: not due
+  service.update(people[3]!.id, { stage: 'follow_up_due' }); // picked by hand, no date
+  const ids = service.list({ stage: 'follow_up_due' }).map((c) => c.id).sort();
+  assert.deepEqual(ids, [people[0]!.id, people[1]!.id, people[3]!.id].sort());
+  assert.deepEqual(service.list({ stage: 'to_contact' }).map((c) => c.id).includes(people[0]!.id), true, 'the stage itself is unchanged');
+});
+
+test('JL-network-8: a coffee-chat group is headed "Kroger", not one row\'s "KROGER"', () => {
+  const service = memoryService();
+  service.import(fileText(['Priya,Raman,,,KROGER,Analyst,04 Mar 2025', 'Maria,Delgado,,,Kroger,Manager,05 Mar 2025', 'Ann,Lee,,,IBM,Engineer,05 Mar 2025']));
+  for (const c of service.list()) service.update(c.id, { inPlan: true });
+  assert.deepEqual(service.plan().map((p) => p.companyName), ['IBM', 'Kroger']);
+});
+
+test('JL-network-3: people missing from a newer file are named once, as "no longer in your file"', () => {
+  const service = memoryService();
+  service.import(fileText(base));
+  const r = service.import(fileText(base.slice(0, 4)));
+  assert.equal(r.missingFromFile, 1);
+  const lines = r.warnings.filter((w) => /earlier import/.test(w));
+  assert.equal(lines.length, 1);
+  assert.match(lines[0]!, /marked "no longer in your file"/);
+  assert.doesNotMatch(lines[0]!, /not in latest file/);
+});
+
+test('JL-network-5: the reminder text points to the Follow-ups tab', () => {
+  const service = memoryService(Date.parse('2026-09-27T15:00:00Z'));
+  service.import(fileText(base));
+  const [a, b] = service.list();
+  service.update(a!.id, { followUpOn: '2026-09-01' });
+  service.update(b!.id, { followUpOn: '2026-09-27' });
+  const r = service.takeReminders();
+  assert.equal(r.text!.body, '2 network follow-ups are due. Open Network > Follow-ups to see them.');
+});

@@ -959,7 +959,7 @@ routes `getAiSettings`, `putAiSettings`, `setAiKey`, `deleteAiKey`, `checkAi`, `
 ```ts
 export { AiError, asAiError, isAiError, toApiError, type AiErrorCode } from './errors.ts';
 export type { AiChunk, AiClient, AiCompletion, AiMessage, AiRequest, AiTool, AiToolCall, JsonRequest, ProviderDriver, } from './types.ts';
-export { PUBLIK_APP_SLUG, PUBLIK_DEFAULT_BASE_URL, PUBLIK_DEFAULT_MODEL, PUBLIK_DISCLOSURE, PUBLIK_DISCLOSURE_VERSION, PUBLIK_JUSTIFICATION, PUBLIK_TIERS, PublikClient, type PublikClientOptions, } from './publik.ts';
+export { PUBLIK_APP_SLUG, PUBLIK_DEFAULT_BASE_URL, PUBLIK_DEFAULT_MODEL, PUBLIK_DISCLOSURE, PUBLIK_DISCLOSURE_VERSION, PUBLIK_JUSTIFICATION, PUBLIK_TIERS, PublikClient, dailyResetFrom, nextUtcMidnight, publikDailyLimitText, type PublikClientOptions, } from './publik.ts';
 export { AiEngine, CHECK_BUDGET_MS, NO_PROVIDER_MESSAGE, type AiEngineOptions } from './engine.ts';
 export { defaultAiSettings, fileKvStore, kvSettingsStore, memoryKvStore, METERED_PRICES_PER_1000_MICROS, type AiSettingsStore, type KvStore, } from './state.ts';
 export { encryptedFileSecretStore, keychainSecretStore, memorySecretStore, osSecretStore } from './secrets.ts';
@@ -1011,6 +1011,13 @@ For the UI lane (publik contract section 12): show `PUBLIK_DISCLOSURE` before `c
 succeeds show the balance card: the balance line (`formatDollars(wallet.balanceMicros)`), `PUBLIK_JUSTIFICATION`, and one
 button that opens `wallet.topUpUrl` ("Link this computer & pick a plan" while `claimState` is `anonymous`, "Add a plan or
 pack" once claimed). A 402 shows the error message and exactly one link (`error.link`). Money is "balance" in dollars.
+
+Added by the network fix round (additive): `GET /api/v1/ai/chats/:chatId` carries the conversation's undecided
+proposals (`ChatThread.proposals`, still in memory only), and deciding a proposal appends one plain record of the
+decision (done, declined, not done and why) to the conversation. publik's daily spending limit for the computer is
+`PublikWallet.daily` (cap and used today when publik reports them, the reset time, and when a step was refused); a
+429 `daily_cap_reached` gives every AI step the same words (`publikDailyLimitText`): this step would go over the
+limit, nothing was charged, smaller steps may still run, and the reset in the person's own clock.
 
 Key slots: a key belongs to one provider address. `own_key.<vendor>` for own keys; `custom@<hash of origin>` and
 `local@<hash of origin>` for addresses. Secret name: `SECRET_NAMES.providerKey(slot)`. Changing the address means the
@@ -1297,6 +1304,10 @@ export declare class NetworkService extends Service {
     coverage(targetCompanies: Array<{
         companyKey: string;
         companyName: string;
+        jobs?: Array<{
+            id: string;
+            title: string;
+        }>;
     }>): CompanyCoverage[];
     rank(companyKey: string, job: Job | null): ContactRank[];
     update(id: string, patch: {
@@ -1351,7 +1362,7 @@ export { resolveCompanyKey, interimCompanyKey, isPlaceholderCompany, keysForComp
 export { readTitle, type Seniority, type Field, type TitleFacts } from './titles.ts';
 export { scoreContact, RANK_POINTS } from './rank.ts';
 export { profileSummary, draftFacts, draftMessages, checkDraft, redactContactDetails, cleanDraftText, templateDraft, draftFromTemplate, SHORT_CHAR_LIMIT, LONG_CHAR_LIMIT, type DraftFacts, type DraftVariant, } from './draft.ts';
-export { NetworkError, type NetworkContactView, type CompanyGroup, type MatchExplanation, type PlanEntry, type ListQuery } from './service.ts';
+export { NetworkError, followUpReminderText, type NetworkContactView, type CompanyGroup, type MatchExplanation, type PlanEntry, type ListQuery } from './service.ts';
 export { migrateNetwork, openNetworkDatabase, NETWORK_SCHEMA_VERSION } from './db.ts';
 export { handleNetworkRoute, NetworkApiError, NETWORK_ROUTES, aiErrorToApi, type NetworkRouteName, type NetworkRouteDeps, type NetworkRouteInput, type AiDestination, } from './routes.ts';
 ```
@@ -1364,11 +1375,11 @@ carries only one contact's name, title and company, one job and a short profile 
 |---|---|
 | Wiring (apps/server) | `new NetworkService({ db, companyKey })` on the store's connection, with `companyKey` from `@jobleft/static-data`. Each network route: `handleNetworkRoute(name, { params, query, body }, deps)` after the section 6.1 checks; `NetworkApiError.code` is an `ERROR_CODES` value (`details` and `link` go into the error body). `deps` (`NetworkRouteDeps`): `service`, `job(id)` (JobStore.get), `profileSummary()` (`profileSummary(profile)`), `ai()` (`AiEngine.client()`), `aiDestination()` (`{ provider, label, remote }`: `remote` is false only for a model on this computer), `targets()` (companies of liked, applied and tracked jobs), `offline` |
 | Counts on job cards | `networkCount = service.countFor(job.companyKey)` (null = show nothing); a feed page uses `countsFor(keys)` (one cached map). The list behind a count is `listContacts?companyKey=<same key>`: always the same people |
-| Matching | A contact counts at a company only when the keys are equal (`companyKey`: case, accents, punctuation, "&", a leading "The" and legal suffixes ignored; ordinary words never dropped). Also: a trailing short form in brackets ("Amazon Web Services (AWS)") matches with and without it. Blank and placeholder companies ("Self-employed", "Stealth Startup", "N/A") have no key and match no job. `explain()` lists near names that are NOT counted, with the reason |
+| Matching | A contact counts at a company only when the keys are equal (`companyKey`: case, accents, punctuation, "&", a leading "The" and legal suffixes ignored; ordinary words never dropped). Also: a trailing short form in brackets ("Amazon Web Services (AWS)") matches with and without it. For the Network only (fix round JL-network-2): a web ending glued to a name of 3+ letters ("Gong.io") and a trailing "Global" or "Platforms" after the legal suffix ("Coinbase Global, Inc.") are left out, and names of one family in `@jobleft/static-data`'s reviewed alias table ("EY" and "Ernst & Young LLP", "Palantir" and "Palantir Technologies") share one key; every lookup (`countFor`, `listContacts?companyKey=`, coverage, rank, explain) puts the key in its family first, so a card, the Companies tab and the list behind them agree. Blank and placeholder companies ("Self-employed", "Stealth Startup", "N/A") have no key and match no job. `explain()` lists near names that are NOT counted, with the reason |
 | Identity across imports | The profile link (lower case, no query, no trailing slash); rows with no link, or whose old link is gone from the new file, match by name and Connected On. Stages, notes, dates and plan survive a re-import; people missing from a newer file are kept, flagged `inLatestFile: false`, and counted in `missingFromFile` |
 | Ranking points | `RANK_POINTS`: recruiter 30, same field as the job 20, manager-level in that field +10, seniority 1 to 8, connected within a year 10 (3 years 6, 7 years 3), email in the file 5, not in the latest file -5. Ties: last name, first name, id. Every reason quotes the title or the date from the file |
 | Drafts | `draftOutreach` sends only `draftMessages(draftFacts(...))`; `checkDraft` flags a wrong greeting, shared-past, school, talk and referral claims, numbers, names, schools, companies or titles that are not in the inputs, placeholders, emails, links and length (short limit 300, long 1200). A draft with warnings has `ready: false`. A remote provider (`aiDestination().remote`) answers 409 `conflict` with `details.needsConfirmation` until the person confirms once per destination (`confirmRemote: true`). `template: true` builds a plain draft from the inputs with no AI. No draft is stored |
-| Reminders | `takeReminders(today)` returns due follow-ups not yet reminded for their date and marks them; the server turns the count into one `Notification` (kind `follow_up`, no names: notification centres keep copies outside the data folder). "Today" is the person's own calendar date (`JOBLEFT_TZ`, else the system zone) through `nowMs()` |
+| Reminders | `takeReminders(today)` returns due follow-ups not yet reminded for their date and marks them; the server keeps ONE unread `Notification` (kind `follow_up`, no names: notification centres keep copies outside the data folder) that says how many follow-ups are due now (`followUpReminderText`): a newly due follow-up replaces it, a follow-up done, moved or deleted changes its number in place, and it goes when none is due. The People filter `stage=follow_up_due` also matches a follow-up date of today or earlier. "Today" is the person's own calendar date (`JOBLEFT_TZ`, else the system zone) through `nowMs()` |
 | CLI | `node packages/network/src/cli.ts <command>` (`jobleft-network`): `import`, `status`, `list`, `show`, `companies`, `count`, `explain`, `rank`, `coverage`, `plan`, `stage`, `note`, `follow-up`, `due`, `remind`, `ai`, `preview`, `draft`, `delete`, `delete-all`, `jobs`, `profile`, `serve`, `mock-ai`, `fixture`, `bench` |
 | Dev server | `serve` runs the network routes plus stand-in routes under `/api/v1/network-dev/` (jobs and likes, profile, AI address, status, reminder check) and the Network screens, with the section 6.1 rules, on 127.0.0.1:47841 to 47850. Its AI client is interim (`src/dev/ai-bridge.ts`, OpenAI-style, loopback addresses only) until apps/server passes `AiEngine.client()`. Until `@jobleft/static-data` is built in the same checkout, `resolveCompanyKey()` uses an interim key written to the rules above; the service rebuilds stored keys when the key function changes |
 

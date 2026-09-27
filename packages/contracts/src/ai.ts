@@ -126,6 +126,12 @@ export const ChatThreadSchema = named(obj({
   })),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
+}, {
+  /**
+   * Proposals of this conversation the person has not decided yet (added by the network fix round, additive). They
+   * live in memory like every proposal, so a reload of the window shows them again; closing the app declines them.
+   */
+  proposals: arr(ActionProposalSchema),
 }), 'ChatThread');
 
 /** Interview practice made for one job. Questions are labelled practice, never "asked at" the employer. */

@@ -70,7 +70,7 @@ export class NetworkService extends Service {
   override list(q: { companyKey?: string; noCompany?: boolean; stage?: OutreachStage; q?: string; due?: boolean; inPlan?: boolean; limit?: number; offset?: number } = {}): Array<NetworkContact & { inLatestFile: boolean; followUpDue: boolean }> { return super.list(q); }
   /** How many connections work at a company (null when none, so cards show nothing). */
   override countFor(companyKey: string): number | null { return super.countFor(companyKey); }
-  override coverage(targetCompanies: Array<{ companyKey: string; companyName: string }>): CompanyCoverage[] { return super.coverage(targetCompanies); }
+  override coverage(targetCompanies: Array<{ companyKey: string; companyName: string; jobs?: Array<{ id: string; title: string }> }>): CompanyCoverage[] { return super.coverage(targetCompanies); }
   override rank(companyKey: string, job: Job | null): ContactRank[] { return super.rank(companyKey, job); }
   override update(id: string, patch: { stage?: OutreachStage; note?: string | null; followUpOn?: string | null; inPlan?: boolean }): NetworkContact & { inLatestFile: boolean; followUpDue: boolean } { return super.update(id, patch); }
   override delete(id: string): boolean { return super.delete(id); }
@@ -109,7 +109,7 @@ export {
   profileSummary, draftFacts, draftMessages, checkDraft, redactContactDetails, cleanDraftText, templateDraft, draftFromTemplate,
   SHORT_CHAR_LIMIT, LONG_CHAR_LIMIT, type DraftFacts, type DraftVariant,
 } from './draft.ts';
-export { NetworkError, type NetworkContactView, type CompanyGroup, type MatchExplanation, type PlanEntry, type ListQuery } from './service.ts';
+export { NetworkError, followUpReminderText, type NetworkContactView, type CompanyGroup, type MatchExplanation, type PlanEntry, type ListQuery } from './service.ts';
 export { migrateNetwork, openNetworkDatabase, NETWORK_SCHEMA_VERSION } from './db.ts';
 export {
   handleNetworkRoute, NetworkApiError, NETWORK_ROUTES, aiErrorToApi,

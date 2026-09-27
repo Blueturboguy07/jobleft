@@ -68,6 +68,12 @@ export const CompanyCoverageSchema = named(obj({
   /** 0 = a target company where the user knows nobody yet. */
   count: int({ minimum: 0 }),
   topContactIds: arr(IdSchema),
+}, {
+  /**
+   * The person's target jobs at this company (liked, applied or added), so a message drafted from here can be about
+   * the job (added by the network fix round JL-network-22, additive).
+   */
+  jobs: arr(obj({ id: IdSchema, title: str() })),
 }), 'CompanyCoverage');
 
 export const OutreachDraftSchema = named(obj({

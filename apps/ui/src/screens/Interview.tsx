@@ -14,15 +14,19 @@ import { useAiSettings } from '../app/session.ts';
 import { AiNote, afterAiStep, ensureAiConsent } from '../components/AiNote.tsx';
 import { EmptyState, InlineError } from '../components/States.tsx';
 import { dateText } from '../lib/format.ts';
+import { answeredCount, placeholdersIn, savedFor, type ShownFeedback } from '../lib/practice.ts';
+import { formatDollars } from '@jobleft/contracts';
 
 function useCandidateJobs() {
   const applied = useApi<TrackerList>('tracker:list:applied:', () => call('listTracker', { query: { view: 'applied' } }));
   const liked = useApi<TrackerList>('tracker:list:liked:', () => call('listTracker', { query: { view: 'liked' } }));
+  // Jobs added by link or pasted text are the person's own targets too (JL-network-16).
+  const external = useApi<TrackerList>('tracker:list:external:', () => call('listTracker', { query: { view: 'external' } }));
   return useMemo(() => {
     const seen = new Map<string, { id: string; label: string }>();
-    for (const it of [...(applied.data?.items ?? []), ...(liked.data?.items ?? [])]) seen.set(it.job.id, { id: it.job.id, label: `${it.job.title} at ${it.job.company}` });
+    for (const it of [...(applied.data?.items ?? []), ...(liked.data?.items ?? []), ...(external.data?.items ?? [])]) seen.set(it.job.id, { id: it.job.id, label: `${it.job.title} at ${it.job.company}` });
     return [...seen.values()];
-  }, [applied.data, liked.data]);
+  }, [applied.data, liked.data, external.data]);
 }
 
 function Highlight({ text, marks }: { text: string; marks: string[] }) {
@@ -33,16 +37,25 @@ function Highlight({ text, marks }: { text: string; marks: string[] }) {
 
 function Question({ s, q, jobId }: { s: PracticeSession; q: PracticeSession['questions'][number]; jobId: string }) {
   const ai = useAiSettings();
-  const [answer, setAnswer] = useState('');
-  const [fb, setFb] = useState<{ feedback: string; sampleAnswer: string | null; placeholders: string[] } | null>(null);
+  // What the session already holds (a reload or a second visit shows it again; JL-network-14).
+  const [start] = useState(() => savedFor(s, q.id));
+  const [answer, setAnswer] = useState(start.answer);
+  const [kept, setKept] = useState(start.answer);
+  const [fb, setFb] = useState<ShownFeedback | null>(start.feedback);
   const [busy, setBusy] = useState<'fb' | 'save' | null>(null);
   const [err, setErr] = useState<UiError | null>(null);
   const [saved, setSaved] = useState(false);
-  useDirty(`practice:${q.id}`, !!answer.trim() && !saved, 'your practice answer');
+  useDirty(`practice:${q.id}`, !!answer.trim() && answer !== kept && !saved, 'your practice answer');
   const feedback = async () => {
     if (!(await ensureAiConsent(ai.data, 'practice'))) return;
     setBusy('fb'); setErr(null);
-    try { setFb(await call('practiceFeedback', { body: { sessionId: s.id, questionId: q.id, answer } })); afterAiStep(null); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+    const sent = answer;
+    try {
+      const r = await call('practiceFeedback', { body: { sessionId: s.id, questionId: q.id, answer: sent } });
+      setKept(sent);
+      setFb({ feedback: r.feedback, sampleAnswer: r.sampleAnswer, placeholders: r.placeholders.length ? r.placeholders : placeholdersIn(r.sampleAnswer), costMicros: r.costMicros ?? null, mode: r.mode ?? null, forAnswer: sent });
+      afterAiStep(r.costMicros ?? null);
+    } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   const save = async () => {
     setBusy('save'); setErr(null);
@@ -67,12 +80,15 @@ function Question({ s, q, jobId }: { s: PracticeSession; q: PracticeSession['que
       {fb && (
         <div className="jl-factbox" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <strong>Feedback</strong>
+          {fb.forAnswer !== answer && <span className="jl-small jl-muted">This feedback is about your earlier answer. Press Get feedback again for the new one.</span>}
           <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{fb.feedback}</p>
           {fb.sampleAnswer && (<>
             <strong>A shape for your answer</strong>
             <p style={{ margin: 0 }}><Highlight text={fb.sampleAnswer} marks={fb.placeholders} /></p>
             {fb.placeholders.length > 0 && <span className="jl-small jl-muted">Marked parts are placeholders. Fill them with your own true facts; jobleft does not invent achievements.</span>}
           </>)}
+          {fb.mode === 'rules' && <span className="jl-small jl-muted">Made by simple checks on this computer. Nothing was charged.</span>}
+          {fb.mode === 'ai' && fb.costMicros !== null && <span className="jl-small jl-muted">{fb.costMicros > 0 ? `Cost: ${formatDollars(fb.costMicros)} from your balance.` : 'No charge to your publik balance.'}</span>}
         </div>
       )}
     </section>
@@ -85,8 +101,15 @@ function Bank({ jobs }: { jobs: Array<{ id: string; label: string }> }) {
   const [debrief, setDebrief] = useState('');
   const [debriefJob, setDebriefJob] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; answer: string; notes: string } | null>(null);
+  const [find, setFind] = useState('');
   useDirty('debrief', !!debrief.trim(), 'your debrief');
   const label = (id: string) => jobs.find((j) => j.id === id)?.label ?? 'A job';
+  const words = find.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = (items.data ?? []).filter((it) => {
+    if (!words.length) return true;
+    const text = [it.question, it.answer, it.notes, it.feedback, label(it.jobId)].join(' ').toLowerCase();
+    return words.every((w) => text.includes(w));
+  });
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <section className="jl-card-box" style={{ display: 'flex', flexDirection: 'column', gap: 8 }} aria-labelledby="deb-h">
@@ -98,12 +121,14 @@ function Bank({ jobs }: { jobs: Array<{ id: string; label: string }> }) {
           try { await call('savePracticeItem', { body: { jobId: debriefJob!, kind: 'debrief', notes: debrief.trim() } }); setDebrief(''); invalidate('practice'); ui.message?.success('Debrief saved.'); } catch (e) { ui.message?.error((e as UiError).message); }
         }}>Save debrief</Button>
       </section>
-      <div className="jl-row"><span className="jl-grow" style={{ fontWeight: 600 }}>Saved questions, answers and debriefs</span>
+      <div className="jl-row jl-wrap"><span className="jl-grow" style={{ fontWeight: 600 }}>Saved questions, answers and debriefs</span>
+        <Input.Search allowClear placeholder="Search your bank" value={find} onChange={(e) => setFind(e.target.value)} style={{ width: 220 }} aria-label="Search your question bank" maxLength={200} />
         <Select allowClear placeholder="Every job" value={jobId ?? undefined} onChange={(v) => setJobId(v ?? null)} style={{ width: 320 }} options={jobs.map((j) => ({ value: j.id, label: j.label }))} aria-label="Show items for one job" />
       </div>
       {items.error && <InlineError error={items.error} onRetry={() => { void items.reload(); }} />}
       {items.data && !items.data.length && <EmptyState art="chat" title="Your question bank is empty" text="Save a practice question or a debrief, and it is kept here with its job." />}
-      {items.data?.map((it) => (
+      {items.data && items.data.length > 0 && !shown.length && <p className="jl-muted" style={{ margin: 0 }}>Nothing in your bank matches “{find.trim()}”.</p>}
+      {shown.map((it) => (
         <article key={it.id} className="jl-card-box" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div className="jl-row"><Tag>{it.kind === 'debrief' ? 'Debrief' : 'Practice question'}</Tag><a className="jl-grow" href={`#/jobs/${encodeURIComponent(it.jobId)}`}>{label(it.jobId)}</a><span className="jl-small jl-muted">{dateText(it.updatedAt)}</span>
             <Popconfirm title="Delete this item?" okText="Delete" okButtonProps={{ danger: true }} onConfirm={async () => { try { await call('deletePracticeItem', { params: { itemId: it.id } }); invalidate('practice'); } catch (e) { ui.message?.error((e as UiError).message); } }}>
@@ -113,10 +138,12 @@ function Bank({ jobs }: { jobs: Array<{ id: string; label: string }> }) {
           {it.question && <strong>{it.question}</strong>}
           {editing?.id === it.id ? (
             <Space direction="vertical" style={{ width: '100%' }}>
-              {it.kind === 'question' && <Input.TextArea value={editing.answer} onChange={(e) => setEditing({ ...editing, answer: e.target.value })} autoSize={{ minRows: 2 }} aria-label="Your answer" />}
-              <Input.TextArea value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} autoSize={{ minRows: 2 }} aria-label="Notes" placeholder="Notes" />
+              {it.kind === 'question' && <Input.TextArea value={editing.answer} onChange={(e) => setEditing({ ...editing, answer: e.target.value })} autoSize={{ minRows: 2 }} aria-label="Your answer" maxLength={20000} />}
+              {it.feedback && editing.answer !== (it.answer ?? '') && <span className="jl-small jl-muted">The saved feedback is about your earlier answer, so it is removed when you save the new one.</span>}
+              <Input.TextArea value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} autoSize={{ minRows: 2 }} aria-label="Notes" placeholder="Notes" maxLength={20000} />
               <Space><Button size="small" type="primary" shape="round" onClick={async () => {
-                try { await call('updatePracticeItem', { params: { itemId: it.id }, body: { answer: editing.answer || null, notes: editing.notes || null } }); setEditing(null); invalidate('practice'); ui.message?.success('Saved.'); } catch (e) { ui.message?.error((e as UiError).message); }
+                const answerChanged = editing.answer !== (it.answer ?? '');
+                try { await call('updatePracticeItem', { params: { itemId: it.id }, body: { answer: editing.answer || null, notes: editing.notes || null, ...(answerChanged && it.feedback ? { feedback: null } : {}) } }); setEditing(null); invalidate('practice'); ui.message?.success('Saved.'); } catch (e) { ui.message?.error((e as UiError).message); }
               }}>Save</Button><Button size="small" shape="round" onClick={() => setEditing(null)}>Cancel</Button></Space>
             </Space>
           ) : (
@@ -134,7 +161,6 @@ function Bank({ jobs }: { jobs: Array<{ id: string; label: string }> }) {
 }
 
 export function InterviewScreen() {
-  const ai = useAiSettings();
   const jobs = useCandidateJobs();
   const [jobId, setJobId] = useState<string | null>(() => queryParam('job'));
   const [session, setSession] = useState<PracticeSession | null>(null);
@@ -144,10 +170,12 @@ export function InterviewScreen() {
   const direct = useApi(jobId && !jobs.some((j) => j.id === jobId) ? `job:${jobId}` : null, () => call('getJob', { params: { jobId: jobId! } }));
   const options = [...jobs, ...(direct.data ? [{ id: direct.data.job.id, label: `${direct.data.job.title} at ${direct.data.job.company}` }] : [])];
   useEffect(() => { setSession(null); setErr(null); }, [jobId]);
+  // The questions are made by fixed rules from the posting and the profile, on this computer: no AI, no charge, no
+  // text leaves this Mac (JL-network-13). Only "Get feedback" uses the AI.
   const start = async () => {
-    if (!jobId || !(await ensureAiConsent(ai.data, 'practice'))) return;
+    if (!jobId) return;
     setBusy(true); setErr(null);
-    try { setSession(await call('startPractice', { body: { jobId } })); afterAiStep(null); } catch (e) { setErr(e as UiError); } finally { setBusy(false); }
+    try { setSession(await call('startPractice', { body: { jobId } })); } catch (e) { setErr(e as UiError); } finally { setBusy(false); }
   };
   return (
     <div className="jl-page">
@@ -163,14 +191,14 @@ export function InterviewScreen() {
                 ) : (
                   <>
                     <Select value={jobId ?? undefined} onChange={setJobId} placeholder="Choose a job" options={options.map((j) => ({ value: j.id, label: j.label }))} aria-label="Job to practice for" showSearch optionFilterProp="label" />
-                    <AiNote kind="practice" what="make practice questions" />
-                    <Button type="primary" shape="round" style={{ alignSelf: 'flex-start' }} disabled={!jobId} loading={busy} onClick={() => { void start(); }}>{session ? 'Make new questions' : 'Start practice'}</Button>
+                    <p className="jl-small jl-muted" style={{ margin: 0 }}>Free. The questions are made on this Mac by fixed rules from the posting and your profile, so the same job gives the same questions. Only “Get feedback” uses AI.</p>
+                    {!session && <Button type="primary" shape="round" style={{ alignSelf: 'flex-start' }} disabled={!jobId} loading={busy} onClick={() => { void start(); }}>Start practice</Button>}
                   </>
                 )}
                 <InlineError error={err} />
                 {session && (
                   <>
-                    <Alert type="info" showIcon message={`${session.questions.length} practice questions for ${session.title} at ${session.company}.`} />
+                    <Alert type="info" showIcon message={`${session.questions.length} practice questions for ${session.title} at ${session.company}.${answeredCount(session) ? ` You answered ${answeredCount(session)} of them before; your answers and feedback are below.` : ''}`} />
                     {session.questions.map((q) => <Question key={q.id} s={session} q={q} jobId={session.jobId} />)}
                   </>
                 )}

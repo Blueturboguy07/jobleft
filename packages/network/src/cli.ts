@@ -94,7 +94,7 @@ function contactLine(c: NetworkContactView): string {
     `${c.id}  ${fullName(c)}${c.maybeGarbled ? '  [name may be garbled by the export; shown as in the file]' : ''}`,
     `    ${c.position ?? '(no title in the file)'} | ${c.company ?? '(no company in the file)'}`,
     `    email: ${c.email ?? '(none in the file)'} | connected: ${c.connectedOn ? displayDate(c.connectedOn) : '(unknown)'} | stage: ${OUTREACH_STAGE_LABELS[c.stage]}`
-      + `${c.followUpOn ? ` | follow-up: ${c.followUpOn}${c.followUpDue ? ' (due)' : ''}` : ''}${c.inPlan ? ' | in plan' : ''}${c.inLatestFile ? '' : ' | not in latest file'}`,
+      + `${c.followUpOn ? ` | follow-up: ${c.followUpOn}${c.followUpDue ? ' (due)' : ''}` : ''}${c.inPlan ? ' | in plan' : ''}${c.inLatestFile ? '' : ' | no longer in your file'}`,
   ];
   if (c.note) bits.push(`    note: ${c.note}`);
   if (c.profileUrl) bits.push(`    profile link (opens only if you open it): ${c.profileUrl}`);

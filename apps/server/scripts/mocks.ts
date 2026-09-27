@@ -140,16 +140,18 @@ export function startAi(opts: { port?: number; logFile?: LogFiles; reply?: strin
 
 // ---------------------------------------------------------------- publik
 
-export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMicros?: number; chargeMicros?: number; holdMicros?: number; priceMicros?: number; walletDelayMs?: number } = {}): Promise<Mock & { setBalance(m: number): void; balance(): number }> {
+export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMicros?: number; chargeMicros?: number; holdMicros?: number; priceMicros?: number; walletDelayMs?: number } = {}): Promise<Mock & { setBalance(m: number): void; balance(): number; setDaily(d: { capMicros: number; spentMicros: number; refuse: boolean } | null): void }> {
   let balance = opts.balanceMicros ?? 2_000_000;
   // Like the real gateway: a streamed answer's headers carry the balance minus a temporary hold; the charge settles
   // when the answer ends (holdMicros and priceMicros, both 0 by default).
   const hold = opts.holdMicros ?? 0;
   const price = opts.priceMicros ?? 0;
+  // The daily spending limit per computer: reported in the wallet; `refuse` answers 429 daily_cap_reached to AI calls.
+  let daily: { capMicros: number; spentMicros: number; refuse: boolean } | null = null;
   const keys = new Set<string>();
   const m = start('publik', opts.port ?? 0, opts.logFile ?? null, async (req, res, body, url) => {
     const auth = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
-    const wallet = () => ({ balance_micros: balance, claim_state: 'anonymous', plan: 'none', starter: { remaining_micros: balance }, week: { used_micros: 0, budget_micros: null, resets_at: null }, claim_url: 'https://publikhq.com/claim/stand-in', add_credit_url: 'https://publikhq.com/dashboard/api' });
+    const wallet = () => ({ balance_micros: balance, claim_state: 'anonymous', plan: 'none', starter: { remaining_micros: balance }, week: { used_micros: 0, budget_micros: null, resets_at: null }, claim_url: 'https://publikhq.com/claim/stand-in', add_credit_url: 'https://publikhq.com/dashboard/api', ...(daily ? { daily_cap_micros: daily.capMicros, spent_today_micros: daily.spentMicros } : {}) });
     if (url.pathname === '/__admin/balance' && req.method === 'POST') { balance = Number(JSON.parse(body || '{}').micros ?? 0); json(res, 200, { balance }); return; }
     if (url.pathname === '/api/v1/installs' && req.method === 'POST') {
       const key = `pk_test_${'a'.repeat(12)}_${Math.random().toString(36).slice(2).padEnd(32, '0').slice(0, 32)}`;
@@ -165,6 +167,13 @@ export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMi
     }
     if (url.pathname === '/api/v1/installs/revoke' && req.method === 'POST') { keys.delete(auth); json(res, 200, { revoked: true }); return; }
     if (url.pathname === '/api/v1/chat/completions' && req.method === 'POST') {
+      if (daily?.refuse) {
+        const d = new Date();
+        const midnight = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+        res.writeHead(429, { 'content-type': 'application/json', 'retry-after': String(Math.ceil((midnight - Date.now()) / 1000)) });
+        res.end(JSON.stringify({ error: { type: 'daily_cap_reached', message: 'Daily cap reached.', daily_cap_micros: daily.capMicros, spent_today_micros: daily.spentMicros, claim_state: 'anonymous' } }));
+        return;
+      }
       if (balance <= 0) { json(res, 402, { error: { type: 'insufficient_balance', available_micros: balance, top_up_url: 'https://publikhq.com/claim/stand-in' } }); return; }
       res.writeHead(200, { 'content-type': 'text/event-stream', ...(hold ? { 'x-publik-balance': String(balance - hold) } : {}) });
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'publik stand-in answer' } }] })}\n\ndata: [DONE]\n\n`);
@@ -176,5 +185,5 @@ export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMi
     }
     json(res, 404, { error: { type: 'not_found' } });
   });
-  return m.then((x) => ({ ...x, setBalance: (v: number) => { balance = v; }, balance: () => balance }));
+  return m.then((x) => ({ ...x, setBalance: (v: number) => { balance = v; }, balance: () => balance, setDaily: (v: typeof daily) => { daily = v; } }));
 }

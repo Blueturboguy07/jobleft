@@ -18,6 +18,7 @@
 //   * Money is "balance" in dollars in every message; never "credits".
 
 import { formatDollars } from '@jobleft/contracts';
+import { dailyResetFrom, publikDailyLimitText } from '@jobleft/ai-engine';
 import { checkUrl, blockedReason, looksLikeIp } from './urlsafe.ts';
 
 /** Prices per request in micros (docs/research/06-metered-scrape.md E.3): page $2, JS page $4, search $5, deep search $8 per 1,000. */
@@ -151,7 +152,18 @@ export function createMeteredClient(deps: MeteredDeps) {
       const t = String((data.error as Record<string, unknown> | undefined)?.type ?? '');
       throw new MeteredError('refused_by_publik', t === 'host_blocked' || t === 'url_not_allowed' || t === 'robots_disallowed' ? 'The paid route refused this page. Nothing was charged.' : 'The paid route refused this request. Nothing was charged.');
     }
-    if (res.status === 429) throw new MeteredError('not_available', 'The paid route is busy. Nothing was charged. Try again later.');
+    if (res.status === 429) {
+      const err = (data.error && typeof data.error === 'object' ? data.error : {}) as Record<string, unknown>;
+      if (String(err.type ?? '') === 'daily_cap_reached') {
+        // The same words as every other AI step (JL-network-19).
+        const n = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null);
+        throw new MeteredError('not_available', publikDailyLimitText({
+          capMicros: n(err.daily_cap_micros), usedMicros: n(err.spent_today_micros), resetsAt: dailyResetFrom(err.resets_at, res.headers.get('retry-after')),
+          claimState: err.claim_state === 'anonymous' ? 'anonymous' : 'claimed',
+        }));
+      }
+      throw new MeteredError('not_available', 'The paid route is busy. Nothing was charged. Try again later.');
+    }
     if (res.status >= 500) throw new MeteredError('provider_error', `The paid route failed (HTTP ${res.status}). Nothing was charged. It was not tried again. ${OWN_KEY_OFFER}`, { offerOwnKey: true });
     if (!res.ok || !Object.keys(data).length) throw new MeteredError('bad_answer', 'The paid route sent an answer jobleft cannot use.');
     return { data, costMicros: costFrom(res.headers, data) };

@@ -179,7 +179,12 @@ export function createToolbox(deps: ToolDeps) {
       body.filter = filter;
       const r = await data.api.call('searchJobs', { body });
       const jobs = r.items.map((it) => { seen(s, it.job); return jobCard(it.job, { trackerStatus: it.trackerStatus, liked: it.liked, hidden: it.hidden, matchPercent: it.match?.percent ?? null }); });
-      return { total: r.total, shown: jobs.length, jobs, note: r.total === 0 ? 'No stored job matches. Say so. Do not name a job that is not in this result.' : 'Only these jobs exist in the result. Do not add others.' };
+      return {
+        total: r.total, shown: jobs.length, jobs,
+        // What `total` counts, so it is never reported as one company's number of jobs (JL-network-21).
+        ...(body.q ? { totalMeans: `Stored open jobs whose words match "${body.q}" anywhere (title, company or description), at ANY company. It is NOT the number of jobs one company posted, and it is not a ranking of companies. If the person asks how many jobs a company posted, say you cannot count that exactly.` } : {}),
+        note: r.total === 0 ? 'No stored job matches. Say so. Do not name a job that is not in this result.' : 'Only these jobs exist in the result. Do not add others.',
+      };
     },
 
     async list_tracker(a, s) {

@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { arch as osArch, release as osRelease } from 'node:os';
 import type { PublikConnection, PublikWallet, SecretStore } from '@jobleft/contracts';
-import { formatDollars, nowIso, SECRET_NAMES } from '@jobleft/contracts';
+import { formatDollars, nowIso, nowMs, SECRET_NAMES } from '@jobleft/contracts';
 import { AiError } from './errors.ts';
 import { memoryKvStore, type KvStore } from './state.ts';
 import { looksLikeHtml, send, tryJson } from './transport.ts';
@@ -73,6 +73,50 @@ function iso(v: unknown): string | null {
   return typeof v === 'string' && Number.isFinite(Date.parse(v)) ? new Date(Date.parse(v)).toISOString() : null;
 }
 
+/** The next midnight UTC (publik starts its daily spending limit again then). */
+export function nextUtcMidnight(now: number = nowMs()): string {
+  const d = new Date(now);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1)).toISOString();
+}
+
+/** When the daily limit starts again, from publik's answer: resets_at, else Retry-After (snapped to midnight UTC). */
+export function dailyResetFrom(resetsAt: unknown, retryAfter: unknown, now: number = nowMs()): string {
+  const at = iso(resetsAt);
+  if (at) return at;
+  const secs = int(retryAfter);
+  const midnight = nextUtcMidnight(now);
+  if (secs === null || secs <= 0) return midnight;
+  const t = now + secs * 1000;
+  return Math.abs(t - Date.parse(midnight)) <= 120_000 ? midnight : new Date(t).toISOString();
+}
+
+/** "today at 7:00 PM CDT" in the person's time zone (JOBLEFT_TZ, else this computer's zone). */
+function localClock(at: string, now: number = nowMs()): string {
+  const tz = process.env.JOBLEFT_TZ || undefined;
+  const fmt = (o: Intl.DateTimeFormatOptions, t: number) => {
+    try { return new Date(t).toLocaleString('en-US', { ...o, ...(tz ? { timeZone: tz } : {}) }); } catch { return new Date(t).toLocaleString('en-US', o); }
+  };
+  const t = Date.parse(at);
+  const day = (x: number) => fmt({ year: 'numeric', month: '2-digit', day: '2-digit' }, x);
+  const when = day(t) === day(now) ? 'today' : day(t) === day(now + 86_400_000) ? 'tomorrow' : fmt({ weekday: 'long' }, t);
+  return `${when} at ${fmt({ hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }, t)}`;
+}
+
+/**
+ * The words for publik's daily spending limit, the same for every AI step (chat, drafts, practice feedback, paid
+ * lookups). publik refuses a step that would go over the limit; smaller steps may still fit, and nothing is charged
+ * for a refused step.
+ */
+export function publikDailyLimitText(d: { capMicros: number | null; usedMicros: number | null; resetsAt: string; claimState: 'anonymous' | 'claimed' }): string {
+  const amounts = d.capMicros !== null
+    ? ` (${formatDollars(d.capMicros)} a day${d.usedMicros !== null ? `, ${formatDollars(d.usedMicros)} used so far` : ''})`
+    : '';
+  const midnight = /T00:00:00(\.000)?Z$/.test(d.resetsAt) ? ' (midnight UTC)' : '';
+  return `This AI step would go over today's publik spending limit for this computer${amounts}, so publik did not run it and nothing was charged. `
+    + `Your balance is not used up: smaller AI steps may still run. The limit starts again ${localClock(d.resetsAt)}${midnight}.`
+    + (d.claimState === 'anonymous' ? ' Linking this computer to a publik account (Settings > Balance) raises the limit.' : '');
+}
+
 function contractOs(): 'macos' | 'windows' | 'linux' {
   if (process.platform === 'darwin') return 'macos';
   if (process.platform === 'win32') return 'windows';
@@ -131,6 +175,9 @@ export class PublikClient {
     const starter = int(b.starter?.remaining_micros ?? b.starter_remaining_micros);
     const claimUrl = this.allowedLink(b.claim_url);
     const addCreditUrl = this.allowedLink(b.add_credit_url);
+    // The daily limit, when publik reports it (JL-network-19). Never a guessed amount: unknown stays null.
+    const dailyCap = int(b.daily_cap_micros ?? b.daily?.cap_micros);
+    const dailyUsed = int(b.spent_today_micros ?? b.daily?.used_micros ?? b.daily?.spent_micros);
     const topUpUrl = this.allowedLink(b.top_up_url) ?? (claimState === 'anonymous' ? claimUrl : addCreditUrl) ?? claimUrl ?? addCreditUrl ?? FALLBACK_TOP_UP;
     return {
       claimState,
@@ -146,6 +193,12 @@ export class PublikClient {
       claimUrl,
       addCreditUrl,
       updatedAt: nowIso(),
+      daily: {
+        capMicros: dailyCap !== null && dailyCap >= 0 ? dailyCap : null,
+        usedMicros: dailyUsed !== null && dailyUsed >= 0 ? dailyUsed : null,
+        resetsAt: iso(b.daily?.resets_at) ?? nextUtcMidnight(),
+        reachedAt: null,
+      },
     };
   }
 
@@ -296,6 +349,9 @@ export class PublikClient {
     if (looksLikeHtml(res.headers['content-type'], raw)) throw new AiError('not_ai_server', 'The publik address answered with a web page, not a balance. Check the publik address.');
     const wallet = this.walletFrom(tryJson(raw));
     const now = this.load();
+    // A refusal for the daily limit is remembered until the limit starts again.
+    const prev = now.wallet?.daily;
+    if (prev?.reachedAt && Date.parse(prev.resetsAt) > nowMs() && wallet.daily) wallet.daily = { ...wallet.daily, reachedAt: prev.reachedAt, resetsAt: prev.resetsAt };
     if (now.state === 'connected') this.save({ ...now, wallet });
     return this.status();
   }
@@ -396,7 +452,19 @@ export class PublikClient {
     }
     if (status === 401) return new AiError('key_refused', 'publik no longer accepts this connection. Disconnect publik and connect again.');
     if (status === 400 && /unknown_model/.test(type)) return new AiError('model_not_found', `publik does not have this model. Choose ${PUBLIK_TIERS.join(', ')}.`);
-    if (status === 429 && type === 'daily_cap_reached') return new AiError('provider_error', 'You reached today\'s publik spending limit for this computer. It resets at midnight UTC.');
+    if (status === 429 && type === 'daily_cap_reached') {
+      // Not "you reached the limit": publik refused THIS step because it would go over; smaller ones may still fit.
+      const s = this.load();
+      const prev = s.wallet?.daily ?? null;
+      const resetsAt = dailyResetFrom(e.resets_at, headers['retry-after']);
+      const daily = {
+        capMicros: int(e.daily_cap_micros ?? e.cap_micros) ?? prev?.capMicros ?? null,
+        usedMicros: int(e.spent_today_micros ?? e.used_micros) ?? prev?.usedMicros ?? null,
+        resetsAt, reachedAt: nowIso(),
+      };
+      if (s.state === 'connected' && s.wallet) this.save({ ...s, wallet: { ...s.wallet, daily } });
+      return new AiError('provider_error', publikDailyLimitText({ ...daily, claimState: s.wallet?.claimState ?? 'anonymous' }));
+    }
     if (status === 429) return new AiError('provider_error', 'publik is limiting requests right now. Wait a minute, then try again.');
     if (status === 413) return new AiError('provider_error', 'The request is too large for publik (the limit is 4 MB). Try a shorter text.');
     if (status === 503 || status === 502) return new AiError('provider_error', 'publik is not available right now. Nothing was charged. Try again in a minute.');

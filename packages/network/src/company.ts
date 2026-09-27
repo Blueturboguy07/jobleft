@@ -10,7 +10,7 @@
 // The key itself is @jobleft/static-data companyKey (the key jobs use). Until that lane lands, its export throws
 // "not implemented yet"; then this file uses an interim key written to the rules in docs/INTERFACES.md.
 
-import { companyKey as staticCompanyKey } from '@jobleft/static-data';
+import { companyKey as staticCompanyKey, loadAliases } from '@jobleft/static-data';
 import { createHash } from 'node:crypto';
 import { fold } from './text.ts';
 
@@ -72,6 +72,81 @@ export function resolveCompanyKey(): { fn: CompanyKeyFn; source: 'static-data' |
   return resolved;
 }
 
+// ---------------------------------------------------------------- the same company under another name (JL-network-2)
+//
+// Two more safe variants, for the Network only (a person's file often holds the legal name, the job the brand):
+//   * a web ending glued to a name of 3 or more letters: "Gong.io", "Amazon.com, Inc." ("X.AI" is left alone);
+//   * a trailing "Global" or "Platforms" after the legal suffix: "Coinbase Global, Inc.", "Meta Platforms, Inc."
+//     ("Apollo Global Management" keeps "Global": it is not at the end).
+// And the reviewed alias table of @jobleft/static-data (brand to legal name, "EY" is "Ernst & Young LLP", "Palantir"
+// is "Palantir Technologies"): names in one family share one key. It is a reviewed list, never a similarity score,
+// so "Stripe Press", "Metabase", "H&R Block" and "Gong Cha" stay different companies.
+
+const WEB_ENDING = /([\p{L}\p{N}][\p{L}\p{N}-]{2,})\.(io|com|ai|co|net|org|app)(?=$|[\s,()])/giu;
+const DESCRIPTOR_TAIL = new Set(['global', 'platforms']);
+/** Bumped when the Network's own variants change, so stored keys are rebuilt. */
+const NETWORK_RULES_VERSION = 2;
+
+/** The name without a web ending ("Gong.io" -> "Gong"). */
+export function withoutWebEnding(name: string): string {
+  return name.replace(WEB_ENDING, '$1');
+}
+
+/** The name without a trailing "Global" or "Platforms" (only after the legal suffix, and only while a word is left). */
+export function withoutDescriptorTail(name: string): { name: string; dropped: string | null } {
+  const core = coreWords(name);
+  const last = core.at(-1);
+  if (core.length < 2 || !last || !DESCRIPTOR_TAIL.has(last)) return { name, dropped: null };
+  const re = new RegExp(`\\b${last}\\b(?![\\s\\S]*\\b${last}\\b)`, 'i');
+  return { name: name.replace(re, ' ').replace(/\s+/g, ' ').trim(), dropped: last };
+}
+
+let aliasMap: Map<string, string> | null = null;
+
+/** Key -> the one key of its reviewed alias family (the family's first name). Empty when the table cannot load. */
+function aliasFamilies(): Map<string, string> {
+  if (aliasMap) return aliasMap;
+  const m = new Map<string, string>();
+  try {
+    const idx = loadAliases({} as never) as ReturnType<typeof loadAliases> & { table?: { entries: Array<{ group: string; names: string[]; filers: string[] }> } };
+    const entries = idx.table?.entries ?? [];
+    const rep = new Map<string, string>();
+    const clash = new Set<string>();
+    for (const e of entries) {
+      if (!rep.has(e.group)) rep.set(e.group, staticCompanyKey(e.names[0]!) || e.group);
+      const r = rep.get(e.group)!;
+      for (const n of [...e.names, ...e.filers]) {
+        const k = staticCompanyKey(n);
+        if (!k) continue;
+        if (m.has(k) && m.get(k) !== r) clash.add(k);
+        else m.set(k, r);
+      }
+    }
+    for (const k of clash) m.delete(k); // a filer name shared by two families names neither
+  } catch {
+    // no alias table in this build: names match by their key only
+  }
+  aliasMap = m;
+  return m;
+}
+
+/** The key of a company's reviewed alias family, or the key itself. Keys that are the same company give one key. */
+export function familyKey(key: string): string {
+  if (!key) return key;
+  return aliasFamilies().get(key) ?? key;
+}
+
+/** true when the reviewed alias table puts these two keys in one family (and they are not the same key). */
+export function sameFamily(a: string, b: string): boolean {
+  return !!a && !!b && a !== b && familyKey(a) === familyKey(b);
+}
+
+/** The Network's key for a name: the key jobs use, with the web ending and a trailing "Global"/"Platforms" left out, in its alias family. */
+export function networkKey(name: string, keyFn: CompanyKeyFn): string {
+  const loose = withoutDescriptorTail(withoutWebEnding(name)).name;
+  return familyKey(safeKey(keyFn, loose) || safeKey(keyFn, name));
+}
+
 /** Names used to notice that the key function changed, so stored keys are rebuilt (never a silent mismatch). */
 const FINGERPRINT_NAMES = [
   'Stripe, Inc.', 'stripe', 'Stripe Partners Ltd', 'The Home Depot', 'Bain & Co.', 'AT&T', 'J.P. Morgan Chase & Co.',
@@ -80,7 +155,9 @@ const FINGERPRINT_NAMES = [
 
 export function keyFingerprint(fn: CompanyKeyFn): string {
   const out = FINGERPRINT_NAMES.map((n) => { try { return fn(n); } catch { return '!'; } });
-  return createHash('sha256').update(JSON.stringify(out)).digest('hex').slice(0, 16);
+  // The Network's own variants and the alias families change the stored keys too.
+  const fam = [...aliasFamilies().entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  return createHash('sha256').update(JSON.stringify([out, NETWORK_RULES_VERSION, fam])).digest('hex').slice(0, 16);
 }
 
 // ---------------------------------------------------------------- placeholders
@@ -116,9 +193,8 @@ export interface CompanyKeys {
 
 export function keysForCompany(company: string | null, keyFn: CompanyKeyFn): CompanyKeys {
   if (!company || isPlaceholderCompany(company)) return { key: null, rawKey: null };
-  const raw = safeKey(keyFn, company);
-  const stripped = ACRONYM_TAIL.test(company) ? safeKey(keyFn, company.replace(ACRONYM_TAIL, '')) : raw;
-  const key = stripped || raw;
+  const raw = familyKey(safeKey(keyFn, company));
+  const key = networkKey(ACRONYM_TAIL.test(company) ? company.replace(ACRONYM_TAIL, '') : company, keyFn) || raw;
   if (!key) return { key: null, rawKey: null };
   return { key, rawKey: raw || key };
 }
@@ -141,16 +217,27 @@ export function howMatched(contactCompany: string, targetName: string | null, ke
   if (target && contactCompany === target) return 'Same name as written.';
   if (target && fold(contactCompany).trim() === fold(target).trim()) return 'Same name; only upper and lower case differ.';
   const bits: string[] = [];
-  if (ACRONYM_TAIL.test(contactCompany) && (!target || !ACRONYM_TAIL.test(target))) {
-    bits.push(`the short form "${contactCompany.match(ACRONYM_TAIL)![0].trim()}" is left out`);
+  let name = contactCompany;
+  if (ACRONYM_TAIL.test(name) && (!target || !ACRONYM_TAIL.test(target))) {
+    bits.push(`the short form "${name.match(ACRONYM_TAIL)![0].trim()}" is left out`);
+    name = name.replace(ACRONYM_TAIL, '');
   }
-  const w = nameWords(contactCompany.replace(ACRONYM_TAIL, ''));
+  const web = [...name.matchAll(WEB_ENDING)].map((m) => `.${m[2]!.toLowerCase()}`);
+  if (web.length) { bits.push(`the web ending "${web.join('", "')}" is ignored`); name = withoutWebEnding(name); }
+  const w = nameWords(name);
   const { start, end } = coreRange(w);
   const tail = w.slice(end).filter((x) => x !== 'and' && x !== 'the');
   if (tail.length) bits.push(`the legal suffix "${tail.join(' ')}" is ignored`);
+  const d = withoutDescriptorTail(name);
+  if (d.dropped) { bits.push(`the word "${d.dropped}" at the end of the legal name is ignored`); name = d.name; }
   if (start > 0) bits.push('a leading "The" is ignored');
+  // Different names of one company in jobleft's reviewed list (brand and legal name).
+  const mine = safeKey(keyFn, name);
+  const theirs = target ? safeKey(keyFn, withoutDescriptorTail(withoutWebEnding(target)).name) : '';
+  if (sameFamily(mine, theirs)) {
+    return `jobleft's reviewed list of company names lists "${contactCompany}" and "${target}" as the same company${bits.length ? ` (also: ${bits.join(', ')})` : ''}.`;
+  }
   if (!bits.length) bits.push('case, spaces, accents and punctuation are ignored');
-  void keyFn;
   return `Same company name once ${bits.join(' and ')}.`;
 }
 
@@ -169,8 +256,8 @@ export function whyNotCounted(otherName: string, targetName: string): string {
 /** true when two keys are near enough to show as "not counted" (never counted): a shared first word or prefix. */
 export function isNearName(otherName: string, targetName: string, otherKey: string, targetKey: string): boolean {
   if (!otherKey || !targetKey || otherKey === targetKey) return false;
-  const a = coreWords(targetName);
-  const b = coreWords(otherName);
+  const a = coreWords(withoutWebEnding(targetName));
+  const b = coreWords(withoutWebEnding(otherName));
   if (a[0] && b[0] && a[0] === b[0] && a[0].length >= 3) return true;
   const short = otherKey.length < targetKey.length ? otherKey : targetKey;
   const long = otherKey.length < targetKey.length ? targetKey : otherKey;

@@ -53,7 +53,12 @@ export function Importer({ onDone, first }: { onDone: (s: NetworkImportSummary) 
   );
 }
 
-/** What the import did, in numbers and in words: read, skipped (each row with its reason), new, updated, kept. */
+const num = (n: number) => n.toLocaleString('en-US');
+
+/**
+ * What the import did, in numbers and in words: read, skipped (each row with its reason), new, updated, kept. People
+ * missing from the new file are said once, in the service's own sentence (JL-network-3).
+ */
 export function ImportReport({ s }: { s: NetworkImportSummary }) {
   if (s.notAConnectionsFile) {
     return <Alert type="error" showIcon message="Not imported: this is not a connections file" description={<>{s.warnings.map((w) => <p key={w} style={{ margin: '0 0 4px' }}>{w}</p>)}</>} />;
@@ -64,8 +69,7 @@ export function ImportReport({ s }: { s: NetworkImportSummary }) {
       message={<span>Read {plural(read, 'person', 'people')}. Skipped {plural(s.skipped.length, 'row')}.</span>}
       description={
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span>{s.imported} new · {s.updated} updated · {s.unchanged} unchanged{s.missingFromFile ? ` · ${s.missingFromFile} no longer in your file` : ''}.</span>
-          {s.missingFromFile > 0 && <span>{plural(s.missingFromFile, 'person', 'people')} from an earlier import {s.missingFromFile === 1 ? 'is' : 'are'} not in this file. Nothing was deleted: they stay with their stages and notes, marked "no longer in your file". You can delete them one by one.</span>}
+          <span>{num(s.imported)} new · {num(s.updated)} updated · {num(s.unchanged)} unchanged{s.missingFromFile ? ` · ${num(s.missingFromFile)} no longer in your file` : ''}.</span>
           {s.skipped.length > 0 && (
             <div>
               <strong>Skipped rows</strong>
@@ -82,7 +86,7 @@ export function ImportReport({ s }: { s: NetworkImportSummary }) {
   );
 }
 
-export function DeletePanel({ total }: { total: number | null }) {
+export function DeletePanel({ total, onDeleted }: { total: number | null; onDeleted?: () => void }) {
   return (
     <section className="jl-card-box" aria-labelledby="del-h">
       <h2 id="del-h" className="jl-section-title" style={{ fontSize: 17 }}>Delete all network data</h2>
@@ -90,6 +94,7 @@ export function DeletePanel({ total }: { total: number | null }) {
       <Popconfirm title={total === null ? 'Delete all network data?' : `Delete all ${plural(total, 'person', 'people')} and their notes from jobleft?`} description="This cannot be undone." okText="Delete all network data" okButtonProps={{ danger: true }} onConfirm={async () => {
         try {
           const r = await call('deleteNetwork');
+          onDeleted?.(); // the last import's report no longer describes anything (JL-network-11)
           invalidate('network', 'jobs:', 'job:', 'match:', 'notifications');
           ui.message?.success(`Deleted ${plural(r.deleted, 'person', 'people')} and everything about them.`);
         } catch (e) { ui.message?.error((e as UiError).message); }

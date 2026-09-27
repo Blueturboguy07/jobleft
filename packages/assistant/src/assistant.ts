@@ -56,6 +56,30 @@ const fail = {
   bad: (message: string) => new ApiFailure(400, 'bad_request', message),
 };
 
+/** The same limit as a contact's note: a question-bank field holds at most 20,000 characters (JL-network-16). */
+export const PRACTICE_TEXT_LIMIT = 20_000;
+function checkPracticeText(fields: { question?: string | null; answer?: string | null; feedback?: string | null; notes?: string | null }): void {
+  for (const [k, v] of Object.entries(fields)) {
+    if (typeof v === 'string' && v.length > PRACTICE_TEXT_LIMIT) throw fail.bad(`The ${k === 'notes' ? 'notes are' : `${k} is`} longer than 20,000 characters. Nothing was saved.`);
+  }
+}
+
+/** What the person decided about a proposal, in plain words, for the conversation. Only the stored summaries are used. */
+export function decisionText(actions: StoredAction[], r: { applied: string[]; declined: string[]; failed: Array<{ id: string; message: string }>; notes: string[] }): string {
+  const summary = (id: string) => actions.find((a) => a.id === id)?.summary.replace(/[.\s]+$/, '') ?? 'A change';
+  const lines = [
+    ...r.applied.map((id) => `- Done: ${summary(id)}.`),
+    ...r.failed.map((f) => `- Not done: ${summary(f.id)}. ${f.message}`),
+    ...r.declined.map((id) => `- Not done, because you declined it: ${summary(id)}.`),
+  ];
+  const one = actions.length === 1;
+  const head = r.applied.length === actions.length ? (one ? 'You approved the suggested change. It is done:' : 'You approved the suggested changes. They are done:')
+    : r.applied.length ? 'You approved some of the suggested changes:'
+      : r.failed.length ? 'Nothing was changed:'
+        : one ? 'You declined the suggested change. Nothing was changed:' : 'You declined the suggested changes. Nothing was changed:';
+  return [head, ...lines, ...r.notes].join('\n');
+}
+
 export class Assistant {
   readonly engine: AiEngine;
   readonly data: Data;
@@ -253,7 +277,13 @@ export class Assistant {
   // ------------------------------------------------------------------ conversations
 
   listChats(): Array<{ id: string; title: string; jobId: string | null; updatedAt: string }> { return this.chats.list(); }
-  getChat(id: string): ChatThread { const c = this.chats.get(id); if (!c) throw fail.notFound('That conversation'); return c; }
+  /** One conversation, with the proposals it still waits on (a reload of the window shows them again). */
+  getChat(id: string): ChatThread {
+    const c = this.chats.get(id);
+    if (!c) throw fail.notFound('That conversation');
+    const pending = this.book.pendingFor(id);
+    return pending.length ? { ...c, proposals: pending } : c;
+  }
   deleteChat(id: string): void { if (!this.chats.delete(id)) throw fail.notFound('That conversation'); }
 
   // ------------------------------------------------------------------ proposals
@@ -275,6 +305,9 @@ export class Assistant {
         else failed.push({ id: a.id, message: e instanceof LocalApiError ? plainError(e) : e instanceof ApiFailure ? e.message : asAiError(e).message });
       }
     }
+    // The decision goes into the conversation, so the answer above it ("nothing has changed yet") is never the last
+    // word, and the model sees what really happened on the next turn.
+    if (p.chatId && this.chats.exists(p.chatId)) this.chats.append(p.chatId, 'assistant', decisionText(p.actions, { applied, declined, failed, notes }), { jobId: null });
     return { applied, declined, ...(failed.length ? { failed } : {}), ...(notes.length ? { notes } : {}) };
   }
 
@@ -368,11 +401,15 @@ export class Assistant {
   async listPracticeItems(jobId?: string): Promise<PracticeItem[]> { return this.practice.listItems(jobId); }
 
   async savePracticeItem(input: { jobId: string; kind: 'question' | 'debrief'; question?: string; answer?: string; feedback?: string; notes?: string }): Promise<PracticeItem> {
+    checkPracticeText(input);
+    if (input.kind === 'debrief' && !input.notes?.trim()) throw fail.bad('A debrief needs notes: what you were asked and how it went.');
+    if (input.kind === 'question' && !input.question?.trim()) throw fail.bad('A saved question needs the question text.');
     if (!(await this.data.job(input.jobId))) throw fail.notFound('That job');
     return this.practice.saveItem(input);
   }
 
   updatePracticeItem(id: string, patch: { question?: string | null; answer?: string | null; feedback?: string | null; notes?: string | null }): PracticeItem {
+    checkPracticeText(patch);
     const it = this.practice.updateItem(id, patch);
     if (!it) throw fail.notFound('That practice item');
     return it;

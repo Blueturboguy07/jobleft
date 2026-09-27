@@ -20,6 +20,7 @@ import { ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { ago, dateText, fitIndexText, hostOf, plural } from '../lib/format.ts';
 import { readAllPages } from '../lib/pages.ts';
 import { rememberAiCheck } from '../lib/aiHealth.ts';
+import { dailyLimitText } from '../lib/dailyLimit.ts';
 
 const TABS = [
   { key: 'ai', label: 'AI provider', icon: <ApiOutlined /> },
@@ -183,6 +184,12 @@ function AiTab() {
 
 // ------------------------------------------------------------------ balance
 
+/** The fit index state in plain words, never the internal code (JL-network-24). */
+const FIT_STATE: Record<string, string> = {
+  ready: 'Ready', indexing: 'Indexing now', downloading: 'Downloading the fit model',
+  model_missing: 'Not built yet: the fit model is not on this Mac', failed: 'Stopped with a problem',
+};
+
 const DISCLOSURE = [
   'jobleft can send its AI requests to the publik API: each request is priced per use and paid in dollars from your publik balance, which starts with a small free amount.',
   "Your prompts go through publik's servers to the AI model's provider, publik does not train on them, and you can change to a local model or your own key at any time.",
@@ -220,6 +227,7 @@ function BalanceTab() {
   };
   const c = pub.data;
   const w = c?.wallet;
+  const daily = w ? dailyLimitText(w) : null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {ai.data && ai.data.provider !== 'publik' && (
@@ -246,7 +254,9 @@ function BalanceTab() {
             { key: 'u', label: 'Used this week', children: formatDollars(w.week.usedMicros) },
             ...(w.week.budgetMicros !== null ? [{ key: 'b', label: 'Weekly budget', children: formatDollars(w.week.budgetMicros) }] : []),
             { key: 't', label: 'Last read', children: ago(w.updatedAt) },
+            ...(daily ? [{ key: 'd', label: 'Daily limit', children: daily.summary }] : []),
           ]} />
+          {daily?.reached && <Alert type="warning" showIcon message="Today's publik spending limit for this computer was reached" description={daily.reached} />}
           <p style={{ margin: 0 }}>{JUSTIFICATION} <a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See the prices per tier</a>.</p>
           <Space wrap>
             <Button type="primary" shape="round" icon={<LinkOutlined />} onClick={() => openExternal(w.topUpUrl)}>Add money to your balance</Button>
