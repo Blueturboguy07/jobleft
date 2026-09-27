@@ -33,3 +33,16 @@ export function dailyLimitText(w: PublikWallet, now: number = Date.now()): { sum
     : null;
   return { summary, reached };
 }
+
+/**
+ * One plain line for a $0.00 balance (JL-v2-5). publik limits free starting amounts (per network), so a new
+ * connection can start at $0.00; the line says so instead of letting the words promise a free amount, and the screen
+ * shows it with the top-up link publik returned. null when there is money in the balance.
+ */
+export function zeroBalanceText(w: PublikWallet): string | null {
+  if (w.balanceMicros > 0) return null;
+  const neverHadAny = !w.starterRemainingMicros && w.week.usedMicros === 0;
+  return neverHadAny
+    ? `publik did not add a free starting amount for this computer (publik limits these), so your balance is ${formatDollars(0)} and AI steps cannot run yet. Add money at publik to use them.`
+    : `Your publik balance is ${formatDollars(0)}, so AI steps cannot run until you add money at publik.`;
+}
