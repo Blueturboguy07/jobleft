@@ -30,6 +30,7 @@ function upstreamText(body: unknown, raw: string): string {
 
 const MODEL_MISSING = /(model[^.]{0,80}(not[ _]found|does not exist|doesn't exist|not exist|unknown|not available|no such|is not loaded|not loaded|invalid model)|unknown[_ ]model|model_not_found|no such model|try pulling it)/i;
 const QUOTA = /(insufficient[_ ]quota|exceeded your current quota|billing|credit balance|insufficient[_ ]funds|payment required)/i;
+const BAD_KEY_400 = /(API_KEY_INVALID|API key not valid|API key expired|invalid[_ ]api[_ ]key)/i;
 const KEY_WORDS = /(api[_ -]?key|unauthori[sz]ed|authentication|invalid[_ ]key|incorrect key|forbidden|permission)/i;
 
 /** The model name as the person chose it, cut to a safe length for a message. */
@@ -53,6 +54,12 @@ function classify(status: number, contentType: string | undefined, raw: string, 
   const body = tryJson(raw);
   const text = upstreamText(body, raw);
   if (status === 401 || (status === 403 && KEY_WORDS.test(text))) {
+    return ctx.keySet
+      ? new AiError('key_refused', `${cap(ctx.label)} refused the saved key. Check the key and save it again${ctx.keyHint ? ` (${ctx.keyHint})` : ''}.`)
+      : new AiError('key_refused', `${cap(ctx.label)} needs a key. Save the key for this provider, then try again.`);
+  }
+  // Google answers a wrong key with 400 API_KEY_INVALID ("API key not valid"), not 401 (JL-settings-11).
+  if (status === 400 && BAD_KEY_400.test(text)) {
     return ctx.keySet
       ? new AiError('key_refused', `${cap(ctx.label)} refused the saved key. Check the key and save it again${ctx.keyHint ? ` (${ctx.keyHint})` : ''}.`)
       : new AiError('key_refused', `${cap(ctx.label)} needs a key. Save the key for this provider, then try again.`);

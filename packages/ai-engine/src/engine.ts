@@ -96,9 +96,11 @@ export class AiEngine {
       baseUrl: opts.publikBaseUrl, appToken: opts.publikAppToken, secrets: opts.secrets, fetchImpl: opts.fetchImpl,
       state: this.kv, appVersion: opts.appVersion, connectTimeoutMs: this.connectTimeoutMs,
     });
-    // Disconnect stops every running publik request at once: nothing spends the balance afterwards (O2).
+    // Disconnect stops every running publik request at once: nothing spends the balance afterwards (O2). The stop
+    // says why (JL-settings-10): the person did not press Stop, publik was disconnected.
     this.publik.onDisconnect(() => {
-      for (const [id, r] of this.running) if (r.provider === 'publik') { r.controller.abort(); this.running.delete(id); }
+      const why = new AiError('no_provider', 'publik was disconnected, so the answer stopped. Connect publik again, or choose another provider.');
+      for (const [id, r] of this.running) if (r.provider === 'publik') { r.controller.abort(why); this.running.delete(id); }
     });
   }
 
@@ -483,7 +485,12 @@ export class AiEngine {
 
   private checkMessage(s: AiSettings, err: AiError): string {
     if (s.provider === 'local' && s.localKind === 'ollama' && err.code === 'unreachable') {
-      return `Ollama is not running at ${originOf(s.baseUrl!)}. Start Ollama (open the Ollama app, or run "ollama serve"), then check again.`;
+      const origin = originOf(s.baseUrl!);
+      // An https address to a server on this computer: Ollama answers plain http (JL-settings-4).
+      if (origin.startsWith('https://')) {
+        return `Nothing answered over https at ${origin}. Ollama answers plain http: use ${origin.replace(/^https:/, 'http:')}. If Ollama is not running, start it (open the Ollama app, or run "ollama serve"), then check again.`;
+      }
+      return `Ollama is not running at ${origin}. Start Ollama (open the Ollama app, or run "ollama serve"), then check again.`;
     }
     return err.message;
   }

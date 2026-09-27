@@ -96,8 +96,18 @@ test('disconnect during a stream stops it at once', async () => {
     await new Promise((r) => setTimeout(r, 150));
     const t0 = Date.now();
     await engine.publik.disconnect();
-    assert.equal((await running)?.code, 'cancelled');
+    // JL-settings-10: the stop names its real reason (it said "You stopped the answer." in the Assistant).
+    const stopped = await running;
+    assert.equal(stopped?.code, 'no_provider');
+    assert.match(stopped!.message, /publik was disconnected, so the answer stopped/);
     assert.ok(Date.now() - t0 < 2000);
+    // A stop the person asks for is still a plain cancel.
+    await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
+    const ctl = new AbortController();
+    const mine = collect(engine.client().chat({ messages: [{ role: 'user', content: 'hi' }], signal: ctl.signal })).then(() => null, (e: AiError) => e);
+    await new Promise((r) => setTimeout(r, 150));
+    ctl.abort();
+    assert.equal((await mine)?.code, 'cancelled');
   });
 });
 

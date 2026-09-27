@@ -15,12 +15,19 @@ export interface ClientHooks {
   guard?(): Promise<void>;
 }
 
+/** A request stopped by the app (not by the person) carries its reason on the signal: that reason, not "cancelled". */
+function stopReason(signal: AbortSignal, e: unknown): unknown {
+  return e instanceof AiError && e.code === 'cancelled' && signal.reason instanceof AiError ? signal.reason : e;
+}
+
 export function makeClient(driver: ProviderDriver, hooks: ClientHooks): AiClient {
   async function* chat(req: AiRequest): AsyncGenerator<AiChunk> {
     await hooks.guard?.();
     const { signal, end } = hooks.begin(req);
     try {
       yield* driver.stream(req, { signal });
+    } catch (e) {
+      throw stopReason(signal, e);
     } finally {
       end();
       hooks.after?.();
@@ -41,6 +48,8 @@ export function makeClient(driver: ProviderDriver, hooks: ClientHooks): AiClient
         else if (c.type === 'tool_call') toolCalls.push(c.call);
         else if (c.type === 'done') { incomplete = c.incomplete; costMicros = c.costMicros; reason = c.reason; }
       }
+    } catch (e) {
+      throw stopReason(signal, e);
     } finally {
       end();
       hooks.after?.();
