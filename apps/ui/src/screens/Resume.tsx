@@ -108,12 +108,12 @@ export function AddResumeModal({ open, onClose }: { open: boolean; onClose: () =
           {diff.length ? (
             <div className="jl-factbox">
               <strong>Use these facts from the file in your profile?</strong>
-              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{diff.map((d) => <li key={d}>{d}</li>)}</ul>
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18, overflowWrap: 'anywhere' }}>{diff.map((d, i) => <li key={i}>{d}</li>)}</ul>
               {changes.replaces.length > 0 && (
-                <Alert style={{ marginTop: 8 }} type="warning" showIcon message="This would replace changes you made to your profile"
-                  description={<ul style={{ margin: 0, paddingLeft: 18 }}>{changes.replaces.map((d) => <li key={d}>{d}</li>)}</ul>} />
+                <Alert style={{ marginTop: 8 }} type="warning" showIcon message="This replaces or removes these parts of your profile"
+                  description={<ul style={{ margin: 0, paddingLeft: 18, overflowWrap: 'anywhere' }}>{changes.replaces.map((d, i) => <li key={i}>{d}</li>)}</ul>} />
               )}
-              <p className="jl-small jl-muted" style={{ marginTop: 6 }}>Your profile drives your match scores. Nothing changes unless you press the button. Your job preferences and answers are never changed by a file.</p>
+              <p className="jl-small jl-muted" style={{ marginTop: 6 }}>Your profile drives your match scores. Nothing changes unless you press the button, and the button changes only what is listed. Your links, your skills and any job or school the file does not mention stay. Your job preferences and answers are never changed by a file.</p>
             </div>
           ) : <p className="jl-muted">Your profile already has these facts.</p>}
           <Space wrap>
