@@ -3,11 +3,35 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { inflateRawSync } from 'node:zlib';
 import { startScriptedModel } from '../../../packages/assistant/src/mock/scripted-model.ts';
 import { cleanup, startTest, type TestServer } from './helpers.ts';
 
 function events(text: string): any[] {
   return text.split('\n\n').map((l) => l.trim()).filter((l) => l.startsWith('data: ')).map((l) => JSON.parse(l.slice(6)));
+}
+
+/** The files of a zip the server wrote (entries with data descriptors), by name. */
+function zipFiles(buf: Buffer): Map<string, string> {
+  const out = new Map<string, string>();
+  let p = 0;
+  while (p + 30 <= buf.length && buf.readUInt32LE(p) === 0x04034b50) {
+    const method = buf.readUInt16LE(p + 8);
+    const nameLen = buf.readUInt16LE(p + 26), extra = buf.readUInt16LE(p + 28);
+    const name = buf.subarray(p + 30, p + 30 + nameLen).toString('utf8');
+    const start = p + 30 + nameLen + extra;
+    let d = start;
+    for (;;) {
+      d = buf.indexOf(Buffer.from([0x50, 0x4b, 0x07, 0x08]), d);
+      if (d < 0) return out;
+      if (buf.readUInt32LE(d + 8) === d - start) break;
+      d += 4;
+    }
+    const data = buf.subarray(start, d);
+    out.set(name, (method === 8 ? inflateRawSync(data) : data).toString('utf8'));
+    p = d + 16;
+  }
+  return out;
 }
 
 async function addJob(s: TestServer, title: string, company: string, body = 'We build dashboards in SQL and Tableau.'): Promise<string> {
@@ -48,5 +72,43 @@ test('JL-network-17: a proposal stays with its conversation until decided; the d
     const after = (await s.call('GET', `/api/v1/ai/chats/${done.chatId}`)).json;
     assert.equal(after.proposals, undefined);
     assert.match(after.messages.at(-1).content, /It is done:\n- Done: Move "Staff Data Analyst" at Stripe to Applied\./);
+  } finally { await s.stop(); await model.close(); cleanup(s.home); }
+});
+
+test('JL-network-23: "Export all my data" holds the assistant conversations, the practice answers and feedback, and the question bank', async () => {
+  const model = await startScriptedModel({ script: () => ({ text: 'Here is a plain answer about your jobs.' }) });
+  const s = await startTest('jl23');
+  try {
+    const jobId = await addJob(s, 'Staff Data Analyst', 'Stripe');
+    await s.call('PUT', '/api/v1/ai/settings', { provider: 'local', localKind: 'openai_compatible', baseUrl: model.url, model: 'scripted-model' });
+    const r = await s.call('POST', '/api/v1/ai/chat', { requestId: 'req-jl23', messages: [{ role: 'user', content: 'How many jobs did I like? EXPORTMARK' }] });
+    assert.equal(events(r.text).at(-1).type, 'done', r.text);
+    const ps = await s.call('POST', '/api/v1/practice/sessions', { jobId });
+    assert.equal(ps.status, 200, ps.text);
+    const q = ps.json.questions[0];
+    const fb = await s.call('POST', '/api/v1/practice/feedback', { sessionId: ps.json.id, questionId: q.id, answer: 'PRACTICEANSWER I wrote SQL for the weekly report.' });
+    assert.equal(fb.status, 200, fb.text);
+    // A reload of the Practice screen gets the same session with the answer and its feedback.
+    const again = await s.call('POST', '/api/v1/practice/sessions', { jobId });
+    assert.equal(again.json.resumed, true);
+    assert.equal(again.json.answers[0].answer, 'PRACTICEANSWER I wrote SQL for the weekly report.');
+    assert.ok(again.json.answers[0].feedback);
+    assert.equal((await s.call('POST', '/api/v1/practice/items', { jobId, kind: 'debrief', notes: 'DEBRIEFMARK they asked about SQL' })).status, 200);
+    assert.equal((await s.call('POST', '/api/v1/practice/items', { jobId, kind: 'debrief', notes: '' })).status, 400, 'an empty debrief is refused');
+
+    const exp = await s.call('GET', '/api/v1/export');
+    assert.equal(exp.status, 200);
+    const files = zipFiles(exp.body);
+    const chats = JSON.parse(files.get('chats.json')!);
+    assert.equal(chats.length, 1);
+    assert.match(chats[0].messages[0].content, /EXPORTMARK/);
+    assert.equal(chats[0].messages[1].content, 'Here is a plain answer about your jobs.');
+    const practice = JSON.parse(files.get('interview-practice.json')!);
+    assert.equal(practice.sessions.length, 1);
+    assert.match(practice.sessions[0].answers[0].answer, /PRACTICEANSWER/);
+    assert.ok(practice.sessions[0].answers[0].feedback);
+    assert.match(practice.questionBank[0].notes, /DEBRIEFMARK/);
+    assert.ok(files.has('ai-charges.json'));
+    assert.match(files.get('README.txt')!, /interview-practice\.json/);
   } finally { await s.stop(); await model.close(); cleanup(s.home); }
 });
