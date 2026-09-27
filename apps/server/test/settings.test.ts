@@ -223,3 +223,53 @@ test('JL-settings-19: a few hundred concurrent requests end in 200 or 429, healt
     assert.equal((await s.call('GET', '/api/v1/profile')).json.personal.lastName, 'Testwell');
   } finally { await s.stop(); cleanup(s.home); }
 });
+
+test('JL-settings-12: a Greenhouse, Lever or Ashby link finds its board and adds it; LinkedIn, Indeed, Glassdoor, Workday, iCIMS and SmartRecruiters are refused in plain words', async () => {
+  const dir = scratchHome('resolve-boards');
+  const file = join(dir, 'boards.json');
+  writeFileSync(file, JSON.stringify({
+    greenhouse: { figma: [greenhouseJob(1, { board: 'figma', title: 'Designer' }), greenhouseJob(2, { board: 'figma', title: 'Engineer' })] },
+    lever: { plaid: [{ id: 'l1', text: 'Analyst', hostedUrl: 'https://jobs.lever.co/plaid/l1', applyUrl: 'https://jobs.lever.co/plaid/l1/apply', categories: { location: 'Remote' }, descriptionPlain: 'x', lists: [], createdAt: 1758000000000 }] },
+    ashby: { ramp: [{ id: 'a1', title: 'Ops', jobUrl: 'https://jobs.ashbyhq.com/ramp/a1', applyUrl: 'https://jobs.ashbyhq.com/ramp/a1/application', location: 'New York', descriptionPlain: 'x', isListed: true, publishedAt: '2026-09-20T00:00:00Z' }] },
+  }));
+  const boards = await startBoards({ file });
+  const hosts = ['boards-api.greenhouse.io', 'boards.greenhouse.io', 'job-boards.greenhouse.io', 'api.lever.co', 'jobs.lever.co', 'api.ashbyhq.com', 'jobs.ashbyhq.com'];
+  const s = await startTest('resolve', { env: { JOBLEFT_HOST_MAP: JSON.stringify(Object.fromEntries(hosts.map((h) => [h, boards.origin]))), JOBLEFT_BOARD_DIRECTORY: 'none' } });
+  try {
+    for (const [link, ats, board, open] of [
+      ['https://boards.greenhouse.io/figma', 'greenhouse', 'figma', 2],
+      ['https://jobs.lever.co/plaid', 'lever', 'plaid', 1],
+      ['https://jobs.ashbyhq.com/ramp', 'ashby', 'ramp', 1],
+    ] as const) {
+      const r = await s.call('POST', '/api/v1/boards/resolve', { url: link });
+      assert.equal(r.status, 200, `${link}: ${r.text}`);
+      assert.equal(r.json.candidates.length, 1, `${link}: ${r.text}`);
+      const c = r.json.candidates[0];
+      assert.deepEqual([c.ats, c.board, c.openJobs, c.alreadyAdded], [ats, board, open, false], link);
+      const added = await s.call('POST', '/api/v1/boards', { ats: c.ats, board: c.board });
+      assert.equal(added.status, 200, added.text);
+      assert.equal(added.json.origin, 'user');
+      const again = await s.call('POST', '/api/v1/boards/resolve', { url: link });
+      assert.equal(again.json.candidates[0].alreadyAdded, true, `${link}: already added`);
+    }
+    assert.equal((await s.call('GET', '/api/v1/boards?view=user')).json.total, 3);
+    const before = boards.log.length;
+    for (const [link, name] of [
+      ['https://www.linkedin.com/jobs/view/4012345678', 'LinkedIn'],
+      ['https://www.indeed.com/viewjob?jk=abc123', 'Indeed'],
+      ['https://www.glassdoor.com/job-listing/x-JV_IC1.htm', 'Glassdoor'],
+      ['https://acme.wd5.myworkdayjobs.com/en-US/External', 'Workday'],
+      ['https://careers-acme.icims.com/jobs/1234/job', 'iCIMS'],
+      ['https://jobs.smartrecruiters.com/Acme/123', 'SmartRecruiters'],
+    ] as const) {
+      const r = await s.call('POST', '/api/v1/boards/resolve', { url: link });
+      assert.equal(r.status, 200, r.text);
+      assert.equal(r.json.reason, 'forbidden_host', link);
+      assert.deepEqual(r.json.candidates, []);
+      assert.match(r.json.message, new RegExp(`does not support ${name}`), link);
+      assert.match(r.json.message, /Nothing was sent/);
+    }
+    assert.equal(boards.log.length, before, 'no request for a forbidden link');
+    assert.equal((await s.call('POST', '/api/v1/boards/resolve', { url: 'not a link' })).json.reason, 'not_a_link');
+  } finally { await s.stop(); await boards.close(); cleanup(s.home); cleanup(dir); }
+});

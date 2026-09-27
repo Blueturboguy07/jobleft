@@ -198,3 +198,18 @@ test('paid lookup: offered with a dollar price, never used unless accepted, used
     assert.match(used.message, /\$0\.004 from your balance/);
   } finally { await r.close(); }
 });
+
+// JL-settings-12: the app server keeps the person's boards in its own table; its answer decides "already added".
+test('a host app that keeps its own board list decides "already added" (isAdded)', async () => {
+  const mine = new Set(['greenhouse:acme']);
+  const r = await rig(CONFIG, { isAdded: (id) => mine.has(id) });
+  try {
+    const a = await r.service.resolve('https://boards.greenhouse.io/acme');
+    assert.equal(a.candidates[0]?.alreadyAdded, true);
+    assert.match(a.message, /already in your boards/);
+    const b = await r.service.resolve('https://jobs.ashbyhq.com/gamma');
+    assert.equal(b.candidates[0]?.alreadyAdded, false);
+    mine.add('ashby:gamma');
+    assert.equal((await r.service.resolve('https://jobs.ashbyhq.com/gamma')).candidates[0]?.alreadyAdded, true, 'a cached answer is read again');
+  } finally { await r.close(); }
+});

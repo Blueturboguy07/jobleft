@@ -25,6 +25,8 @@ export async function rig(config: MockConfig, opts: {
   directory?: DirectoryRow[]; intervalMs?: number; offline?: boolean; paid?: PaidPageFetcher | null; timeoutMs?: number;
   /** Replaces the network call under every client (to make the network fail on purpose). */
   fetchImpl?: typeof fetch;
+  /** The host app's own "already added" answer (BoardServiceOptions.isAdded). */
+  isAdded?: (boardId: string) => boolean;
 } = {}): Promise<Rig> {
   const mock = await startMockHosts(config);
   const dir = mkdtempSync(join(TMP, 'jl-boards-test-'));
@@ -37,7 +39,7 @@ export async function rig(config: MockConfig, opts: {
   const sources = boardSources(SOURCES);
   const service = new BoardService({
     db: store.db, directory: new BoardDirectory(opts.directory ?? []), http, newHttp, sources, now: () => clock.now,
-    paid: opts.paid ?? null, offline: () => !!opts.offline, resolveDeadlineMs: 10_000,
+    paid: opts.paid ?? null, offline: () => !!opts.offline, resolveDeadlineMs: 10_000, ...(opts.isAdded ? { isAdded: opts.isAdded } : {}),
   });
   const scheduler = new CrawlScheduler({ boards: service, crawlStore: store, http, newHttp, sources, now: () => clock.now, intervalHours: () => 6 });
   return {

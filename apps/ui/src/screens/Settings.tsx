@@ -350,7 +350,7 @@ function SourcesTab() {
         </div>
         {resolved && (resolved.candidates.length ? resolved.candidates.map((c) => (
           <div key={c.boardId} className="jl-row"><span className="jl-grow">{c.company} ({c.ats}{c.openJobs !== null ? `, ${plural(c.openJobs, 'open job')}` : ''})</span>
-            {c.alreadyAdded ? <Tag>Already followed</Tag> : <Button size="small" type="primary" shape="round" onClick={async () => { try { await call('addBoard', { body: { ats: c.ats, board: c.board, ...(c.region ? { region: c.region } : {}) } }); invalidate('boards'); setResolved(null); setLink(''); ui.message?.success(`Following ${c.company}.`); } catch (e) { ui.message?.error((e as UiError).message); } }}>Follow {c.company}</Button>}
+            {c.alreadyAdded ? <Tag>Already followed</Tag> : <Button size="small" type="primary" shape="round" onClick={async () => { try { const added = await call('addBoard', { body: { ats: c.ats, board: c.board, ...(c.region ? { region: c.region } : {}) } }); invalidate('boards'); setResolved(null); setLink(''); const r = await call('crawlRun', { body: { boardIds: [added.id] } }).catch(() => null); invalidate('crawl'); ui.message?.success(r?.started ? `Following ${c.company}. Its jobs are being read now.` : `Following ${c.company}. Its jobs come with the next refresh.`); } catch (e) { ui.message?.error((e as UiError).message); } }}>Follow {c.company}</Button>}
           </div>
         )) : <Alert type="info" showIcon message={resolved.message} />)}
       </Panel>
