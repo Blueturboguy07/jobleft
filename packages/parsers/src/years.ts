@@ -1,7 +1,7 @@
 // Required years of experience (parsers O6): the lowest number that meets the requirement.
 // "Must be 18 years or older", "serving customers for over 50 years" and "vests over 4 years" are never read.
 import type { FactEvidence } from '@jobleft/contracts';
-import { cutOtherJobs, normalizeText, snippet, WORD_NUMBERS } from './text.ts';
+import { cutOtherJobs, dropOtherRoles, normalizeText, snippet, WORD_NUMBERS } from './text.ts';
 
 export interface YearsResult {
   min: number | null;
@@ -80,7 +80,7 @@ function indexOfStart(starts: number[], i: number): number {
  */
 export function parseYearsRequired(input: string): YearsResult | null {
   if (!input) return null;
-  const text = cutOtherJobs(normalizeText(input));
+  const text = dropOtherRoles(cutOtherJobs(normalizeText(input)));
   const sentStarts = sentenceBounds(text);
   const lineStarts = [0];
   for (let i = 0; i < text.length; i++) if (text[i] === '\n') lineStarts.push(i + 1);
@@ -126,7 +126,13 @@ export function parseYearsRequired(input: string): YearsResult | null {
     const line = indexOfStart(lineStarts, idx);
     const lineText = lines[line] ?? '';
     const sentText = text.slice(sentStarts[s], sentStarts[s + 1] ?? text.length);
-    const preferred = PREFERRED.test(sentText) || lineKind[line] === 'pref';
+    // Words about another thing in the sentence do not make the years optional: "3-4 years of sales experience
+    // (equipment sales experience is a plus)", "1+ years of customer service, preferably in hospitality". A bracket
+    // that only says "(preferred)" or "(nice to have)" still does.
+    const own = sentText
+      .replace(/\(([^)]*)\)/g, (all, inner: string) => (/^\s*(?:strongly\s+)?(?:nice[- ]to[- ]have|preferred|a\s+plus|is\s+a\s+plus|bonus|optional|desired|ideal|ideally)\s*$/i.test(inner) ? all : ' '))
+      .replace(/\b(?:preferably|ideally)\s+(?:in|with|within|at|on|as|from|using|including|for|[a-z]+ing)\b[^.;\n]*/gi, ' ');
+    const preferred = PREFERRED.test(own) || lineKind[line] === 'pref';
     mentions.push({ index: idx, end, min: a, max: m[3] || m[5] || m[7] ? null : b, preferred, sentence: s, line, degree: DEGREE.test(lineText) });
   }
   if (!mentions.length) return null;

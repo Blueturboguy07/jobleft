@@ -140,3 +140,28 @@ test('description: a list item whose text sits in a paragraph keeps its "-" mark
   assert.match(t, /^- RN license$/m);
   assert.match(t, /^- BLS card$/m);
 });
+
+// JL-feed-3 and JL-feed-9 (black-box feed findings): level, levels and years come from one reading of the posting's
+// own words, so they never contradict each other and never come from a block about the employer's other roles.
+test('level and years: one consistent reading, with the posting\'s own sentence as evidence', () => {
+  const html = [
+    "<p>We're looking for Airbrush Technicians with a minimum of 1 year of professional automotive painting experience to join us.</p>",
+    '<p>Pay Range: $22 - $26</p>',
+    '<p>Not a match for this role?</p>',
+    '<p>We have a variety of paint roles available, depending on your experience:</p>',
+    '<ul><li>Mid-Level Painter (min 3 years professional experience): match paint</li><li>Experienced Painter (min 5 years professional experience): painting</li></ul>',
+  ].join('');
+  const a = normalizeJob(gh, { ...emptyRaw(), externalId: '1', title: 'Automotive Airbrush Technician - 2nd Shift', url: 'https://x.example/1', location: 'Rocklin, CA', descriptionHtml: html });
+  assert.ok(a);
+  assert.deepEqual(a.yearsRequired, { min: 1, max: null });
+  assert.match(a.evidence?.years?.text ?? '', /minimum of 1 year of professional automotive painting experience/);
+  assert.deepEqual([a.level, a.levels], ['entry', ['entry']]);
+  const sap = normalizeJob(gh, { ...emptyRaw(), externalId: '2', title: 'SAP Sr. Testing Analyst', url: 'https://x.example/2', location: 'Arlington, VA', descriptionHtml: "<p>Here's what you need:</p><ul><li>1+ years of SAP S/4HANA and SAP CAR testing experience</li></ul>" });
+  assert.deepEqual([sap?.level, sap?.levels], ['senior', ['senior']]);
+  assert.equal(sap?.evidence?.level?.source, 'title');
+  const dir = normalizeJob(gh, { ...emptyRaw(), externalId: '3', title: 'Director, Data Science', url: 'https://x.example/3', location: 'Austin, TX', descriptionHtml: '<p>You have 6+ years of experience in analytics.</p>' });
+  assert.deepEqual([dir?.level, dir?.levels], ['director', ['director_exec']]);
+  // An occupation alone ("Cashier") with nothing in the posting is not a stated level.
+  const cashier = normalizeJob(gh, { ...emptyRaw(), externalId: '4', title: 'Cashier', url: 'https://x.example/4', location: 'Austin, TX', descriptionHtml: '<p>Ring up sales.</p>' });
+  assert.deepEqual([cashier?.level, cashier?.levels], [null, []]);
+});

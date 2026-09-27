@@ -3,13 +3,20 @@
 // ("Engineer III" asking for 0-2 years is entry level). "Senior Care Aide", "Staff Nurse", "Internal Audit" and
 // "Shift Manager" never become Senior, Lead/Staff, Intern or Director by one word.
 import { experienceLevelOf, type ExperienceLevel, type FactEvidence, type Level } from '@jobleft/contracts';
-import { clip, cutOtherJobs, normalizeText, snippet } from './text.ts';
+import { clip, cutOtherJobs, dropOtherRoles, normalizeText, snippet } from './text.ts';
 
 export const BUCKETS: readonly ExperienceLevel[] = ['intern_new_grad', 'entry', 'mid', 'senior', 'lead_staff', 'director_exec'];
 const idx = (b: ExperienceLevel) => BUCKETS.indexOf(b);
 
 type Strength = 'strong' | 'medium' | 'weak';
-interface TitleReading { level: Level; strength: Strength; buckets?: ExperienceLevel[] }
+interface TitleReading {
+  level: Level; strength: Strength; buckets?: ExperienceLevel[];
+  /**
+   * The title states the level in words ("Senior", "Sr."): stated years may add the next level, never replace it.
+   * ("SAP Sr. Testing Analyst" asking for 1+ years of one tool is not Entry Level; a grade such as "III" can be.)
+   */
+  firm?: boolean;
+}
 
 // Words that make "senior" mean older people, not seniority.
 const ELDER = /\bsenior\s+(?:care|living|center|centre|services?|housing|community|communities|citizens?|homes?|residences?|residents|apartments?|health|nutrition|companions?|caregivers?|day|daycare|adults?|meals|programs?|outreach|lifestyle|placement|advisor\s+for|high)\b|\bseniors\b|\bfor\s+seniors\b/i;
@@ -91,7 +98,7 @@ export function readTitle(title: string): TitleReading | null {
       && !IC_MANAGER.test(s)) return { level: 'manager', strength: 'strong' };
     if (IC_MANAGER.test(s)) {
       if (/\b(?:group|principal|director)\b/i.test(s)) return { level: 'staff', strength: 'medium' };
-      return { level: senior ? 'senior' : 'mid', strength: 'medium', buckets: senior ? ['senior'] : ['mid', 'senior'] };
+      return { level: senior ? 'senior' : 'mid', strength: 'medium', buckets: senior ? ['senior'] : ['mid', 'senior'], ...(senior ? { firm: true } : {}) };
     }
     // Any other "Manager" is a role, not a grade: stated years do not overrule it.
     return { level: 'manager', strength: 'strong' };
@@ -107,7 +114,7 @@ export function readTitle(title: string): TitleReading | null {
     return { level: 'lead', strength: 'strong' };
   }
   // Senior (never "Senior Care Aide" or "Senior Living Cook").
-  if (senior) return { level: 'senior', strength: 'medium' };
+  if (senior) return { level: 'senior', strength: 'medium', firm: true };
   if (/\b(?:semi[- ]?senior|ssr|pleno|mid[- ]?level|mid[- ]senior|intermediate|journeyman|journeyperson|experienced)\b/i.test(s)) return { level: 'mid', strength: 'medium' };
   if (/\bmaster\s+(?:electrician|plumber|carpenter|technician|mechanic|welder|barber|stylist)\b/i.test(s)) return { level: 'senior', strength: 'medium' };
   if (/\b(?:junior|jr\.?|j[uú]nior|entry[- ]level|entry)\b(?![\w-])/i.test(s)) return { level: 'entry', strength: 'medium' };
@@ -231,10 +238,19 @@ export function bucketsFromBoardSeniority(v: string | null | undefined): Experie
   return [];
 }
 
-/** Seniority from the title, the posting text, the stated years and any board field. */
+/**
+ * Seniority from the title, the posting text, the stated years and any board field. The level is always one of the
+ * levels (JL-feed-9: a job was "senior" by its level and "entry" by its levels, so filters and cards disagreed).
+ */
 export function parseLevel(input: LevelInput): LevelResult {
+  const r = readLevel(input);
+  if (!r.level || !r.levels.length || r.levels.includes(experienceLevelOf(r.level))) return r;
+  return { ...r, level: levelOfBucket(r.levels[0]!) };
+}
+
+function readLevel(input: LevelInput): LevelResult {
   const title = t(normalizeText(input.title ?? ''));
-  const text = cutOtherJobs(normalizeText(input.text ?? ''));
+  const text = dropOtherRoles(cutOtherJobs(normalizeText(input.text ?? '')));
   const years = input.years && input.years.min !== null ? input.years : null;
   const reading = title ? readTitle(title) : null;
   const titleEv: FactEvidence = { source: 'title', text: clip(title, 300) };
@@ -270,7 +286,9 @@ export function parseLevel(input: LevelInput): LevelResult {
         const mainTitle = tb.reduce((p, c) => (Math.abs(idx(c) - idx(near[0])) < Math.abs(idx(p) - idx(near[0])) ? c : p));
         return { level: reading.level, levels: sortBuckets([mainTitle, ...near]), evidence: titleEv };
       }
-      // Two or more steps apart: the stated years decide ("Staff Engineer, 0-3 years" is entry level).
+      // Two or more steps apart: a level the title states in words stays; otherwise the stated years decide
+      // ("Staff Engineer, 0-3 years" is entry level).
+      if (reading.firm) return { level: reading.level, levels: sortBuckets(tb), evidence: titleEv };
       return { level: levelOfBucket(yearsBuckets[0]), levels: yearsBuckets, evidence: yearsEv };
     }
     if (newGrad && idx(tb[0]) <= idx('entry')) return { level: reading.level, levels: sortBuckets(['intern_new_grad', 'entry']), evidence: titleEv };

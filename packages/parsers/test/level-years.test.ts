@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { levelFromTitle, levelsOf, parseLevel, parseYearsRequired } from '../src/index.ts';
+import { levelFromTitle, levelsOf, parseLevel, parsePayFromText, parseStatements, parseYearsRequired } from '../src/index.ts';
+import { experienceLevelOf } from '@jobleft/contracts';
 
 const lv = (title: string, text = '') => {
   const y = parseYearsRequired(text);
@@ -91,4 +92,74 @@ test('years: only experience requirements, the lowest that meets them (O6)', () 
   assert.deepEqual(y('Our team has 20+ years of experience. You have 3+ years of experience.'), [3, null]);
   assert.deepEqual(y('Al menos 5 años de experiencia desarrollando soluciones backend'), [5, null]);
   assert.equal(y('Minimum 6 months of experience'), null);
+});
+
+// JL-feed-3: a posting that asks for "a minimum of 1 year" was read as 5+ years, Senior Level, from a block that lists
+// the employer's other roles ("Not a match for this role? ... Experienced Painter (min 5 years ...)").
+const CARVANA = [
+  "We're looking for Airbrush Technicians with a minimum of 1 year of professional automotive painting experience to join us.",
+  '',
+  "If you're joining us in an entry-level position, we offer training programs.",
+  '',
+  'Pay Range: $22 - $26',
+  '',
+  'Not a match for this role?',
+  'We have a variety of paint roles available, depending on your experience - look below to see other roles:',
+  '- Paint Prepper (min 6 months professional experience): prepare vehicles for cosmetic paintwork',
+  '- Entry-Level Painter (min 1 year professional experience): prime vehicles',
+  '- Mid-Level Painter (min 3 years professional experience): match/mix paint color',
+  '- Experienced Painter (min 5 years professional experience): painting base coats',
+].join('\n');
+
+test('JL-feed-3: years come from the posting\'s own sentence, never from a block about other roles', () => {
+  const y = parseYearsRequired(CARVANA);
+  assert.deepEqual([y?.min, y?.max], [1, null]);
+  assert.match(y!.evidence.text, /minimum of 1 year of professional automotive painting experience/);
+  const r = parseLevel({ title: 'Automotive Airbrush Technician - 2nd Shift', text: CARVANA, years: y });
+  assert.equal(r.level, 'entry');
+  assert.deepEqual(r.levels, ['entry']);
+  // The block ends at this job's own next heading: its pay and statements after the block are still read.
+  const tail = `${CARVANA.replace('Pay Range: $22 - $26', '')}\n\nGeneral qualifications and requirements\n\n- Must be at least 18 years of age\n\nPay Range: $23-$27 Hourly\n\nThis role is not eligible for visa sponsorship.`;
+  assert.deepEqual([parseYearsRequired(tail)?.min], [1]);
+  const pay = parsePayFromText(tail);
+  assert.deepEqual([pay?.min, pay?.max, pay?.period], [23, 27, 'hour']);
+  assert.equal(parseStatements(tail).sponsorship, 'no');
+  // Other wordings of the same block.
+  for (const head of ['Not the right fit for you?', 'Other roles available:', 'Not quite the right role?']) {
+    assert.equal(parseYearsRequired(`You have 2+ years of experience in retail.\n\n${head}\n- Store Manager (min 6 years of retail experience)`)?.min, 2, head);
+  }
+});
+
+test('JL-feed-9: the level is always one of the levels, and a "Senior"/"Sr." title is never Entry Level by one years figure', () => {
+  const sap = parseLevel({ title: 'SAP Sr. Testing Analyst', text: 'What you need:\n• 1+ years of SAP S/4HANA and SAP CAR testing experience', years: { min: 1, max: null } });
+  assert.deepEqual([sap.level, sap.levels], ['senior', ['senior']]);
+  const cases: Array<[string, string]> = [
+    ['Director of Data Science & Analytics', '5+ years of experience in data science'],
+    ['Lead Security Analyst', '3+ years of security experience'],
+    ['Investment Banking, Senior Analyst/Associate, DCM', '1+ years of investment banking experience'],
+    ['Senior Leasing Consultant', 'At least 1 year of leasing experience'],
+    ['Lead Teacher', 'Minimum 3 years of classroom teaching experience'],
+    ['Engineer III', 'Requirements: 0-2 years of experience in civil design.'],
+    ['Staff Engineer - Geotechnical', 'Requires 0-2 years of experience; EIT preferred.'],
+    ['Cashier', ''],
+  ];
+  for (const [title, text] of cases) {
+    const y = parseYearsRequired(text);
+    const r = parseLevel({ title, text, years: y });
+    if (r.level) assert.ok(r.levels.map(String).includes(experienceLevelOf(r.level)), `${title}: ${r.level} not in ${r.levels.join(',')}`);
+  }
+  assert.deepEqual(lv('Director of Data Science & Analytics', '5+ years of experience in data science'), ['director_exec']);
+  assert.deepEqual(lv('Lead Security Analyst', '3+ years of security experience'), ['lead_staff']);
+  assert.ok(!lv('Senior Leasing Consultant', 'At least 1 year of leasing experience').includes('entry'));
+  // A grade still gives way to the years the posting states.
+  assert.deepEqual(lv('Engineer III', 'Requirements: 0-2 years of experience in civil design.'), ['entry']);
+});
+
+test('years: words about another thing in the sentence do not make the years optional', () => {
+  const y = (t: string) => { const r = parseYearsRequired(t); return r ? [r.min, r.max] : null; };
+  assert.deepEqual(y("- 1+ years' experience in a customer service position, preferably in hospitality or coffee"), [1, null]);
+  assert.deepEqual(y('- 3-4 years of sales experience (equipment sales experience is a plus)'), [3, 4]);
+  assert.deepEqual(y('- 2+ year of sales experience, preferably selling a technical product'), [2, null]);
+  assert.equal(y('- 3+ years of Kafka experience (nice to have)'), null);
+  assert.equal(y('- 1 year of office experience preferred'), null);
 });
