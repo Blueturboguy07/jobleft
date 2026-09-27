@@ -29,14 +29,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4 # the version comes from package.json's packageManager
-        with:
-          standalone: true # a real pnpm binary: the .bin shim breaks under cmd.exe on Windows
 
       - uses: actions/setup-node@v5
         with:
           node-version: 24
           package-manager-cache: false
+
+      # pnpm from npm: pnpm/action-setup's shim was a silent no-op on windows-latest (pnpm printed nothing, installed
+      # nothing, and every pnpm step 'passed' in seconds). The version is the one in package.json's packageManager.
+      - name: pnpm
+        shell: bash
+        run: |
+          npm install -g pnpm@12.4.1
+          v=$(pnpm --version)
+          echo \"pnpm $v\"
+          test \"$v\" = \"12.4.1\"
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -59,16 +66,9 @@ jobs:
       - name: Layout of node_modules on this runner
         shell: pwsh
         run: |
-          pnpm --version
-          "node-linker: $(pnpm config get node-linker)"
-          "enable-global-virtual-store: $(pnpm config get enable-global-virtual-store)"
-          "virtual-store-dir: $(pnpm config get virtual-store-dir)"
-          "store: $(pnpm store path)"
           "root node_modules/.pnpm: $(Test-Path node_modules/.pnpm)"
           "apps/ui/node_modules/vite: $(Test-Path apps/ui/node_modules/vite)"
-          Get-ChildItem node_modules -Force | Select-Object -First 40 Name, LinkType, Target | Format-Table -AutoSize | Out-String -Width 300
-          Get-ChildItem apps/ui/node_modules -Force -ErrorAction SilentlyContinue | Select-Object -First 40 Name, LinkType, Target | Format-Table -AutoSize | Out-String -Width 300
-          node -e "try { console.log('vite ->', require.resolve('vite/package.json', { paths: ['apps/ui'] })) } catch (e) { console.log('vite: ' + e.message.split('\n')[0]) }"
+          node -e "console.log('vite ->', require.resolve('vite/package.json', { paths: ['apps/ui'] }))"
 
       - name: Sidecar tree
         env:
@@ -141,14 +141,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
-        with:
-          standalone: true
 
       - uses: actions/setup-node@v5
         with:
           node-version: 24
           package-manager-cache: false
+
+      # pnpm from npm: pnpm/action-setup's shim was a silent no-op on windows-latest (pnpm printed nothing, installed
+      # nothing, and every pnpm step 'passed' in seconds). The version is the one in package.json's packageManager.
+      - name: pnpm
+        shell: bash
+        run: |
+          npm install -g pnpm@12.4.1
+          v=$(pnpm --version)
+          echo \"pnpm $v\"
+          test \"$v\" = \"12.4.1\"
 
       - name: Install
         run: pnpm install --frozen-lockfile --ignore-scripts
