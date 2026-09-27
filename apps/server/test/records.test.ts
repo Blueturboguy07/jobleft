@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanup, PERSONA, raw, scratchHome, spawnServer, startTest, waitExit } from './helpers.ts';
+import { cleanup, PERSONA, raw, scratchHome, spawnServer, startTest, waitExit, stopServer } from './helpers.ts';
 
 // A real one-page PDF (the resume engine reads it; a fake header is refused as damaged).
 const PDF = readFileSync(new URL('../../../packages/resume/test/fixtures/jordan-one-column.pdf', import.meta.url));
@@ -86,8 +86,7 @@ test('a save confirmed just before kill -9 is there after the restart', async ()
   assert.equal(p.json.summary, 'saved right before the kill ✓');
   const old = await raw(info.port, { path: '/api/v1/profile', headers: { 'x-jobleft-token': a.token } });
   assert.equal(old.status, 401, 'the token of the killed run no longer works');
-  process.kill(info.pid, 'SIGTERM');
-  assert.equal(await waitExit(b.child), 0);
+  assert.equal(await stopServer(b.child, info.port, b.token), 0);
   cleanup(home);
 });
 

@@ -8,7 +8,7 @@ import { chmodSync, createReadStream, existsSync, mkdirSync, readdirSync, readFi
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
-import { CLI, MAIN, childEnv, cleanup, raw, scratchHome, spawnServer, waitExit } from './helpers.ts';
+import { CLI, MAIN, childEnv, cleanup, raw, scratchHome, spawnServer, stopServer, waitExit } from './helpers.ts';
 
 function hashes(dir: string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -43,8 +43,7 @@ test('--help, --version and a wrong argument start nothing and touch no data fol
   for (let i = 0; i < 100 && !existsSync(join(chosen, 'run', 'server.json')); i++) await new Promise((r) => setTimeout(r, 50));
   const port = JSON.parse(readFileSync(join(chosen, 'run', 'server.json'), 'utf8')).port as number;
   assert.equal((await raw(port, { path: '/api/v1/storage', headers: { 'x-jobleft-token': token } })).json.dataDir, chosen);
-  c.kill('SIGTERM');
-  assert.equal(await waitExit(c), 0);
+  assert.equal(await stopServer(c, port, token), 0);
   assert.ok(!existsSync(target), 'JOBLEFT_HOME was not used');
   cleanup(home);
 });
@@ -59,8 +58,7 @@ test('a second server on the same data folder exits, and the first keeps working
   assert.equal(code, 3);
   const r = await raw(info.port, { path: '/api/v1/settings', headers: { 'x-jobleft-token': a.token } });
   assert.equal(r.status, 200);
-  process.kill(info.pid, 'SIGTERM');
-  assert.equal(await waitExit(a.child), 0);
+  assert.equal(await stopServer(a.child, info.port, a.token), 0);
   assert.ok(!existsSync(join(home, 'run', 'server.json')), 'run file removed on a clean stop');
   assert.ok(!existsSync(join(home, 'run', 'server.lock')), 'lock removed on a clean stop');
   cleanup(home);
@@ -73,8 +71,7 @@ test('a lock left by a dead process, or by a reused pid, never blocks the next s
     writeFileSync(join(home, 'run', 'server.lock'), JSON.stringify({ ...holder, lockedAt: new Date().toISOString(), nonce: 'old' }));
     const a = spawnServer(home);
     const info = await a.ready;
-    process.kill(info.pid, 'SIGTERM');
-    assert.equal(await waitExit(a.child), 0);
+    assert.equal(await stopServer(a.child, info.port, a.token), 0);
   }
   cleanup(home);
 });
@@ -86,8 +83,7 @@ test('a busy port is skipped', async () => {
   const a = spawnServer(home, { JOBLEFT_PORT: String(busy) });
   const info = await a.ready;
   assert.notEqual(info.port, busy);
-  process.kill(info.pid, 'SIGTERM');
-  await waitExit(a.child);
+  await stopServer(a.child, info.port, a.token);
   blocker.close();
   cleanup(home);
 });
@@ -118,8 +114,7 @@ test('an older data folder is upgraded with every item kept', async () => {
   const res = await raw(info.port, { path: '/api/v1/resumes', headers: { 'x-jobleft-token': a.token } });
   const file = readFileSync(join(home, 'files', 'resumes', 'res_0000000000000001.pdf'));
   assert.equal(res.json[0].file.sha256, createHash('sha256').update(file).digest('hex'));
-  process.kill(info.pid, 'SIGTERM');
-  await waitExit(a.child);
+  await stopServer(a.child, info.port, a.token);
   const after = JSON.parse(execFileSync(process.execPath, [CLI, 'counts', '--home', home]).toString());
   assert.deepEqual(after, before);
   cleanup(home);
@@ -159,8 +154,7 @@ test('a restore and a delete-all right after start leave a server that keeps ans
   const i0 = await s0.ready;
   const backup = await raw(i0.port, { method: 'POST', path: '/api/v1/backup', headers: { 'x-jobleft-token': s0.token } });
   assert.equal(backup.status, 200);
-  process.kill(i0.pid, 'SIGTERM');
-  await waitExit(s0.child);
+  await stopServer(s0.child, i0.port, s0.token);
   cleanup(src);
 
   const home = scratchHome('swap');
@@ -179,8 +173,7 @@ test('a restore and a delete-all right after start leave a server that keeps ans
   await new Promise((res) => setTimeout(res, 6000));
   assert.equal(a.child.exitCode, null, 'the server is still running after a delete-all');
   assert.equal((await raw(info.port, { path: '/api/v1/health' })).status, 200);
-  process.kill(info.pid, 'SIGTERM');
-  assert.equal(await waitExit(a.child), 0);
+  assert.equal(await stopServer(a.child, info.port, a.token), 0);
   cleanup(home);
 });
 

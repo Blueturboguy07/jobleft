@@ -114,6 +114,14 @@ export function spawnServer(home: string, env: Record<string, string> = {}): { c
   return { child, token, ready };
 }
 
+/** Stops a spawned server the way each system does it: SIGTERM on Unix; the shutdown route on Windows (no signals there). */
+export async function stopServer(child: ChildProcess, port: number, token: string): Promise<number | null> {
+  if (process.platform === 'win32') {
+    await raw(port, { method: 'POST', path: '/api/v1/shutdown', headers: { 'x-jobleft-token': token, 'content-type': 'application/json' }, body: '{}' }).catch(() => undefined);
+  } else process.kill(child.pid!, 'SIGTERM');
+  return waitExit(child);
+}
+
 export function waitExit(child: ChildProcess, ms = 15000): Promise<number | null> {
   return new Promise((resolve) => {
     if (child.exitCode !== null) { resolve(child.exitCode); return; }
