@@ -1,7 +1,8 @@
 // Single-instance guard: one server per data folder (INTERFACES 5.2, server O9). The lock is run/server.lock,
 // created with O_EXCL. A lock left by a process that is gone (a crash, a kill -9, a reboot) is stale and is taken
 // over, so a leftover file never blocks the next launch (server O11). A pid that was reused by another program is
-// detected by comparing the process start time recorded in the lock with the start time `ps` reports.
+// detected by comparing the process start time recorded in the lock with the start time `ps` (or PowerShell's
+// Get-Process on Windows) reports.
 
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -30,7 +31,17 @@ export function isAlive(pid: number): boolean {
 
 /** Elapsed seconds of a process from `ps -o etime=` ([[dd-]hh:]mm:ss), or null when unknown. */
 function processAgeSeconds(pid: number): number | null {
-  if (process.platform === 'win32') return null;
+  if (process.platform === 'win32') {
+    // No ps on Windows: PowerShell reports the process start time (only consulted when a lock file exists).
+    try {
+      const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().ToString('o')`], { encoding: 'utf8', timeout: 8000, windowsHide: true }).trim();
+      const start = Date.parse(out);
+      if (!Number.isFinite(start)) return null;
+      return Math.max(0, Math.round((Date.now() - start) / 1000));
+    } catch {
+      return null;
+    }
+  }
   try {
     const out = execFileSync('/bin/ps', ['-o', 'etime=', '-p', String(pid)], { encoding: 'utf8', timeout: 3000, env: { LC_ALL: 'C', PATH: '/usr/bin:/bin' } }).trim();
     const m = /^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+)$/.exec(out);
