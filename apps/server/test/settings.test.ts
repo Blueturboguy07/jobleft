@@ -273,3 +273,41 @@ test('JL-settings-12: a Greenhouse, Lever or Ashby link finds its board and adds
     assert.equal((await s.call('POST', '/api/v1/boards/resolve', { url: 'not a link' })).json.reason, 'not_a_link');
   } finally { await s.stop(); await boards.close(); cleanup(s.home); cleanup(dir); }
 });
+
+test('JL-settings-13: "Added by you" lists only the boards the person added, not the starting boards', async () => {
+  const s = await startTest('userview');
+  try {
+    // The first-run choice adds the starting boards for the field (no crawl starts in a test).
+    await s.call('PUT', '/api/v1/profile', { ...PERSONA, preferences: { ...PERSONA.preferences, jobFunctions: ['Software Engineering'] } });
+    const seeded = (await s.call('GET', '/api/v1/boards?view=all&limit=100')).json;
+    assert.ok(seeded.total > 1, `the first run added starting boards (${seeded.total})`);
+    assert.equal((await s.call('GET', '/api/v1/boards?view=user&limit=100')).json.total, 0);
+    assert.equal((await s.call('POST', '/api/v1/boards', { ats: 'lever', board: 'plaid' })).status, 200);
+    const user = (await s.call('GET', '/api/v1/boards?view=user&limit=100')).json;
+    assert.deepEqual(user.items.map((b: any) => [b.id, b.origin]), [['lever:plaid', 'user']]);
+    assert.equal(user.total, 1);
+    assert.equal((await s.call('GET', '/api/v1/boards?view=all&limit=100')).json.total, seeded.total + 1);
+  } finally { await s.stop(); cleanup(s.home); }
+});
+
+test('JL-settings-27: an unfollowed, hidden or turned-off board\'s jobs leave the feed, stay tracked, and come back on follow', async () => {
+  await withCrawledBoard('unfollow', async (s) => {
+    await s.call('PUT', '/api/v1/profile', PERSONA); // the personal ranking (Recommended) is checked too
+    await s.call('PATCH', `/api/v1/tracker/${encodeURIComponent('greenhouse:mockco:1')}`, { liked: true });
+    const search = async (q?: string) => (await s.call('POST', '/api/v1/jobs/search', { sort: 'most_recent', ...(q ? { q } : {}) })).json;
+    const recommended = async () => (await s.call('POST', '/api/v1/jobs/search', { sort: 'recommended' })).json;
+    assert.equal((await search()).total, 3);
+    assert.equal((await recommended()).total, 3);
+    // The Settings switch turns a board off ({ disabled: true }); unfollowing and hiding do the same to the feed.
+    for (const patch of [{ disabled: true }, { followed: false }, { hidden: true }]) {
+      assert.equal((await s.call('PATCH', '/api/v1/boards/greenhouse:mockco', patch)).status, 200);
+      assert.equal((await search()).total, 0, JSON.stringify(patch));
+      assert.equal((await recommended()).total, 0, `recommended ${JSON.stringify(patch)}`);
+      assert.equal((await search('Nurse')).total, 0);
+      assert.equal((await s.call('GET', '/api/v1/tracker?view=liked')).json.items.length, 1, 'a liked job stays in the tracker');
+      assert.equal((await s.call('PATCH', '/api/v1/boards/greenhouse:mockco', { followed: true, disabled: false, hidden: false })).status, 200);
+      assert.equal((await search()).total, 3, 'following again brings the jobs back');
+      assert.equal((await recommended()).total, 3);
+    }
+  });
+});

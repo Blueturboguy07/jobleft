@@ -18,6 +18,7 @@ import { useAiSettings, useCrawl, usePublik } from '../app/session.ts';
 import { LogoMark, Wordmark } from '../components/Art.tsx';
 import { ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { ago, dateText, hostOf, plural } from '../lib/format.ts';
+import { readAllPages } from '../lib/pages.ts';
 
 const TABS = [
   { key: 'ai', label: 'AI provider', icon: <ApiOutlined /> },
@@ -293,7 +294,8 @@ function SourcesTab() {
   const sources = useApi<SourceInfo[]>('sources', () => call('listSources'));
   const [q, setQ] = useState('');
   const [view, setView] = useState<'all' | 'followed' | 'user' | 'hidden' | 'disabled' | 'failing'>('all');
-  const boards = useApi<{ items: BoardEntry[]; total: number; nextCursor: string | null }>(`boards:${view}:${q}`, () => call('listBoards', { query: { view, limit: '100', ...(q ? { q } : {}) } }));
+  // Every page (JL-settings-1): the table pages through all boards the count names, not the first 100.
+  const boards = useApi<{ items: BoardEntry[]; total: number; nextCursor: string | null }>(`boards:${view}:${q}`, () => readAllPages((cursor) => call('listBoards', { query: { view, limit: '100', ...(q ? { q } : {}), ...(cursor ? { cursor } : {}) } })));
   const { progress } = useCrawl();
   const [link, setLink] = useState('');
   const [resolved, setResolved] = useState<BoardResolveResponse | null>(null);
@@ -329,7 +331,7 @@ function SourcesTab() {
             { title: 'Notes', key: 'n', render: (_, b) => b.closeHeld ?? b.reason ?? (b.unreadable ? `${b.unreadable} postings could not be read` : '') },
           ]} />
       </Panel>
-      <Panel title="Boards you follow">
+      <Panel title="Boards you follow" desc="Turn a board off to stop reading it. Its jobs leave your feed; jobs you track stay in your tracker.">
         <div className="jl-row jl-wrap">
           <Input.Search allowClear placeholder="Search companies" onSearch={setQ} style={{ maxWidth: 280 }} aria-label="Search boards" />
           <Select value={view} onChange={setView} style={{ width: 170 }} aria-label="Which boards" options={[{ value: 'all', label: 'All boards' }, { value: 'followed', label: 'Followed' }, { value: 'user', label: 'Added by you' }, { value: 'failing', label: 'Not answering' }, { value: 'hidden', label: 'Hidden' }, { value: 'disabled', label: 'Turned off' }]} />

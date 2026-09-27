@@ -103,6 +103,7 @@ export class BoardsService {
     let items = rows.map((r) => this.toEntry(r));
     const view = q.view ?? 'all';
     if (view === 'followed') items = items.filter((e) => e.followed);
+    else if (view === 'user') items = items.filter((e) => e.origin === 'user'); // "Added by you" (JL-settings-13)
     else if (view === 'hidden') items = items.filter((e) => e.hidden);
     else if (view === 'disabled') items = items.filter((e) => e.disabled);
     else if (view === 'failing') items = items.filter((e) => e.state === 'failing' || e.state === 'cooldown');

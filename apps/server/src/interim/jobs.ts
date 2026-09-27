@@ -447,6 +447,11 @@ export class JobsService {
     // Jobs the person hid never appear: a short list of row ids (hidden jobs are few).
     const hidden = this.hiddenRowIds();
     if (hidden.length) where.push(`x.id NOT IN (${hidden.join(',')})`);
+    // Jobs of a board the person stopped following (or hid, or turned off) leave the feed (JL-settings-27). They stay
+    // stored, and tracked ones stay in the tracker; following the board again brings them back.
+    if (this.db.prepare('SELECT 1 FROM srv_boards WHERE followed = 0 OR hidden = 1 OR disabled = 1 LIMIT 1').get()) {
+      where.push('(x.ats, x.board) NOT IN (SELECT ats, board FROM srv_boards WHERE followed = 0 OR hidden = 1 OR disabled = 1)');
+    }
     return { T, where, args, closed };
   }
 
