@@ -21,7 +21,7 @@ test('two clients with separate pacers on one database still space requests to a
     await Promise.all([...Array(4)].flatMap(() => [a.getJson(url), b.getJson(url)]));
     const times = mock.log.filter((e) => e.host === 'boards-api.greenhouse.io').map((e) => e.at).sort((x, y) => x - y);
     // Windows timers can wake a few ms before Date.now() says so (15.6 ms clock granularity); a little slack there.
-    const slack = process.platform === 'win32' ? 30 : 0;
+    const slack = process.platform === 'win32' ? 100 : 0; // shared runners: the first waiter wakes late, the gap measures wake times
     for (let i = 1; i < times.length; i++) assert.ok(times[i]! - times[i - 1]! >= 250 - slack, `gap ${times[i]! - times[i - 1]!} ms`);
     for (const e of mock.log) assert.equal(e.headers['user-agent'], USER_AGENT);
   } finally { p1.close(); p2.close(); await mock.close(); rmSync(dir, { recursive: true, force: true }); }

@@ -24,6 +24,7 @@ export * from './match.ts';
 export * from './tracker.ts';
 export * from './filter.ts';
 export * from './profile.ts';
+export * from './profile-check.ts';
 export * from './resume.ts';
 export * from './network.ts';
 export * from './wallet.ts';

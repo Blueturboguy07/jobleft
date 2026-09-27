@@ -391,7 +391,9 @@ export class JobsService {
     }
     if (filter.places?.length) {
       const parts = filter.places.map(() => 'instr(lower(x.location), ?) > 0');
-      args.push(...filter.places.map((p) => p.text.toLowerCase()));
+      // The city part of the text: a chosen place is saved with its state or country ("Austin, TX"), and postings
+      // write it in many ways ("Austin, Texas").
+      args.push(...filter.places.map((p) => (p.text.split(',')[0] ?? p.text).trim().toLowerCase() || p.text.toLowerCase()));
       if (unknownOk.has('place')) parts.push("x.location = ''");
       where.push(`(${parts.join(' OR ')})`);
     }

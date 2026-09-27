@@ -880,7 +880,9 @@ function chips(pf: ProfileFacts, jf: JobFacts, company: Company | null, sk: Skil
   if (jf.workModel === 'remote') {
     const wants = pf.profile.preferences.workModels;
     const scope = jf.job.remoteScope?.regions.length ? ` (${jf.job.remoteScope.regions.slice(0, 3).join(', ')})` : '';
-    out.push({ kind: 'location', label: `Remote${scope}`.slice(0, 60), positive: !wants.length || wants.includes('remote'), rank: 5 });
+    // A remote job whose scope leaves out every country the person wants is a warning, never a plus.
+    const outside = deal.checks.some((c) => c.kind === 'location' && c.state === 'broken');
+    out.push({ kind: 'location', label: `Remote${scope}`.slice(0, 60), positive: (!wants.length || wants.includes('remote')) && !outside, rank: outside ? 0 : 5 });
   } else {
     const loc = deal.checks.find((c) => c.kind === 'location' && c.state === 'ok');
     if (loc && jf.job.places.length) out.push({ kind: 'location', label: `In a place you want: ${placeLabel(jf.job.places[0])}`.slice(0, 60), positive: true, rank: 5 });

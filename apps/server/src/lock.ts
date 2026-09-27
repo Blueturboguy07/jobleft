@@ -34,9 +34,10 @@ function processAgeSeconds(pid: number): number | null {
   if (process.platform === 'win32') {
     // No ps on Windows: PowerShell reports the process start time (only consulted when a lock file exists).
     try {
-      const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().ToString('o')`], { encoding: 'utf8', timeout: 8000, windowsHide: true }).trim();
-      const start = Date.parse(out);
-      if (!Number.isFinite(start)) return null;
+      // stdin is closed on purpose: PowerShell waits on an open pipe. The answer is an integer (ms since the epoch).
+      const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `([DateTimeOffset](Get-Process -Id ${pid}).StartTime).ToUnixTimeMilliseconds()`], { encoding: 'utf8', timeout: 8000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      const start = Number.parseInt(out, 10);
+      if (!Number.isFinite(start) || start <= 0) return null;
       return Math.max(0, Math.round((Date.now() - start) / 1000));
     } catch {
       return null;

@@ -87,8 +87,10 @@ export function placeLabel(p: Place): string {
 }
 
 /**
- * A MatchInput.distanceMiles function from a place dictionary (the PlaceIndex of @jobleft/static-data):
- * both places are resolved by their text, and an ambiguous or unknown place gives null (distance not checked).
+ * A MatchInput.distanceMiles function from a place dictionary (the PlaceIndex of @jobleft/static-data). A wanted place
+ * with a place id is measured from that place (so "Austin" picked as Austin, MN is never Austin, TX); a posting's place
+ * with coordinates or an id is measured from those. Otherwise both are resolved by their text, and an ambiguous or
+ * unknown place gives null (distance not checked).
  */
 export function distanceFromPlaceIndex(index: { resolve(text: string): PlaceLookup; distanceMiles(a: Place, b: Place): number | null }): (a: Place, b: PlaceQuery) => number | null {
   const cache = new Map<string, Place | null>();
@@ -102,10 +104,16 @@ export function distanceFromPlaceIndex(index: { resolve(text: string): PlaceLook
     cache.set(text, p);
     return p;
   };
+  const dist = (a: Place | null, b: Place | null): number | null => {
+    if (!a || !b) return null;
+    try { return index.distanceMiles(a, b); } catch { return null; }
+  };
   return (a, b) => {
-    const pa = a.lat !== undefined && a.lon !== undefined ? a : one(a.text);
-    const pb = one(b.text);
-    if (!pa || !pb) return null;
-    try { return index.distanceMiles(pa, pb); } catch { return null; }
+    const jobs: Array<Place | null> = [(a.lat !== undefined && a.lon !== undefined) || a.placeId ? a : null, one(a.text)];
+    const wants: Array<Place | null> = [b.placeId ? { text: b.text, city: null, region: null, country: null, placeId: b.placeId } : null, one(b.text)];
+    // The chosen place's own id decides when it has coordinates; its text is only a fallback (a region id has none).
+    for (const pb of b.placeId ? wants.slice(0, 1) : wants.slice(1)) for (const pa of jobs) { const d = dist(pa, pb); if (d !== null) return d; }
+    if (b.placeId) for (const pa of jobs) { const d = dist(pa, wants[1]!); if (d !== null) return d; }
+    return null;
   };
 }

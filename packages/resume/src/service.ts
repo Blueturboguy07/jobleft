@@ -160,7 +160,8 @@ export class ResumeService {
     writeFileSync(path, bytes, { mode: 0o600 });
     try { chmodSync(path, 0o600); } catch { /* best effort */ }
     const { createHash } = await import('node:crypto');
-    const file = { fileName: fileName.slice(0, 200), mimeType: mimeType || (ext === 'pdf' ? 'application/pdf' : ext === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'text/plain'), bytes: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex') };
+    // The type of what the file holds, not of its name: a Word file named .pdf is stored as a Word file (JL-onboarding-4).
+    const file = { fileName: fileName.slice(0, 200), mimeType: ext === 'pdf' ? 'application/pdf' : ext === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : (mimeType || 'text/plain'), bytes: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex') };
     const now = this.#iso();
     const hasPrimary = !!this.#o.db.prepare(`SELECT 1 FROM resumes WHERE kind = 'base' AND is_primary = 1`).get();
     const name = fileName.replace(/\.[A-Za-z0-9]{1,5}$/, '').slice(0, 200) || 'Imported resume';

@@ -21,8 +21,9 @@ export function UserCard() {
   return (
     <div className="jl-row" style={{ gap: 10 }}>
       <div className="jl-avatar" aria-hidden="true">{name ? name[0]!.toUpperCase() : '?'}</div>
-      <div className="jl-grow">
-        <a href="#/profile" style={{ color: '#000', fontWeight: 600, textDecoration: 'none' }}>{name ?? 'Set up your profile'}</a>
+      <div className="jl-grow" style={{ minWidth: 0 }}>
+        {/* a long name is cut with an ellipsis inside the card, never over the AI chip (JL-onboarding-13) */}
+        <a href="#/profile" title={name ?? undefined} style={{ color: '#000', fontWeight: 600, textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name ?? 'Set up your profile'}</a>
         <div className="jl-small jl-muted">Everything stays on this Mac</div>
       </div>
       <ProviderChip compact />

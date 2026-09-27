@@ -303,6 +303,8 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `health` | GET | `/api/v1/health` | none | server | — | — | `Health` | Liveness and versions. Reveals no data. |
 | `getSettings` | GET | `/api/v1/settings` | launch | server | — | — | `AppSettings` | App settings |
 | `putSettings` | PUT | `/api/v1/settings` | launch | server | — | `AppSettings` | `AppSettings` | Change app settings |
+| `getOnboarding` | GET | `/api/v1/onboarding` | launch | server | — | — | `OnboardingState` | Where the first-run setup stands (step, status, what was typed and not saved yet) |
+| `putOnboarding` | PUT | `/api/v1/onboarding` | launch | server | — | `OnboardingState` | `OnboardingState` | Keep the first-run setup state (saved as the person types, so a quit never loses it) |
 | `storage` | GET | `/api/v1/storage` | launch | store | — | — | `StorageInfo` | Where the data lives and how big it is |
 | `backup` | POST | `/api/v1/backup` | launch | server | — | — | file | Download one backup file of everything, uploaded files included (never a key or a token) |
 | `restore` | POST | `/api/v1/restore` | launch | server | — | raw: application/zip, application/octet-stream | `{ restored }` | Restore a backup file; a damaged or foreign file is refused and nothing changes |

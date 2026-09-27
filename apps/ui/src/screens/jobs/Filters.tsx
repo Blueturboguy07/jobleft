@@ -8,10 +8,12 @@ import { Tooltip } from '../../components/Tip.tsx';
 import { DownOutlined, QuestionCircleOutlined, CloseOutlined, FilterOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import type { JobFilter, JobSort, PlaceQuery } from '@jobleft/contracts';
 import {
-  COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, activeCount, cleanFilter,
+  COMMON_COUNTRY_OPTIONS, COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, activeCount, cleanFilter,
   countryLabel, functionLabel, industryLabel, levelLabel, modelLabel, payLabel, postedLabel, toggle, typeLabel, withUnknown, yearsLabel,
 } from '../../lib/filters.ts';
+import { countrySort } from '../../lib/countries.ts';
 import { call } from '../../app/api.ts';
+import { placeOptions, placeText } from '../../lib/places.ts';
 
 export const INDUSTRY_SUGGESTIONS = [
   'Software', 'Information Technology', 'Artificial Intelligence (AI)', 'Health Care', 'Hospitals', 'Financial Services', 'Banking', 'Insurance',
@@ -43,7 +45,7 @@ export function UnknownBox({ f, k, onChange }: { f: JobFilter; k: keyof typeof U
 /** Place search with the local place lookup; the radius applies to the chosen city. */
 export function PlacePicker({ places, onChange }: { places: PlaceQuery[]; onChange: (p: PlaceQuery[]) => void }) {
   const [text, setText] = useState('');
-  const [opts, setOpts] = useState<Array<{ value: string; label: string; placeId: string }>>([]);
+  const [opts, setOpts] = useState<ReturnType<typeof placeOptions>>([]);
   useEffect(() => {
     const t = text.trim();
     if (t.length < 2) { setOpts([]); return; }
@@ -52,8 +54,8 @@ export function PlacePicker({ places, onChange }: { places: PlaceQuery[]; onChan
       try {
         const r = await call('placeLookup', { query: { text: t } });
         if (!alive) return;
-        const all = [...r.places, ...r.ambiguous].filter((p) => p.placeId);
-        setOpts(all.map((p) => ({ value: p.placeId!, label: p.text, placeId: p.placeId! })));
+        // every row names its state and country: "Austin" alone could be Texas or Minnesota (JL-onboarding-3)
+        setOpts(placeOptions([...r.places, ...r.ambiguous]));
       } catch { if (alive) setOpts([]); }
     }, 200);
     return () => { alive = false; clearTimeout(h); };
@@ -71,7 +73,7 @@ export function PlacePicker({ places, onChange }: { places: PlaceQuery[]; onChan
       ))}
       <Select showSearch value={null} placeholder="Add a city" filterOption={false} onSearch={setText} notFoundContent={text.length > 1 ? 'No city found' : 'Type a city name'}
         options={opts} aria-label="Add a city"
-        onChange={(v) => { const o = opts.find((x) => x.value === v); if (o) onChange([...places, { text: o.label, placeId: o.placeId, radiusMiles: 25 }]); setText(''); }} />
+        onChange={(v) => { const o = opts.find((x) => x.value === v); if (o) onChange([...places, { text: placeText(o.place), placeId: o.value, radiusMiles: 25 }]); setText(''); }} />
     </div>
   );
 }
@@ -141,8 +143,10 @@ function FilterButton({ section, label, filter, onApply }: { section: Section; l
       body = (<>
         <Radio.Group value={draft.countries?.[0] ?? 'any'} onChange={(e) => set({ countries: e.target.value === 'any' ? [] : [e.target.value] })} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <Radio value="any">Any country</Radio>
-          {COUNTRY_OPTIONS.map((c) => <Radio key={c.value} value={c.value}>{c.label}</Radio>)}
+          {COUNTRY_OPTIONS.filter((c) => COMMON_COUNTRY_OPTIONS.includes(c) || c.value === draft.countries?.[0]).map((c) => <Radio key={c.value} value={c.value}>{c.label}</Radio>)}
         </Radio.Group>
+        <Select showSearch optionFilterProp="label" filterSort={countrySort} value={null} placeholder="Another country" aria-label="Another country" style={{ width: '100%' }}
+          options={COUNTRY_OPTIONS.filter((c) => !COMMON_COUNTRY_OPTIONS.includes(c))} onChange={(v: string) => set({ countries: [v] })} />
         <strong style={{ fontSize: 13 }}>Near a city</strong>
         <PlacePicker places={draft.places ?? []} onChange={(places) => set({ places })} />
         <UnknownBox f={draft} k="place" onChange={setDraft} />

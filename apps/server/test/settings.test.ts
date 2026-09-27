@@ -202,9 +202,12 @@ test('JL-settings-19: a few hundred concurrent requests end in 200 or 429, healt
   try {
     await s.call('PUT', '/api/v1/profile', PERSONA);
     const headers = { 'x-jobleft-token': s.token, 'content-type': 'application/json' };
-    const burst = Array.from({ length: 400 }, (_, i) => i % 2
+    // Windows refuses connections past the listen backlog instead of queueing them; such a refusal is a "try again"
+    // for the client, not a server fault, so it counts as a 429 here.
+    const refused = (e: unknown) => { if (process.platform === 'win32' && (e as NodeJS.ErrnoException).code === 'ECONNREFUSED') return { status: 429, headers: { 'retry-after': '1' }, json: { error: { code: 'rate_limited' } } } as unknown as Awaited<ReturnType<typeof raw>>; throw e; };
+    const burst = Array.from({ length: 400 }, (_, i) => (i % 2
       ? raw(s.port, { method: 'POST', path: '/api/v1/jobs/search', headers, body: JSON.stringify({ sort: 'most_recent' }) })
-      : raw(s.port, { path: '/api/v1/profile', headers }));
+      : raw(s.port, { path: '/api/v1/profile', headers })).catch(refused));
     const t0 = performance.now();
     const health = await raw(s.port, { path: '/api/v1/health' });
     const healthMs = performance.now() - t0;

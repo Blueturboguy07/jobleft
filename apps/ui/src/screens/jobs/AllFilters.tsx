@@ -10,6 +10,7 @@ import {
   JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, STAGE_OPTIONS, TYPE_OPTIONS, COUNTRY_OPTIONS,
   cleanFilter, sameFilter, summaryChips, toggle,
 } from '../../lib/filters.ts';
+import { countrySort } from '../../lib/countries.ts';
 import { INDUSTRY_SUGGESTIONS, PlacePicker, SKILL_SUGGESTIONS, UnknownBox } from './Filters.tsx';
 import { call } from '../../app/api.ts';
 import { confirmDiscard, ui } from '../../app/layers.ts';
@@ -168,7 +169,7 @@ export function AllFiltersDrawer({ open, onClose, filter, sort, saved, onApply, 
         <UnknownBox f={draft} k="remoteRegion" onChange={setDraft} />
       </Box>
       <Box title="Location" clear={() => set({ countries: [], places: [] })}>
-        <Select mode="multiple" value={draft.countries ?? []} onChange={(v) => set({ countries: v })} options={COUNTRY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))} placeholder="Any country" aria-label="Countries" />
+        <Select mode="multiple" optionFilterProp="label" filterSort={countrySort} value={draft.countries ?? []} onChange={(v) => set({ countries: v })} options={COUNTRY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))} placeholder="Any country" aria-label="Countries" />
         <PlacePicker places={draft.places ?? []} onChange={(places) => set({ places })} />
         <UnknownBox f={draft} k="place" onChange={setDraft} />
         <p className="jl-note">Remote jobs open to people in the chosen country count as a match.</p>

@@ -2,12 +2,14 @@
 // notifications) and the feed state (filter, sort, words) that survives screen switches and relaunches.
 
 import { useEffect, useRef, useSyncExternalStore } from 'react';
-import type { AiSettings, CrawlProgress, DatasetInfo, JobFilter, JobSort, Notification, Profile, PublikConnection, TrackerList } from '@jobleft/contracts';
+import type { AiSettings, CrawlProgress, DatasetInfo, JobFilter, JobSort, Notification, OnboardingState, Profile, PublikConnection, TrackerList } from '@jobleft/contracts';
 import { call } from './api.ts';
 import { invalidate, load, useApi } from './data.ts';
 import { cleanFilter } from '../lib/filters.ts';
 
 export const useProfile = () => useApi<Profile>('profile', () => call('getProfile'));
+/** Where the first-run setup stands (kept by the local service). */
+export const useOnboarding = () => useApi<OnboardingState>('onboarding', () => call('getOnboarding'));
 export const useAiSettings = () => useApi<AiSettings>('ai:settings', () => call('getAiSettings'));
 export const usePublik = (enabled: boolean) => useApi<PublikConnection>(enabled ? 'ai:publik' : null, () => call('getPublik'));
 export const useTrackerCounts = () => useApi<TrackerList['counts']>('tracker:counts', async () => (await call('listTracker', { query: { view: 'hidden' } })).counts, { staleMs: 3000 });

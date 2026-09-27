@@ -2,6 +2,7 @@
 // Pure functions (unit tested under Node).
 
 import { EXPERIENCE_LEVEL_LABELS, type CompanyStage, type EmploymentType, type JobFilter, type JobSort, type Profile, type WorkModel } from '@jobleft/contracts';
+import { ALL_COUNTRIES, COMMON_COUNTRY_CODES } from './countries.ts';
 
 export const TYPE_OPTIONS: Array<{ value: EmploymentType; label: string }> = [
   { value: 'full_time', label: 'Full-time' }, { value: 'contract', label: 'Contract' }, { value: 'part_time', label: 'Part-time' },
@@ -17,10 +18,9 @@ export const POSTED_OPTIONS: Array<{ value: NonNullable<JobFilter['postedWithin'
 export const STAGE_OPTIONS: Array<{ value: CompanyStage; label: string }> = [
   { value: 'early', label: 'Early stage' }, { value: 'growth', label: 'Growth stage' }, { value: 'late', label: 'Late stage' }, { value: 'public', label: 'Public company' },
 ];
-export const COUNTRY_OPTIONS = [
-  { value: 'US', label: 'United States' }, { value: 'CA', label: 'Canada' }, { value: 'GB', label: 'United Kingdom' },
-  { value: 'IE', label: 'Ireland' }, { value: 'DE', label: 'Germany' }, { value: 'AU', label: 'Australia' },
-] as const;
+/** Every country (the common ones first); pickers that show buttons use COMMON_COUNTRY_OPTIONS and search the rest. */
+export const COUNTRY_OPTIONS = ALL_COUNTRIES;
+export const COMMON_COUNTRY_OPTIONS = ALL_COUNTRIES.filter((c) => COMMON_COUNTRY_CODES.includes(c.value));
 export const SORT_OPTIONS: Array<{ value: JobSort; label: string }> = [
   { value: 'recommended', label: 'Recommended' }, { value: 'top_matched', label: 'Top matched' }, { value: 'most_recent', label: 'Most recent' },
 ];

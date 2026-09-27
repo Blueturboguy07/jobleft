@@ -34,7 +34,11 @@ function ReportView({ r }: { r: ImportReport }) {
   );
 }
 
-export function AddResumeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+/**
+ * `stay`: opened from the Profile to fill it; "Update my profile" then keeps the person on the Profile, which shows the
+ * new facts (JL-onboarding-26).
+ */
+export function AddResumeModal({ open, onClose, stay = false }: { open: boolean; onClose: () => void; stay?: boolean }) {
   const profile = useProfile();
   const input = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -65,9 +69,12 @@ export function AddResumeModal({ open, onClose }: { open: boolean; onClose: () =
       invalidate('profile', 'jobs:', 'job:', 'match:');
       ui.message?.success('Profile updated from your resume.');
       onClose(); reset();
-      navigate(`resume/${encodeURIComponent(result.resume.id)}`);
+      if (!stay) navigate(`resume/${encodeURIComponent(result.resume.id)}`);
     } catch (e) { setErr(e as UiError); } finally { setBusy(false); }
   };
+  // a resume "from my profile" needs facts in it (the same rule as the resume engine)
+  const p0 = profile.data;
+  const canStartFromProfile = !!p0 && !!([p0.personal.firstName, p0.personal.lastName].some((x) => x?.trim()) || p0.work.length || p0.education.length || p0.skills.length);
   const fromProfile = async () => {
     setBusy(true); setErr(null);
     try {
@@ -89,7 +96,7 @@ export function AddResumeModal({ open, onClose }: { open: boolean; onClose: () =
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} aria-label="Resume file" />
           <Space wrap>
             <Button type="primary" shape="round" size="large" icon={<UploadOutlined />} loading={busy} onClick={() => input.current?.click()}>Upload a file</Button>
-            <Button shape="round" size="large" icon={<UserOutlined />} onClick={() => setMode('profile')}>Start from my profile</Button>
+            {canStartFromProfile && <Button shape="round" size="large" icon={<UserOutlined />} onClick={() => setMode('profile')}>Start from my profile</Button>}
           </Space>
           <InlineError error={err} />
         </div>

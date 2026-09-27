@@ -13,7 +13,7 @@ import {
 import { call, download, openExternal, type UiError } from '../app/api.ts';
 import { invalidate, setCached, useApi } from '../app/data.ts';
 import { ui } from '../app/layers.ts';
-import { navigate } from '../app/router.ts';
+import { navigate, queryParam } from '../app/router.ts';
 import { useAiSettings, useCrawl, usePublik } from '../app/session.ts';
 import { LogoMark, Wordmark } from '../components/Art.tsx';
 import { ErrorState, InlineError, Loading } from '../components/States.tsx';
@@ -67,12 +67,19 @@ function AiTab() {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<UiError | null>(null);
   const s = ai.data;
+  const pickRead = useRef(false);
   useEffect(() => {
     if (!s) return;
-    setKind(s.provider ?? 'publik');
+    // The setup's cards open this tab with their choice (?pick=local, ?pick=own_key); with no choice and no provider
+    // yet, nothing is selected, so the page never looks as if publik were already chosen (JL-onboarding-6, -23).
+    const q = pickRead.current ? null : queryParam('pick');
+    pickRead.current = true;
+    const pick = q === 'publik' || q === 'local' || q === 'custom' || q === 'own_key' ? q : null;
+    const k = pick ?? s.provider;
+    setKind(k);
     if (s.localKind) setLocalKind(s.localKind);
     if (s.vendor) setVendor(s.vendor);
-    setBaseUrl(s.baseUrl ?? (s.provider === 'local' ? LOCAL_KINDS.find((k) => k.value === (s.localKind ?? 'ollama'))!.url : ''));
+    setBaseUrl(s.baseUrl ?? (k === 'local' ? LOCAL_KINDS.find((x) => x.value === (s.localKind ?? 'ollama'))!.url : ''));
     setModel(s.model ?? '');
   }, [s?.updatedAt, s?.provider]);
   if (ai.error && !s) return <ErrorState error={ai.error} onRetry={() => { void ai.reload(); }} />;

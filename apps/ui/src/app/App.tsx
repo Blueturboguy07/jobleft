@@ -17,9 +17,10 @@ import { ResumeEditor } from '../screens/ResumeEditor.tsx';
 import { ResumeScreen } from '../screens/Resume.tsx';
 import { SettingsScreen } from '../screens/Settings.tsx';
 import { TrackerScreen } from '../screens/Tracker.tsx';
-import { hasToken } from './api.ts';
+import { call, hasToken } from './api.ts';
 import { navigate, useRoute } from './router.ts';
-import { profileIsSet, useCrawlWatcher, useProfile } from './session.ts';
+import { useCrawlWatcher, useOnboarding, useProfile } from './session.ts';
+import { setupPending } from '../lib/onboarding.ts';
 
 function NoToken() {
   return (
@@ -41,15 +42,22 @@ const WINDOW_TITLES: Record<ScreenId, string> = {
 export function App() {
   const route = useRoute();
   const profile = useProfile();
+  const setup = useOnboarding();
   useCrawlWatcher();
   const gateChecked = useRef(false);
 
-  // first run: an empty profile opens onboarding once (the person can skip it for good)
+  // At launch, a setup that was never finished or skipped opens again, on the step the person was on
+  // (JL-onboarding-11: a saved preference alone never counts as a finished setup).
   useEffect(() => {
-    if (gateChecked.current || !profile.data) return;
+    if (gateChecked.current || !profile.data || !setup.data) return;
     gateChecked.current = true;
-    if (!profileIsSet(profile.data) && !onboardingSkipped() && route[0] !== 'onboarding') navigate('onboarding', { replace: true });
-  }, [profile.data]);
+    const legacy = onboardingSkipped();
+    if (setup.data.status === 'new' && legacy) {
+      // carried over from jobleft 0.1.2, which kept "skipped" only in this browser
+      void call('putOnboarding', { body: { ...setup.data, status: 'skipped' } }).then(() => undefined, () => undefined);
+    }
+    if (setupPending(setup.data, legacy) && route[0] !== 'onboarding') navigate('onboarding', { replace: true });
+  }, [profile.data, setup.data]);
 
   if (!hasToken()) return <NoToken />;
   if (route[0] === 'onboarding') {
