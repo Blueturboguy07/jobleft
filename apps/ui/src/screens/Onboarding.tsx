@@ -3,7 +3,7 @@
 // skip at any step; nothing opens by itself afterwards.
 
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Checkbox, Input, InputNumber, Progress, Select, Space, Steps } from 'antd';
+import { Alert, Button, Checkbox, Input, InputNumber, Progress, Select, Space, Steps, Tag } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import type { ImportReport, Profile, ProfileInput } from '@jobleft/contracts';
 import { call, type UiError } from '../app/api.ts';
@@ -180,9 +180,10 @@ export function Onboarding() {
     (
       <Space direction="vertical" size={14} style={{ width: '100%' }} key="5">
         <h2 className="jl-display" style={{ fontSize: 28 }}>Where should AI answers come from?</h2>
+        <p className="jl-muted">AI is the one part of jobleft that costs money: tailoring a resume or a letter runs a model, and the model's provider charges for each run. Through publik you pay only for those runs, from a dollar balance, which comes to about 2% of what the subscription job-search apps charge each month.</p>
         <p className="jl-muted">AI is optional. Search, filters, match scores and the tracker work without it.</p>
         <div className="jl-choice-grid">
-          <button type="button" className="jl-choice" onClick={() => { void finish('settings/balance'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>publik API</strong><span className="jl-small">Pay per use from a dollar balance. You read the terms and connect on the next screen.</span></button>
+          <button type="button" className="jl-choice" onClick={() => { void finish('settings/balance'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><span className="jl-row" style={{ gap: 8 }}><strong>publik API</strong><Tag color="green" style={{ margin: 0 }}>Cheapest</Tag></span><span className="jl-small">Pay per use from a dollar balance; a free starter amount is included. You read the terms and connect on the next screen.</span></button>
           <button type="button" className="jl-choice" onClick={() => { void finish('settings/ai'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>A model on this computer</strong><span className="jl-small">Ollama, LM Studio and similar. Nothing leaves this Mac.</span></button>
         </div>
         <Button type="link" style={{ alignSelf: 'flex-start', padding: 0 }} onClick={() => { void finish('jobs'); }}>Decide later and see my jobs</Button>
