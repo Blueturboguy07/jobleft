@@ -446,19 +446,21 @@ export class NetworkService {
     return out;
   }
 
-  coverage(targetCompanies: Array<{ companyKey: string; companyName: string }>): CompanyCoverage[] {
-    const seen = new Map<string, { companyKey: string; companyName: string }>();
+  coverage(targetCompanies: Array<{ companyKey: string; companyName: string; jobs?: Array<{ id: string; title: string }> }>): CompanyCoverage[] {
+    const seen = new Map<string, { companyKey: string; companyName: string; jobs: Array<{ id: string; title: string }> }>();
     for (const t of targetCompanies) {
       // The same key as the job card's count (the job's key, in its alias family), so both always agree.
       const key = familyKey(t.companyKey || keysForCompany(t.companyName, this.keyFn).rawKey || '');
-      if (!key || seen.has(key)) continue;
-      seen.set(key, { companyKey: key, companyName: t.companyName });
+      if (!key) continue;
+      const cur = seen.get(key);
+      if (cur) { for (const j of t.jobs ?? []) if (!cur.jobs.some((x) => x.id === j.id)) cur.jobs.push(j); continue; }
+      seen.set(key, { companyKey: key, companyName: t.companyName, jobs: [...(t.jobs ?? [])] });
     }
     const out: CompanyCoverage[] = [];
     for (const t of seen.values()) {
       const count = this.countFor(t.companyKey) ?? 0;
       const top = count ? this.rank(t.companyKey, null).slice(0, 3).map((r) => r.contactId) : [];
-      out.push({ companyKey: t.companyKey, companyName: t.companyName, count, topContactIds: top });
+      out.push({ companyKey: t.companyKey, companyName: t.companyName, count, topContactIds: top, ...(t.jobs.length ? { jobs: t.jobs.slice(0, 20) } : {}) });
     }
     return out.sort((a, b) => (b.count > 0 ? 1 : 0) - (a.count > 0 ? 1 : 0) || b.count - a.count
       || (a.companyName.toLowerCase() < b.companyName.toLowerCase() ? -1 : a.companyName.toLowerCase() > b.companyName.toLowerCase() ? 1 : 0));

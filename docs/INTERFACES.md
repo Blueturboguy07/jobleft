@@ -1297,6 +1297,10 @@ export declare class NetworkService extends Service {
     coverage(targetCompanies: Array<{
         companyKey: string;
         companyName: string;
+        jobs?: Array<{
+            id: string;
+            title: string;
+        }>;
     }>): CompanyCoverage[];
     rank(companyKey: string, job: Job | null): ContactRank[];
     update(id: string, patch: {

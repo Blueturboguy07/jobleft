@@ -268,6 +268,10 @@ export function NetworkScreen({ tab }: { tab: string | null }) {
   const [company, setCompany] = useState<{ key: string; name: string } | null>(null);
   const due = useApi<Contact[]>('network:contacts:due', () => call('listContacts', { query: { due: 'true' } }));
   const planCount = useApi<Contact[]>('network:contacts:plan', () => call('listContacts', { query: { inPlan: 'true' } }));
+  // A message to someone at a target company is about the person's job there (JL-network-22).
+  const coverage = useApi<CompanyCoverage[]>('network:coverage', () => call('networkCoverage'));
+  const target = draftFor?.companyKey ? coverage.data?.find((x) => x.companyKey === draftFor.companyKey) : undefined;
+  const draftJob = target?.jobs?.[0] ?? null;
   const active = tab ?? 'companies';
   const total = useMemo(() => (groups.data ? groups.data.reduce((n, g) => n + g.count, 0) : null), [groups.data]);
 
@@ -306,7 +310,7 @@ export function NetworkScreen({ tab }: { tab: string | null }) {
         ]} />
       </div>
       <ContactDrawer c={open} onClose={() => setOpen(null)} onDraft={(c) => setDraftFor(c)} />
-      <DraftModal contact={draftFor} jobId={null} jobLabel={null} open={!!draftFor} onClose={() => setDraftFor(null)} />
+      <DraftModal contact={draftFor} jobId={draftJob?.id ?? null} jobLabel={draftJob && target ? `${draftJob.title} at ${target.companyName}` : null} open={!!draftFor} onClose={() => setDraftFor(null)} />
     </div>
   );
 }

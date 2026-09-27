@@ -213,3 +213,18 @@ test('JL-network-5: one follow-up alert that says how many are due now; clearing
     assert.equal(byDue.length, 1);
   } finally { await s.stop(); cleanup(s.home); }
 });
+
+test('JL-network-22: the Companies coverage names the target job, so a draft from there is about it', async () => {
+  const s = await startTest('jl22');
+  try {
+    const jobId = await addJob(s, 'Store Data Analyst', 'Kroger');
+    await s.call('POST', '/api/v1/network/import', Buffer.from('First Name,Last Name,URL,Email Address,Company,Position,Connected On\nMaria,Delgado,,,Kroger,Data Manager,04 Mar 2025\n'), { 'content-type': 'text/csv' });
+    const cov = (await s.call('GET', '/api/v1/network/coverage')).json as Array<{ companyName: string; jobs?: Array<{ id: string; title: string }> }>;
+    const kroger = cov.find((c) => c.companyName === 'Kroger')!;
+    assert.deepEqual(kroger.jobs, [{ id: jobId, title: 'Store Data Analyst' }]);
+    const contact = (await s.call('GET', '/api/v1/network/contacts')).json[0];
+    const p = await s.call('POST', `/api/v1/network/contacts/${contact.id}/draft/preview`, { variant: 'short', jobId: kroger.jobs![0]!.id });
+    assert.equal(p.status, 200, p.text);
+    assert.equal(p.json.sends.job.title, 'Store Data Analyst');
+  } finally { await s.stop(); cleanup(s.home); }
+});

@@ -82,10 +82,18 @@ async function aiJson<K extends RouteName & keyof AiRouteHandlers>(c: Ctx<K>, na
 }
 
 /** The target companies of the Network tool: the companies of jobs the person liked, applied to or added. */
-function networkTargets(d: AppData): Array<{ companyKey: string; companyName: string }> {
-  const targets = new Map<string, string>();
-  for (const v of ['liked', 'applied', 'external'] as const) for (const it of d.tracker.list(v).items) if (it.job.companyKey) targets.set(it.job.companyKey, it.job.company);
-  return [...targets].map(([companyKey, companyName]) => ({ companyKey, companyName }));
+function networkTargets(d: AppData): Array<{ companyKey: string; companyName: string; jobs: Array<{ id: string; title: string }> }> {
+  const targets = new Map<string, { companyName: string; jobs: Array<{ id: string; title: string }> }>();
+  for (const v of ['liked', 'applied', 'external'] as const) {
+    for (const it of d.tracker.list(v).items) {
+      if (!it.job.companyKey) continue;
+      const t = targets.get(it.job.companyKey) ?? { companyName: it.job.company, jobs: [] };
+      t.companyName = it.job.company;
+      if (!t.jobs.some((j) => j.id === it.job.id)) t.jobs.push({ id: it.job.id, title: it.job.title });
+      targets.set(it.job.companyKey, t);
+    }
+  }
+  return [...targets].map(([companyKey, t]) => ({ companyKey, companyName: t.companyName, jobs: t.jobs }));
 }
 
 /** Runs one Network route through the package's own handler and turns its error into the API error. */
