@@ -54,7 +54,14 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile --ignore-scripts
 
+      - name: Pacer diagnostic (why two pacers on one database fire too close on this runner)
+        shell: pwsh
+        continue-on-error: true
+        run: node qa/bin/pacer-diag.mjs
+
       - name: Tests on Windows
+        id: tests
+        continue-on-error: true # the installer, the smoke and the replay still run; the job fails at the end
         shell: pwsh
         # Every workspace package's suite, one node --test each, with a per-test time limit and a forced exit: a hang
         # or a lingering handle shows up as a named failure, never as a silent 90-minute job (pnpm -r cannot pass these flags).
@@ -136,6 +143,12 @@ jobs:
           name: jobleft-windows-setup
           path: apps/shell/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
+
+      - name: Test result
+        if: steps.tests.outcome == 'failure'
+        run: |
+          echo "a test suite failed on Windows (see the Tests on Windows step)"
+          exit 1
 
       - name: Attach to the release
         if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
