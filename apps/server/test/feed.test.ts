@@ -156,3 +156,31 @@ test('JL-feed-8 / JL-onboarding-28: a job function matches titles that name that
   // Free words: "cook" is not a listed field, so the title must contain it.
   assert.deepEqual((await all({ sort: 'most_recent', filter: { jobFunctions: ['cook'] } }, 100)).items.map((it) => it.job.title).sort(), ['Line Cook', 'Prep Cook']);
 });
+
+test('JL-feed-5: a place from the place list matches its own city and region, not a namesake', async () => {
+  const count = async (text: string) => (await all({ sort: 'most_recent', filter: { places: [{ text, placeId: null, radiusMiles: 25 }] } }, 100)).total;
+  assert.equal(await count('Austin, TX'), 11);
+  assert.equal(await count('Austin, MN'), 0);
+  assert.equal(await count('Austin'), 11, 'a place with no region matches the city name, as before');
+  assert.equal(await count('Toronto, ON, Canada'), 1);
+  const { placeMatches } = await import('../src/core/places.ts');
+  assert.ok(placeMatches('Austin, Texas, United States', 'Austin, TX'));
+  assert.ok(placeMatches('Greater Austin Area', 'Austin, TX'));
+  assert.ok(!placeMatches('Austin, MN', 'Austin, TX'));
+  assert.ok(!placeMatches('Austinville, TX', 'Austin'));
+  assert.ok(placeMatches('Portland, Victoria, Australia', 'Portland, Victoria, Australia'));
+  assert.ok(!placeMatches('Portland, OR', 'Portland, Victoria, Australia'));
+});
+
+test('JL-feed-18: words in quotes must appear together; JL-feed-26: a filter field the app does not know is refused', async () => {
+  const total = async (q: string) => (await s.call('POST', '/api/v1/jobs/search', { sort: 'most_recent', q, limit: 5 })).json.total;
+  assert.equal(await total('analyst data'), 13, 'separate words: each somewhere in the posting');
+  assert.equal(await total('"data analyst"'), 13);
+  assert.equal(await total('"analyst data"'), 0, 'a quoted phrase is a phrase');
+  for (const filter of [{ maxAnnualPayUsd: 100000 }, { minAnnualPayUsd: 200000, maxAnnualPayUsd: 100000 }, { bogusKey: 1 }]) {
+    const r = await s.call('POST', '/api/v1/jobs/search', { sort: 'recommended', limit: 5, filter });
+    assert.equal(r.status, 400, JSON.stringify(filter));
+    assert.match(r.json.error.message, /does not know \((maxAnnualPayUsd|bogusKey)\)/);
+  }
+  assert.equal((await s.call('POST', '/api/v1/jobs/search', { sort: 'recommended', limit: 5, filter: { minAnnualPayUsd: 0 } })).status, 200);
+});

@@ -121,6 +121,19 @@ export function withoutNoDataFilters(f: JobFilter): JobFilter {
   return cleanFilter(rest);
 }
 
+/**
+ * The name of a place from the place list, with its region and (outside the US) its country, so that five towns
+ * called Austin read apart (JL-feed-5): "Austin, TX", "Portland, Victoria, Australia".
+ */
+export function placeLabel(p: { text: string; city?: string | null; region?: string | null; country?: string | null }): string {
+  const name = (p.city || p.text).trim();
+  let country: string | null = null;
+  if (p.country && p.country !== 'US') {
+    try { country = new Intl.DisplayNames(['en'], { type: 'region' }).of(p.country) ?? p.country; } catch { country = p.country; }
+  }
+  return [name, p.region?.trim() || null, country].filter(Boolean).join(', ');
+}
+
 /** The starting filter from the profile's preferences. */
 export function filterFromProfile(p: Profile | null | undefined): JobFilter {
   if (!p) return {};

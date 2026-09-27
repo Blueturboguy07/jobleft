@@ -6,7 +6,7 @@ import { rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
-  CONTRACTS_VERSION, EXTENSION_PROTOCOL_VERSION, LOCAL_API_VERSION, nowIso, parseDuration,
+  CONTRACTS_VERSION, EXTENSION_PROTOCOL_VERSION, JobFilterSchema, LOCAL_API_VERSION, nowIso, parseDuration,
   type ChatStreamEvent, type RouteBody, type RouteName, type RouteQuery,
 } from '@jobleft/contracts';
 import { AiError, type AiClient } from '@jobleft/ai-engine';
@@ -54,6 +54,19 @@ export type HandlerTable = { [K in RouteName]: Handler<K> };
 
 /** Routes whose raw body the handler reads itself (streamed to disk). */
 export const STREAMED_BODY = new Set<RouteName>(['restore']);
+
+const FILTER_FIELDS = new Set(Object.keys((JobFilterSchema as { properties?: Record<string, unknown> }).properties ?? {}));
+/**
+ * JL-feed-26: a filter field this version does not know (a typo, "maxAnnualPayUsd") was dropped without a word, so
+ * the caller got unfiltered results and believed them filtered. It is now refused in plain words.
+ */
+function knownFilterFields(filter: unknown): void {
+  if (!filter || typeof filter !== 'object') return;
+  const unknown = Object.keys(filter).filter((k) => !FILTER_FIELDS.has(k));
+  if (unknown.length) {
+    throw new ApiFailure('bad_request', `The filter has ${unknown.length === 1 ? 'a field' : 'fields'} that jobleft does not know (${unknown.slice(0, 5).join(', ')}), so nothing was searched. Remove ${unknown.length === 1 ? 'it' : 'them'} and search again.`);
+  }
+}
 
 const ok = { json: { ok: true as const } };
 const extensionOf = (app: App, d: AppData) => new ExtensionService(d, { hostMap: app.cfg.hostMap, offline: () => app.cfg.offline });
@@ -193,7 +206,10 @@ export const HANDLERS: HandlerTable = {
       { hasProfile: () => d.profile.exists(), networkCount: (k) => d.network.countFor(k) },
     ),
   }),
-  searchJobs: ({ d, body }) => ({ json: d.feed.search(body, { hasProfile: () => d.profile.exists(), networkCount: (k) => d.network.countFor(k) }) }),
+  searchJobs: ({ d, body }) => {
+    knownFilterFields(body.filter);
+    return { json: d.feed.search(body, { hasProfile: () => d.profile.exists(), networkCount: (k) => d.network.countFor(k) }) };
+  },
   getJob: ({ d, params }) => {
     jobOr404(d, params.jobId!);
     const job = d.feed.job(params.jobId!)!;

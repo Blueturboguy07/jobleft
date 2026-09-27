@@ -101,18 +101,23 @@ function JobsTabs({ tab }: { tab: string | null }) {
   );
 }
 
+/** The longest search the jobs search takes (JobSearchRequest.q); the box stops there (JL-feed-17). */
+const SEARCH_MAX = 500;
+
 function JobSearch({ onRecommended }: { onRecommended: boolean }) {
   const feed = useFeed();
   const [v, setV] = useState(feed.q);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => { setV(feed.q); }, [feed.q]);
-  const commit = (q: string) => {
+  const commit = (q0: string) => {
+    const q = q0.slice(0, SEARCH_MAX);
     if (timer.current) clearTimeout(timer.current);
     setFeed({ q });
     if (!onRecommended && q.trim()) navigate('jobs');
   };
   return (
     <Input className="jl-search" allowClear prefix={<SearchOutlined aria-hidden="true" />} placeholder="Search title, company or words" value={v}
+      maxLength={SEARCH_MAX} title={v.length >= SEARCH_MAX ? `Search words stop at ${SEARCH_MAX} characters.` : undefined}
       aria-label="Search jobs by title, company or words"
       onChange={(e) => { const q = e.target.value; setV(q); if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => commit(q), 120); }}
       onPressEnter={() => commit(v)} />

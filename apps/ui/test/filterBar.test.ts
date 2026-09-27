@@ -40,3 +40,11 @@ test('JL-feed-7: filters on facts no job has (industry, company stage, staffing 
   assert.ok(sameFilter(withoutNoDataFilters(f), { countries: ['US'] }));
   assert.deepEqual(noDataFilters({ countries: ['US'] }), []);
 });
+
+test('JL-feed-5: towns with the same name read apart in the place list', async () => {
+  const { placeLabel } = await import('../src/lib/filters.ts');
+  assert.equal(placeLabel({ text: 'Austin', city: 'Austin', region: 'TX', country: 'US' }), 'Austin, TX');
+  assert.equal(placeLabel({ text: 'Austin', city: 'Austin', region: 'MN', country: 'US' }), 'Austin, MN');
+  assert.equal(placeLabel({ text: 'Portland', city: 'Portland', region: 'Victoria', country: 'AU' }), 'Portland, Victoria, Australia');
+  assert.equal(placeLabel({ text: 'Toronto', city: null, region: null, country: null }), 'Toronto');
+});

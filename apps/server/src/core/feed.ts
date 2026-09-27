@@ -21,49 +21,11 @@ import { h1bTagFor, type H1bIndex, type H1bLookupDetail, type H1bTag } from '@jo
 import { ApiFailure } from '../errors.ts';
 import { companyKey } from '../interim/company-key.ts';
 import { contractJobId, familiesOfFunction, titleFamily, toSummary, type CandidateRow, type JobsService, type SearchDeps } from '../interim/jobs.ts';
+import { memo, statesIn } from './places.ts';
+
+export { statesIn };
 
 // ---------------------------------------------------------------- preferences
-
-const STATES: Record<string, string> = {
-  AL: 'alabama', AK: 'alaska', AZ: 'arizona', AR: 'arkansas', CA: 'california', CO: 'colorado', CT: 'connecticut', DE: 'delaware',
-  FL: 'florida', GA: 'georgia', HI: 'hawaii', ID: 'idaho', IL: 'illinois', IN: 'indiana', IA: 'iowa', KS: 'kansas', KY: 'kentucky',
-  LA: 'louisiana', ME: 'maine', MD: 'maryland', MA: 'massachusetts', MI: 'michigan', MN: 'minnesota', MS: 'mississippi',
-  MO: 'missouri', MT: 'montana', NE: 'nebraska', NV: 'nevada', NH: 'new hampshire', NJ: 'new jersey', NM: 'new mexico',
-  NY: 'new york', NC: 'north carolina', ND: 'north dakota', OH: 'ohio', OK: 'oklahoma', OR: 'oregon', PA: 'pennsylvania',
-  RI: 'rhode island', SC: 'south carolina', SD: 'south dakota', TN: 'tennessee', TX: 'texas', UT: 'utah', VT: 'vermont',
-  VA: 'virginia', WA: 'washington', WV: 'west virginia', WI: 'wisconsin', WY: 'wyoming', DC: 'district of columbia',
-};
-const STATE_BY_NAME = new Map(Object.entries(STATES).map(([c, n]) => [n, c]));
-const STATE_NAME_RE = new RegExp(`\\b(${[...STATE_BY_NAME.keys()].sort((a, b) => b.length - a.length).join('|')})\\b`, 'gi');
-// Big cities whose postings often omit the state.
-const CITY_STATE: Record<string, string> = {
-  houston: 'TX', dallas: 'TX', austin: 'TX', 'san antonio': 'TX', 'fort worth': 'TX', 'el paso': 'TX', plano: 'TX', irving: 'TX',
-  'new york city': 'NY', nyc: 'NY', manhattan: 'NY', brooklyn: 'NY', 'san francisco': 'CA', 'los angeles': 'CA', 'san diego': 'CA',
-  'san jose': 'CA', seattle: 'WA', chicago: 'IL', boston: 'MA', atlanta: 'GA', denver: 'CO', miami: 'FL', phoenix: 'AZ',
-  philadelphia: 'PA', detroit: 'MI', minneapolis: 'MN', nashville: 'TN', portland: 'OR', 'salt lake city': 'UT',
-};
-const CITY_RE = new RegExp(`\\b(${Object.keys(CITY_STATE).sort((a, b) => b.length - a.length).join('|')})\\b`, 'gi');
-
-function memo<T>(fn: (s: string) => T, max = 100_000): (s: string) => T {
-  const cache = new Map<string, T>();
-  return (s: string) => {
-    let v = cache.get(s);
-    if (v === undefined) { v = fn(s); if (cache.size >= max) cache.clear(); cache.set(s, v); }
-    return v;
-  };
-}
-
-/** US state codes a place text names ("Austin, TX", "Dallas, Texas", "Houston"). */
-export const statesIn = memo(statesInRaw);
-function statesInRaw(text: string): Set<string> {
-  const out = new Set<string>();
-  for (const m of text.matchAll(/(?:^|[,(/;|\s-])([A-Z]{2})(?=$|[\s,)/;|.-])/g)) if (STATES[m[1]!]) out.add(m[1]!);
-  for (const m of text.matchAll(STATE_NAME_RE)) out.add(STATE_BY_NAME.get(m[1]!.toLowerCase())!);
-  for (const m of text.matchAll(CITY_RE)) out.add(CITY_STATE[m[1]!.toLowerCase()]!);
-  // "Washington, DC" is DC, not the state.
-  if (/washington,?\s*d\.?c\.?/i.test(text)) { out.add('DC'); if (!/washington state|, wa\b/i.test(text)) out.delete('WA'); }
-  return out;
-}
 
 const LEVEL_WORDS = new Set(['senior', 'sr', 'junior', 'jr', 'lead', 'staff', 'principal', 'intern', 'internship', 'entry', 'mid', 'level', 'i', 'ii', 'iii', 'iv', 'head', 'chief', 'associate']);
 const STOP = new Set(['and', 'or', 'of', 'the', 'a', 'an', 'in', 'for', 'to', 'at', 'with', 'remote', 'hybrid', 'onsite', 'full', 'time', 'part', 'us']);

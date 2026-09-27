@@ -9,7 +9,7 @@ import { DownOutlined, QuestionCircleOutlined, CloseOutlined, FilterOutlined, Sa
 import type { JobFilter, JobSort, PlaceQuery } from '@jobleft/contracts';
 import {
   COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, activeCount, applySection, cleanFilter,
-  countryLabel, functionLabel, levelLabel, modelLabel, payLabel, postedLabel, resetSection, sameFilter, toggle, typeLabel, withUnknown, yearsLabel,
+  countryLabel, functionLabel, levelLabel, modelLabel, payLabel, placeLabel, postedLabel, resetSection, sameFilter, toggle, typeLabel, withUnknown, yearsLabel,
   type FilterSection,
 } from '../../lib/filters.ts';
 import { call } from '../../app/api.ts';
@@ -54,7 +54,9 @@ export function PlacePicker({ places, onChange }: { places: PlaceQuery[]; onChan
         const r = await call('placeLookup', { query: { text: t } });
         if (!alive) return;
         const all = [...r.places, ...r.ambiguous].filter((p) => p.placeId);
-        setOpts(all.map((p) => ({ value: p.placeId!, label: p.text, placeId: p.placeId! })));
+        // Each town with its region (and country outside the US), so "Austin, TX" and "Austin, MN" read apart; the
+        // chosen label is the filter's place text, which the search matches by city and region.
+        setOpts(all.map((p) => ({ value: p.placeId!, label: placeLabel(p), placeId: p.placeId! })));
       } catch { if (alive) setOpts([]); }
     }, 200);
     return () => { alive = false; clearTimeout(h); };

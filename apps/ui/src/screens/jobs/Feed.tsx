@@ -15,7 +15,7 @@ import { JobCard, type CardItem } from '../../components/JobCard.tsx';
 import { EmptyState, ErrorState, InlineError, SkeletonCards } from '../../components/States.tsx';
 import { VirtualList } from '../../components/VirtualList.tsx';
 import { activeCount, filterFromProfile, noDataFilters, withoutNoDataFilters } from '../../lib/filters.ts';
-import { plural } from '../../lib/format.ts';
+import { clipWords, plural, searchable } from '../../lib/format.ts';
 import { AllFiltersDrawer } from './AllFilters.tsx';
 import { useCardActions } from './cardActions.tsx';
 import { FilterBar } from './Filters.tsx';
@@ -60,7 +60,9 @@ export function useJobPages(filter: JobFilter, sort: JobSort, q: string) {
       setSt({ items: r.items.map(toCard), total: r.total, next: r.nextCursor, loading: false, loadingMore: false, error: null, moreError: null, fit: r.fit });
     } catch (e) {
       if (my !== seq.current) return;
-      setSt((s) => ({ ...s, loading: false, error: e as UiError }));
+      // A new search that failed shows no results: the old list would sit under words it was not searched for
+      // (JL-feed-17). A quiet reload keeps what is on screen.
+      setSt((s) => ({ ...s, loading: false, error: e as UiError, ...(silent ? {} : { items: [], total: null, next: null }) }));
     }
   }, [body]);
 
@@ -145,7 +147,8 @@ export function Feed() {
   const savedApplied = saved.data?.find((x) => x.id === getFeed().savedId) ?? null;
 
   let body;
-  if (st.error && !st.items.length) body = <ErrorState error={st.error} onRetry={() => { void load(); }} />;
+  // A refused request (400) fails the same way again: no "Try again" for it.
+  if (st.error && !st.items.length) body = <ErrorState error={st.error} title={st.error.code === 'bad_request' ? 'This search could not run' : undefined} onRetry={st.error.code === 'bad_request' ? undefined : () => { void load(); }} />;
   else if (st.loading && !st.items.length) body = <SkeletonCards n={4} />;
   else if (!st.items.length) {
     if (progress?.running) body = <EmptyState art="search" title="Your job boards are being read" text={`Jobs appear here as each board finishes: ${progress.boardsDone} of ${plural(progress.boardsTotal, 'board')} done so far.`} />;
@@ -188,7 +191,9 @@ export function Feed() {
           <div className="jl-results-line">
             <span aria-live="polite" aria-atomic="true">
               {st.total !== null && <strong style={{ color: '#000' }}>{plural(st.total, 'job')}</strong>}
-              {feed.q.trim() && <> for “{feed.q.trim()}”</>}
+              {st.total !== null && feed.q.trim() && (searchable(feed.q)
+                ? <> for “{clipWords(feed.q.trim())}”</>
+                : <>: “{clipWords(feed.q.trim())}” has no letters or digits to search for, so no words were applied</>)}
               {savedApplied && <> · filter “{savedApplied.name}”</>}
             </span>
             {st.loading && st.items.length > 0 && <span className="jl-muted">Updating…</span>}

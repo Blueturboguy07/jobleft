@@ -178,6 +178,12 @@ export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 }
 
+/** True when search words have a letter or a digit (the search ignores text without any, JL-feed-18). */
+export function searchable(q: string): boolean { return /[\p{L}\p{N}]/u.test(q); }
+
+/** Search words as the results line quotes them: at most 80 characters (JL-feed-17). */
+export function clipWords(q: string): string { const c = [...q]; return c.length <= 80 ? q : `${c.slice(0, 79).join('')}…`; }
+
 /** Initials for a monogram tile: "Harbor Health, Inc." -> "HH". */
 export function initials(name: string): string {
   const words = name.replace(/,?\s+(inc|llc|ltd|corp)\.?$/i, '').split(/[\s&-]+/).filter((w) => /^[\p{L}\p{N}]/u.test(w));

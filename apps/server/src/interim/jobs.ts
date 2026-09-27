@@ -18,6 +18,7 @@ import { canonicalizeUrl } from '@jobleft/crawler';
 import { FAMILIES, familyOfTitle } from '@jobleft/match';
 import { ApiFailure } from '../errors.ts';
 import { companyKey } from './company-key.ts';
+import { placeMatches } from '../core/places.ts';
 
 export interface JobRow {
   id: number;
@@ -257,11 +258,20 @@ function levelsOf(levelsJson: string | null | undefined, level: Level | null): E
   return level ? [experienceLevelOf(level)] : [];
 }
 
-/** Words for FTS5, each quoted as a phrase (operators and quotes are words, never syntax). */
+/**
+ * Words for FTS5, each quoted as a phrase (operators are words, never syntax). Words in quotes ("data analyst") must
+ * appear together in that order (JL-feed-18); every other word must appear somewhere in the posting.
+ */
 function ftsQuery(q: string): { match: string | null; exact: string[] } {
-  const words = q.split(/\s+/).map((w) => w.trim()).filter(Boolean).slice(0, 20);
   const tokens: string[] = [];
   const exact: string[] = [];
+  const words: string[] = [];
+  for (const m of q.matchAll(/["“”]([^"“”]*)["“”]|(\S+)/g)) {
+    if (tokens.length + words.length >= 20) break;
+    if (m[1] === undefined) { words.push(m[2]!); continue; }
+    const inner = m[1].replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    if (inner) tokens.push(`"${inner}"`);
+  }
   for (const raw of words) {
     const w = raw.replace(/^["'“”‘’]+|["'“”‘’,;:!?]+$/g, '');
     const inner = w.replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -287,6 +297,7 @@ export class JobsService {
     this.db = db;
     db.function('jl_company_key', { deterministic: true }, (s: unknown) => companyKey(String(s ?? '')));
     db.function('jl_title_family', { deterministic: true }, (s: unknown) => titleFamily(String(s ?? '')));
+    db.function('jl_place_match', { deterministic: true }, (loc: unknown, q: unknown) => (placeMatches(String(loc ?? ''), String(q ?? '')) ? 1 : 0));
     this.ensureIndexes();
   }
 
@@ -462,8 +473,8 @@ export class JobsService {
       where.push(`(${parts.join(' OR ')})`);
     }
     if (filter.places?.length) {
-      const parts = filter.places.map(() => 'instr(lower(x.location), ?) > 0');
-      args.push(...filter.places.map((p) => p.text.toLowerCase()));
+      const parts = filter.places.map(() => 'jl_place_match(x.location, ?) = 1');
+      args.push(...filter.places.map((p) => p.text));
       if (unknownOk.has('place')) parts.push("x.location = ''");
       where.push(`(${parts.join(' OR ')})`);
     }

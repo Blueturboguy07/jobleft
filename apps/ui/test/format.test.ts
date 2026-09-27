@@ -28,3 +28,12 @@ test('JL-feed-10: every card fact has an unknown wording', () => {
   for (const [k, v] of Object.entries(NOT_STATED)) assert.match(v, /not stated$/, k);
   assert.deepEqual(Object.keys(NOT_STATED).sort(), ['level', 'pay', 'place', 'type', 'workModel', 'years']);
 });
+
+test('JL-feed-17 and JL-feed-18: the results line quotes at most 80 characters, and says when words have nothing to search', async () => {
+  const { clipWords, searchable } = await import('../src/lib/format.ts');
+  assert.equal(clipWords('a'.repeat(5000)).length, 80);
+  assert.ok(clipWords('a'.repeat(5000)).endsWith('…'));
+  assert.equal(clipWords('data analyst'), 'data analyst');
+  for (const q of ['!!!', '%', '*', "'", '🎯', '   ']) assert.equal(searchable(q), false, q);
+  for (const q of ['C++', 'data analyst', 'Ünïcödé', '401(k)']) assert.equal(searchable(q), true, q);
+});
