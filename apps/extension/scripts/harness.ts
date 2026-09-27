@@ -89,7 +89,8 @@ export async function pair(s: { browser: Browser; extId: string; appPort: number
   const c = await appCall(s, 'POST', '/api/v1/extension/pairing-code') as { code: string; port?: number };
   const pop = await openPopup(s.browser, s.extId, tab);
   await pop.eval(`(function(){ var i = document.querySelector('input[aria-label="Pairing code"]'); i.value = ${JSON.stringify(c.code)}; document.querySelector('input[aria-label="App port"]').value = ${JSON.stringify(String(c.port ?? s.appPort))}; Array.from(document.querySelectorAll('button')).find(function(b){return b.textContent==='Pair'}).click(); return true; })()`);
-  await waitFor(() => pop.eval<boolean>(`document.body.textContent.indexOf('Paired with jobleft') >= 0`), 8000);
+  // Paired means the popup switched: "Paired with" and no "not paired" code box next to it (JL-extension-1).
+  await waitFor(() => pop.eval<boolean>(`document.body.textContent.indexOf('Paired with jobleft') >= 0 && document.body.textContent.indexOf('not paired') < 0`), 8000);
   return pop.eval<string>('document.body.innerText');
 }
 

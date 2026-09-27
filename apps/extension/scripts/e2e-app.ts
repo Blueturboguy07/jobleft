@@ -179,6 +179,7 @@ async function main(): Promise<void> {
       const c = await api('POST', '/api/v1/extension/pairing-code');
       await pop.eval(`(function(){ var i = document.querySelector('input[aria-label="Pairing code"]'); i.value = ${JSON.stringify(c.json.code)}; document.querySelector('input[aria-label="App port"]').value = ${JSON.stringify(String(c.json.port))}; Array.from(document.querySelectorAll('button')).find(function(b){return b.textContent==='Pair'}).click(); return true; })()`);
       check('pairing works with the code from the app', await waitFor(() => pop.eval<boolean>(`document.body.textContent.indexOf('Paired with jobleft') >= 0`), 8000));
+      check('the popup switches to the paired state at once (no code box left)', await waitFor(() => pop.eval<boolean>(`document.body.textContent.indexOf('not paired') < 0 && !document.querySelector('input[aria-label="Pairing code"]')`), 1500));
       const list = (await api('GET', '/api/v1/extension/pairings')).json as Array<{ pairedAt: string; browser: string }>;
       check('the app lists exactly one paired browser with a date', list.length === 1 && /^\d{4}-\d\d-\d\dT/.test(list[0]!.pairedAt), JSON.stringify(list));
     }

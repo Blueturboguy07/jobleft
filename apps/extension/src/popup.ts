@@ -60,10 +60,15 @@ function connNode(c: ConnState, onChange: () => void): HTMLElement {
     btn.setAttribute('disabled', 'true');
     msg.textContent = 'Pairing…';
     const r = await ask<{ ok: boolean; message: string }>({ type: 'popup:pair', code: input.value.trim(), port: portInput.value.trim() });
+    if (r.ok) {
+      // Paired: the whole popup switches now (no code box next to "Paired with"), then the page part loads.
+      content.replaceChildren(h('div', { class: 'card' }, h('span', { class: 'ok' }, r.message)), h('p', { class: 'muted' }, 'Reading this page…'));
+      onChange();
+      return;
+    }
     msg.textContent = r.message;
-    msg.className = `msg small ${r.ok ? 'ok' : 'err'}`;
+    msg.className = 'msg small err';
     btn.removeAttribute('disabled');
-    if (r.ok) setTimeout(onChange, 400);
   });
   return h('div', { class: 'card' },
     h('div', { class: 'warn' }, 'This browser is not paired with your jobleft app. jobleft does nothing until you pair it.'),
@@ -78,7 +83,13 @@ async function render(): Promise<void> {
   const q = new URLSearchParams(location.search).get('tab');
   tabId = q ? Number(q) : tab?.id ?? null;
   if (tabId === null) { content.replaceChildren(h('p', { class: 'err' }, 'No tab.')); return; }
-  const s = await ask<PopupState>({ type: 'popup:state', tabId });
+  const s = await ask<PopupState>({ type: 'popup:state', tabId }).catch(() => null);
+  if (!s?.conn) {
+    const retry = h('button', {}, 'Try again');
+    retry.addEventListener('click', () => void render());
+    content.replaceChildren(h('div', { class: 'card' }, h('div', { class: 'err' }, 'jobleft could not read this tab. Try again, or close this and click the jobleft button again.'), h('div', { class: 'msg' }, retry)));
+    return;
+  }
   const out: Node[] = [connNode(s.conn, () => void render())];
   const sup = s.support;
   const words = sup.level === 'supported' ? 'supported' : sup.level === 'partial' ? 'partial' : sup.level === 'never' ? 'does not work here' : sup.level === 'not_a_page' ? 'not a web page' : 'not supported';
