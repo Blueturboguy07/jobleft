@@ -216,16 +216,21 @@ function BalanceTab() {
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<UiError | null>(null);
+  const [switching, setSwitching] = useState(false);
   const notProvider = !!ai.data && ai.data.provider !== 'publik';
   const connect = async () => {
     setBusy('connect'); setErr(null);
+    let connected = false;
     try {
       const c = await call('connectPublik', { body: { disclosureAccepted: true, disclosureVersion: 1 } });
       setCached('ai:publik', () => c);
-      if (notProvider) { const r = await call('putAiSettings', { body: { provider: 'publik' } }); setCached('ai:settings', () => r.settings); }
-      invalidate('ai:');
+      connected = true;
+      // The switch is saved at once, but its answer waits for a live test of publik, while the balance already shows:
+      // until it answers the page says the switch is under way, and after it the AI settings are read again, so the
+      // page never says "publik is not your AI provider" to a person who just chose it (JL-v1-2).
+      if (notProvider) { setSwitching(true); const r = await call('putAiSettings', { body: { provider: 'publik' } }); setCached('ai:settings', () => r.settings); }
       ui.message?.success(notProvider ? 'Connected. AI answers now come from publik.' : 'Connected to publik.');
-    } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+    } catch (e) { setErr(e as UiError); } finally { setBusy(null); setSwitching(false); if (connected) invalidate('ai:'); }
   };
   const refresh = async () => {
     setBusy('refresh'); setErr(null);
@@ -243,7 +248,8 @@ function BalanceTab() {
   const zero = w ? zeroBalanceText(w) : null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {ai.data && ai.data.provider !== 'publik' && (
+      {switching && <Alert type="info" showIcon message="Making publik your AI provider. jobleft is testing the connection; this can take a few seconds." />}
+      {ai.data && ai.data.provider !== 'publik' && !switching && (
         <Alert type="info" showIcon message="publik is not your AI provider now, so nothing charges your balance." action={<Button size="small" onClick={() => { void usePublikNow(); }}>Use publik</Button>} />
       )}
       {pub.error && !c && <ErrorState error={pub.error} onRetry={() => { void pub.reload(); }} title="The balance could not load" />}
