@@ -112,6 +112,7 @@ export class AppData {
       db: this.db, jobs: this.jobs,
       profile: () => (this.profile.exists() ? this.profile.get() : null),
       h1b: () => { try { return this.staticData().h1b; } catch { return null; } },
+      places: () => { try { return this.staticData().places; } catch { return null; } },
     });
     const orphans = this.resumes.removeOrphans();
     if (orphans) cfg.log.info('resumes.orphans_removed', { count: orphans });

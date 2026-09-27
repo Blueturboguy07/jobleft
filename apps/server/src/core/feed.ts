@@ -16,7 +16,7 @@ import {
   type MatchResult, type Profile, type WhyFitChip,
 } from '@jobleft/contracts';
 import { getJobById } from '@jobleft/crawler';
-import { ENGINE_VERSION, scoreMatch, summarize } from '@jobleft/match';
+import { ENGINE_VERSION, distanceFromPlaceIndex, scoreMatch, summarize } from '@jobleft/match';
 import { h1bTagFor, type H1bIndex, type H1bLookupDetail, type H1bTag } from '@jobleft/static-data';
 import { ApiFailure } from '../errors.ts';
 import { companyKey } from '../interim/company-key.ts';
@@ -102,19 +102,75 @@ const GENERIC = new Set(['engineer', 'manager', 'specialist', 'associate', 'anal
   'technician', 'director', 'officer', 'consultant', 'administrator', 'agent', 'lead', 'worker', 'professional', 'partner']);
 const wordWeight = (w: string) => (GENERIC.has(w) ? 0.5 : 1);
 
+/** The place dictionary calls the feed needs (the PlaceIndex of @jobleft/static-data). */
+export interface FeedPlaces {
+  resolve(text: string): { places: Array<{ placeId: string | null }>; notACity: boolean };
+  within(placeId: string, radiusMiles: number): Set<string>;
+}
+
+/**
+ * One place the person wants, as the feed checks it: a whole US state, the places within the radius of the chosen
+ * place (from its place id), or, with no place data, the city name the posting must state (and its state, when given).
+ */
+interface PlaceWant { label: string; state: string | null; near: Set<string> | null; city: RegExp | null; cityState: string | null }
+
 export interface PrefModel {
   version: string;
   targets: Target[];
   states: Set<string>;
+  places: PlaceWant[];
   placeLabel: string | null;
   usOnly: boolean;
+  /** false when the person chose countries and the US is not one of them. */
+  wantsUs: boolean;
+  /** The place ids a posting's location text resolves to (cached per text). */
+  placeIdsOf: (location: string) => string[];
   workModels: Set<string>;
   employment: Set<string>;
   levels: Set<ExperienceLevel>;
   empty: boolean;
 }
 
-export function prefModel(p: Profile): PrefModel {
+/** US state codes the text names in words or codes ("TX", "Texas"), never guessed from a city name. */
+function namedStates(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const m of text.matchAll(/(?:^|[,(/;|\s-])([A-Z]{2})(?=$|[\s,)/;|.-])/g)) if (STATES[m[1]!]) out.add(m[1]!);
+  for (const m of text.matchAll(STATE_NAME_RE)) out.add(STATE_BY_NAME.get(m[1]!.toLowerCase())!);
+  return out;
+}
+
+const placeIdCache = new WeakMap<FeedPlaces, Map<string, string[]>>();
+function placeIdsWith(places: FeedPlaces | null): (location: string) => string[] {
+  if (!places) return () => [];
+  let cache = placeIdCache.get(places);
+  if (!cache) { cache = new Map(); placeIdCache.set(places, cache); }
+  const c = cache;
+  return (location: string) => {
+    let ids = c.get(location);
+    if (ids === undefined) {
+      try {
+        const r = places.resolve(location);
+        ids = r.notACity ? [] : r.places.map((x) => x.placeId).filter((x): x is string => !!x);
+      } catch { ids = []; }
+      if (c.size >= 100_000) c.clear();
+      c.set(location, ids);
+    }
+    return ids;
+  };
+}
+
+/** The first place the person wants that this posting's location is in, or null. */
+function placeFit(m: PrefModel, location: string): PlaceWant | null {
+  if (!location) return null;
+  for (const w of m.places) {
+    if (w.state) { if (statesIn(location).has(w.state)) return w; continue; }
+    if (w.near) { if (m.placeIdsOf(location).some((id) => w.near!.has(id))) return w; continue; }
+    if (w.city?.test(location) && (!w.cityState || statesIn(location).has(w.cityState))) return w;
+  }
+  return null;
+}
+
+export function prefModel(p: Profile, placeData: FeedPlaces | null = null): PrefModel {
   const pr = p.preferences;
   const targets: Target[] = [];
   const levels = new Set<ExperienceLevel>(pr.levels);
@@ -125,20 +181,45 @@ export function prefModel(p: Profile): PrefModel {
     const words = [...new Set(all.filter((w) => !LEVEL_WORDS.has(w) && !STOP.has(w)))];
     if (words.length) targets.push({ label: t.trim(), words, weight });
   }
+  // Places: a chosen city counts only within its radius of THAT city (its place id), never the whole state it is in
+  // and never another city of the same name (JL-onboarding-17).
   const states = new Set<string>();
   const labels: string[] = [];
+  const places: PlaceWant[] = [];
   for (const q of pr.places) {
-    const s = statesIn(q.text);
-    const m = /^region:US-([A-Z]{2})$/.exec(q.placeId ?? '');
-    if (m) s.add(m[1]!);
-    if (s.size) { for (const x of s) states.add(x); labels.push(q.text.trim()); }
+    const text = q.text.trim();
+    if (!text) continue;
+    const parts = text.split(',').map((x) => x.trim()).filter(Boolean);
+    const city = parts[0] ?? text;
+    // A whole state: picked as a region, or typed as the state's name or code with no place id.
+    const typed = !q.placeId && parts.length === 1 ? (STATES[city.toUpperCase()] ? city.toUpperCase() : STATE_BY_NAME.get(city.toLowerCase()) ?? null) : null;
+    const region = /^region:US-([A-Z]{2})$/.exec(q.placeId ?? '')?.[1] ?? typed;
+    if (region) {
+      places.push({ label: `In ${text}`, state: region, near: null, city: null, cityState: null });
+      states.add(region); labels.push(text);
+      continue;
+    }
+    const radius = q.radiusMiles ?? 0;
+    const label = radius > 0 ? `Within ${radius} mi of ${city}` : `In ${city}`;
+    let near: Set<string> | null = null;
+    if (q.placeId && placeData) {
+      try { near = placeData.within(q.placeId, Math.max(radius, 10)); } catch { near = null; }
+      if (near && !near.size) near = null;
+    }
+    const cityState = [...namedStates(parts.slice(1).join(', '))][0] ?? null;
+    if (near) places.push({ label, state: null, near, city: null, cityState: null });
+    else places.push({ label: `In ${city}`, state: null, near: null, city: new RegExp(`(^|[^\\p{L}])${city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^\\p{L}])`, 'iu'), cityState });
+    if (cityState) states.add(cityState);
+    labels.push(text);
   }
   const usOnly = pr.countries.includes('US') || states.size > 0;
+  const wantsUs = !pr.countries.length || pr.countries.includes('US');
+  const placeKey = pr.places.map((q) => [q.text.trim(), q.placeId, q.radiusMiles]);
   return {
-    version: createHash('sha256').update(JSON.stringify([targets, [...states], usOnly, pr.workModels, pr.employmentTypes, [...levels]])).digest('hex').slice(0, 12),
-    targets, states, placeLabel: labels.join(', ') || null, usOnly,
+    version: createHash('sha256').update(JSON.stringify([targets, [...states], placeKey, usOnly, wantsUs, pr.workModels, pr.employmentTypes, [...levels]])).digest('hex').slice(0, 12),
+    targets, states, places, placeLabel: labels.join(', ') || null, usOnly, wantsUs, placeIdsOf: placeIdsWith(placeData),
     workModels: new Set(pr.workModels), employment: new Set(pr.employmentTypes), levels,
-    empty: targets.length === 0 && states.size === 0 && pr.workModels.length === 0 && pr.employmentTypes.length === 0 && levels.size === 0 && !usOnly,
+    empty: targets.length === 0 && places.length === 0 && pr.workModels.length === 0 && pr.employmentTypes.length === 0 && levels.size === 0 && !usOnly,
   };
 }
 
@@ -164,13 +245,19 @@ export function scoreRow(m: PrefModel, r: CandidateRow): Scored {
   const remote = r.work_mode === 'remote' || (r.work_mode === '' && r.remote === 1);
   const wm = r.work_mode || (r.remote === 1 ? 'remote' : '');
   let place = 0;
-  if (m.states.size) {
-    const js = statesIn(r.location);
-    const inPlace = [...js].some((s) => m.states.has(s));
-    if (inPlace && !(remote && !m.workModels.has('remote'))) { place = 1; chips.push({ kind: 'location', label: clip(`In ${m.placeLabel}`), positive: true }); }
-    else if (remote && m.workModels.has('remote') && r.is_us !== 0) { place = 1; chips.push({ kind: 'location', label: 'Remote, open in the US', positive: true }); }
+  // A remote job open in the US is a plus only for a person who wants the US (no countries chosen, or the US among
+  // them); for anyone else it is a warning (JL-onboarding-18).
+  const usRemote = (): void => {
+    if (m.wantsUs) { place = 1; chips.push({ kind: 'location', label: 'Remote, open in the US', positive: true }); }
+    else chips.push({ kind: 'location', label: 'Remote in the US; you chose other countries', positive: false });
+  };
+  if (m.places.length) {
+    const fit = placeFit(m, r.location);
+    if (fit && !(remote && !m.workModels.has('remote'))) { place = 1; chips.push({ kind: 'location', label: clip(fit.label), positive: true }); }
+    else if (remote && m.workModels.has('remote') && r.is_us !== 0) usRemote();
   } else if (m.workModels.size && [...m.workModels].every((w) => w === 'remote')) {
-    if (remote && r.is_us !== 0) { place = m.usOnly && r.is_us !== 1 ? 0.7 : 1; chips.push({ kind: 'location', label: r.is_us === 1 ? 'Remote, open in the US' : 'Remote', positive: true }); }
+    if (remote && r.is_us === 1) { if (m.wantsUs) { place = 1; chips.push({ kind: 'location', label: 'Remote, open in the US', positive: true }); } else usRemote(); }
+    else if (remote && r.is_us !== 0) { place = m.usOnly ? 0.7 : 1; chips.push({ kind: 'location', label: 'Remote', positive: true }); }
   } else if (m.usOnly) {
     if (r.is_us === 1) place = 1;
   }
@@ -199,7 +286,11 @@ export interface FeedDeps {
   jobs: JobsService;
   profile: () => Profile | null;
   h1b: () => H1bIndex | null;
+  /** The place dictionary (radius checks of the places a person wants); null when it is not available. */
+  places?: () => (FeedPlaces & PlaceDistance) | null;
 }
+
+type PlaceDistance = Parameters<typeof distanceFromPlaceIndex>[0];
 
 const TOP_MATCHED_POOL = 200;
 const EMPLOYER_CAP = 3;
@@ -324,12 +415,26 @@ export class FeedService {
     return ids;
   }
 
+  private placeData(): (FeedPlaces & PlaceDistance) | null {
+    try { return this.d.places?.() ?? null; } catch { return null; }
+  }
+
+  /** Distances from the places a person wants, measured from the chosen place (its place id), not its name alone. */
+  private distance(): ReturnType<typeof distanceFromPlaceIndex> | undefined {
+    const idx = this.placeData();
+    if (!idx) return undefined;
+    if (this.distanceFn?.idx !== idx) this.distanceFn = { idx, fn: distanceFromPlaceIndex(idx) };
+    return this.distanceFn.fn;
+  }
+  private distanceFn: { idx: PlaceDistance; fn: ReturnType<typeof distanceFromPlaceIndex> } | null = null;
+
   /** The match of one job for the profile (cached per profile version and posting content). */
   match(profile: Profile, job: Job): MatchResult | null {
     const key = `${profile.version}|${job.id}|${job.contentHash}`;
     let m = this.matches.get(key);
     if (!m) {
-      try { m = scoreMatch({ profile, job, company: null, now: nowMs() }) as MatchResult; } catch { return null; }
+      const places = profile.preferences.places.length ? this.distance() : undefined;
+      try { m = scoreMatch({ profile, job, company: null, now: nowMs(), ...(places ? { distanceMiles: places } : {}) }) as MatchResult; } catch { return null; }
       if (this.matches.size > 50_000) this.matches.clear();
       this.matches.set(key, m);
     }
@@ -359,7 +464,7 @@ export class FeedService {
   }
 
   private personal(req: JobSearchRequest, deps: SearchDeps, profile: Profile, restrict: number[] | null): { res: JobSearchResponse; ranked: Ranked } {
-    const m = prefModel(profile);
+    const m = prefModel(profile, profile.preferences.places.some((q) => q.placeId) ? this.placeData() : null);
     const { cursor, limit: _l, ...rest } = req;
     const key = createHash('sha256').update(JSON.stringify([rest, profile.version, m.version])).digest('hex').slice(0, 20);
     let offset = 0;
