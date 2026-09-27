@@ -15,6 +15,9 @@ interface EntryRow {
   resume_id: string | null; created_at: string; updated_at: string;
 }
 
+/** The applied date of a job that is an application; a job whose stage is "Not applied" has none (JL-v2-4). */
+const appliedOf = (r: EntryRow): string | null => (r.status === null ? null : r.applied_at);
+
 export interface TrackerDeps {
   jobExists: (jobId: string) => boolean;
   summary: (jobId: string) => JobSummary | null;
@@ -40,7 +43,7 @@ export class TrackerService {
       external: r.external === 1,
       status: r.status as TrackerStatus | null,
       statusHistory: history.map((h) => ({ status: h.status as TrackerStatus | null, at: h.at })),
-      appliedAt: r.applied_at,
+      appliedAt: appliedOf(r),
       resumeId: r.resume_id,
       notes: notes.map((n) => ({ id: n.id, text: n.text, createdAt: n.created_at, updatedAt: n.updated_at })),
       reminders: reminders.map((m) => ({ id: m.id, at: m.at, text: m.text, done: m.done === 1 })),
@@ -77,8 +80,10 @@ export class TrackerService {
         set.push('status = ?'); args.push(p.status);
         // Every status is a stage of an application (Interviewing, Offer, Rejected and Archived come after applying),
         // so a job moved straight to any of them gets its applied date now, as Applied does (JL-tracker-7). A date
-        // already set is kept, and moving back to "not applied" keeps it too (the status history shows both).
-        if (p.status !== null && !r.applied_at) { set.push('applied_at = ?'); args.push(now); }
+        // already set is kept; moving back to "not applied" clears it (the status history still shows both), while
+        // its notes and reminders stay (JL-v2-4).
+        if (p.status !== null && !appliedOf(r)) { set.push('applied_at = ?'); args.push(now); }
+        if (p.status === null) set.push('applied_at = NULL');
         this.db.prepare('INSERT INTO srv_tracker_history (job_id, status, at) VALUES (?, ?, ?)').run(jobId, p.status, now);
       }
       this.db.prepare(`UPDATE srv_tracker SET ${set.join(', ')} WHERE job_id = ?`).run(...args, jobId);
@@ -124,8 +129,9 @@ export class TrackerService {
     for (const r of rows) {
       const job = this.deps.summary(r.job_id);
       // Anything the person did keeps a job in the tracker: a like, a status, an applied date, a note or a reminder.
-      // (Unliking a job, or setting it back to "not applied", must never make its notes and reminders vanish.)
-      const kept = r.liked === 1 || r.status !== null || r.applied_at !== null || Number(r.has_notes) === 1 || Number(r.has_reminders) === 1;
+      // (Unliking a job, or setting it back to "not applied", must never make its notes and reminders vanish.) "Not
+      // interested" alone is not tracking, and neither is the old applied date of a job set back to "not applied".
+      const kept = r.liked === 1 || r.status !== null || appliedOf(r) !== null || Number(r.has_notes) === 1 || Number(r.has_reminders) === 1;
       const tracked = kept || r.external === 1;
       const closed = tracked && job?.status === 'closed';
       if (r.liked === 1) counts.liked++;
