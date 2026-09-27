@@ -335,3 +335,18 @@ test('JL-settings-17: a resume uploaded without a file name comes back as .pdf i
     assert.ok(file && file.endsWith('.pdf'), JSON.stringify(names));
   } finally { await s.stop(); cleanup(s.home); }
 });
+
+test('JL-settings-8: a publik Assistant answer ends with its charge (the balance drop), not costMicros null', async () => {
+  const pub = await startPublik({ balanceMicros: 250_000, chargeMicros: 1_374 });
+  const s = await startTest('pubcost', { env: { JOBLEFT_PUBLIK_APP_TOKEN: 'stand-in-app-token', JOBLEFT_PUBLIK_BASE_URL: `${pub.origin}/api/v1` } });
+  try {
+    assert.equal((await s.call('POST', '/api/v1/publik/connect', { disclosureAccepted: true, disclosureVersion: 1 })).json.state, 'connected');
+    await s.call('PUT', '/api/v1/ai/settings', { provider: 'publik' });
+    const r = await s.call('POST', '/api/v1/ai/chat', { requestId: 'req-cost', messages: [{ role: 'user', content: 'Reply with the single word: ok' }] });
+    const ev = r.text.split('\n\n').map((l) => l.trim()).filter((l) => l.startsWith('data: ')).map((l) => JSON.parse(l.slice(6)));
+    const done = ev.at(-1);
+    assert.equal(done.type, 'done', r.text);
+    assert.equal(done.costMicros, 1_374);
+    assert.equal((await s.call('GET', '/api/v1/publik')).json.wallet.balanceMicros, 250_000 - 1_374);
+  } finally { await s.stop(); await pub.close(); cleanup(s.home); }
+});

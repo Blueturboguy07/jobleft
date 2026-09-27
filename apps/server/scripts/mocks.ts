@@ -140,7 +140,7 @@ export function startAi(opts: { port?: number; logFile?: LogFiles; reply?: strin
 
 // ---------------------------------------------------------------- publik
 
-export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMicros?: number } = {}): Promise<Mock & { setBalance(m: number): void }> {
+export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMicros?: number; chargeMicros?: number } = {}): Promise<Mock & { setBalance(m: number): void }> {
   let balance = opts.balanceMicros ?? 2_000_000;
   const keys = new Set<string>();
   const m = start('publik', opts.port ?? 0, opts.logFile ?? null, async (req, res, body, url) => {
@@ -161,6 +161,8 @@ export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMi
       res.writeHead(200, { 'content-type': 'text/event-stream' });
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'publik stand-in answer' } }] })}\n\ndata: [DONE]\n\n`);
       res.end();
+      // Like publik, a streamed answer is settled after it ends: the charge shows only in the balance.
+      balance -= opts.chargeMicros ?? 0;
       return;
     }
     json(res, 404, { error: { type: 'not_found' } });

@@ -64,11 +64,22 @@ export async function assistantRoute<K extends AssistantRouteName>(c: Ctx<RouteN
   // Everything that can fail before a stream starts (no provider, offline mode, a bad address) answers as JSON here,
   // so the person sees a plain error with its status instead of a stream that only carries an error event.
   if (name === 'chat') { try { a.engine.client(); } catch (e) { throw apiFailureOf(e); } }
+  // JL-settings-8: publik states the charge of a streamed answer only in the balance, so the answer's done event gets
+  // the balance drop, read after the answer (never an estimate; unknown stays null).
+  const before = name === 'chat' ? await c.d.ai.publikBalance() : null;
   const handlers: AssistantHandlers = createAssistantHandlers(a);
   const r = await handlers[name]({ params: c.params, query: (c.query ?? {}) as unknown as Record<string, string>, body: c.body, signal: c.gone });
   if ('sse' in r) {
     const events = r.sse;
-    return { sse: async (send: (e: ChatStreamEvent) => boolean) => { for await (const e of events) if (!send(e)) break; } };
+    return {
+      sse: async (send: (e: ChatStreamEvent) => boolean) => {
+        for await (const e of events) {
+          const out = e.type === 'done' && (e.costMicros === null || e.costMicros === undefined) && before !== null
+            ? { ...e, costMicros: await c.d.ai.chargeSince(before) } : e;
+          if (!send(out)) break;
+        }
+      },
+    };
   }
   if (r.status >= 400) {
     const err = (r.json as { error?: { code?: string; message?: string; details?: unknown; link?: unknown } }).error ?? {};
