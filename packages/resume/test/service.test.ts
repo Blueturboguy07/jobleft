@@ -8,7 +8,8 @@ import { startMockAi, type MockServer } from '../scripts/mock-ai.ts';
 import { HttpAiClient } from '../src/cli/ai-client.ts';
 import { ResumeError } from '../src/errors.ts';
 import { builtinSkillDictionary } from '../src/gaps.ts';
-import { readPdf } from '../src/pdf-read.ts';
+import { pdfPlainText, readPdf } from '../src/pdf-read.ts';
+import { readZip } from '../src/zip.ts';
 import { ResumeService } from '../src/service.ts';
 import { checkDocument, checkLetter } from '../src/truth.ts';
 import { J_FIT, J_GAP, J_INJECT, jordanProfile, read, tempDir } from './helpers.ts';
@@ -246,6 +247,34 @@ test('the person\'s own edits always save: an unchanged upload, a one-character 
     const d = structuredClone(s.svc.get(mine.id)!.document);
     d.header = { ...d.header, email: 'someone.else@example.com' };
     assert.equal(s.svc.update(mine.id, { document: d }).document.header.email, thin.personal.email);
+  } finally { s.done(); }
+});
+
+test('both exports and the readability grade follow the edited upload; the original file is offered on its own (JL-resume-6, JL-resume-15)', async () => {
+  const s = setup();
+  try {
+    const bytes = read('jordan-two-column.pdf');
+    const { resume } = await s.svc.import(bytes, 'jordan-two-column.pdf', 'application/pdf');
+    const before = await s.svc.atsCheck(resume.id);
+    const doc = structuredClone(s.svc.get(resume.id)!.document);
+    doc.sections.find((x) => x.kind === 'summary')!.text = 'Backend software engineer. Builds APIs and data pipelines. EDITED-MARKER.';
+    doc.sections = doc.sections.filter((x) => x.kind !== 'projects');
+    s.svc.update(resume.id, { document: doc });
+    const pdf = await s.svc.export(resume.id, 'pdf');
+    assert.notDeepEqual(Buffer.from(pdf.bytes), Buffer.from(bytes), 'the PDF is rendered, not the upload');
+    const pdfText = pdfPlainText(await readPdf(pdf.bytes));
+    const docx = await s.svc.export(resume.id, 'docx');
+    const docxText = readZip(docx.bytes).text('word/document.xml');
+    for (const t of [pdfText, docxText]) { assert.match(t, /EDITED-MARKER/); assert.doesNotMatch(t, /Ledger Lite/); }
+    const orig = await s.svc.export(resume.id, 'original');
+    assert.deepEqual(Buffer.from(orig.bytes), Buffer.from(bytes), 'the original file, byte for byte');
+    assert.equal(orig.fileName, 'jordan-two-column.pdf');
+    const after = await s.svc.atsCheck(resume.id);
+    assert.equal(after.fileSha256, (await import('node:crypto')).createHash('sha256').update(pdf.bytes).digest('hex'), 'the grade is for the exported PDF');
+    assert.notEqual(after.fileSha256, before.fileSha256);
+    assert.ok(!after.findings.some((f) => f.rule === 'multi_column'), 'the rendered PDF is one column, so the two-column finding is gone');
+    const made = s.svc.create({ name: 'From profile' });
+    await assert.rejects(s.svc.export(made.id, 'original'), (e: unknown) => e instanceof ResumeError && e.code === 'not_found');
   } finally { s.done(); }
 });
 

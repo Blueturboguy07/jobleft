@@ -705,6 +705,7 @@ export const HANDLERS: Partial<Record<RouteName, Handler>> = {
   exportResume: ({ state, params, query }) => {
     const r = resumeOr404(state, params.resumeId!);
     const base = r.name.replace(/[^\w.-]+/g, '_');
+    if (query.format === 'original') throw fail('not_found', 404, 'This stand-in keeps no uploaded files.');
     if (query.format === 'docx') return file(`${base}.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', renderDocx(r.document));
     return file(`${base}.pdf`, 'application/pdf', renderPdf(r.document).bytes);
   },

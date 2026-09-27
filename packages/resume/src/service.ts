@@ -356,17 +356,18 @@ export class ResumeService {
     return { fitsOnePage: fit.leftOut.length === 0, leftOut: fit.leftOut };
   }
 
-  async export(resumeId: string, format: 'pdf' | 'docx'): Promise<ExportedFile> {
+  /**
+   * The PDF and the Word file always hold what the editor shows (an edited upload exports as edited, and both files
+   * say the same, JL-resume-6). "original" is the uploaded file itself, byte for byte.
+   */
+  async export(resumeId: string, format: 'pdf' | 'docx' | 'original'): Promise<ExportedFile> {
     const { row, doc } = this.#doc(resumeId);
-    // An uploaded resume that was never edited comes back as the person's own file, byte for byte, when the format
-    // matches. Anything edited or tailored is rendered from the document.
-    if (row.kind === 'base' && row.version === 1 && row.file_json) {
+    if (format === 'original') {
       const file = parse<{ fileName?: string; mimeType?: string }>(row.file_json);
-      const path = join(this.#o.filesDir, `${row.id}.${format}`);
-      const mime = format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      if (file?.mimeType === mime && existsSync(path)) {
-        return { fileName: file.fileName || `${row.id}.${format}`, mimeType: mime, bytes: new Uint8Array(readFileSync(path)), leftOut: [] };
-      }
+      const ext = file?.mimeType === 'application/pdf' ? 'pdf' : file?.mimeType?.includes('wordprocessingml') ? 'docx' : 'txt';
+      const path = join(this.#o.filesDir, `${row.id}.${ext}`);
+      if (!file || !existsSync(path)) throw new ResumeError('not_found', 'This resume was not made from an uploaded file, so there is no original file to download.');
+      return { fileName: file.fileName || `${row.id}.${ext}`, mimeType: file.mimeType || 'application/octet-stream', bytes: new Uint8Array(readFileSync(path)), leftOut: [] };
     }
     const base = safeFileName(`${doc.header.name || 'Resume'}_${row.kind === 'tailored' ? (parse<{ company: string }>(row.job_label_json)?.company ?? 'job') : row.name}`);
     if (format === 'pdf') {
@@ -377,6 +378,7 @@ export class ResumeService {
     return { fileName: `${base}.docx`, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', bytes: r.bytes, leftOut: r.leftOut };
   }
 
+  /** Grades the PDF the resume exports to now, so the grade follows the text in the editor (JL-resume-15). */
   async atsCheck(resumeId: string): Promise<AtsReport> {
     const file = await this.export(resumeId, 'pdf');
     const rep = await atsCheckPdf(file.bytes);

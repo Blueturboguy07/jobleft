@@ -139,7 +139,7 @@ export function ResumeScreen() {
       if (key === 'open') navigate(`resume/${encodeURIComponent(r.id)}`);
       if (key === 'primary') { await call('updateResume', { params: { resumeId: r.id }, body: { isPrimary: true } }); invalidate('resumes'); ui.message?.success(`"${r.name}" is now your primary resume.`); }
       if (key === 'rename') { setRenaming(r); setRn({ name: r.name, target: r.targetTitle ?? '' }); }
-      if (key === 'pdf' || key === 'docx') { const f = await download('exportResume', { params: { resumeId: r.id }, query: { format: key } }); ui.message?.success(`Saved ${f} to your Downloads.`); }
+      if (key === 'pdf' || key === 'docx' || key === 'original') { const f = await download('exportResume', { params: { resumeId: r.id }, query: { format: key } }); ui.message?.success(`Saved ${f} to your Downloads.`); }
       if (key === 'delete') {
         const versions = (list.data ?? []).filter((x) => x.baseResumeId === r.id);
         const ok = await ui.modal?.confirm({
@@ -204,6 +204,7 @@ export function ResumeScreen() {
                         { key: 'rename', label: 'Rename and target title' },
                         { key: 'pdf', label: 'Export as PDF' },
                         { key: 'docx', label: 'Export as Word' },
+                        ...(r.file ? [{ key: 'original', label: 'Download the original file (as uploaded)' }] : []),
                         { type: 'divider' },
                         { key: 'delete', label: 'Delete', danger: true },
                       ],

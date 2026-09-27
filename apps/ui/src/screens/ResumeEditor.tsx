@@ -162,10 +162,11 @@ export function ResumeEditor({ id }: { id: string }) {
           {res.kind === 'tailored' && <Tag>Tailored version</Tag>}
           <span style={{ marginLeft: 'auto' }} />
           <Button shape="round" icon={<SafetyCertificateOutlined />} loading={busy === 'ats'} onClick={() => { void ats(); }}>Check readability</Button>
-          <Dropdown trigger={['click']} menu={{ items: [{ key: 'pdf', label: 'One-page PDF' }, { key: 'docx', label: 'Word (.docx)' }], onClick: async ({ key }) => {
-            if (dirty) { ui.message?.info('Save your changes first.'); return; }
+          <Dropdown trigger={['click']} menu={{ items: [{ key: 'pdf', label: 'One-page PDF' }, { key: 'docx', label: 'Word (.docx)' }, ...(res.file ? [{ key: 'original', label: 'Original file (as uploaded, without your edits)' }] : [])], onClick: async ({ key }) => {
+            if (dirty && key !== 'original') { ui.message?.info('Save your changes first.'); return; }
             try {
-              const f = await download('exportResume', { params: { resumeId: id }, query: { format: key as 'pdf' | 'docx' } });
+              const f = await download('exportResume', { params: { resumeId: id }, query: { format: key as 'pdf' | 'docx' | 'original' } });
+              if (key === 'original') { ui.message?.success(`Saved ${f} to your Downloads.`); return; }
               if (cuts.length) ui.message?.warning(`Saved ${f} to your Downloads. To fit one page it leaves out ${plural(cuts.length, 'item')}; the list is above.`);
               else ui.message?.success(`Saved ${f} to your Downloads.`);
             } catch (e) { ui.message?.error((e as UiError).message); }
