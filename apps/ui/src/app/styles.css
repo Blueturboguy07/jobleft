@@ -325,9 +325,11 @@ button.jl-kpi:hover { box-shadow: inset 0 0 0 1px #9AA0A6; }
 
 /* toasts sit at the bottom of the window, so they never cover the controls at the top (filters, actions, tabs) */
 .ant-message { top: auto !important; bottom: 20px; }
-/* A message never swallows a click on what it covers ("Note saved." over "Add reminder"); its own buttons still work. */
-.ant-message, .ant-message-notice, .ant-message-notice-content { pointer-events: none; }
-.ant-message button, .ant-message a { pointer-events: auto; }
+/* A message never swallows a click on what it covers ("Note saved." over "Add reminder"); its own buttons still work.
+   !important: Ant Design sets "pointer-events: all" on the message box with a longer selector, which beat a plain rule
+   (JL-tracker-8: the click on "Add reminder" landed on the icon of the "Note saved." message). */
+.ant-message, .ant-message * { pointer-events: none !important; }
+.ant-message button, .ant-message button *, .ant-message a, .ant-message a * { pointer-events: auto !important; }
 
 /* jumps inside the detail (Company tab, "See why") stop below the sticky action bar and tabs, and never move the window shell */
 .jl-detail-sec, #sec-company-anchor { scroll-margin-top: 112px; }

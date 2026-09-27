@@ -59,3 +59,13 @@ test('a reminder time in the past is refused with a plain reason (JL-tracker-9)'
   assert.equal(reminderTimeProblem(local(NOW + 3600_000), NOW), null);
   assert.match(reminderTimeProblem('', NOW) ?? '', /Pick/);
 });
+
+test('a message never takes a click meant for what it covers (JL-tracker-8)', async () => {
+  // Ant Design gives the message box "pointer-events: all" with a three-class selector; only an !important rule on
+  // the message and everything in it wins over that. Checked in headless Chrome: with it, a click at "Add reminder"
+  // under "Note saved." lands and the reminder is saved; without it, the click hits the message.
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../src/app/styles.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(css, /\.ant-message,\s*\.ant-message \*\s*\{\s*pointer-events:\s*none\s*!important;?\s*\}/);
+  assert.doesNotMatch(css, /\.ant-message[^{]*\{[^}]*pointer-events:\s*(?:all|auto)(?!\s*!important)/, 'no plain rule may turn clicks back on inside a message');
+});
