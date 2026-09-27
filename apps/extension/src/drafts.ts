@@ -16,7 +16,17 @@ function listOf(items: string[]): string {
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
-/** One draft for one open question. Empty string when the profile has too few facts to say anything true. */
+/** A blank the person fills in: the draft says what goes there and never makes it up. */
+function blank(what: string): string {
+  return `[${what}]`;
+}
+
+/**
+ * One draft for one open question, from profile facts only. Where the answer needs something the profile does not
+ * hold (why this company, which project), the draft is a short frame with [blanks] that say what to write. A
+ * question the profile facts do not answer gets no draft (empty string): the panel says to write it yourself.
+ * Empty string too when the profile has too few facts to say anything true.
+ */
 export function templateDraft(field: FormField, profile: Profile, job: DraftJob | null): string {
   const q = words(field.label);
   const current = profile.work.find((w) => w.current) ?? null;
@@ -39,20 +49,30 @@ export function templateDraft(field: FormField, profile: Profile, job: DraftJob 
 
   const role = job?.title ? `the ${job.title} role` : 'this role';
   const at = job?.company ? ` at ${job.company}` : '';
+  // Skills alone are not "experience".
+  const bring = recent || edu ? `I would like to bring this experience to ${role}${at}.` : `I would like to use these skills in ${role}${at}.`;
+  const why = blank(`Say what draws you to ${job?.company ?? 'this company'} and to this role.`);
   if (/\bcover letter\b/.test(q)) {
-    return [`I am applying for ${role}${at}.`, ...parts, `I would like to bring this experience to ${role}${at}.`].join(' ');
+    return [`I am applying for ${role}${at}.`, why, ...parts, bring].join(' ');
   }
   if (/\bwhy\b|\binterest|\bexcite|\bmotivat|\bwant to (work|join)\b/.test(q)) {
-    return [...parts, `I would like to bring this experience to ${role}${at}.`].join(' ');
+    return [why, ...parts, bring].join(' ');
   }
-  if (/\bproject\b/.test(q) && profile.projects[0]) {
+  if (/\bproject\b/.test(q)) {
     const pr = profile.projects[0];
-    return [`One project I worked on is ${pr.name}.`, pr.description ?? '', ...parts.slice(0, 1)].filter(Boolean).join(' ');
+    if (pr) return [`One project I worked on is ${pr.name}.`, pr.description ?? '', ...parts.slice(0, 1)].filter(Boolean).join(' ');
+    // No project in the profile: a frame, never a made-up project.
+    const tools = skills.length ? ` (your profile lists ${listOf(skills)})` : '';
+    return [`One project I am proud of is ${blank('name the project')}.`, blank(`Say what you built and your part in it, with the tools you used${tools}.`), blank('Say what came of it.')].join(' ');
   }
-  if (/\babout (yourself|you)\b|\bintroduce\b|\bbackground\b|\bsummary\b/.test(q) && profile.summary) {
-    return [profile.summary, ...parts.slice(1)].join(' ');
+  if (/\babout (yourself|you)\b|\bintroduce\b|\bbackground\b|\bsummary\b/.test(q)) {
+    return profile.summary ? [profile.summary, ...parts.slice(1)].join(' ') : parts.join(' ');
   }
-  return parts.join(' ');
+  if (/\bfit\b|\bqualif|\bstrength|\bexperience\b|\bskills?\b|\bstand out\b|\bhire you\b/.test(q)) {
+    return [...parts, blank('Say how this matches what the role asks for.')].join(' ');
+  }
+  // Any other question: profile facts do not answer it. No draft; the panel says to write it yourself.
+  return '';
 }
 
 /** Words a draft must never contain: the person's own contact details. Used by the stand-in and in tests. */

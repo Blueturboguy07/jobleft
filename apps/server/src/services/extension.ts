@@ -192,7 +192,7 @@ export class ExtensionService {
     const skipped = req.fields.filter((f) => !open.includes(f)).map((f) => ({ fieldId: f.fieldId, message: 'This is not an open question, so jobleft does not draft it.' }));
     const drafts = this.makeDrafts(open, profile);
     for (const f of open) {
-      if (!drafts.some((x) => x.fieldId === f.fieldId)) skipped.push({ fieldId: f.fieldId, message: 'Your profile has too few facts for a true draft.' });
+      if (!drafts.some((x) => x.fieldId === f.fieldId)) skipped.push({ fieldId: f.fieldId, message: 'jobleft cannot write a true draft of this answer from your profile. Write this one yourself.' });
     }
     return { drafts, costMicros: 0, balanceMicros: null, skipped };
   }
