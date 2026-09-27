@@ -140,8 +140,12 @@ export function startAi(opts: { port?: number; logFile?: LogFiles; reply?: strin
 
 // ---------------------------------------------------------------- publik
 
-export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMicros?: number } = {}): Promise<Mock & { setBalance(m: number): void }> {
+export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMicros?: number; holdMicros?: number; priceMicros?: number; walletDelayMs?: number } = {}): Promise<Mock & { setBalance(m: number): void; balance(): number }> {
   let balance = opts.balanceMicros ?? 2_000_000;
+  // Like the real gateway: a streamed answer's headers carry the balance minus a temporary hold; the charge settles
+  // when the answer ends (holdMicros and priceMicros, both 0 by default).
+  const hold = opts.holdMicros ?? 0;
+  const price = opts.priceMicros ?? 0;
   const keys = new Set<string>();
   const m = start('publik', opts.port ?? 0, opts.logFile ?? null, async (req, res, body, url) => {
     const auth = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
@@ -154,16 +158,21 @@ export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMi
       return;
     }
     if (!keys.has(auth)) { json(res, 401, { error: { type: 'invalid_key' } }); return; }
-    if (url.pathname === '/api/v1/wallet' && req.method === 'GET') { json(res, 200, wallet()); return; }
+    if (url.pathname === '/api/v1/wallet' && req.method === 'GET') {
+      // walletDelayMs: a slow balance read, as over the internet (the app must not show an older balance meanwhile)
+      if (opts.walletDelayMs) await new Promise((r) => setTimeout(r, opts.walletDelayMs));
+      json(res, 200, wallet()); return;
+    }
     if (url.pathname === '/api/v1/installs/revoke' && req.method === 'POST') { keys.delete(auth); json(res, 200, { revoked: true }); return; }
     if (url.pathname === '/api/v1/chat/completions' && req.method === 'POST') {
       if (balance <= 0) { json(res, 402, { error: { type: 'insufficient_balance', available_micros: balance, top_up_url: 'https://publikhq.com/claim/stand-in' } }); return; }
-      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.writeHead(200, { 'content-type': 'text/event-stream', ...(hold ? { 'x-publik-balance': String(balance - hold) } : {}) });
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'publik stand-in answer' } }] })}\n\ndata: [DONE]\n\n`);
+      balance -= price;
       res.end();
       return;
     }
     json(res, 404, { error: { type: 'not_found' } });
   });
-  return m.then((x) => ({ ...x, setBalance: (v: number) => { balance = v; } }));
+  return m.then((x) => ({ ...x, setBalance: (v: number) => { balance = v; }, balance: () => balance }));
 }

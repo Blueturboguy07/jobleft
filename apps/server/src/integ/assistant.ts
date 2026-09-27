@@ -68,7 +68,16 @@ export async function assistantRoute<K extends AssistantRouteName>(c: Ctx<RouteN
   const r = await handlers[name]({ params: c.params, query: (c.query ?? {}) as unknown as Record<string, string>, body: c.body, signal: c.gone });
   if ('sse' in r) {
     const events = r.sse;
-    return { sse: async (send: (e: ChatStreamEvent) => boolean) => { for await (const e of events) if (!send(e)) break; } };
+    return {
+      sse: async (send: (e: ChatStreamEvent) => boolean) => {
+        for await (const e of events) {
+          // A paid answer's balance is read again in the background once it ends. Wait for that before "done", so the
+          // balance chip, which re-reads on "done", shows the balance after the charge (JL-tracker-14).
+          if (e.type === 'done') { try { await a.engine.idle(); } catch { /* the balance keeps its last value */ } }
+          if (!send(e)) break;
+        }
+      },
+    };
   }
   if (r.status >= 400) {
     const err = (r.json as { error?: { code?: string; message?: string; details?: unknown; link?: unknown } }).error ?? {};
