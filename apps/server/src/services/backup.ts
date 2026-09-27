@@ -100,6 +100,7 @@ export async function createBackup(d: AppData, l: HomeLayout): Promise<{ path: s
     try {
       s.exec('PRAGMA secure_delete = ON; PRAGMA temp_store = MEMORY;');
       if (hasTable(s, 'pairings')) s.exec('DELETE FROM pairings');
+      if (hasTable(s, 'srv_kv')) stripComputerState(s);
       s.exec('PRAGMA journal_mode = DELETE');
       s.exec('VACUUM');
       counts = countsOf(s);
@@ -132,6 +133,18 @@ export async function createBackup(d: AppData, l: HomeLayout): Promise<{ path: s
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
+}
+
+/**
+ * What belongs to this computer, not to the person's records (JL-settings-14, -15): the publik connection (its
+ * install id, claim link and last balance, which let whoever holds them reach that account) and the hints of the AI
+ * keys in this computer's secret store. A backup carries neither; a restore keeps this computer's own.
+ */
+const COMPUTER_KV = { publik: 'ai:ai.publik', engine: 'ai:ai.engine' } as const;
+
+function stripComputerState(db: DatabaseSync): void {
+  db.prepare('DELETE FROM srv_kv WHERE key = ?').run(COMPUTER_KV.publik);
+  db.prepare("UPDATE srv_kv SET value = json_set(value, '$.keyHints', json('{}')) WHERE key = ? AND json_valid(value)").run(COMPUTER_KV.engine);
 }
 
 function reject(message: string): ApiFailure {
@@ -222,6 +235,9 @@ export async function restoreBackup(app: App, upload: string): Promise<Record<st
   const pairingRows = app.data
     ? app.data.db.prepare('SELECT * FROM pairings').all() as Array<Record<string, string | null>>
     : [];
+  // This computer's publik connection and AI key hints stay as they are (the keys are in this computer's secret store).
+  const ownPublik = app.data ? app.data.kv.get<unknown>(COMPUTER_KV.publik) : null;
+  const ownHints = app.data ? app.data.kv.get<{ keyHints?: Record<string, string | null> }>(COMPUTER_KV.engine)?.keyHints ?? {} : {};
   const aside = join(l.tmp, tmpName('pre-restore'));
   const journal = join(l.run, 'restore-journal.json');
   let counts: Record<string, number> = {};
@@ -242,10 +258,13 @@ export async function restoreBackup(app: App, upload: string): Promise<Record<st
       try {
         const ins = probe.db.prepare(`INSERT OR REPLACE INTO pairings (extension_id, token_hash, browser, extension_version, paired_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)`);
         for (const r of pairingRows) ins.run(r.extension_id, r.token_hash, r.browser, r.extension_version, r.paired_at, r.last_seen_at);
-        // Keys never travel in a backup, so the restored AI state must not say a key is set (its hints are dropped;
-        // the person saves the key again on this computer).
-        const aiState = probe.kv.get<{ keyHints?: Record<string, string | null> }>('ai:ai.engine');
-        if (aiState && aiState.keyHints && Object.keys(aiState.keyHints).length) probe.kv.set('ai:ai.engine', { ...aiState, keyHints: {} });
+        // Keys never travel in a backup: the restored AI state says a key is set only for the keys this computer's
+        // secret store holds (its own hints), and the publik connection is this computer's own, never the backup's
+        // (an older backup may still carry one).
+        const aiState = probe.kv.get<Record<string, unknown>>(COMPUTER_KV.engine);
+        if (aiState || Object.keys(ownHints).length) probe.kv.set(COMPUTER_KV.engine, { ...(aiState ?? {}), keyHints: ownHints });
+        if (ownPublik) probe.kv.set(COMPUTER_KV.publik, ownPublik);
+        else probe.kv.delete(COMPUTER_KV.publik);
         counts = countsOf(probe.db);
       } finally { await probe.close(); }
     } catch (e) {

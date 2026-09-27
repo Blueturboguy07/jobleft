@@ -389,7 +389,7 @@ function DataTab() {
     try { const f = await download(name); ui.message?.success(`Saved ${f} to your Downloads.`); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   const restore = async (f: File) => {
-    const ok = await ui.modal?.confirm({ title: 'Restore this backup?', content: 'Your current data is replaced by the data in the backup. A damaged or foreign file is refused and nothing changes.', okText: 'Restore', okButtonProps: { shape: 'round' }, cancelButtonProps: { shape: 'round' } });
+    const ok = await ui.modal?.confirm({ title: 'Restore this backup?', content: "Your current data is replaced by the data in the backup. This Mac's saved AI keys and publik connection stay as they are. A damaged or foreign file is refused and nothing changes.", okText: 'Restore', okButtonProps: { shape: 'round' }, cancelButtonProps: { shape: 'round' } });
     if (!ok) return;
     setBusy('restore'); setErr(null);
     try {
@@ -428,7 +428,7 @@ function DataTab() {
           <Button shape="round" icon={<DownloadOutlined />} loading={busy === 'exportAll'} onClick={() => { void dl('exportAll'); }}>Export all my data (readable files)</Button>
           <Button shape="round" icon={<DownloadOutlined />} loading={busy === 'exportJobs'} onClick={() => { void dl('exportJobs'); }}>Export saved jobs</Button>
         </Space>
-        <p className="jl-small jl-muted" style={{ margin: 0 }}>Backups and exports never include keys or tokens.</p>
+        <p className="jl-small jl-muted" style={{ margin: 0 }}>Backups and exports never include keys, tokens or your publik connection. A restore keeps this Mac's own.</p>
       </Panel>
       <Panel title="Shipped data" desc="Data that comes with jobleft. It is used on this Mac; lookups never leave it.">
         <Table size="small" rowKey="id" dataSource={datasets.data ?? []} pagination={false}
