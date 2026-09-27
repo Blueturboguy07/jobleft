@@ -32,10 +32,11 @@ export function isAlive(pid: number): boolean {
 /** Elapsed seconds of a process from `ps -o etime=` ([[dd-]hh:]mm:ss), or null when unknown. */
 function processAgeSeconds(pid: number): number | null {
   if (process.platform === 'win32') {
-    // No ps on Windows: PowerShell reports the process start time (only consulted when a lock file exists).
+    // No ps on Windows: PowerShell reports the process start time (only consulted when a lock file exists, so its
+    // cold start, up to ten seconds on a fresh machine, is paid rarely). stdin is closed on purpose: PowerShell waits
+    // on an open pipe. The answer is an integer (ms since the epoch).
     try {
-      // stdin is closed on purpose: PowerShell waits on an open pipe. The answer is an integer (ms since the epoch).
-      const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `([DateTimeOffset](Get-Process -Id ${pid}).StartTime).ToUnixTimeMilliseconds()`], { encoding: 'utf8', timeout: 8000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', `([DateTimeOffset](Get-Process -Id ${pid}).StartTime).ToUnixTimeMilliseconds()`], { encoding: 'utf8', timeout: 30000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
       const start = Number.parseInt(out, 10);
       if (!Number.isFinite(start) || start <= 0) return null;
       return Math.max(0, Math.round((Date.now() - start) / 1000));

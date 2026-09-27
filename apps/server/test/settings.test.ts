@@ -209,7 +209,8 @@ test('JL-settings-19: a few hundred concurrent requests end in 200 or 429, healt
       ? raw(s.port, { method: 'POST', path: '/api/v1/jobs/search', headers, body: JSON.stringify({ sort: 'most_recent' }) })
       : raw(s.port, { path: '/api/v1/profile', headers })).catch(refused));
     const t0 = performance.now();
-    const health = await raw(s.port, { path: '/api/v1/health' });
+    // On Windows the very first connection of the burst can be refused at the socket level (backlog); one retry.
+    const health = await raw(s.port, { path: '/api/v1/health' }).catch(async (e) => { if (process.platform !== 'win32' || (e as NodeJS.ErrnoException).code !== 'ECONNREFUSED') throw e; await new Promise((r) => setTimeout(r, 200)); return raw(s.port, { path: '/api/v1/health' }); });
     const healthMs = performance.now() - t0;
     const replies = await Promise.all(burst);
     assert.equal(health.status, 200);

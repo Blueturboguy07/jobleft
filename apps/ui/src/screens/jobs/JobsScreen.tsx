@@ -58,7 +58,8 @@ export function JobsScreen({ tab, detailId }: { tab: JobsTab | null; detailId: s
   const shownId = useRef<string | null>(null);
   if (detailId !== shownId.current) {
     const prev = previousRoute();
-    if (detailId && !shownId.current) from.current = prev && !/^jobs(\/|$)/.test(prev) && prev !== 'onboarding' ? prev : null;
+    // The screen to return to on close: never the jobs list itself, onboarding, or the launch address with the token.
+    if (detailId && !shownId.current) from.current = prev && !/^jobs(\/|$)/.test(prev) && prev !== 'onboarding' && !/(^|[?&])token=/.test(prev) ? prev : null;
     if (!detailId) from.current = null;
     shownId.current = detailId;
   }

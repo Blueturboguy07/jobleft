@@ -85,7 +85,8 @@ function listen(server: Server, port: number): Promise<number | null> {
     const onListening = () => { server.off('error', onError); resolve((server.address() as AddressInfo).port); };
     server.once('error', onError);
     server.once('listening', onListening);
-    server.listen({ host: '127.0.0.1', port, exclusive: true });
+    // A deep backlog: Windows refuses connections past it instead of queueing them (a burst from the app's own screens).
+    server.listen({ host: '127.0.0.1', port, exclusive: true, backlog: 1024 });
   });
 }
 
