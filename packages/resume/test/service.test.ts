@@ -411,6 +411,20 @@ test('paid steps carry their cost; an empty balance stops the step with the top-
   } finally { db.close(); t.done(); await paid.close(); }
 });
 
+test('an answer cut short is not used, and the message says what the provider still charged (JL-resume-27)', async () => {
+  const paid = await startMockAi({ mode: 'truncated', balanceMicros: 50_000 });
+  const t = tempDir('jl-resume-cut');
+  const db = new DatabaseSync(':memory:');
+  const client = new HttpAiClient({ provider: 'publik', baseUrl: paid.url, model: 'publik-fast', key: 'pk_test_stand_in', timeoutMs: 5000 });
+  const svc = new ResumeService({ db, filesDir: t.dir, profile: () => jordanProfile(), job: (id) => (id === J_FIT().id ? J_FIT() : null), ai: () => client, skills: builtinSkillDictionary() });
+  try {
+    const base = svc.create({ name: 'Base' });
+    await assert.rejects(svc.tailor(base.id, J_FIT().id), (e: unknown) => e instanceof ResumeError && e.code === 'provider_error'
+      && /cut short/.test(e.message) && /still charged <\$0\.01/.test(e.message) && (e.details as { costMicros: number }).costMicros === 2100 && !/credit/i.test(e.message));
+    assert.equal(svc.list().filter((r) => r.kind === 'tailored').length, 0);
+  } finally { db.close(); t.done(); await paid.close(); }
+});
+
 test('a local model gets resume text only for AI steps; import and export send nothing', async () => {
   const s = setup({ ai: 'mock' });
   try {

@@ -36,3 +36,23 @@ test('an upload keeps the file\'s summary and skills, saves unchanged or edited,
     assert.equal(back.updatedAt, edited.json.updatedAt, 'no silent "Last changed"');
   } finally { await s.stop(); cleanup(s.home); }
 });
+
+test('a tailoring step publik charged but cut short says what it cost, in dollars (JL-resume-27)', async () => {
+  const { startPublik } = await import('../scripts/mocks.ts');
+  const pub = await startPublik({ balanceMicros: 146_198, chargeMicros: 13_600, finishReason: 'length' });
+  const s = await startTest('resume-cost', { env: { JOBLEFT_PUBLIK_APP_TOKEN: 'stand-in-app-token', JOBLEFT_PUBLIK_BASE_URL: `${pub.origin}/api/v1` } });
+  try {
+    assert.equal((await s.call('POST', '/api/v1/publik/connect', { disclosureAccepted: true, disclosureVersion: 1 })).status, 200);
+    assert.equal((await s.call('PUT', '/api/v1/ai/settings', { provider: 'publik' })).status, 200);
+    assert.equal((await s.call('PUT', '/api/v1/profile', PERSONA)).status, 200);
+    const job = await s.call('POST', '/api/v1/jobs/external', { text: 'Data Analyst at Acme\nCompany: Acme\nSQL, Python and dashboards.', applyUrl: 'https://example.com/a' });
+    assert.equal(job.status, 200, job.text);
+    const up = await s.call('POST', '/api/v1/resumes/import', PDF, upload);
+    const r = await s.call('POST', `/api/v1/resumes/${up.json.resume.id}/tailor`, { jobId: job.json.job.id });
+    assert.equal(r.status, 502, r.text);
+    assert.match(r.json.error.message, /cut short/);
+    assert.match(r.json.error.message, /This step still cost \$0\.01 from your publik balance\./);
+    assert.doesNotMatch(r.json.error.message, /credit/i);
+    assert.equal(r.json.error.details.costMicros, 13_600);
+  } finally { await s.stop(); await pub.close(); cleanup(s.home); }
+});

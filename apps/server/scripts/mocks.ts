@@ -140,7 +140,7 @@ export function startAi(opts: { port?: number; logFile?: LogFiles; reply?: strin
 
 // ---------------------------------------------------------------- publik
 
-export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMicros?: number } = {}): Promise<Mock & { setBalance(m: number): void }> {
+export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMicros?: number; chargeMicros?: number; reply?: string; finishReason?: string } = {}): Promise<Mock & { setBalance(m: number): void }> {
   let balance = opts.balanceMicros ?? 2_000_000;
   const keys = new Set<string>();
   const m = start('publik', opts.port ?? 0, opts.logFile ?? null, async (req, res, body, url) => {
@@ -158,8 +158,12 @@ export function startPublik(opts: { port?: number; logFile?: LogFiles; balanceMi
     if (url.pathname === '/api/v1/installs/revoke' && req.method === 'POST') { keys.delete(auth); json(res, 200, { revoked: true }); return; }
     if (url.pathname === '/api/v1/chat/completions' && req.method === 'POST') {
       if (balance <= 0) { json(res, 402, { error: { type: 'insufficient_balance', available_micros: balance, top_up_url: 'https://publikhq.com/claim/stand-in' } }); return; }
+      // Each answer costs chargeMicros (default nothing), shown only in the balance, like a streamed publik answer.
+      balance = Math.max(0, balance - (opts.chargeMicros ?? 0));
       res.writeHead(200, { 'content-type': 'text/event-stream' });
-      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'publik stand-in answer' } }] })}\n\ndata: [DONE]\n\n`);
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: opts.reply ?? 'publik stand-in answer' } }] })}\n\n`);
+      if (opts.finishReason) res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: opts.finishReason }] })}\n\n`);
+      res.write('data: [DONE]\n\n');
       res.end();
       return;
     }
