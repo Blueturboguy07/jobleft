@@ -107,3 +107,31 @@ test('JL-feed-11: a hidden job leaves the results and the count at once, stays o
   assert.equal(back.total, 16);
   assert.ok(back.items.some((it) => it.job.id === victim));
 });
+
+test('JL-feed-2: a country filter matches the job\'s own country; unknown places and other countries never match', async () => {
+  const ids = async (filter: Record<string, unknown>) => (await all({ sort: 'most_recent', filter }, 100)).items.map((it) => it.job.id).sort();
+  assert.deepEqual(await ids({ countries: ['CA'] }), ['greenhouse:smallco:203']);
+  assert.deepEqual(await ids({ countries: ['GB'] }), ['greenhouse:smallco:204']);
+  assert.deepEqual(await ids({ countries: ['SG'] }), ['greenhouse:smallco:205']);
+  assert.deepEqual(await ids({ countries: ['DE'] }), []);
+  assert.deepEqual(await ids({ countries: ['CA', 'GB'] }), ['greenhouse:smallco:203', 'greenhouse:smallco:204']);
+  // The United States keeps its rule (is_us): the twelve US jobs, none of the others.
+  const us = await ids({ countries: ['US'] });
+  assert.equal(us.length, 12);
+  assert.ok(!us.some((id) => ['greenhouse:smallco:203', 'greenhouse:smallco:204', 'greenhouse:smallco:205', 'greenhouse:smallco:206'].includes(id)));
+  // A job with no place counts only when the person asks for unknown places.
+  assert.deepEqual(await ids({ countries: ['CA'], includeUnknown: ['place'] }), ['greenhouse:smallco:203', 'greenhouse:smallco:206']);
+  // The same in the personal order (a profile exists): totals agree.
+  const personal = await all({ sort: 'recommended', filter: { countries: ['CA'] } });
+  assert.equal(personal.total, 1);
+});
+
+test('JL-feed-7: role type uses the stated level; industry and company stage (no facts in this build) match nothing', async () => {
+  const ic = (await all({ sort: 'most_recent', filter: { roleTypes: ['ic'] } }, 100)).items;
+  const mgr = (await all({ sort: 'most_recent', filter: { roleTypes: ['manager'] } }, 100)).items;
+  assert.ok(ic.length > 0, 'individual contributors are found');
+  for (const it of ic) assert.ok(['intern', 'entry', 'mid', 'senior', 'staff', 'principal'].includes(it.job.level), `${it.job.title}: ${it.job.level}`);
+  for (const it of mgr) assert.ok(['manager', 'director', 'vp', 'exec'].includes(it.job.level), `${it.job.title}: ${it.job.level}`);
+  assert.equal((await all({ sort: 'most_recent', filter: { industries: ['Software'] } })).total, 0);
+  assert.equal((await all({ sort: 'most_recent', filter: { companyStages: ['public'] } })).total, 0);
+});

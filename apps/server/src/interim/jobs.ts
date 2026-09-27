@@ -64,6 +64,24 @@ const EMPLOYMENT_SET = new Set<string>((EmploymentTypeSchema.enum ?? []) as read
 const CLOSED_REASONS = new Set(['unseen', 'board_empty', 'source_removed', 'user']);
 const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 const ATS_LABEL: Record<string, string> = { greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workable: 'Workable', recruitee: 'Recruitee', personio: 'Personio' };
+/**
+ * Remote areas (RemoteScope.regions) that include a country: a job "Remote - EMEA" is open to people in Germany.
+ * WORLDWIDE includes every country.
+ */
+const AREAS_OF_COUNTRY: Record<string, string[]> = {
+  CA: ['NA'], MX: ['NA', 'LATAM'], GB: ['EMEA'], IE: ['EU', 'EMEA'], DE: ['EU', 'EMEA'], FR: ['EU', 'EMEA'], NL: ['EU', 'EMEA'], ES: ['EU', 'EMEA'],
+  IT: ['EU', 'EMEA'], PL: ['EU', 'EMEA'], SE: ['EU', 'EMEA'], DK: ['EU', 'EMEA'], PT: ['EU', 'EMEA'], AU: ['APAC'], NZ: ['APAC'], SG: ['APAC'],
+  IN: ['APAC'], JP: ['APAC'], KR: ['APAC'], BR: ['LATAM'], AR: ['LATAM'], CO: ['LATAM'], AE: ['EMEA'], IL: ['EMEA'],
+};
+/** A JSON column read as JSON only when it is valid (json_each on broken text would fail the whole search). */
+const jsonOr = (col: string, path: string | null, fallback: string) =>
+  `CASE WHEN json_valid(${col}) THEN ${path ? `json_extract(${col}, '${path}')` : col} ELSE '${fallback}' END`;
+/** Role type from the level the posting states: people managers and above, or individual contributors. */
+const ROLE_LEVELS: Record<'ic' | 'manager', string[]> = {
+  manager: ['manager', 'director', 'vp', 'exec'],
+  ic: ['intern', 'entry', 'mid', 'senior', 'staff', 'principal'],
+};
+
 /** The link of a pasted job with no link: a reserved name that never resolves (RFC 2606). The UI shows "no link". */
 export const NO_LINK_HOST = 'jobleft.invalid';
 
@@ -385,7 +403,16 @@ export class JobsService {
     if (filter.countries?.length) {
       const parts: string[] = [];
       if (filter.countries.includes('US')) parts.push('x.is_us = 1');
-      if (filter.countries.some((c) => c !== 'US')) parts.push('x.is_us = 0');
+      // Other countries (JL-feed-2): a place of the job is in one of them, or its remote area is open to people there.
+      // "Not in the US" is not a country: a job whose places name no country never matches.
+      const others = [...new Set(filter.countries.filter((c) => c !== 'US'))];
+      if (others.length) {
+        parts.push(`x.id IN (SELECT j.id FROM jobs j, json_each(${jsonOr('j.places_json', null, '[]')}) p WHERE json_extract(p.value, '$.country') IN (${others.map(() => '?').join(',')}))`);
+        args.push(...others);
+        const areas = [...new Set([...others, 'WORLDWIDE', ...others.flatMap((c) => AREAS_OF_COUNTRY[c] ?? [])])];
+        parts.push(`x.id IN (SELECT j.id FROM jobs j, json_each(${jsonOr('j.remote_scope_json', '$.regions', '[]')}) r WHERE r.value IN (${areas.map(() => '?').join(',')}))`);
+        args.push(...areas);
+      }
       if (unknownOk.has('place')) parts.push('x.is_us IS NULL');
       where.push(`(${parts.join(' OR ')})`);
     }
@@ -442,7 +469,19 @@ export class JobsService {
     }
     if (restrictIds) { where.push('x.id IN (SELECT value FROM json_each(?))'); args.push(JSON.stringify(restrictIds)); }
     else if (filter.h1bSponsorship) nothing();
-    if (filter.industries?.length || filter.companyStages?.length || filter.roleTypes?.length) nothing();
+    // Role type from the stated level (JL-feed-7); a job with no stated level, or a "lead" (which may or may not manage
+    // people), is not judged and so is left out.
+    if (filter.roleTypes?.length) {
+      const lv = [...new Set(filter.roleTypes.flatMap((r) => ROLE_LEVELS[r] ?? []))];
+      where.push(lv.length ? `x.level IN (${lv.map(() => '?').join(',')})` : '0');
+      args.push(...lv);
+    }
+    // Limits the posting states in its own words: only a posting that says so is left out.
+    if (filter.excludeClearanceRequired) where.push(`x.id NOT IN (SELECT id FROM jobs WHERE json_extract(${jsonOr('statements_json', null, '{}')}, '$.clearanceRequired') = 1)`);
+    if (filter.excludeUsCitizenOnly) where.push(`x.id NOT IN (SELECT id FROM jobs WHERE json_extract(${jsonOr('statements_json', null, '{}')}, '$.usCitizenOnly') = 1)`);
+    // Industry and company stage come from company facts, which this build has for no company: they match nothing
+    // rather than pass an unknown (the screens do not offer them; an old saved filter says so).
+    if (filter.industries?.length || filter.companyStages?.length) nothing();
 
     // Jobs the person hid never appear: a short list of row ids (hidden jobs are few).
     const hidden = this.hiddenRowIds();
