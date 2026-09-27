@@ -60,3 +60,15 @@ test('JL-network-17: declining changes nothing and says so in the conversation',
     await assert.rejects(rig.assistant.decideProposal(p.id, []), /already decided/);
   } finally { await rig.close(); }
 });
+
+test('JL-network-21: a search total says it counts matching words at any company, not one company\'s jobs', async () => {
+  const { createToolbox } = await import('../src/index.ts');
+  const rig = await makeRig();
+  try {
+    const a = rig.assistant;
+    const box = createToolbox({ data: a.data, tz: 'America/Chicago', metered: null, free: a.free, book: a.book, enricher: null });
+    const state = { chatId: null, jobId: null, lastUser: 'x', allUser: 'x', allowWrites: false, allowWeb: false, seenJobs: new Map(), knownUrls: new Set<string>(), proposals: [], toolCalls: 0, sources: [] };
+    const r = JSON.parse(await box.run('search_jobs', { query: 'Acme' }, state));
+    assert.match(r.totalMeans, /NOT the number of jobs one company posted/);
+  } finally { await rig.close(); }
+});
