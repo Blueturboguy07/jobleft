@@ -26,6 +26,8 @@ jobs:
   windows:
     runs-on: windows-latest
     timeout-minutes: 90
+    outputs:
+      installer: ${{ steps.smoke.outcome == 'success' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -107,6 +109,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: "Smoke: install, start, health, stop"
+        id: smoke
         shell: pwsh
         run: |
           $setup = Get-ChildItem -Path apps/shell/src-tauri/target/release/bundle/nsis -Filter '*.exe' | Select-Object -First 1
@@ -144,12 +147,6 @@ jobs:
           path: apps/shell/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
 
-      - name: Test result
-        if: steps.tests.outcome == 'failure'
-        run: |
-          echo "a test suite failed on Windows (see the Tests on Windows step)"
-          exit 1
-
       - name: Attach to the release
         if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
         shell: pwsh
@@ -160,10 +157,18 @@ jobs:
           $setup = Get-ChildItem -Path apps/shell/src-tauri/target/release/bundle/nsis -Filter '*.exe' | Select-Object -First 1
           gh release upload $tag $setup.FullName --clobber
 
+      # The verdict on the suites comes last: the installer, its smoke and the release attach never wait on a flaky test.
+      - name: Test result
+        if: steps.tests.outcome == 'failure'
+        run: |
+          echo "a test suite failed on Windows (see the Tests on Windows step)"
+          exit 1
+
   # The black-box replay: the scenario scripts the Mac testers wrote (qa/scenarios) run on Windows against the
   # installed app, on a first run (onboarding), then after a live crawl of 12 boards (every other surface).
   replay:
     needs: windows
+    if: always() && needs.windows.outputs.installer == 'true'
     runs-on: windows-latest
     timeout-minutes: 75
     steps:
