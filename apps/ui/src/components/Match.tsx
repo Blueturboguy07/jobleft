@@ -3,6 +3,7 @@
 
 import { useId } from 'react';
 import { Tooltip } from './Tip.tsx';
+import { NO_SPONSORSHIP } from '../lib/format.ts';
 import { MATCH_BAND_LABELS, SUB_SCORE_LABELS, bandFor, type MatchBand, type MatchResult, type MatchSummary, type WhyFitChip } from '@jobleft/contracts';
 
 /** Optional fields other lanes add (the match lane): shown when present, ignored when absent. */
@@ -28,6 +29,7 @@ export function bandOf(percent: number): MatchBand {
 export function chipText(c: WhyFitChip): string {
   if (c.kind === 'h1b_sponsor_likely') return 'H-1B sponsor likely';
   if (c.kind === 'post_says_sponsors') return 'Posting offers visa sponsorship';
+  if ((c.kind as string) === 'post_says_no_sponsorship') return NO_SPONSORSHIP;
   return c.label;
 }
 

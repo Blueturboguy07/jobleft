@@ -8,7 +8,7 @@ import { RightOutlined, DeleteOutlined, QuestionCircleOutlined } from '@ant-desi
 import type { JobFilter, JobSort, SavedFilter } from '@jobleft/contracts';
 import {
   JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, COUNTRY_OPTIONS,
-  cleanFilter, sameFilter, summaryChips, toggle,
+  PAY_FILTER_NOTE, cleanFilter, sameFilter, summaryChips, toggle,
 } from '../../lib/filters.ts';
 import { PlacePicker, SKILL_SUGGESTIONS, UnknownBox } from './Filters.tsx';
 import { call } from '../../app/api.ts';
@@ -200,7 +200,7 @@ export function AllFiltersDrawer({ open, onClose, filter, sort, saved, onApply, 
           <Slider min={20000} max={300000} step={5000} value={draft.minAnnualPayUsd} onChange={(v) => set({ minAnnualPayUsd: v })} aria-label="Minimum yearly pay" tooltip={{ formatter: (v) => `$${Math.round((v ?? 0) / 1000)}K` }} />
         </>)}
         <UnknownBox f={draft} k="pay" onChange={setDraft} />
-        <p className="jl-note">Jobs with no stated pay are left out unless you tick the box above. Hourly pay counts as its yearly amount (2,080 hours). Pay in other currencies is not compared.</p>
+        <p className="jl-note">{PAY_FILTER_NOTE}</p>
       </Box>
       <Box title="Visa sponsorship" help="Past filings are public US Department of Labor data. They show a company has sponsored H-1B workers; they do not promise sponsorship for a role.">
         <label className={`jl-choice${draft.h1bSponsorship ? ' on' : ''}`}><Checkbox checked={!!draft.h1bSponsorship} onChange={(e) => set({ h1bSponsorship: e.target.checked })} /> H-1B sponsor likely</label>

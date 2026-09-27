@@ -178,6 +178,22 @@ export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 }
 
+/**
+ * The sponsorship chip, worded the same on the card, the list's match reasons and the detail (JL-feed-22). A posting
+ * that requires US citizenship or a clearance says so: that is stricter than "no visa sponsorship".
+ */
+export function sponsorChip(tag: 'likely_by_history' | 'post_says_yes' | 'post_says_no' | null, note?: string | null): { text: string; tip: string } | null {
+  if (tag === 'likely_by_history') return { text: 'H-1B sponsor likely', tip: 'Based on past H-1B filings in US Department of Labor data. Past filings do not promise sponsorship for this role.' };
+  if (tag === 'post_says_yes') return { text: 'Posting offers visa sponsorship', tip: 'The posting itself says it offers visa sponsorship.' };
+  if (tag === 'post_says_no' && note && /citizenship/i.test(note)) return { text: 'US citizens only', tip: 'The posting itself says US citizenship is required. That is stricter than no visa sponsorship.' };
+  if (tag === 'post_says_no' && note && /clearance/i.test(note)) return { text: 'Security clearance required', tip: 'The posting itself says a security clearance is required, so it cannot sponsor a visa.' };
+  if (tag === 'post_says_no') return { text: NO_SPONSORSHIP, tip: 'The posting itself says it cannot sponsor a visa. This comes from the posting, not from missing data.' };
+  return null;
+}
+
+/** The one wording of "the posting says it does not sponsor" (card, match reasons, detail). */
+export const NO_SPONSORSHIP = 'Posting says no visa sponsorship';
+
 /** True when search words have a letter or a digit (the search ignores text without any, JL-feed-18). */
 export function searchable(q: string): boolean { return /[\p{L}\p{N}]/u.test(q); }
 

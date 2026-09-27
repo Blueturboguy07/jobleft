@@ -33,10 +33,17 @@ export class FilterService {
     return r ? toFilter(r) : null;
   }
 
+  /** JL-feed-19: two saved filters with one name cannot be told apart (list, alerts, the delete question). */
+  private nameFree(name: string, id: string | null): void {
+    const taken = this.db.prepare('SELECT name FROM srv_saved_filters WHERE lower(trim(name)) = lower(trim(?)) AND id != ? LIMIT 1').get(name, id ?? '') as { name: string } | undefined;
+    if (taken) throw new ApiFailure('conflict', `You already have a saved filter called "${taken.name}". Pick another name, or change that filter instead.`);
+  }
+
   create(input: FilterInput): SavedFilter {
     const id = newId('flt');
     const now = nowIso();
     tx(this.db, () => {
+      this.nameFree(input.name, null);
       this.db.prepare('INSERT INTO srv_saved_filters (id, name, filter, sort, alert_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
         .run(id, input.name, JSON.stringify(prune(JobFilterSchema, input.filter)), input.sort, b(input.alert ?? false), now, now);
     });
@@ -46,6 +53,7 @@ export class FilterService {
   update(id: string, input: FilterInput): SavedFilter {
     const now = nowIso();
     tx(this.db, () => {
+      this.nameFree(input.name, id);
       const r = this.db.prepare(`UPDATE srv_saved_filters SET name = ?, filter = ?, sort = ?, alert_enabled = COALESCE(?, alert_enabled), updated_at = ? WHERE id = ?`)
         .run(input.name, JSON.stringify(prune(JobFilterSchema, input.filter)), input.sort, input.alert === undefined ? null : b(input.alert), now, id);
       if (Number(r.changes) === 0) throw new ApiFailure('not_found', 'That saved filter does not exist.');

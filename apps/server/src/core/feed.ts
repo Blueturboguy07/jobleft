@@ -263,9 +263,12 @@ export class FeedService {
     return r;
   }
 
-  /** The sponsor tag of a job and its plain note (basis and data date). */
-  h1b(job: Pick<Job, 'company' | 'statements'>): { tag: H1bTag | null; note: string | null } {
-    const look = this.h1bLookup(job.company);
+  /**
+   * The sponsor tag of a job and its plain note (basis and data date). H-1B is a US visa: US filing history gives no
+   * tag to a job whose places are all outside the US (JL-feed-21); the posting's own words still do.
+   */
+  h1b(job: Pick<Job, 'company' | 'statements'> & { isUs?: boolean | null }): { tag: H1bTag | null; note: string | null } {
+    const look = job.isUs === false ? null : this.h1bLookup(job.company);
     const summary = look?.status === 'found' ? look.summary : null;
     const t = h1bTagFor(job.statements ?? null, summary);
     if (!t.tag) return { tag: null, note: null };
@@ -292,13 +295,13 @@ export class FeedService {
       for (const r of this.d.db.prepare(`SELECT rowid AS id FROM jobs_fts WHERE jobs_fts MATCH 'sponsor* OR visa OR h1b OR "h 1b"'`).all() as Array<{ id: number }>) cand.add(Number(r.id));
     } catch { /* no FTS: filing history only */ }
     const ids: number[] = [];
-    const st = this.d.db.prepare('SELECT j.company AS company, j.statements_json AS s FROM jobs j WHERE j.id = ? AND j.closed_at IS NULL AND j.duplicate_of IS NULL');
+    const st = this.d.db.prepare('SELECT j.company AS company, j.statements_json AS s, j.is_us AS is_us FROM jobs j WHERE j.id = ? AND j.closed_at IS NULL AND j.duplicate_of IS NULL');
     for (const id of [...cand].sort((a, b) => a - b)) {
-      const r = st.get(id) as { company: string; s: string | null } | undefined;
+      const r = st.get(id) as { company: string; s: string | null; is_us: number | null } | undefined;
       if (!r) continue;
       let statements: Job['statements'] | null = null;
       try { statements = r.s ? JSON.parse(r.s) : null; } catch { statements = null; }
-      const t = this.h1b({ company: r.company, statements: statements as Job['statements'] }).tag;
+      const t = this.h1b({ company: r.company, statements: statements as Job['statements'], isUs: r.is_us === null ? null : r.is_us === 1 }).tag;
       if (t === 'likely_by_history' || t === 'post_says_yes') ids.push(id);
     }
     this.h1bSet = { stamp, ids };

@@ -29,7 +29,7 @@ export const GAP = 8;
 const PAGE = 100;
 
 export function toCard(i: JobListItem): CardItem {
-  return { job: i.job, match: i.match, liked: i.liked, hidden: i.hidden, trackerStatus: i.trackerStatus, networkCount: i.networkCount, h1bTag: i.h1bTag };
+  return { job: i.job, match: i.match, liked: i.liked, hidden: i.hidden, trackerStatus: i.trackerStatus, networkCount: i.networkCount, h1bTag: i.h1bTag, h1bNote: i.h1bNote ?? null };
 }
 
 interface Pages {

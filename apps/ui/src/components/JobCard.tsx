@@ -11,7 +11,7 @@ import {
   IdcardOutlined, StopOutlined, TeamOutlined, ExportOutlined,
 } from '@ant-design/icons';
 import type { JobSummary, MatchResult, TrackerStatus } from '@jobleft/contracts';
-import { NOT_STATED, ago, dateText, initials, jobLink, levelsText, monoColor, payText, placesText, statusLabel, typeText, workModelText, yearsText } from '../lib/format.ts';
+import { NOT_STATED, NO_SPONSORSHIP, ago, dateText, initials, jobLink, sponsorChip, levelsText, monoColor, payText, placesText, statusLabel, typeText, workModelText, yearsText } from '../lib/format.ts';
 import { IconAssistant } from './Icons.tsx';
 import { MatchTile, PartRings, whySummary, type MatchSummaryX } from './Match.tsx';
 import { useApi } from '../app/data.ts';
@@ -26,6 +26,8 @@ export interface CardItem {
   trackerStatus: TrackerStatus | null;
   networkCount: number | null;
   h1bTag: 'likely_by_history' | 'post_says_yes' | 'post_says_no' | null;
+  /** The server's plain note on the tag (it names what the posting says: no sponsorship, citizenship, clearance). */
+  h1bNote?: string | null;
   external?: boolean;
 }
 
@@ -42,16 +44,11 @@ export function CompanyMark({ name, keyText, size = 72 }: { name: string; keyTex
   return <div className="jl-mono" style={{ width: size, height: size, background: monoColor(keyText), fontSize: size * 0.34 }} aria-hidden="true">{initials(name)}</div>;
 }
 
-export function sponsorChip(tag: CardItem['h1bTag']): { text: string; tip: string } | null {
-  if (tag === 'likely_by_history') return { text: 'H-1B sponsor likely', tip: 'Based on past H-1B filings in US Department of Labor data. Past filings do not promise sponsorship for this role.' };
-  if (tag === 'post_says_yes') return { text: 'Posting offers visa sponsorship', tip: 'The posting itself says it offers visa sponsorship.' };
-  if (tag === 'post_says_no') return { text: 'Posting says no sponsorship', tip: 'The posting itself says it cannot sponsor a visa. This comes from the posting, not from missing data.' };
-  return null;
-}
+export { NO_SPONSORSHIP, sponsorChip };
 
 /** The tooltip of a sponsorship chip. History-based chips also name the public data and its date. */
-export function sponsorTip(tag: CardItem['h1bTag'], src: { name: string; through: string | null } | null): string | null {
-  const c = sponsorChip(tag);
+export function sponsorTip(tag: CardItem['h1bTag'], src: { name: string; through: string | null } | null, note?: string | null): string | null {
+  const c = sponsorChip(tag, note);
   if (!c) return null;
   if (tag !== 'likely_by_history' || !src) return c.tip;
   return `${c.tip} Source: ${src.name}${src.through ? `, data through ${dateText(src.through)}` : ''}.`;
@@ -76,7 +73,7 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
   const closed = j.status === 'closed';
   const places = placesText(j.places);
   const posted = ago(j.postedAt, now);
-  const sponsor = sponsorChip(item.h1bTag);
+  const sponsor = sponsorChip(item.h1bTag, item.h1bNote);
   const h1bSrc = useH1bSource();
   // A job pasted without a link has no page to open (its placeholder address never loads).
   const link = jobLink(j.url);
@@ -110,7 +107,7 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
               {!closed && posted && <span className="jl-chip time" title={`Posted ${dateText(j.postedAt)}`}>{posted}</span>}
               {item.trackerStatus && <span className="jl-chip dark">{statusLabel(item.trackerStatus)}</span>}
               {item.external && <span className="jl-chip">Added by you</span>}
-              {sponsor && <Tooltip title={sponsorTip(item.h1bTag, h1bSrc)}><span className="jl-chip cyan" tabIndex={0}>{sponsor.text}</span></Tooltip>}
+              {sponsor && <Tooltip title={sponsorTip(item.h1bTag, h1bSrc, item.h1bNote)}><span className="jl-chip cyan" tabIndex={0}>{sponsor.text}</span></Tooltip>}
               <span style={{ marginLeft: 'auto' }} />
               <Dropdown menu={menu} trigger={['click']}>
                 <Button size="small" shape="circle" className="jl-icon-btn" icon={<EllipsisOutlined />} aria-label={`More actions for ${j.title}`} />
@@ -192,7 +189,7 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
       <div onMouseEnter={() => { if (item.match) hoverTimer.current = setTimeout(() => setWhy(true), 250); }}
         onMouseLeave={() => { if (hoverTimer.current) clearTimeout(hoverTimer.current); setWhy(false); }}>
         <MatchTile match={item.match} profileSet={profileSet} expanded={why} onToggle={() => setWhy((w) => !w)} onAddProfile={actions.addProfile}
-          sponsorLine={item.h1bTag === 'post_says_no' ? 'Posting says no sponsorship' : null} />
+          sponsorLine={item.h1bTag === 'post_says_no' ? sponsor?.text ?? null : null} />
       </div>
     </article>
   );

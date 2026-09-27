@@ -188,7 +188,8 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
   // A job pasted without a link has no page to open or copy (JL-feed-16: never the placeholder address).
   const link = jobLink(job.url);
   const applyUrl = jobLink(job.applyUrl) ?? link;
-  const sponsor = sponsorChip(h1bTag);
+  const h1bNote = (d.data as { h1bNote?: string }).h1bNote ?? null;
+  const sponsor = sponsorChip(h1bTag, h1bNote);
   const posted = job.postedAt ? `Posted ${ago(job.postedAt)}` : 'Posted date not listed';
   const blocks = textBlocks(job.description);
   const tools = [
@@ -289,8 +290,8 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
                   </Fact>
                 </div>
                 <div className="jl-row jl-wrap" style={{ marginTop: 12 }}>
-                  {sponsor && <Tooltip title={sponsorTip(h1bTag, h1bSrc)}><span className="jl-fitchip" tabIndex={0}><span className="tick" aria-hidden="true">✓</span>{sponsor.text}</span></Tooltip>}
-                  {match?.whyFit.filter((c) => !(sponsor && /sponsor/i.test(chipText(c)))).map((c, i) => (
+                  {sponsor && <Tooltip title={sponsorTip(h1bTag, h1bSrc, h1bNote)}><span className={`jl-fitchip${h1bTag === 'post_says_no' ? ' neg' : ''}`} tabIndex={0}><span className="tick" aria-hidden="true">{h1bTag === 'post_says_no' ? '•' : '✓'}</span>{sponsor.text}</span></Tooltip>}
+                  {match?.whyFit.filter((c) => !(sponsor && /sponsor|citizen|clearance/i.test(chipText(c)))).map((c, i) => (
                     <span key={i} className={`jl-fitchip${c.positive ? '' : ' neg'}`}><span className="tick" aria-hidden="true">{c.positive ? '✓' : '•'}</span>{chipText(c)}</span>
                   ))}
                 </div>

@@ -48,3 +48,8 @@ test('JL-feed-5: towns with the same name read apart in the place list', async (
   assert.equal(placeLabel({ text: 'Portland', city: 'Portland', region: 'Victoria', country: 'AU' }), 'Portland, Victoria, Australia');
   assert.equal(placeLabel({ text: 'Toronto', city: null, region: null, country: null }), 'Toronto');
 });
+
+test('JL-feed-25: the pay filter says that the top of a stated range counts', async () => {
+  const { PAY_FILTER_NOTE } = await import('../src/lib/filters.ts');
+  assert.match(PAY_FILTER_NOTE, /top of its stated pay range/);
+});

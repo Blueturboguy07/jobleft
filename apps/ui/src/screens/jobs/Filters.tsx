@@ -8,7 +8,7 @@ import { Tooltip } from '../../components/Tip.tsx';
 import { DownOutlined, QuestionCircleOutlined, CloseOutlined, FilterOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import type { JobFilter, JobSort, PlaceQuery } from '@jobleft/contracts';
 import {
-  COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, activeCount, applySection, cleanFilter,
+  COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, PAY_FILTER_NOTE, activeCount, applySection, cleanFilter,
   countryLabel, functionLabel, levelLabel, modelLabel, payLabel, placeLabel, postedLabel, resetSection, sameFilter, toggle, typeLabel, withUnknown, yearsLabel,
   type FilterSection,
 } from '../../lib/filters.ts';
@@ -223,7 +223,7 @@ function FilterButton({ section, label, filter, onApply }: { section: Section; l
           <Slider min={20000} max={300000} step={5000} value={draft.minAnnualPayUsd} onChange={(v) => set({ minAnnualPayUsd: v })} aria-label="Minimum yearly pay in dollars" tooltip={{ formatter: (v) => `$${Math.round((v ?? 0) / 1000)}K` }} />
         </>)}
         <UnknownBox f={draft} k="pay" onChange={setDraft} />
-        <p className="jl-note">Jobs with no stated pay are left out unless you tick the box above. Hourly pay counts as its yearly amount (2,080 hours). Pay in other currencies is not compared.</p>
+        <p className="jl-note">{PAY_FILTER_NOTE}</p>
       </>);
       break;
     }

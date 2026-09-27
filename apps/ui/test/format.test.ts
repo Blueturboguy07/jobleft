@@ -37,3 +37,12 @@ test('JL-feed-17 and JL-feed-18: the results line quotes at most 80 characters, 
   for (const q of ['!!!', '%', '*', "'", '🎯', '   ']) assert.equal(searchable(q), false, q);
   for (const q of ['C++', 'data analyst', 'Ünïcödé', '401(k)']) assert.equal(searchable(q), true, q);
 });
+
+test('JL-feed-22: one wording for "no sponsorship", and "US citizens only" when that is what the posting says', async () => {
+  const { NO_SPONSORSHIP, sponsorChip } = await import('../src/lib/format.ts');
+  assert.equal(sponsorChip('post_says_no', 'The post says it does not sponsor visas (from the posting\'s own words).')?.text, NO_SPONSORSHIP);
+  assert.equal(sponsorChip('post_says_no', 'The post says US citizenship is required (from the posting\'s own words).')?.text, 'US citizens only');
+  assert.equal(sponsorChip('post_says_no', 'The post says a security clearance is required (from the posting\'s own words).')?.text, 'Security clearance required');
+  assert.equal(sponsorChip('post_says_no')?.text, NO_SPONSORSHIP);
+  assert.equal(sponsorChip(null), null);
+});

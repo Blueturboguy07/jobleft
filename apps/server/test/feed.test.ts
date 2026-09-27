@@ -184,3 +184,27 @@ test('JL-feed-18: words in quotes must appear together; JL-feed-26: a filter fie
   }
   assert.equal((await s.call('POST', '/api/v1/jobs/search', { sort: 'recommended', limit: 5, filter: { minAnnualPayUsd: 0 } })).status, 200);
 });
+
+test('JL-feed-19: two saved filters cannot share a name', async () => {
+  const a = await s.call('POST', '/api/v1/filters', { name: 'Remote alert', filter: { workModels: ['remote'] }, sort: 'recommended' });
+  assert.equal(a.status, 200, a.text);
+  const again = await s.call('POST', '/api/v1/filters', { name: 'remote alert ', filter: { workModels: ['remote'] }, sort: 'recommended' });
+  assert.equal(again.status, 409, again.text);
+  assert.match(again.json.error.message, /already have a saved filter called "Remote alert"/);
+  const b = await s.call('POST', '/api/v1/filters', { name: 'Entry US', filter: { countries: ['US'] }, sort: 'recommended' });
+  assert.equal(b.status, 200);
+  assert.equal((await s.call('PUT', `/api/v1/filters/${b.json.id}`, { name: 'Remote alert', filter: { levels: ['entry', 'mid'] }, sort: 'recommended' })).status, 409);
+  assert.equal((await s.call('PUT', `/api/v1/filters/${a.json.id}`, { name: 'Remote alert', filter: { workModels: ['remote', 'hybrid'] }, sort: 'recommended' })).status, 200, 'a filter keeps its own name');
+  assert.deepEqual((await s.call('GET', '/api/v1/filters')).json.map((f: any) => f.name).sort(), ['Entry US', 'Remote alert']);
+});
+
+test('JL-feed-21: US filing history gives no H-1B tag to a job outside the US; the posting\'s own words still do', async () => {
+  const { FeedService } = await import('../src/core/feed.ts');
+  const summary = { status: 'likely', certifiedFilings: 513, window: { from: '2024-10-01', to: '2026-06-30' }, dataThrough: '2026-06-30' };
+  const feed = new FeedService({ db: null as never, jobs: null as never, profile: () => null, h1b: () => ({ lookup: () => ({ status: 'found', summary }) }) as never });
+  const none = { sponsorship: null, clearanceRequired: null, usCitizenOnly: null };
+  assert.equal(feed.h1b({ company: 'Stripe', statements: none, isUs: true }).tag, 'likely_by_history');
+  assert.equal(feed.h1b({ company: 'Stripe', statements: none, isUs: null }).tag, 'likely_by_history', 'an unknown place is not "outside the US"');
+  assert.equal(feed.h1b({ company: 'Stripe', statements: none, isUs: false }).tag, null, 'Singapore: no H-1B tag');
+  assert.equal(feed.h1b({ company: 'Stripe', statements: { ...none, sponsorship: 'yes' }, isUs: false }).tag, 'post_says_yes');
+});

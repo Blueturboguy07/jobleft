@@ -29,6 +29,12 @@ export const JOB_FUNCTION_SUGGESTIONS = [
   'Sales', 'Customer Success', 'Operations', 'Human Resources', 'Legal',
 ];
 
+/**
+ * How the minimum yearly pay filter decides (JL-feed-25): the top of a stated range counts, so a range can start
+ * below the amount ("$19.50-$60 an hour" passes $100K, its top being $124.8K a year).
+ */
+export const PAY_FILTER_NOTE = 'A job counts when the top of its stated pay range reaches this amount, so its range can start lower. Jobs with no stated pay are left out unless you tick the box above. Hourly pay counts as its yearly amount (2,080 hours). Pay in other currencies is not compared.';
+
 /** Removes empty lists and false switches so equal filters compare equal and saved filters stay small. */
 export function cleanFilter(f: JobFilter): JobFilter {
   const out: Record<string, unknown> = {};

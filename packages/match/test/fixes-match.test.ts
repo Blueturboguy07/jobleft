@@ -60,3 +60,20 @@ test('a hyphen inside a word still blocks a language name ("C-suite", "go-to")',
   const r = score(SKILLS_ONLY, swJob('- Present to the C-suite\n- Be the go-to engineer for Java and Kubernetes'));
   assert.ok(!r.skills.missing.includes('C') && !r.skills.missing.includes('Go'), JSON.stringify(r.skills));
 });
+
+// JL-feed-23 (black-box feed finding): "Why this score" quoted a 450-character description paragraph as the job's
+// "title" when the stored level came from the posting text.
+test('a level stated in the posting text is quoted as the posting\'s words, short, never as the title', () => {
+  const para = "The Payments organization owns some of Stripe's most critical payment flows, from the checkout page to the settlement of funds with banks and card networks, across dozens of countries and local payment methods. The team partners closely with product, engineering, risk and finance to measure and grow payment acceptance, and it needs an analyst with 3+ years of experience in SQL and data analysis.";
+  const base = job({ title: 'Data Analyst, Payments', description: `${para}\n\nWhat you need\n- SQL` });
+  const j = { ...base, level: 'mid' as const, evidence: { ...base.evidence, level: { source: 'description' as const, text: para } } };
+  const r = score(profileOf({ skills: ['SQL'] }), j);
+  const texts = r.subScores.experienceLevel.reasons.map((x) => x.text).join(' | ');
+  assert.ok(!texts.includes('title "The Payments organization'), texts);
+  const m = /the posting says "([^"]*)"/.exec(texts);
+  assert.ok(m, texts);
+  assert.ok(m[1]!.length <= 160, `quote of ${m[1]!.length} characters`);
+  const t = { ...base, level: 'senior' as const, title: 'Senior Data Analyst, Payments', evidence: { ...base.evidence, level: { source: 'title' as const, text: 'Senior Data Analyst, Payments' } } };
+  const rt = score(profileOf({ skills: ['SQL'] }), t).subScores.experienceLevel.reasons.map((x) => x.text).join(' | ');
+  assert.ok(!/the posting says/.test(rt), rt);
+});
