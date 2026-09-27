@@ -68,7 +68,7 @@ jobs:
           node "$($cli.FullName)/node_modules/@tauri-apps/cli/tauri.js" build --bundles nsis
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Smoke: install, start, health, stop
+      - name: "Smoke: install, start, health, stop"
         shell: pwsh
         run: |
           $setup = Get-ChildItem -Path apps/shell/src-tauri/target/release/bundle/nsis -Filter '*.exe' | Select-Object -First 1
