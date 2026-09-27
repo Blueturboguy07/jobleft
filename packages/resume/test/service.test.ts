@@ -107,29 +107,115 @@ test('a base with versions is not deleted without saying so; with withVersions e
   } finally { s.done(); }
 });
 
-test('an imported resume follows the person\'s corrections once adopted; a re-import changes no profile', async () => {
+test('an upload is the file\'s own content; profile saves never rewrite it (JL-resume-1, JL-resume-23)', async () => {
   const s = setup();
   try {
+    // A thin profile, like the golden store: one summary line and one skill, no jobs, no schools.
+    const thin = structuredClone(s.getProfile());
+    thin.summary = 'Data analyst. Ünïcödé, 日本語 and emoji 🎯 stay as written.';
+    thin.skills = [{ name: 'SQL', years: 3, source: 'user' }];
+    thin.work = []; thin.education = []; thin.projects = [];
+    s.setProfile(thin);
     const { resume, proposedProfile } = await s.svc.import(read('jordan-one-column.pdf'), 'jordan-one-column.pdf', 'application/pdf');
-    // The person adopts the proposal, then corrects a date and a skill.
-    const prof = { id: 'default', ...structuredClone(proposedProfile), version: 'v1', updatedAt: '2026-09-25T12:00:00.000Z' } as Profile;
-    s.setProfile(prof);
-    const corrected = structuredClone(prof);
+    const own = (id: string) => s.svc.get(id)!.document;
+    const sec = (id: string, kind: string) => own(id).sections.find((x) => x.kind === kind);
+    const fileSkills = proposedProfile.skills.map((x) => x.name);
+    assert.equal(fileSkills.length, 12);
+    assert.equal(sec(resume.id, 'summary')!.text, 'Software engineer with 3 years of backend experience building APIs and data pipelines.');
+    assert.deepEqual(sec(resume.id, 'skills')!.items[0]!.tags, fileSkills);
+    assert.equal(sec(resume.id, 'experience')!.items.length, 2);
+    assert.equal(own(resume.id).header.name, 'Jordan Testwell', 'the header follows the profile, as the editor says');
+    const stored = s.svc.get(resume.id)!;
+    // B: only the phone changes in the profile; the upload keeps its 12 skills and its summary.
+    s.setProfile({ ...structuredClone(thin), personal: { ...thin.personal, phone: '+1 555 0199' } });
+    assert.deepEqual(sec(resume.id, 'skills')!.items[0]!.tags, fileSkills);
+    assert.equal(own(resume.id).header.phone, '+1 555 0199');
+    // A: the person adopts the file's jobs, then deletes every job from the profile, then puts them back.
+    const adopted = { id: 'default', ...structuredClone(proposedProfile), version: 'v1', updatedAt: '2026-09-25T12:00:00.000Z' } as Profile;
+    s.setProfile(adopted);
+    s.setProfile({ ...structuredClone(adopted), work: [], education: [], projects: [] });
+    assert.equal(sec(resume.id, 'experience')!.items.length, 2, 'Experience from the file stays');
+    assert.ok(sec(resume.id, 'education') && sec(resume.id, 'projects'));
+    // D: junk answers in the profile never show up inside the upload.
+    const junk = structuredClone(adopted);
+    junk.work[0]!.summary = 'asdf';
+    junk.work[1]!.bullets.push('🎯 تحسين الأداء — improved performance 日本語');
+    junk.education[0]!.achievements = ['x'.repeat(5000)];
+    s.setProfile(junk);
+    assert.ok(!JSON.stringify(own(resume.id).sections).includes('asdf'));
+    assert.ok(!JSON.stringify(own(resume.id).sections).includes('xxxxx'));
+    assert.deepEqual(own(resume.id).sections, stored.document.sections, 'the sections are exactly the file\'s');
+    assert.equal(s.svc.get(resume.id)!.updatedAt, stored.updatedAt, 'no silent "Last changed"');
+    // A second import proposes a profile but never writes one.
+    await s.svc.import(read('jordan-one-column.pdf'), 'again.pdf', 'application/pdf');
+    assert.equal(s.getProfile().work[0]!.summary, 'asdf');
+  } finally { s.done(); }
+});
+
+test('a resume built from the profile follows it until the person edits it; a removed section never comes back (JL-resume-23)', async () => {
+  const s = setup();
+  try {
+    const follows = s.svc.create({ name: 'Follows' });
+    const mine = s.svc.create({ name: 'My resume' });
+    const noSkills = structuredClone(mine.document);
+    noSkills.sections = noSkills.sections.filter((x) => x.kind !== 'skills');
+    s.svc.update(mine.id, { document: noSkills });
+    const saved = s.svc.get(mine.id)!;
+    // O1: the person corrects a date and a skill in the profile.
+    const corrected = structuredClone(s.getProfile());
     corrected.work[1]!.startDate = '2021-02';
     corrected.skills[5]!.name = 'Postgres';
     s.setProfile(corrected);
-    const synced = s.svc.get(resume.id)!;
-    const exp = synced.document.sections.find((x) => x.kind === 'experience')!;
-    assert.equal(exp.items[1]!.startDate, '2021-02');
-    assert.ok(synced.document.sections.find((x) => x.kind === 'skills')!.items[0]!.tags.includes('Postgres'));
-    assert.ok(!synced.document.sections.find((x) => x.kind === 'skills')!.items[0]!.tags.includes('PostgreSQL'));
-    const p = await s.svc.tailor(resume.id, J_FIT().id);
-    const v = s.svc.accept(resume.id, p.id, p.changes.map((c) => c.id));
-    assert.equal(v.document.sections.find((x) => x.kind === 'experience')!.items[1]!.startDate, '2021-02');
+    const f = s.svc.get(follows.id)!.document;
+    assert.equal(f.sections.find((x) => x.kind === 'experience')!.items[1]!.startDate, '2021-02');
+    assert.ok(f.sections.find((x) => x.kind === 'skills')!.items[0]!.tags.includes('Postgres'));
+    const p = await s.svc.tailor(follows.id, J_FIT().id);
+    const v = s.svc.accept(follows.id, p.id, p.changes.map((c) => c.id));
+    assert.equal(v.document.sections.find((x) => x.kind === 'experience')!.items[1]!.startDate, '2021-02', 'the tailored version uses the correction');
     assert.deepEqual(checkDocument(v.document, corrected, J_FIT()), []);
-    // A second import proposes a profile but never writes one.
-    await s.svc.import(read('jordan-one-column.pdf'), 'again.pdf', 'application/pdf');
-    assert.equal(s.getProfile().work[1]!.startDate, '2021-02');
+    // The edited resume keeps exactly what the person saved: no Skills section comes back, nothing is re-dated.
+    assert.deepEqual(s.svc.get(mine.id)!.document.sections, saved.document.sections);
+    assert.equal(s.svc.get(mine.id)!.updatedAt, saved.updatedAt);
+  } finally { s.done(); }
+});
+
+test('tailoring an upload the profile has not adopted keeps the file\'s facts and adds none (JL-resume-5)', async () => {
+  for (const mode of ['safe', 'adversarial'] as const) {
+    mock.setMode(mode);
+    const s = setup({ ai: 'mock' });
+    try {
+      const thin = structuredClone(s.getProfile());
+      thin.summary = null; thin.work = []; thin.education = []; thin.projects = [];
+      thin.skills = [{ name: 'SQL', years: 3, source: 'user' }, { name: 'Python', years: null, source: 'user' }];
+      s.setProfile(thin);
+      const { resume } = await s.svc.import(read('jordan-one-column.pdf'), 'jordan-one-column.pdf', 'application/pdf');
+      const base = s.svc.get(resume.id)!.document;
+      const p = await s.svc.tailor(resume.id, J_FIT().id);
+      assert.ok(p.changes.length > 0, mode);
+      if (mode === 'safe') assert.ok(p.changes.some((c) => c.field.startsWith('bullets[') && /40%/.test(c.after)), 'a reworded line may keep its own facts');
+      const v = s.svc.accept(resume.id, p.id, p.changes.map((c) => c.id));
+      const key = (x: { kind: string; fact: string }) => `${x.kind}|${x.fact.toLowerCase()}`;
+      const had = new Set(checkDocument(base, thin, J_FIT()).map(key));
+      assert.deepEqual(checkDocument(v.document, thin, J_FIT()).filter((x) => !had.has(key(x))), [], `${mode}: no fact beyond the file and the profile`);
+      for (const bad of ['Kubernetes', 'PhD', 'Stanford', 'Senior', 'Acme', '75%', '$20M', '10+']) assert.ok(!JSON.stringify(v.document).includes(bad), `${mode}: ${bad} leaked`);
+      // A letter from this resume uses only what traces to the profile, so it is ready.
+      const l = await s.svc.createCoverLetter(J_FIT().id, resume.id, { useAi: false });
+      assert.deepEqual(l.violations, [], mode);
+      assert.ok(!l.text.includes('Northwind'), 'no employer the profile does not have');
+    } finally { s.done(); mock.setMode('safe'); }
+  }
+});
+
+test('a profile with no facts stops tailoring before any AI call, so nothing is charged (JL-resume-19)', async () => {
+  const s = setup({ ai: 'mock' });
+  try {
+    const { resume } = await s.svc.import(read('jordan-two-column.pdf'), 'jordan-two-column.pdf', 'application/pdf');
+    const bare = structuredClone(s.getProfile());
+    bare.summary = null; bare.work = []; bare.education = []; bare.projects = []; bare.skills = []; bare.certifications = [];
+    s.setProfile(bare);
+    const n0 = mock.requests.length;
+    await assert.rejects(s.svc.tailor(resume.id, J_FIT().id), (e: unknown) => e instanceof ResumeError && e.code === 'needs_profile' && /Nothing was sent or charged/.test(e.message));
+    assert.equal(mock.requests.length, n0, 'no model call');
   } finally { s.done(); }
 });
 
@@ -250,7 +336,7 @@ test('a local model gets resume text only for AI steps; import and export send n
   } finally { s.done(); }
 });
 
-test('base resumes follow profile edits (renames, removals, new entries) and keep what the person set per resume', () => {
+test('a resume from the profile follows profile edits (renames, removals, new entries); an edited one keeps the person\'s document', () => {
   const s = setup();
   try {
     const b = s.svc.create({ name: 'B' });
@@ -259,21 +345,20 @@ test('base resumes follow profile edits (renames, removals, new entries) and kee
     const tags = cd.sections.find((x) => x.kind === 'skills')!.items[0]!;
     tags.tags = tags.tags.filter((t) => t !== 'Docker');
     s.svc.update(c.id, { document: cd });
+    const cSaved = s.svc.get(c.id)!.document.sections;
     const p2 = structuredClone(s.getProfile());
     p2.work[0]!.bullets[1] = 'Led a migration of 12 services to PostgreSQL 16 with zero downtime.';
     p2.skills[5]!.name = 'Postgres';
     p2.skills = p2.skills.filter((x) => x.name !== 'Linux');
     p2.work.unshift({ id: 'w9', company: 'Initech Sample LLC', title: 'Engineer', employmentType: null, location: 'Denver, CO', startDate: '2026-08', endDate: null, current: true, summary: null, bullets: ['Joined the platform team.'] });
     s.setProfile(p2);
-    for (const r of [s.svc.get(b.id)!, s.svc.get(c.id)!]) {
-      assert.deepEqual(checkDocument(r.document, p2, null), [], r.name);
-      const skills = r.document.sections.find((x) => x.kind === 'skills')!.items[0]!.tags;
-      assert.ok(skills.includes('Postgres') && !skills.includes('PostgreSQL') && !skills.includes('Linux'), `${r.name}: ${skills.join(', ')}`);
-      const exp = r.document.sections.find((x) => x.kind === 'experience')!.items;
-      assert.equal(exp[0]!.heading, 'Initech Sample LLC');
-      assert.ok(exp[1]!.bullets.includes('Led a migration of 12 services to PostgreSQL 16 with zero downtime.'));
-    }
-    assert.ok(!s.svc.get(c.id)!.document.sections.find((x) => x.kind === 'skills')!.items[0]!.tags.includes('Docker'), 'C keeps Docker hidden');
-    assert.ok(s.svc.get(b.id)!.document.sections.find((x) => x.kind === 'skills')!.items[0]!.tags.includes('Docker'));
+    const r = s.svc.get(b.id)!;
+    assert.deepEqual(checkDocument(r.document, p2, null), [], r.name);
+    const skills = r.document.sections.find((x) => x.kind === 'skills')!.items[0]!.tags;
+    assert.ok(skills.includes('Postgres') && !skills.includes('PostgreSQL') && !skills.includes('Linux') && skills.includes('Docker'), `${r.name}: ${skills.join(', ')}`);
+    const exp = r.document.sections.find((x) => x.kind === 'experience')!.items;
+    assert.equal(exp[0]!.heading, 'Initech Sample LLC');
+    assert.ok(exp[1]!.bullets.includes('Led a migration of 12 services to PostgreSQL 16 with zero downtime.'));
+    assert.deepEqual(s.svc.get(c.id)!.document.sections, cSaved, 'C is the person\'s own now: nothing changes in it');
   } finally { s.done(); }
 });

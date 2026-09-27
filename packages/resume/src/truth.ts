@@ -434,7 +434,7 @@ export function checkText(text: string, where: string, pf: ProfileFacts, job: Jo
 
 // ------------------------------------------------------------------------------------------------ documents
 
-function sameYm(docDate: string | null, profDate: string | null): boolean {
+export function sameYm(docDate: string | null, profDate: string | null): boolean {
   if (docDate === null) return true; // leaving a date out is not a new fact
   if (profDate === null) return false;
   if (docDate === profDate) return true;

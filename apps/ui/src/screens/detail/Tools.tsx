@@ -18,6 +18,8 @@ function changeLabel(field: string): string {
   if (field === 'bullets.order') return 'Change to the order of the bullets under one job (no bullet is changed)';
   if (field === 'summary') return 'Change to your summary';
   if (field.startsWith('bullets[')) return 'Change to one bullet';
+  if (field === 'item') return 'Your profile has other facts for this entry (a corrected date, title or name)';
+  if (field === 'skills.rename') return 'Your profile spells this skill another way';
   return 'Change to your resume';
 }
 
@@ -109,7 +111,7 @@ export function TailorDrawer({ job, open, onClose }: { job: Job; open: boolean; 
             ))}
             {prop.notice && <Alert type="info" showIcon message={prop.notice} />}
             {prop.gaps.length > 0 && (
-              <Alert type="warning" showIcon message="Not on your resume"
+              <Alert type="warning" showIcon message="Not in your profile"
                 description={<>
                   <div className="jl-row jl-wrap" style={{ margin: '4px 0' }}>{prop.gaps.map((g) => <Tag key={g}>{g}</Tag>)}</div>
                   The job asks for these and your profile does not show them, so jobleft does not add them. If one is true, add it to your profile yourself; nothing goes on a resume until you do.

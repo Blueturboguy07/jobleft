@@ -1081,7 +1081,7 @@ for `insufficient_balance`):
 | Method | Route | Notes |
 |---|---|---|
 | `new ResumeService({ db, filesDir, profile, job, ai, skills, now? })` | — | Runs the `resume` migrations and sets `PRAGMA secure_delete = ON` on `db`. `ai()` may throw `AiError('no_provider')`: every step then uses jobleft's rules (no AI) |
-| `list(): Resume[]` | `listResumes` | Bases (primary first), each followed by its versions. Base documents are brought in step with the profile on read (three-way: a field still equal to the old profile value takes the new one; a field edited on the resume stays) |
+| `list(): Resume[]` | `listResumes` | Bases (primary first), each followed by its versions. A base's header always follows the profile. Its sections are the person's own: an upload keeps the file's content and an edited resume keeps the edits; a profile save never rewrites them. Only a resume made from the profile that the person has not changed follows the profile. Tailoring offers the profile's corrected facts (dates, titles, skill spellings) as changes to accept |
 | `import(bytes, fileName, mimeType): Promise<{ resume, proposedProfile, outcome }>` | `importResume` | PDF, .docx or text, read in a worker (30 s, `JOBLEFT_IMPORT_TIMEOUT_MS`). A failed file throws (`payload_too_large`, `unsupported_media_type` or `bad_request`) with `details.report`; nothing is saved. Never writes the profile: the caller saves `proposedProfile` only when the person confirms |
 | `create({ name, targetTitle? })` | `createResume` | `needs_profile` when the profile is empty |
 | `get(id)`, `update(id, patch)` | `getResume`, `updateResume` | A `document` patch that holds a fact not in the profile is refused (`bad_request`, `details.violations`) |

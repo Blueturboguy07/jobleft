@@ -17,13 +17,13 @@ import { migrateResume } from './db.ts';
 import { documentFromProfile } from './document.ts';
 import { ResumeError } from './errors.ts';
 import { keywordGaps, safeDictionary } from './gaps.ts';
-import { importResume, type ImportOutcome } from './import/index.ts';
+import { asProfile, importResume, type ImportOutcome } from './import/index.ts';
 import { draftLetter, editLetter } from './letter.ts';
 import { fitResume } from './render/layout.ts';
 import { renderLetterDocx, renderLetterPdf, renderResumeDocx, renderResumePdf } from './render/index.ts';
-import { linkedToProfile, snapshotOf, syncBaseDocument } from './sync.ts';
+import { snapshotOf } from './sync.ts';
 import { applyChanges, draftTailoring, type TailorOp } from './tailor.ts';
-import { checkDocument, checkLetter, headerName } from './truth.ts';
+import { checkDocument, checkLetter, headerFromProfile, headerName } from './truth.ts';
 
 export interface ResumeServiceOptions {
   db: DatabaseSync;
@@ -50,6 +50,11 @@ const parse = <T>(s: string | null): T | null => (s === null ? null : JSON.parse
 
 export function profileIsEmpty(p: Profile): boolean {
   return !headerName(p) && !p.work.length && !p.education.length && !p.skills.length;
+}
+
+/** True when the profile holds no fact a tailored version could use (a name alone is not one). */
+function profileHasNoFacts(p: Profile): boolean {
+  return !p.work.length && !p.education.length && !p.projects.length && !p.certifications.length && !p.skills.length && !(p.summary && p.summary.trim());
 }
 
 function safeFileName(s: string): string {
@@ -96,27 +101,34 @@ export class ResumeService {
     }
   }
 
-  /** A base resume's document, brought in step with the current profile (stored back when it changed). */
+  /**
+   * A base resume's document as the person sees it. The header always follows the profile ("The header comes from
+   * your profile"). The sections are the person's own: an upload keeps the file's content and a resume the person
+   * edited keeps their edits; a profile save never rewrites, removes or refills them (JL-resume-1, JL-resume-23).
+   * Only a resume built from the profile that the person has not changed follows the profile (they asked for a
+   * resume made of their profile); their first edit makes it theirs.
+   */
   #synced(r: Row): ResumeDocument {
     const doc = JSON.parse(r.document_json) as ResumeDocument;
-    if (r.kind !== 'base' || !r.snapshot_json) return doc;
+    if (r.kind !== 'base') return doc;
     const profile = this.#profile();
     if (profileIsEmpty(profile)) return doc;
-    const old = JSON.parse(r.snapshot_json) as ProfileInput;
-    const mode = r.snapshot_source === 'import' ? 'import' : 'profile';
-    const next = syncBaseDocument(doc, old, profile, mode);
-    const linked = mode === 'import' && linkedToProfile(next, profile);
-    const snapNow = snapshotOf(profile);
-    const changed = JSON.stringify(next) !== r.document_json;
-    const snapChanged = JSON.stringify(snapNow) !== r.snapshot_json;
-    if (changed || snapChanged || linked) {
-      // An import keeps its snapshot until the person adopts it into the profile; then it follows the profile.
-      const newSource = mode === 'profile' || linked ? 'profile' : 'import';
-      const snap = newSource === 'profile' ? JSON.stringify(snapNow) : r.snapshot_json;
-      this.#o.db.prepare('UPDATE resumes SET document_json = ?, snapshot_json = ?, snapshot_source = ?, updated_at = ? WHERE id = ?')
-        .run(JSON.stringify(next), snap, newSource, changed ? this.#iso() : r.updated_at, r.id);
+    if (!this.#followsProfile(r, doc)) return { ...doc, header: headerFromProfile(profile) };
+    const next = documentFromProfile(profile);
+    const snap = JSON.stringify(snapshotOf(profile));
+    const changed = JSON.stringify(next.sections) !== JSON.stringify(doc.sections);
+    if (changed || snap !== r.snapshot_json) {
+      this.#o.db.prepare('UPDATE resumes SET document_json = ?, snapshot_json = ?, updated_at = ? WHERE id = ?')
+        .run(JSON.stringify(next), snap, changed ? this.#iso() : r.updated_at, r.id);
     }
     return next;
+  }
+
+  /** True for a resume built from the profile whose sections are still exactly what the profile gave it. */
+  #followsProfile(r: Row, doc: ResumeDocument): boolean {
+    if (r.kind !== 'base' || r.file_json || r.snapshot_source !== 'profile' || !r.snapshot_json) return false;
+    const was = documentFromProfile(asProfile(JSON.parse(r.snapshot_json) as ProfileInput));
+    return JSON.stringify(was.sections) === JSON.stringify(doc.sections);
   }
 
   #toResume(r: Row, doc?: ResumeDocument): Resume {
@@ -263,6 +275,8 @@ export class ResumeService {
     if (r.kind !== 'base') throw new ResumeError('bad_request', 'Pick a base resume to tailor from (this one is already a tailored version).');
     const profile = this.#profile();
     if (profileIsEmpty(profile)) throw new ResumeError('needs_profile', 'Your profile is empty. Import a resume or fill in your profile first.');
+    // Checked before any AI call, so an empty profile never costs anything (JL-resume-19).
+    if (profileHasNoFacts(profile)) throw new ResumeError('needs_profile', 'Your profile has no jobs, schools, projects or skills yet, so tailoring has no true facts to use. Fill in your profile first. Nothing was sent or charged.');
     const job = this.#job(jobId);
     const base = this.#synced(r);
     const ai = opts.useAi === false ? null : this.#ai();
@@ -297,12 +311,17 @@ export class ResumeService {
     const doc = applyChanges(base, ops, ids);
     const job = this.#job(p.job_id);
     const profile = this.#profile();
-    const v = checkDocument(doc, profile, job);
+    // The base is the person's own document, so facts it already holds stay. The gate refuses only what the accepted
+    // changes add. Two reasons, two messages: the profile changed since the draft (the header or an added skill no
+    // longer traces), or an accepted change carries a fact the gate flagged.
+    const key = (x: { kind: string; fact: string }) => `${x.kind}|${x.fact.toLowerCase()}`;
+    const had = new Set(checkDocument(base, profile, job).map(key));
+    const v = checkDocument(doc, profile, job).filter((x) => !had.has(key(x)));
+    const header = JSON.stringify(headerFromProfile(profile));
+    if (!profileIsEmpty(profile) && JSON.stringify(base.header) !== header) {
+      throw new ResumeError('conflict', 'Your profile changed since this draft was made (your name or contact details). Nothing was saved. Tailor again.', { violations: v });
+    }
     if (v.length) {
-      // Two different reasons, two different messages: the base itself no longer traces (the profile changed), or an
-      // accepted change carries a fact the gate flagged (the person ticked a warned change).
-      const baseV = checkDocument(base, profile, job);
-      if (baseV.length) throw new ResumeError('conflict', `Your profile changed since this draft was made, and ${v.length === 1 ? 'a fact' : 'some facts'} no longer trace${v.length === 1 ? 's' : ''} to it (for example "${v[0]!.fact}"). Tailor again.`, { violations: v });
       throw new ResumeError('conflict', `A change you accepted holds a fact that is not in your profile: "${v[0]!.fact}" (${v[0]!.reason}) Nothing was saved. Untick that change and save again.`, { violations: v });
     }
     const baseRow = this.#mustRow(resumeId);
