@@ -13,6 +13,9 @@ import { BoardTokenError, PagingError } from '../src/errors.ts';
 import { allSources } from '../src/registry.ts';
 import { buildHealthReport } from '../src/report.ts';
 import { crawlStandin, fakeHttp, rows, STANDIN, tmp } from './helpers.ts';
+// The slow board must outlast the request time-out, and every other stand-in board must answer well within it.
+// Shared Windows runners are slow enough that a 1 s time-out also caught healthy boards; wider margins there.
+const SLOW = process.platform === 'win32' ? { delayMs: 9000, timeoutMs: 4000 } : { delayMs: 3000, timeoutMs: 1000 };
 
 function offer(i: number, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -33,7 +36,7 @@ test('a bad board never stops the crawl; each one is named with a plain reason (
     r404: { status: 404 },
     r429: { status: 429, headers: { 'retry-after': '10' } },
     r500: { status: 500 },
-    rslow: { delayMs: 3000 },
+    rslow: { delayMs: SLOW.delayMs },
     rempty: { body: '' },
     rinvalid: { body: '{"offers": [ {"id": 1,' },
     rhtml: { body: '<!DOCTYPE html><html><body><h1>Careers</h1></body></html>' },
@@ -50,7 +53,7 @@ test('a bad board never stops the crawl; each one is named with a plain reason (
   writeFileSync(join(dir, 'personio', 'pcut.xml'), '<workzag-jobs><position><id>1</id><name>Cut');
   writeFileSync(join(dir, 'teamtailor', 'thtml.rss'), '<html><body>Not found</body></html>');
 
-  const run = await crawlStandin(dir, join(t.dir, 'jobs.db'), undefined, { timeoutMs: 1000 });
+  const run = await crawlStandin(dir, join(t.dir, 'jobs.db'), undefined, { timeoutMs: SLOW.timeoutMs });
   try {
     const health = buildHealthReport(run.report, run.store);
     const by = Object.fromEntries(health.boards.map((b) => [b.board, b]));
