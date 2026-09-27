@@ -10,6 +10,7 @@
 //   * a draft uses only profile facts (the template never names the employer of the page or any contact detail) and is
 //     never written into a form by the app; drafts made here are free and local, so no balance is touched;
 //   * the tracker says Applied only after review() with submittedByUser = true, once per job, with the resume version.
+//   * a LinkedIn, Indeed or Glassdoor page address gets nothing on any route (the browser blocks them too).
 
 import type { DatabaseSync } from 'node:sqlite';
 import {
@@ -50,9 +51,37 @@ export class ExtensionService {
     return id && this.d.jobs.exists(id) ? id : null;
   }
 
-  /** Resumes that have a file the extension can attach, newest first inside each group. */
+  /**
+   * Resumes the extension can attach: every one. An uploaded resume goes as its own file; a resume made or tailored
+   * in the app (no uploaded file) goes as the PDF the app exports, made when a fill needs it.
+   */
   private attachable(): Resume[] {
-    return this.d.resumes.list().filter((r) => r.file !== null);
+    return this.d.resumes.list();
+  }
+
+  /** The name the page shows for a resume: its uploaded file, or the PDF the app will make of it. */
+  private attachName(r: Resume): string {
+    if (r.file) return withExtension(r.file.fileName, r.file.mimeType);
+    try { return this.d.resumes.svc.renderedFileName(r.id, 'pdf'); } catch { return `${r.name}.pdf`; }
+  }
+
+  /**
+   * The file to attach for a resume: the uploaded file byte for byte, else the resume exported now as a PDF (or as
+   * a Word file when the PDF cannot be made, for example letters the PDF font lacks). `why` says what failed.
+   */
+  private async attachFile(r: Resume): Promise<{ file: ResumeFile | null; why: string | null }> {
+    const f = r.file ? this.d.resumes.file(r.id) : null;
+    if (f) return { file: { id: r.id, fileName: withExtension(f.fileName, f.mimeType), mimeType: f.mimeType, base64: f.bytes.toString('base64') }, why: null };
+    let why: string | null = null;
+    for (const format of ['pdf', 'docx'] as const) {
+      try {
+        const x = await this.d.resumes.svc.export(r.id, format);
+        return { file: { id: r.id, fileName: x.fileName, mimeType: x.mimeType, base64: Buffer.from(x.bytes).toString('base64') }, why: null };
+      } catch (e) {
+        why ??= e instanceof Error ? e.message : null;
+      }
+    }
+    return { file: null, why };
   }
 
   /** The resume a fill attaches unless the person picks another: the version for this job, else the default. */
@@ -71,6 +100,7 @@ export class ExtensionService {
   }
 
   page(req: PageInfoRequest): PageInfo {
+    refuseNeverHost(req.pageUrl);
     const jobId = this.jobIdOf(req.pageUrl);
     const job = jobId ? this.d.jobs.get(jobId) : null;
     const tracked = jobId ? this.d.tracker.get(jobId) : null;
@@ -82,7 +112,7 @@ export class ExtensionService {
       company: job?.company ?? null,
       applied: tracked && tracked.status !== null && tracked.appliedAt ? { at: tracked.appliedAt, resumeId: tracked.resumeId } : null,
       resumes: list.map((r) => ({
-        id: r.id, name: r.name, fileName: r.file!.fileName,
+        id: r.id, name: r.name, fileName: this.attachName(r),
         tailoredForThisJob: !!jobId && r.kind === 'tailored' && r.jobId === jobId, isDefault: r.isPrimary,
       })),
       suggestedResumeId: sug?.id ?? null,
@@ -91,9 +121,7 @@ export class ExtensionService {
 
   /** Adds the job on the person's tab, the same way add-by-link does (never a never-crawl site). */
   async addJob(req: PageInfoRequest): Promise<PageInfo> {
-    if (isNeverHost(new URL(req.pageUrl).hostname)) {
-      throw new ApiFailure('forbidden_source', 'jobleft never reads that site, so nothing was sent to it. Open the job in the app and paste its text instead.');
-    }
+    refuseNeverHost(req.pageUrl, 'jobleft never reads that site, so nothing was sent to it. Open the job in the app and paste its text instead.');
     const known = this.jobIdOf(req.pageUrl);
     if (!known) {
       const id = await addExternal({ url: req.pageUrl }, { crawlStore: this.d.crawlStore, hostMap: this.deps.hostMap, offline: this.deps.offline });
@@ -103,18 +131,20 @@ export class ExtensionService {
   }
 
   async fill(req: FillRequest): Promise<FillResponse> {
+    refuseNeverHost(req.pageUrl);
     const profile = this.d.profile.get();
     const jobId = this.jobIdOf(req.pageUrl);
     const list = this.attachable();
-    // The person's pick wins; a resume that has no file cannot be attached, and the panel is told so.
+    // The person's pick wins. The file is read (or the PDF made) only when the form has a file field.
     const picked = req.resumeId ? list.find((r) => r.id === req.resumeId) ?? null : this.suggested(jobId, list);
-    const file = picked ? this.d.resumes.file(picked.id) : null;
-    const resume: ResumeFile | null = picked && file ? { id: picked.id, fileName: file.fileName, mimeType: file.mimeType, base64: file.bytes.toString('base64') } : null;
+    const made = picked && req.fields.some((f) => f.kind === 'file') ? await this.attachFile(picked) : null;
+    const resume = made?.file ?? null;
     const out = await answerFill(req, {
       profile, jobId, draftOffer: LOCAL_DRAFTS, resume,
       draft: async (fields) => this.makeDrafts(fields, profile),
     });
-    if (req.resumeId && !resume) out.warnings.push('The resume you picked has no file that can be attached, so the resume box stays empty.');
+    if (req.resumeId && !picked) out.warnings.push('The resume you picked is no longer in jobleft, so the resume box stays empty.');
+    if (picked && made && !resume) out.warnings.push(`jobleft could not make a file of the resume "${picked.name}", so the resume box stays empty.${made.why ? ` ${made.why}` : ''}`);
     this.applySavedAnswers(req, out);
     return out;
   }
@@ -158,17 +188,19 @@ export class ExtensionService {
   }
 
   drafts(req: DraftRequest): DraftResponse {
+    refuseNeverHost(req.pageUrl);
     const profile = this.d.profile.get();
     const open = openQuestions(req.fields);
     const skipped = req.fields.filter((f) => !open.includes(f)).map((f) => ({ fieldId: f.fieldId, message: 'This is not an open question, so jobleft does not draft it.' }));
     const drafts = this.makeDrafts(open, profile);
     for (const f of open) {
-      if (!drafts.some((x) => x.fieldId === f.fieldId)) skipped.push({ fieldId: f.fieldId, message: 'Your profile has too few facts for a true draft.' });
+      if (!drafts.some((x) => x.fieldId === f.fieldId)) skipped.push({ fieldId: f.fieldId, message: 'jobleft cannot write a true draft of this answer from your profile. Write this one yourself.' });
     }
     return { drafts, costMicros: 0, balanceMicros: null, skipped };
   }
 
   review(r: ReviewResult, extensionId: string | null): ReviewResponse {
+    refuseNeverHost(r.pageUrl);
     const known = r.jobId && this.d.jobs.exists(r.jobId) ? r.jobId : null;
     const jobId = known ?? this.jobIdOf(r.pageUrl);
     if (r.submittedByUser && !jobId) {
@@ -196,6 +228,35 @@ export class ExtensionService {
     if (cur && cur.status !== null) return { trackerEntry: cur };
     return { trackerEntry: this.d.tracker.patch(jobId, { status: 'applied', resumeId }) };
   }
+}
+
+const EXTENSIONS: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/msword': '.doc',
+  'text/plain': '.txt',
+  'application/rtf': '.rtf',
+};
+
+/**
+ * A stored file name with the extension its type has (JL-extension-6). An upload sent with no name was stored as
+ * "resume": an application form's upload box checks the name ("accepts .pdf,.docx"), so "resume" was refused
+ * although the file is a PDF. A name that already ends in an extension of its type is kept as it is.
+ */
+export function withExtension(fileName: string, mimeType: string): string {
+  const ext = EXTENSIONS[mimeType.toLowerCase()];
+  if (!ext || fileName.toLowerCase().endsWith(ext) || (ext === '.doc' && /\.docx?$/i.test(fileName))) return fileName;
+  return `${fileName}${ext}`;
+}
+
+/**
+ * The app never answers for LinkedIn, Indeed or Glassdoor pages, whatever the client says (JL-extension-10): the
+ * extension blocks them in the browser, and a broken or spoofed client gets nothing here either.
+ */
+function refuseNeverHost(pageUrl: string, message = 'jobleft never reads or fills anything on LinkedIn, Indeed or Glassdoor, so the app sent nothing for this page.'): void {
+  let host: string;
+  try { host = new URL(pageUrl).hostname; } catch { return; }
+  if (isNeverHost(host)) throw new ApiFailure('forbidden_source', message);
 }
 
 function labelKey(s: string): string {

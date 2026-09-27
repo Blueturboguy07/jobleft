@@ -5,6 +5,7 @@
 
 import { formatDollars } from '@jobleft/contracts';
 import type { DraftItem, Report, ReportItem, ToWorker } from '../messages.ts';
+import { reportGroups } from './counts.ts';
 import { PANEL_TAG } from './dom.ts';
 
 const CSS = `
@@ -174,19 +175,16 @@ export class Panel {
     body.append(status);
     if (r.error) body.append(el('div', { class: 'notice error' }, r.error));
 
-    const count = (s: ReportItem['status'][]): number => r.items.filter((i) => s.includes(i.status)).length;
-    const filled = count(['filled', 'inserted']);
-    const needs = count(['needs_you', 'cleared']);
-    const failed = count(['failed']);
-    const kept = count(['kept', 'edited', 'ok']);
-    const drafts = r.drafts.filter((d) => d.state === 'ready' || d.state === 'offered').length;
+    // Each chip is the size of the list with the same words below (the lists do not overlap).
+    const groups = reportGroups(r);
+    const g = Object.fromEntries(groups.map((x) => [x.key, x])) as Record<(typeof groups)[number]['key'], (typeof groups)[number]>;
     const reqEmpty = r.items.filter((i) => i.required && ['needs_you', 'cleared', 'failed', 'draft_ready'].includes(i.status)).length;
     body.append(el('div', { class: 'chips' },
-      el('span', { class: 'chip filled' }, `${filled} filled`),
-      el('span', { class: 'chip needs' }, `${needs} need you`),
-      failed ? el('span', { class: 'chip failed' }, `${failed} not filled`) : null,
-      el('span', { class: 'chip' }, `${kept} kept`),
-      drafts ? el('span', { class: 'chip needs' }, `${drafts} ${drafts === 1 ? 'draft' : 'drafts'}`) : null,
+      el('span', { class: 'chip filled' }, g.filled.chip),
+      el('span', { class: 'chip needs' }, g.needs.chip),
+      g.failed.items.length ? el('span', { class: 'chip failed' }, g.failed.chip) : null,
+      el('span', { class: 'chip' }, g.kept.chip),
+      g.drafts.items.length ? el('span', { class: 'chip needs' }, g.drafts.chip) : null,
     ));
     if (r.phase === 'done' && reqEmpty > 0) body.append(el('div', { class: 'notice' }, `${reqEmpty} required ${reqEmpty === 1 ? 'field is' : 'fields are'} still empty. They are marked on the page.`));
 
@@ -200,12 +198,7 @@ export class Panel {
 
     if (r.drafts.length) body.append(this.draftsNode(r));
 
-    const groups: Array<[string, ReportItem[]]> = [
-      ['Needs you', r.items.filter((i) => ['needs_you', 'cleared', 'failed', 'draft_ready'].includes(i.status))],
-      ['Filled by jobleft', r.items.filter((i) => ['filled', 'inserted'].includes(i.status))],
-      ['Kept as they were', r.items.filter((i) => ['kept', 'edited', 'ok'].includes(i.status))],
-    ];
-    for (const [title, items] of groups) {
+    for (const { title, items } of groups) {
       if (!items.length) continue;
       body.append(el('h3', {}, `${title} (${items.length})`));
       for (const it of items) body.append(this.itemNode(it));

@@ -21,6 +21,9 @@ button.primary { background: #0f766e; border-color: #0f766e; color: #fff; width:
 button.link { border: none; background: none; color: #0f5f58; padding: 0; text-decoration: underline; }
 button:disabled { opacity: .5; cursor: default; }
 input[type=text] { font: inherit; font-size: 18px; letter-spacing: 4px; width: 140px; padding: 6px 8px; border: 1px solid #c6ced6; border-radius: 8px; }
+input[type=text].port { width: 96px; letter-spacing: 2px; }
+label { display: flex; flex-direction: column; gap: 2px; }
+.pairrow { align-items: flex-end; }
 select { font: inherit; width: 100%; padding: 6px; border: 1px solid #c6ced6; border-radius: 8px; }
 ol { padding-left: 18px; margin: 6px 0; }
 ul { padding-left: 18px; margin: 4px 0; }

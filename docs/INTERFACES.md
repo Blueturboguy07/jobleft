@@ -417,13 +417,13 @@ to the local API. Content scripts never call the app directly.
 
 | Step | Who | What |
 |---|---|---|
-| Discover | extension | `GET /api/v1/health` on ports 47821 to 47830 until one answers `app: "jobleft"`. Re-discover when a call fails (the port can change between launches). With more than one jobleft server answering, the paired one is the one that accepts the token (a `401` from one port makes the extension try the others before it drops the pairing) |
-| Start pairing | person, in the app | The person clicks "Pair a browser extension". The UI calls `POST /api/v1/extension/pairing-code` and shows a 6-digit code (valid 5 minutes). This click is the approval |
-| Pair | extension | The person types the code in the extension popup. `POST /api/v1/extension/pair` with `PairRequest` (tried on each jobleft port; the code is valid only in the app that showed it). The Origin must be `chrome-extension://<extensionId>`. Five wrong codes void the code. The answer `PairResponse` holds the pairing token (the app keeps only its hash). Pairing the same extension id again replaces its old entry and old token |
-| Keep | extension | The token lives only in `chrome.storage.local`, set to trusted contexts (content scripts cannot read it). Every later call sends `x-jobleft-pairing` from the same Origin |
+| Port | person, then extension | The app shows its port next to the pairing code (`PairingCode.port`, added in 1.1). The person types the code and the port in the popup. The extension talks to that one port and never scans others: another local program could answer `app: "jobleft"` and collect the code or the token. A paired port that stops answering gives "not running" (the person can unpair and pair again with the app's new port); a `401` there drops the pairing |
+| Start pairing | person, in the app | The person clicks "Show a pairing code". The UI calls `POST /api/v1/extension/pairing-code` and shows a 6-digit code (valid 5 minutes) and the app's port. This click is the approval |
+| Pair | extension | The person types the code and the port in the extension popup. `GET /api/v1/health` on that port, then `POST /api/v1/extension/pair` with `PairRequest` to that port only (the code is valid only in the app that showed it). The Origin must be `chrome-extension://<extensionId>`. Five wrong codes void the code. The answer `PairResponse` holds the pairing token (the app keeps only its hash). Pairing the same extension id again replaces its old entry and old token |
+| Keep | extension | The token and the port live only in `chrome.storage.local`, set to trusted contexts (content scripts cannot read it). Every later call sends `x-jobleft-pairing` from the same Origin, to the paired port only |
 | List and unpair | person, in the app | `GET /api/v1/extension/pairings`, `DELETE /api/v1/extension/pairings/:extensionId`. The token stops working at once. The extension can unpair itself with `DELETE /api/v1/extension/pairing` |
 | Status | extension | `GET /api/v1/extension/status`: paired, app version, profile completeness |
-| Page | extension | `POST /api/v1/extension/page` with `PageInfoRequest { pageUrl }` (added in contracts 1.1), only when the person clicks the extension button on a tab that is not a blocked board. The app answers `PageInfo`: the job this address is (match by page key: tracking parameters ignored, job ids kept; `pageKey()` in apps/extension), whether the tracker already says Applied, the resumes, and the suggested resume (the version for this job, else the default) |
+| Page | extension | `POST /api/v1/extension/page` with `PageInfoRequest { pageUrl }` (added in contracts 1.1), only when the person clicks the extension button on a tab that is not a blocked board. The app answers `PageInfo`: the job this address is (match by page key: tracking parameters ignored, job ids kept; `pageKey()` in apps/extension), whether the tracker already says Applied, the resumes, and the suggested resume (the version for this job, else the default). Every resume can be attached: an uploaded one as its own file, one made or tailored in the app as the PDF the app exports when a fill needs it (the Word file when the PDF font lacks a letter) |
 | Fill | extension | Only when the person starts a fill. The extension lists the visible fields of the one application form (never hidden, zero-size, off-screen or see-through fields, never other forms, never password fields) as `FillRequest`, with the 1.1 hints (`autocomplete`, `placeholder`, `inputType`, `entry`, `context`, `combobox`, `accept`). The app answers `FillResponse`: values (1.1: each with `item`, the profile item in words, and `topic`), the resume file to attach (1.1: `resumeId`), drafts for open questions only when drafting is free, `notes` (1.1: why each other field was left empty) and `draftOffer` (1.1: the provider and the most one draft can cost, in micros). Option values are the option's index in the list the extension sent. For a `combobox` field the value is the wanted text and `topic` names the strict matcher the extension runs on the options it sees when it opens the list |
 | Drafts | person, then extension | `POST /api/v1/extension/drafts` with `DraftRequest` (added in 1.1), only after the person saw the price in dollars and pressed "Make drafts". `maxCostMicros` is the most the person agreed to; the app refuses a request that would cost more and charges only drafts it made. `DraftResponse` carries the drafts, `costMicros`, the balance after, and the skipped questions. A draft goes into the form only when the person presses Insert |
 | Review | person, then extension | The extension fills, reads each value back (a value the page rejects or clears is "not filled"), marks each changed field, shows the report (filled with the profile item, kept, needs you with the reason) and offers undo. The extension never submits, never presses a key, never presses next, save or continue, and never solves a CAPTCHA |
@@ -437,7 +437,8 @@ What the extension never gets: network contacts, AI keys, the publik key, backup
 profile. Sensitive questions (EEO, work authorization, sponsorship, pay expectation, date of birth, age, criminal
 history, ID numbers) stay empty unless the person saved an answer for that exact topic; pay, age, date of birth,
 criminal history and ID numbers are never answered. The extension never reads, fills or adds anything on LinkedIn,
-Indeed or Glassdoor (every country domain and subdomain).
+Indeed or Glassdoor (every country domain and subdomain), and the app refuses those page addresses on the page,
+fill, drafts, add-job and review routes (422 `forbidden_source`), so a broken or spoofed client gets nothing either.
 Support levels (`ATS_SUPPORT` in apps/extension): Greenhouse, Lever, Ashby and Workable supported; Workday partial
 (built last); iCIMS partial (not testable: no live iCIMS request is allowed); everything else "not supported".
 
@@ -1460,7 +1461,7 @@ engine the app uses to answer it. README: `apps/extension/README.md` (what it re
 
 | Part | What |
 |---|---|
-| Manifest | permissions `storage`, `activeTab`, `scripting`; host permissions `http://127.0.0.1:47821/*` to `http://127.0.0.1:47830/*` only (narrower than the foundation's `http://127.0.0.1/*`); extension-page CSP `connect-src` limited to those ten origins; no content scripts declared (the content script is injected only after the person clicks); no web-accessible resources |
+| Manifest | permissions `storage`, `activeTab`, `scripting`; host permissions `http://127.0.0.1:47821/*` to `http://127.0.0.1:47830/*` only (narrower than the foundation's `http://127.0.0.1/*`); extension-page CSP `connect-src http://127.0.0.1:*` (an app on another port, typed at pairing, is reached through the app's CORS answer for the extension Origin; the code talks to the paired port only, `src/appclient.ts`); no content scripts declared (the content script is injected only after the person clicks); no web-accessible resources |
 | Node exports (`src/index.ts`) | `answerFill`, `openQuestions` (the app's `fill` and `drafts` logic), `classify`, `isSensitive`, `SENSITIVE_TOPICS`, `pickOption`, `pickMany`, `parseDegree`, `templateDraft`, `contactLeaks`, `pageKey`, `isNeverHost`, `supportFromUrl`, `supportFor`, `atsFromUrl`, `APP_PORTS`, `ATS_SUPPORT`, `NEVER_HOSTS`, `EXTENSION_PROTOCOL_VERSION`; types `AnswerContext`, `ResumeFile`, `Classification`, `Topic`, `SensitiveTopic`, `MatchKind`, `Opt`, `DraftJob`, `SupportInfo`, `SupportLevel` |
 | Browser bundles | `src/background.ts` (service worker, the only network code), `src/popup.ts`, `src/content/main.ts`; built by `pnpm --filter @jobleft/extension build` into `apps/extension/dist` (not committed; esbuild, not minified; only the contracts the extension runs are bundled) |
 | Test tools (not shipped) | `scripts/standin-app.ts` (a stand-in app with the extension routes and section 6.1 rules, no outbound request), `scripts/practice-server.ts` (practice pages with a submit/next/page-change log), `scripts/e2e.ts` (headless Chrome end-to-end checks), `scripts/record-fixture.ts` (polite saved copies of public application pages) |
@@ -1473,7 +1474,7 @@ engine the app uses to answer it. README: `apps/extension/README.md` (what it re
 import { EXTENSION_PROTOCOL_VERSION } from '@jobleft/contracts';
 import type { AtsId } from '@jobleft/contracts';
 export { EXTENSION_PROTOCOL_VERSION };
-/** Where the extension looks for the app: GET /api/v1/health on each port until one answers app "jobleft". */
+/** The ports the app tries first. The extension does not scan them: it talks only to the port typed with the pairing code. */
 export declare const APP_PORTS: readonly number[];
 /**
  * Support level the popup shows before a fill (extension O13). Greenhouse, Lever, Ashby and Workable are supported.
@@ -1558,7 +1559,7 @@ the same hosts in `neverContactHost` (`@jobleft/sources-ats`), which its `polite
 | 2 | The UI is a Vite React SPA with Ant Design 5, served by the local server | Plan I9 names Ant Design 5; one origin for the window keeps the Origin rule simple |
 | 3 | SQLite through `node:sqlite` for everything; no Prisma | Built into Node 24; spike S1 and S2 used it; no native module |
 | 4 | Contracts are one builder that yields types, JSON Schemas and validators | One definition cannot drift from itself |
-| 5 | The launch token rides in the URL fragment and a header; the port range is fixed (47821 to 47830) | The extension can find the app after a restart; the fragment never reaches a server |
+| 5 | The launch token rides in the URL fragment and a header; the port range is fixed (47821 to 47830) | The app comes back on the same port after a restart, so the paired extension (bound to that port) finds it; the fragment never reaches a server |
 | 6 | Other feeds and added jobs live in the crawler's `jobs` table (`feed:<id>`, `external`) | One search index; one dedupe spine |
 | 7 | TypeScript 7.0.2 (native) for type checks | Fast; no JS API is needed. If a lane needs the TypeScript JS API, pin 6.x in that package and say why |
 

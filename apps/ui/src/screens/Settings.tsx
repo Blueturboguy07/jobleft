@@ -17,7 +17,7 @@ import { navigate } from '../app/router.ts';
 import { useAiSettings, useCrawl, usePublik } from '../app/session.ts';
 import { LogoMark, Wordmark } from '../components/Art.tsx';
 import { ErrorState, InlineError, Loading } from '../components/States.tsx';
-import { ago, dateText, fitIndexText, hostOf, plural } from '../lib/format.ts';
+import { ago, dateText, fitIndexText, hostOf, plural, secondsLeft } from '../lib/format.ts';
 import { readAllPages } from '../lib/pages.ts';
 import { rememberAiCheck } from '../lib/aiHealth.ts';
 import { dailyLimitText } from '../lib/dailyLimit.ts';
@@ -468,13 +468,20 @@ function DataTab() {
 
 // ------------------------------------------------------------------ extension
 
+/** The app's port, shown next to the pairing code (the extension talks to this port only). */
+function pairPort(code: PairingCode): string {
+  return String(code.port ?? window.location.port);
+}
+
 function ExtensionTab() {
   const pairings = useApi<PairingInfo[]>('pairings', () => call('listPairings'));
   const [code, setCode] = useState<PairingCode | null>(null);
   const [left, setLeft] = useState(0);
   useEffect(() => {
     if (!code) return;
-    const t = setInterval(() => { const s = Math.max(0, Math.round((Date.parse(code.expiresAt) - Date.now()) / 1000)); setLeft(s); if (!s) setCode(null); }, 1000);
+    const tick = () => { const s = secondsLeft(code.expiresAt); setLeft(s); if (!s) setCode(null); };
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
   }, [code]);
   return (
@@ -483,10 +490,10 @@ function ExtensionTab() {
         {code ? (
           <div className="jl-row" style={{ gap: 16 }}>
             <span className="jl-display" style={{ fontSize: 40, letterSpacing: '0.2em' }} aria-label={`Pairing code ${code.code.split('').join(' ')}`}>{code.code}</span>
-            <span className="jl-muted">Type this code in the extension. It works for {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')} more.</span>
+            <span className="jl-muted">In the extension, type this code and the port <strong aria-label={`Port ${pairPort(code)}`}>{pairPort(code)}</strong>. The extension sends the code to that port only. It works for {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')} more.</span>
           </div>
         ) : (
-          <Button type="primary" shape="round" style={{ alignSelf: 'flex-start' }} onClick={async () => { try { setCode(await call('pairingCode')); } catch (e) { ui.message?.error((e as UiError).message); } }}>Show a pairing code</Button>
+          <Button type="primary" shape="round" style={{ alignSelf: 'flex-start' }} onClick={async () => { try { const c = await call('pairingCode'); setLeft(secondsLeft(c.expiresAt)); setCode(c); } catch (e) { ui.message?.error((e as UiError).message); } }}>Show a pairing code</Button>
         )}
         <p className="jl-small jl-muted" style={{ margin: 0 }}>The extension never gets your connections, AI keys or backups.</p>
       </Panel>

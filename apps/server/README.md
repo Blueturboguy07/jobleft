@@ -221,7 +221,8 @@ Chrome with a scratch profile, and try `fetch`, a form post, an image tag and a 
 ## 7. Pairing an extension (outcome O3)
 
 The person approves in the app: the app's page (`/`) has "Pair a browser extension", which shows a 6-digit code for
-5 minutes. With curl (the extension id is 32 letters a to p; the Origin must be that extension):
+5 minutes and the app's port (`port` in the answer). The person types both in the extension, which sends the code,
+and later its pairing token, to that port only. With curl (the extension id is 32 letters a to p; the Origin must be that extension):
 
 ```sh
 CODE=$(curl -s -X POST -H "x-jobleft-token: $T" http://127.0.0.1:$P/api/v1/extension/pairing-code | python3 -c "import json,sys;print(json.load(sys.stdin)['code'])")

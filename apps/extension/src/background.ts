@@ -1,19 +1,17 @@
 // The service worker: the only part of the extension that talks to the app, and it talks to nothing else.
-// Every request goes to http://127.0.0.1:<one of the app's ports>/api/v1/... with the pairing token in a header.
-// It holds the token (chrome.storage.local, trusted contexts only), finds the app, runs a fill when the person asks,
-// and relays the report to the panel. It never sends page text: only the fields' own labels and options.
+// Every request goes to http://127.0.0.1:<the paired port>/api/v1/... with the pairing token in a header: the port
+// the person typed with the pairing code (src/appclient.ts). It holds the token (chrome.storage.local, trusted
+// contexts only), runs a fill when the person asks, and relays the report to the panel. It never sends page text:
+// only the fields' own labels and options.
 
 import {
-  DEFAULT_PORT, DraftResponseSchema, EXTENSION_PROTOCOL_VERSION, ExtensionStatusSchema, FillResponseSchema, HealthSchema, PageInfoSchema,
-  PAIRING_TOKEN_HEADER, PairResponseSchema, PORT_SPAN, ReviewResponseSchema, formatDollars, validate,
+  DraftResponseSchema, EXTENSION_PROTOCOL_VERSION, ExtensionStatusSchema, FillResponseSchema, PageInfoSchema, ReviewResponseSchema, formatDollars,
 } from '@jobleft/contracts';
-import type { FillRequest, FillResponse, FormField, JsonSchema, PageInfo } from '@jobleft/contracts';
+import type { FillRequest, FillResponse, FormField, PageInfo } from '@jobleft/contracts';
+import { AppError, createAppClient, type Pairing } from './appclient.ts';
 import type { ApplyInput, CollectResult, ConnState, PopupState, ProbeResult, Report, ToContent, ToWorker } from './messages.ts';
 import { supportFor, supportFromUrl, type SupportInfo } from './support.ts';
 
-const PORTS = Array.from({ length: PORT_SPAN }, (_, i) => DEFAULT_PORT + i);
-
-interface Pairing { token: string; port: number; appVersion: string }
 interface TabFill {
   fillId: string;
   requestId: string;
@@ -60,147 +58,27 @@ chrome.runtime.onStartup.addListener(lockStorage);
 
 // ------------------------------------------------------------------ talking to the app
 
-class AppError extends Error {
-  code: 'not_running' | 'unpaired' | 'refused' | 'bad_answer' | 'app_error';
-  status: number;
-  constructor(code: AppError['code'], message: string, status = 0) {
-    super(message);
-    this.code = code;
-    this.status = status;
-  }
-}
-
-async function request(port: number, path: string, init: { method: string; body?: unknown; token?: string | null; timeoutMs?: number }): Promise<{ status: number; data: unknown }> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), init.timeoutMs ?? 8000);
-  const headers: Record<string, string> = { accept: 'application/json' };
-  if (init.token) headers[PAIRING_TOKEN_HEADER] = init.token;
-  if (init.body !== undefined) headers['content-type'] = 'application/json';
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}${path}`, {
-      method: init.method, headers, body: init.body === undefined ? undefined : JSON.stringify(init.body), signal: ctrl.signal,
-      credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer',
-    });
-    const data: unknown = await res.json().catch(() => null);
-    return { status: res.status, data };
-  } catch {
-    throw new AppError('not_running', 'The jobleft app is not running on this computer. Start the app, then try again.');
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function isJobleft(port: number): Promise<string | null> {
-  try {
-    const r = await request(port, '/api/v1/health', { method: 'GET', timeoutMs: 900 });
-    const v = validate(HealthSchema, r.data);
-    return r.status === 200 && v.ok ? v.value.version : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Every port where a jobleft app answers now, the preferred one first. */
-async function appPorts(prefer: number | null): Promise<Array<{ port: number; version: string }>> {
-  const order = prefer ? [prefer, ...PORTS.filter((p) => p !== prefer)] : PORTS;
-  const out: Array<{ port: number; version: string }> = [];
-  for (const port of order) {
-    const v = await isJobleft(port);
-    if (v) out.push({ port, version: v });
-  }
-  return out;
-}
-
-async function findApp(prefer: number | null): Promise<{ port: number; version: string } | null> {
-  return (await appPorts(prefer))[0] ?? null;
-}
-
-function errorMessage(data: unknown): string | null {
-  const e = (data as { error?: { message?: unknown } } | null)?.error;
-  return typeof e?.message === 'string' ? e.message : null;
-}
-
-/**
- * A call with the pairing token. The paired app is the one that accepts the token: when the app moved to another
- * port (a restart), or another jobleft app answers on the old port, the call finds the paired one again.
- */
-async function call<T>(path: string, method: string, body: unknown, schema: JsonSchema, timeoutMs = 15000): Promise<T> {
-  const p = await getPairing();
-  if (!p) throw new AppError('unpaired', 'This browser is not paired with the jobleft app. Pair it first.');
-  let res: { status: number; data: unknown } | null = null;
-  try {
-    res = await request(p.port, path, { method, body, token: p.token, timeoutMs });
-  } catch {
-    res = null;
-  }
-  if (res === null || res.status === 401) {
-    const seen = res?.status === 401;
-    let found = false;
-    for (const a of await appPorts(null)) {
-      if (a.port === p.port && res === null) continue;
-      if (a.port === p.port && seen) continue;
-      const r = await request(a.port, path, { method, body, token: p.token, timeoutMs }).catch(() => null);
-      // Only an app that accepts the token is the paired app (another jobleft server answers 401, 403 or 404).
-      if (r && r.status >= 200 && r.status < 300) {
-        await setPairing({ ...p, port: a.port, appVersion: a.version });
-        res = r;
-        found = true;
-        break;
-      }
-    }
-    if (!found && !seen) throw new AppError('not_running', 'The jobleft app is not running on this computer. Start the app, then try again.');
-  }
-  if (!res || res.status === 401) {
-    await setPairing(null);
-    throw new AppError('unpaired', 'The jobleft app does not know this browser any more (the pairing was removed). Pair again.', 401);
-  }
-  if (res.status === 403) throw new AppError('refused', errorMessage(res.data) ?? 'The jobleft app refused the request.', 403);
-  if (res.status < 200 || res.status >= 300) throw new AppError('app_error', errorMessage(res.data) ?? `The jobleft app answered with an error (HTTP ${res.status}).`, res.status);
-  const v = validate(schema, res.data);
-  if (!v.ok) throw new AppError('bad_answer', 'The jobleft app sent an answer this extension does not understand. Update the app or the extension.');
-  return v.value as T;
-}
+const app = createAppClient({ fetch: (input, init) => fetch(input, init), getPairing, setPairing });
+const call = app.call;
 
 async function connection(): Promise<ConnState> {
   const p = await getPairing();
-  if (!p) {
-    const found = await findApp(null);
-    return { state: 'unpaired', appRunning: !!found, appVersion: found?.version ?? null };
-  }
+  if (!p) return { state: 'unpaired', note: null };
   try {
     const s = await call<{ paired: boolean; appVersion: string; profileComplete: boolean; missingProfileFields: string[] }>('/api/v1/extension/check', 'POST', {}, ExtensionStatusSchema, 5000);
-    if (!s.paired) { await setPairing(null); return { state: 'unpaired', appRunning: true, appVersion: s.appVersion }; }
-    return { state: 'paired', appVersion: s.appVersion, profileComplete: s.profileComplete, missingProfileFields: s.missingProfileFields };
+    if (!s.paired) { await setPairing(null); return { state: 'unpaired', note: null }; }
+    return { state: 'paired', appVersion: s.appVersion, port: p.port, profileComplete: s.profileComplete, missingProfileFields: s.missingProfileFields };
   } catch (e) {
-    if (e instanceof AppError && e.code === 'not_running') return { state: 'app_not_running' };
-    if (e instanceof AppError && e.code === 'unpaired') {
-      const found = await findApp(null);
-      return { state: 'unpaired', appRunning: !!found, appVersion: found?.version ?? null };
-    }
+    if (e instanceof AppError && e.code === 'not_running') return { state: 'app_not_running', port: p.port, message: e.message };
+    if (e instanceof AppError && e.code === 'unpaired') return { state: 'unpaired', note: e.message };
     return { state: 'refused', message: e instanceof Error ? e.message : 'The jobleft app refused the request.' };
   }
 }
 
-async function pair(code: string): Promise<{ ok: boolean; message: string }> {
-  if (!/^\d{6}$/.test(code)) return { ok: false, message: 'Type the 6 digits the jobleft app shows.' };
-  const apps = await appPorts(null);
-  if (apps.length === 0) return { ok: false, message: 'The jobleft app is not running on this computer. Start it, then try again.' };
-  const body = {
-    code, extensionId: chrome.runtime.id, extensionVersion: chrome.runtime.getManifest().version,
-    protocolVersion: EXTENSION_PROTOCOL_VERSION, browser: browserName(),
-  };
-  let last = 'The code did not work. Check it, or make a new code in the app.';
-  // The code is valid only in the app that showed it; with more than one jobleft app running, try each.
-  for (const a of apps) {
-    const r = await request(a.port, '/api/v1/extension/pair', { method: 'POST', body, timeoutMs: 8000 }).catch(() => null);
-    if (!r) continue;
-    if (r.status !== 200) { last = errorMessage(r.data) ?? last; continue; }
-    const v = validate(PairResponseSchema, r.data);
-    if (!v.ok) return { ok: false, message: 'The app sent an answer this extension does not understand.' };
-    await setPairing({ token: v.value.pairingToken, port: a.port, appVersion: v.value.appVersion });
-    return { ok: true, message: `Paired with jobleft ${v.value.appVersion} on this computer.` };
-  }
-  return { ok: false, message: last };
+async function pair(code: string, port: string): Promise<{ ok: boolean; message: string }> {
+  return app.pair(code, port, {
+    extensionId: chrome.runtime.id, extensionVersion: chrome.runtime.getManifest().version, protocolVersion: EXTENSION_PROTOCOL_VERSION, browser: browserName(),
+  });
 }
 
 function browserName(): string {
@@ -209,11 +87,7 @@ function browserName(): string {
 }
 
 async function unpair(): Promise<void> {
-  const p = await getPairing();
-  if (p) {
-    try { await request(p.port, '/api/v1/extension/pairing', { method: 'DELETE', token: p.token, timeoutMs: 3000 }); } catch { /* app closed */ }
-  }
-  await setPairing(null);
+  await app.unpair();
 }
 
 // ------------------------------------------------------------------ the page
@@ -308,7 +182,7 @@ async function startFill(tabId: number, resumeId: string | null): Promise<{ ok: 
   let support = supportFromUrl(tab.url);
   if (support.level === 'never' || support.level === 'not_a_page' || !pageUrl) return { ok: false, message: support.message };
   const conn = await connection();
-  if (conn.state === 'app_not_running') return { ok: false, message: 'The jobleft app is not running on this computer. Start it, then try again. Nothing on the page changed.' };
+  if (conn.state === 'app_not_running') return { ok: false, message: `${conn.message} Nothing on the page changed.` };
   if (conn.state === 'unpaired') return { ok: false, message: 'This browser is not paired with the jobleft app. Pair it first. Nothing on the page changed.' };
   if (conn.state === 'refused') return { ok: false, message: conn.message };
 
@@ -431,7 +305,7 @@ chrome.runtime.onMessage.addListener((msg: ToWorker, sender, reply) => {
       switch (msg.type) {
         case 'popup:state': return popupState(msg.tabId);
         case 'popup:addJob': return addJob(msg.tabId);
-        case 'popup:pair': return pair(msg.code);
+        case 'popup:pair': return pair(msg.code, msg.port);
         case 'popup:unpair': await unpair(); return { ok: true };
         case 'popup:fill': return startFill(msg.tabId, msg.resumeId);
       }

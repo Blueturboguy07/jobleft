@@ -335,6 +335,16 @@ export class ResumeService {
     return { fitsOnePage: fit.leftOut.length === 0, leftOut: fit.leftOut };
   }
 
+  #renderedBase(row: Row, doc: ResumeDocument): string {
+    return safeFileName(`${doc.header.name || 'Resume'}_${row.kind === 'tailored' ? (parse<{ company: string }>(row.job_label_json)?.company ?? 'job') : row.name}`);
+  }
+
+  /** The file name export() gives a resume it renders from its document (one made or tailored in the app), without rendering it. */
+  renderedFileName(resumeId: string, format: 'pdf' | 'docx'): string {
+    const { row, doc } = this.#doc(resumeId);
+    return `${this.#renderedBase(row, doc)}.${format}`;
+  }
+
   async export(resumeId: string, format: 'pdf' | 'docx'): Promise<ExportedFile> {
     const { row, doc } = this.#doc(resumeId);
     // An uploaded resume that was never edited comes back as the person's own file, byte for byte, when the format
@@ -349,7 +359,7 @@ export class ResumeService {
         return { fileName: own.toLowerCase().endsWith(`.${format}`) ? own : `${own}.${format}`, mimeType: mime, bytes: new Uint8Array(readFileSync(path)), leftOut: [] };
       }
     }
-    const base = safeFileName(`${doc.header.name || 'Resume'}_${row.kind === 'tailored' ? (parse<{ company: string }>(row.job_label_json)?.company ?? 'job') : row.name}`);
+    const base = this.#renderedBase(row, doc);
     if (format === 'pdf') {
       const r = renderResumePdf(doc);
       return { fileName: `${base}.pdf`, mimeType: 'application/pdf', bytes: r.bytes, leftOut: r.leftOut };

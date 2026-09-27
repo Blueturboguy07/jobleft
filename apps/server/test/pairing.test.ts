@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { cleanup, PERSONA, raw, startTest } from './helpers.ts';
+import { withExtension } from '../src/services/extension.ts';
 
 const EXT = 'abcdefghijklmnopabcdefghijklmnop';
 const ORIGIN = `chrome-extension://${EXT}`;
@@ -27,6 +28,9 @@ test('pairing needs the person, five wrong codes void it, and unpairing stops th
     // Pairing from a web page Origin or with no Origin is refused.
     assert.equal((await ext('POST', '/api/v1/extension/pair', undefined, req('123456'), 'http://attacker.example')).status, 403);
     assert.equal((await raw(s.port, { method: 'POST', path: '/api/v1/extension/pair', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req('123456')) })).status, 403);
+
+    // The app shows its own port next to the code: the extension sends the code to that port only (JL-extension-2, 3).
+    assert.equal((await s.call('POST', '/api/v1/extension/pairing-code')).json.port, s.port);
 
     // Five wrong guesses void the code.
     let code = (await s.call('POST', '/api/v1/extension/pairing-code')).json.code as string;
@@ -114,5 +118,102 @@ test('a review that the person submitted marks the job Applied and keeps saved a
     const fill = await ext('POST', '/api/v1/extension/fill', token, { requestId: 'r2', pageUrl: 'https://jobs.example.com/x', ats: 'other', step: null, resumeId: null, fields: [{ fieldId: 'h', label: 'How did you hear about us?', name: null, kind: 'text', required: false, options: [], maxLength: null, section: null }] });
     assert.equal(fill.json.fills[0].values[0], 'A friend');
     assert.equal(fill.json.fills[0].source, 'saved_answer');
+  } finally { await s.stop(); cleanup(s.home); }
+});
+
+test('a resume made in the app is offered and attached as a PDF the app makes (JL-extension-5, JL-extension-11)', async () => {
+  const s = await startTest('built-resume');
+  try {
+    const ext = (path: string, token: string, body: unknown) => raw(s.port, { method: 'POST', path, body: JSON.stringify(body), headers: { origin: ORIGIN, 'x-jobleft-pairing': token, 'content-type': 'application/json' } });
+    const code = (await s.call('POST', '/api/v1/extension/pairing-code')).json.code;
+    const token = (await raw(s.port, { method: 'POST', path: '/api/v1/extension/pair', headers: { origin: ORIGIN, 'content-type': 'application/json' }, body: JSON.stringify({ code, extensionId: EXT, extensionVersion: '0.1.0', protocolVersion: 1, browser: 'Chrome' }) })).json.pairingToken;
+    // Plain letters: the PDF font has them all (the persona's summary has 日本語 and an emoji, see below).
+    await s.call('PUT', '/api/v1/profile', { ...PERSONA, summary: 'Data analyst.' });
+    const made = await s.call('POST', '/api/v1/resumes', { name: 'My resume' });
+    assert.equal(made.status, 200, made.text);
+    assert.equal(made.json.file, null, 'made from the profile: no uploaded file');
+
+    const page = await ext('/api/v1/extension/page', token, { pageUrl: 'https://boards.greenhouse.io/acme/jobs/1' });
+    assert.equal(page.status, 200, page.text);
+    const offered = page.json.resumes.find((r: any) => r.id === made.json.id);
+    assert.ok(offered, 'the resume made in the app is in the list to attach');
+    assert.match(offered.fileName, /\.pdf$/);
+    assert.equal(page.json.suggestedResumeId, made.json.id, 'the only resume is the one suggested');
+
+    const fill = await ext('/api/v1/extension/fill', token, {
+      requestId: 'r-built', pageUrl: 'https://boards.greenhouse.io/acme/jobs/1', ats: 'greenhouse', step: null, resumeId: made.json.id,
+      fields: [{ fieldId: 'cv', label: 'Resume/CV', name: 'resume', kind: 'file', required: true, options: [], maxLength: null, section: null }],
+    });
+    assert.equal(fill.status, 200, fill.text);
+    assert.equal(fill.json.files.length, 1, JSON.stringify(fill.json.warnings));
+    const f = fill.json.files[0];
+    assert.equal(f.resumeId, made.json.id);
+    assert.equal(f.mimeType, 'application/pdf');
+    assert.equal(f.fileName, offered.fileName, 'the file attached has the name the popup showed');
+    assert.equal(Buffer.from(f.base64, 'base64').subarray(0, 5).toString(), '%PDF-');
+
+    // Letters the PDF font lacks: the app makes the Word file instead of dropping letters, and attaches that.
+    await s.call('PUT', '/api/v1/profile', PERSONA);
+    const fill2 = await ext('/api/v1/extension/fill', token, {
+      requestId: 'r-built-2', pageUrl: 'https://boards.greenhouse.io/acme/jobs/1', ats: 'greenhouse', step: null, resumeId: made.json.id,
+      fields: [{ fieldId: 'cv', label: 'Resume/CV', name: 'resume', kind: 'file', required: true, options: [], maxLength: null, section: null }],
+    });
+    assert.equal(fill2.status, 200, fill2.text);
+    assert.equal(fill2.json.files.length, 1, JSON.stringify(fill2.json.warnings));
+    assert.match(fill2.json.files[0].fileName, /\.docx$/);
+    assert.equal(Buffer.from(fill2.json.files[0].base64, 'base64').subarray(0, 2).toString(), 'PK');
+  } finally { await s.stop(); cleanup(s.home); }
+});
+
+test('a resume uploaded with no file name is stored and attached with its type\'s extension (JL-extension-6)', async () => {
+  // Resumes stored before this fix ("resume", application/pdf) get the extension when they are attached.
+  assert.equal(withExtension('resume', 'application/pdf'), 'resume.pdf');
+  assert.equal(withExtension('Jordan CV', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'), 'Jordan CV.docx');
+  assert.equal(withExtension('jordan-two-column.pdf', 'application/pdf'), 'jordan-two-column.pdf');
+  assert.equal(withExtension('CV.PDF', 'application/pdf'), 'CV.PDF');
+  assert.equal(withExtension('notes', 'application/octet-stream'), 'notes', 'an unknown type gets no made-up extension');
+
+  const s = await startTest('noname');
+  try {
+    await s.call('PUT', '/api/v1/profile', PERSONA);
+    const up = await s.call('POST', '/api/v1/resumes/import', PDF, { 'content-type': 'application/pdf' });
+    assert.equal(up.status, 200, up.text);
+    assert.equal(up.json.resume.file.fileName, 'resume.pdf');
+    const code = (await s.call('POST', '/api/v1/extension/pairing-code')).json.code;
+    const token = (await raw(s.port, { method: 'POST', path: '/api/v1/extension/pair', headers: { origin: ORIGIN, 'content-type': 'application/json' }, body: JSON.stringify({ code, extensionId: EXT, extensionVersion: '0.1.0', protocolVersion: 1, browser: 'Chrome' }) })).json.pairingToken;
+    const fill = await raw(s.port, {
+      method: 'POST', path: '/api/v1/extension/fill', headers: { origin: ORIGIN, 'x-jobleft-pairing': token, 'content-type': 'application/json' },
+      body: JSON.stringify({ requestId: 'r-noname', pageUrl: 'https://boards.greenhouse.io/acme/jobs/1', ats: 'greenhouse', step: null, resumeId: null,
+        fields: [{ fieldId: 'cv', label: 'Resume/CV', name: 'resume', kind: 'file', required: true, options: [], maxLength: null, section: null, accept: '.pdf,.doc,.docx,.txt,.rtf' }] }),
+    });
+    assert.equal(fill.status, 200, fill.text);
+    assert.equal(fill.json.files[0].fileName, 'resume.pdf');
+  } finally { await s.stop(); cleanup(s.home); }
+});
+
+test('the app answers nothing for a LinkedIn, Indeed or Glassdoor page, even to a paired extension (JL-extension-10)', async () => {
+  const s = await startTest('never-host');
+  try {
+    const ext = (path: string, token: string, body: unknown) => raw(s.port, { method: 'POST', path, body: JSON.stringify(body), headers: { origin: ORIGIN, 'x-jobleft-pairing': token, 'content-type': 'application/json' } });
+    const code = (await s.call('POST', '/api/v1/extension/pairing-code')).json.code;
+    const token = (await raw(s.port, { method: 'POST', path: '/api/v1/extension/pair', headers: { origin: ORIGIN, 'content-type': 'application/json' }, body: JSON.stringify({ code, extensionId: EXT, extensionVersion: '0.1.0', protocolVersion: 1, browser: 'Chrome' }) })).json.pairingToken;
+    await s.call('PUT', '/api/v1/profile', PERSONA);
+    const fields = [
+      { fieldId: 'e', label: 'Email', name: 'email', kind: 'email', required: true, options: [], maxLength: null, section: null },
+      { fieldId: 'q', label: 'Why do you want to work here?', name: 'why', kind: 'textarea', required: false, options: [], maxLength: null, section: null },
+    ];
+    for (const pageUrl of ['https://www.linkedin.com/jobs/apply/123', 'https://uk.indeed.com/viewjob?jk=1', 'https://www.glassdoor.co.uk/job/1']) {
+      const fill = await ext('/api/v1/extension/fill', token, { requestId: 'r-li', pageUrl, ats: 'other', step: null, resumeId: null, fields });
+      assert.equal(fill.status, 422, `${pageUrl}: ${fill.text}`);
+      assert.equal(fill.json.error.code, 'forbidden_source');
+      assert.ok(!fill.text.includes('jordan.testwell@example.com'), 'no profile value in the answer');
+      assert.equal((await ext('/api/v1/extension/page', token, { pageUrl })).status, 422);
+      assert.equal((await ext('/api/v1/extension/drafts', token, { requestId: 'r-li', pageUrl, jobId: null, fields: [fields[1]], maxCostMicros: 0 })).status, 422);
+      assert.equal((await ext('/api/v1/extension/review', token, { requestId: 'r-li', pageUrl, jobId: null, ats: 'other', filledFieldIds: [], editedFieldIds: [], submittedByUser: false, savedAnswers: [], at: '2026-09-27T10:00:00Z' })).status, 422);
+    }
+    // Other pages still work.
+    const ok = await ext('/api/v1/extension/fill', token, { requestId: 'r-ok', pageUrl: 'https://boards.greenhouse.io/acme/jobs/1', ats: 'greenhouse', step: null, resumeId: null, fields });
+    assert.equal(ok.status, 200, ok.text);
+    assert.equal(ok.json.fills[0].values[0], 'jordan.testwell@example.com');
   } finally { await s.stop(); cleanup(s.home); }
 });

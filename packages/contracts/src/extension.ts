@@ -3,11 +3,12 @@
 //
 // Flow:
 //   1. The app shows a 6-digit code (POST /api/v1/extension/pairing-code, launch token, valid 5 minutes).
-//   2. The user types the code in the extension. The extension finds the app (GET /api/v1/health on ports
-//      DEFAULT_PORT..DEFAULT_PORT+9, looking for app "jobleft") and calls POST /api/v1/extension/pair.
-//      The request's Origin must be chrome-extension://<extensionId>. Five wrong codes void the code.
+//   2. The user types the code and the app's port (the app shows both) in the extension. The extension checks that
+//      port only (GET /api/v1/health answers app "jobleft") and calls POST /api/v1/extension/pair there, never on
+//      another port. The request's Origin must be chrome-extension://<extensionId>. Five wrong codes void the code.
 //   3. The app answers with a pairing token. Every later call carries it in PAIRING_TOKEN_HEADER, from the same
-//      extension Origin. The token is stored only in chrome.storage.local, never in a page or a URL.
+//      extension Origin, to the paired port only. The token is stored only in chrome.storage.local, never in a page
+//      or a URL.
 //   4. On an application page, the extension sends the form's fields (FillRequest). The app answers with values
 //      (FillResponse). The extension fills and highlights them. It NEVER submits a form and never solves a CAPTCHA.
 //   5. After the user's own review, the extension sends ReviewResult. When the user submitted, the app marks the
@@ -24,6 +25,9 @@ export const EXTENSION_PROTOCOL_VERSION = 1;
 export const PairingCodeSchema = named(obj({
   code: str({ pattern: '^[0-9]{6}$' }),
   expiresAt: IsoDateTimeSchema,
+}, {
+  /** The port this app listens on. The app shows it next to the code; the person types both in the extension, and the extension sends the code (and later its token) to this port only. */
+  port: int({ minimum: 1, maximum: 65535 }),
 }), 'PairingCode');
 
 export const PairRequestSchema = named(obj({

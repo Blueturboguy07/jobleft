@@ -25,7 +25,7 @@ import { matchFor } from './integ/match.ts';
 import { step } from './integ/resume.ts';
 import { safeFileName } from './interim/resumes.ts';
 import { RESTORE_LIMIT, createBackup, deleteAllData, exportAll, freeBytes, restoreBackup } from './services/backup.ts';
-import { ExtensionService } from './services/extension.ts';
+import { ExtensionService, withExtension } from './services/extension.ts';
 import { APP_VERSION } from './version.ts';
 
 export interface Ctx<K extends RouteName> {
@@ -237,7 +237,9 @@ export const HANDLERS: HandlerTable = {
   },
   listResumes: ({ d }) => ({ json: d.resumes.list() }),
   importResume: async ({ d, body, contentType, fileName }) => {
-    const r = await step(() => d.resumes.svc.import(body, safeFileName(fileName, 'resume'), contentType ?? 'application/octet-stream'));
+    // A file sent with no name (or a name with no extension) is stored with the extension of its type.
+    const type = contentType ?? 'application/octet-stream';
+    const r = await step(() => d.resumes.svc.import(body, withExtension(safeFileName(fileName, 'resume'), type), type));
     return { json: { resume: r.resume, proposedProfile: r.proposedProfile } };
   },
   createResume: ({ d, body }) => step(() => ({ json: d.resumes.svc.create(body) })),
@@ -340,7 +342,8 @@ export const HANDLERS: HandlerTable = {
   refreshPublik: (c) => aiJson(c, 'refreshPublik'),
 
   // ---------------------------------------------------------------- extension
-  pairingCode: ({ d }) => ({ json: d.pairing.newCode() }),
+  // The port goes with the code: the person types both in the extension, which then talks to this port only.
+  pairingCode: ({ d, req }) => ({ json: { ...d.pairing.newCode(), ...(req.socket.localPort ? { port: req.socket.localPort } : {}) } }),
   pair: ({ d, body, extensionId }) => {
     if (!extensionId) throw new ApiFailure('forbidden_origin', 'Only a browser extension can pair.');
     return { json: d.pairing.pair(body, extensionId, APP_VERSION) };

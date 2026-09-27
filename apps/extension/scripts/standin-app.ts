@@ -300,7 +300,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (m === 'POST' && path === '/api/v1/extension/pairing-code') {
     gate(req, 'launch');
     code = { code: String(randomInt(0, 1_000_000)).padStart(6, '0'), expiresAt: Date.now() + 5 * 60_000, wrong: 0 };
-    send(res, 200, { code: code.code, expiresAt: new Date(code.expiresAt).toISOString() });
+    send(res, 200, { code: code.code, expiresAt: new Date(code.expiresAt).toISOString(), port });
     return;
   }
   if (m === 'POST' && path === '/api/v1/extension/pair') {
@@ -418,7 +418,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     save();
     const outBody: DraftResponse = {
       drafts, costMicros: spent, balanceMicros: S.drafts.kind === 'publik_sim' ? S.drafts.balanceMicros : null,
-      skipped: [...skipped, ...fields.filter((f) => !drafts.some((d) => d.fieldId === f.fieldId)).map((f) => ({ fieldId: f.fieldId, message: 'Your profile has too few facts for a true draft.' }))],
+      skipped: [...skipped, ...fields.filter((f) => !drafts.some((d) => d.fieldId === f.fieldId)).map((f) => ({ fieldId: f.fieldId, message: 'jobleft cannot write a true draft of this answer from your profile. Write this one yourself.' }))],
     };
     send(res, 200, outBody);
     return;

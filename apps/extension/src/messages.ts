@@ -5,9 +5,11 @@ import type { AtsId, DraftOffer, FormField, FillResponse, PageInfo } from '@jobl
 import type { SupportInfo } from './support.ts';
 
 export type ConnState =
-  | { state: 'unpaired'; appRunning: boolean; appVersion: string | null }
-  | { state: 'app_not_running' }
-  | { state: 'paired'; appVersion: string; profileComplete: boolean; missingProfileFields: string[] }
+  /** `note`: why the browser is not paired any more (the app removed the pairing), or null. */
+  | { state: 'unpaired'; note: string | null }
+  /** The paired port does not answer. The extension tries no other port. */
+  | { state: 'app_not_running'; port: number; message: string }
+  | { state: 'paired'; appVersion: string; port: number; profileComplete: boolean; missingProfileFields: string[] }
   | { state: 'refused'; message: string };
 
 /** What a probe of the page found: markers only, never page text. */
@@ -100,7 +102,7 @@ export interface ApplyInput {
 
 export type ToWorker =
   | { type: 'popup:state'; tabId: number }
-  | { type: 'popup:pair'; code: string }
+  | { type: 'popup:pair'; code: string; port: string }
   | { type: 'popup:unpair' }
   | { type: 'popup:fill'; tabId: number; resumeId: string | null }
   | { type: 'popup:addJob'; tabId: number }
