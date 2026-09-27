@@ -205,6 +205,13 @@ CREATE TABLE srv_extension_reviews (
 );
 `,
   },
+  {
+    version: 3,
+    name: 'saved filters keep their search words (JL-tracker-15)',
+    sql: `
+ALTER TABLE srv_saved_filters ADD COLUMN q TEXT;
+`,
+  },
 ];
 
 export const SERVER_SCHEMA_VERSION = SERVER_MIGRATIONS[SERVER_MIGRATIONS.length - 1]!.version;

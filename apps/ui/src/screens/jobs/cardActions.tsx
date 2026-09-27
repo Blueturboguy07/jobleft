@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { Button } from 'antd';
-import type { TrackerPatch } from '@jobleft/contracts';
+import type { TrackerEntry, TrackerPatch } from '@jobleft/contracts';
 import { call } from '../../app/api.ts';
 import { ui } from '../../app/layers.ts';
 import { navigate } from '../../app/router.ts';
@@ -16,26 +16,41 @@ export interface ListOps {
   reinsert?: (item: CardItem) => void;
 }
 
-async function patch(jobId: string, body: TrackerPatch): Promise<boolean> {
+async function patchEntry(jobId: string, body: TrackerPatch): Promise<TrackerEntry | null> {
   try {
-    await call('updateTracker', { params: { jobId }, body });
+    const e = await call('updateTracker', { params: { jobId }, body });
     afterTrackerChange();
-    return true;
+    return e;
   } catch (e) {
     ui.message?.error((e as { message: string }).message);
-    return false;
+    return null;
   }
 }
+const patch = async (jobId: string, body: TrackerPatch): Promise<boolean> => (await patchEntry(jobId, body)) !== null;
 
 export function useCardActions(ops: ListOps): CardActions {
   return useMemo<CardActions>(() => ({
     open: (jobId) => navigate(`jobs/${encodeURIComponent(jobId)}`),
     like: async (item) => {
       const next = !item.liked;
-      if (await patch(item.job.id, { liked: next })) {
-        ops.update(item.job.id, { liked: next });
-        ui.message?.success(next ? 'Added to Liked.' : 'Removed from Liked.');
-      }
+      const e = await patchEntry(item.job.id, { liked: next });
+      if (!e) return;
+      ops.update(item.job.id, { liked: next });
+      if (next) { ui.message?.success('Added to Liked.'); return; }
+      // An unlike is one click: say what stays, and offer Undo (JL-tracker-6, JL-tracker-21).
+      const key = `unlike-${item.job.id}`;
+      const kept = e.notes.length > 0 || e.reminders.some((r) => !r.done);
+      ui.message?.open({
+        type: 'success', duration: 8, key,
+        content: (
+          <span>Removed from Liked.{kept ? ' Its notes and reminders stay in the Tracker.' : ''}{' '}
+            <Button size="small" type="link" onClick={async () => {
+              ui.message?.destroy(key);
+              if (await patch(item.job.id, { liked: true })) { ops.update(item.job.id, { liked: true }); ui.message?.success('Liked again.'); }
+            }}>Undo</Button>
+          </span>
+        ),
+      });
     },
     hide: async (item) => {
       const next = !item.hidden;

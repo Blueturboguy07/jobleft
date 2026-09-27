@@ -118,6 +118,24 @@ test('closed and hidden jobs never show or count, in any sort; tracked closed jo
   assert.equal(all(s, { sort: 'recommended' }).total, 40);
 });
 
+test('the tracked view keeps every open job the person did something to (JL-tracker-6)', () => {
+  const s = freshStore();
+  const t = new TrackerStore(s.db);
+  s.refreshScope('greenhouse:acme', Array.from({ length: 6 }, (_, i) => job({ id: `k:${i}`, title: `Role ${i}`, ats: 'greenhouse', board: 'acme', externalId: String(2000 + i) })), { now: NOW });
+  t.patch('k:1', { status: 'applied', notes: [{ text: 'keep this' }] }, NOW);
+  t.patch('k:1', { status: null }, NOW + 1);
+  t.patch('k:2', { liked: true, reminders: [{ at: '2026-10-04T15:00:00Z', text: 'Apply', done: false }] }, NOW);
+  t.patch('k:2', { liked: false }, NOW + 1);
+  t.patch('k:3', { notes: [{ text: 'never liked' }] }, NOW);
+  t.patch('k:4', { hidden: true }, NOW);
+  const r = t.list('tracked');
+  assert.deepEqual(r.items.map((i) => i.job.id).sort(), ['k:1', 'k:2', 'k:3']);
+  assert.equal(r.counts.liked, 0);
+  assert.equal(r.counts.applied, 0);
+  assert.equal(Object.keys(r.counts).sort().join(','), 'applied,byStatus,closed,external,hidden,liked', 'counts keep their shape');
+  assert.ok(t.patch('k:5', { status: 'offer_received' }, NOW).appliedAt, 'a later stage records the applied date');
+});
+
 test('dedupe: one posting through three links shows once; same title at one company in other cities or ids stays separate', () => {
   const s = freshStore();
   const desc = 'Build the billing platform. Five years of experience.';

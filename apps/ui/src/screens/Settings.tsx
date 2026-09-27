@@ -284,7 +284,7 @@ function AlertsTab() {
         {filters.data && !filters.data.length && <p className="jl-muted">No saved filters yet. Save one from the Jobs screen.</p>}
         {filters.data?.map((f) => (
           <label key={f.id} className="jl-row"><Switch aria-label={`Alerts for ${f.name}`} checked={f.alert.enabled} onChange={async (v) => {
-            try { await call('updateFilter', { params: { filterId: f.id }, body: { name: f.name, filter: f.filter, sort: f.sort, alert: v } }); invalidate('filters'); } catch (e) { ui.message?.error((e as UiError).message); }
+            try { await call('updateFilter', { params: { filterId: f.id }, body: { name: f.name, filter: f.filter, sort: f.sort, alert: v, q: f.q ?? '' } }); invalidate('filters'); } catch (e) { ui.message?.error((e as UiError).message); }
           }} /> {f.name}</label>
         ))}
       </Panel>

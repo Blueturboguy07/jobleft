@@ -1,5 +1,6 @@
-// The application tracker: every job you liked or applied to, by stage. Move a job with its status menu (keyboard)
-// or by dragging its card. Counts come from the same answer as the rows. Closed postings keep their stage and notes.
+// The application tracker: every job you liked, applied to, or wrote a note or reminder on, by stage. Move a job with
+// its status menu (keyboard) or by dragging its card. Counts come from the same answer as the rows. Closed postings
+// keep their stage and notes. A job that holds notes or reminders never leaves the board (JL-tracker-6).
 
 import { useState } from 'react';
 import { Button, Checkbox, Segmented, Select, Table } from 'antd';
@@ -12,13 +13,14 @@ import { afterTrackerChange } from '../app/session.ts';
 import { EmptyState, ErrorState, Loading } from '../components/States.tsx';
 import { dateText, dateTimeText, plural } from '../lib/format.ts';
 import { patchFresh, reminderKeep } from '../lib/trackerEdit.ts';
+import { nextReminder, openReminders } from '../lib/trackerView.ts';
 import { useTrackerView } from './jobs/TrackerTabs.tsx';
 
 type Item = TrackerList['items'][number];
 type Col = TrackerStatus | 'saved';
 
 const COLS: Array<{ id: Col; label: string }> = [
-  { id: 'saved', label: 'Liked, not applied' },
+  { id: 'saved', label: 'Not applied yet' },
   ...TRACKER_STATUSES.map((s) => ({ id: s as Col, label: TRACKER_STATUS_LABELS[s] })),
 ];
 
@@ -26,12 +28,14 @@ async function move(it: Item, to: Col): Promise<void> {
   try {
     await call('updateTracker', { params: { jobId: it.job.id }, body: { status: to === 'saved' ? null : to } });
     afterTrackerChange();
-    ui.message?.success(to === 'saved' ? 'Moved back to liked.' : `Moved to ${TRACKER_STATUS_LABELS[to]}.`);
+    ui.message?.success(to === 'saved' ? 'Moved to Not applied yet. Its notes and reminders stay.' : `Moved to ${TRACKER_STATUS_LABELS[to]}.`);
   } catch (e) { ui.message?.error((e as UiError).message); }
 }
 
-function nextReminder(e: TrackerEntry) {
-  return e.reminders.filter((r) => !r.done).sort((a, b) => (a.at < b.at ? -1 : 1))[0] ?? null;
+function ReminderText({ e }: { e: TrackerEntry }) {
+  const x = nextReminder(e, Date.now());
+  if (!x) return null;
+  return <>{dateTimeText(x.r.at)}{x.overdue && <span className="jl-chip warn" style={{ marginLeft: 4 }}>Overdue</span>}</>;
 }
 
 function StatusSelect({ it }: { it: Item }) {
@@ -42,14 +46,16 @@ function StatusSelect({ it }: { it: Item }) {
 }
 
 function Mini({ it }: { it: Item }) {
-  const r = nextReminder(it.entry);
+  const r = nextReminder(it.entry, Date.now());
+  const e = it.entry;
   return (
     <div className="jl-mini" draggable onDragStart={(e) => { e.dataTransfer.setData('text/jobleft-job', it.job.id); e.dataTransfer.effectAllowed = 'move'; }}>
       <a className="t" href={`#/jobs/${encodeURIComponent(it.job.id)}`} style={{ color: '#000' }}>{it.job.title}</a>
       <span className="jl-small">{it.job.company}</span>
       {it.job.status === 'closed' && <span className="jl-chip closed" style={{ alignSelf: 'flex-start' }}>Posting closed</span>}
-      {it.entry.appliedAt && <span className="jl-small jl-muted">Applied {dateText(it.entry.appliedAt)}</span>}
-      {r && <span className="jl-small">Reminder: {dateTimeText(r.at)}</span>}
+      {e.appliedAt && e.status !== null && <span className="jl-small jl-muted">Applied {dateText(e.appliedAt)}</span>}
+      {e.status === null && !e.liked && <span className="jl-small jl-muted">Not liked. Kept here for your notes and reminders.</span>}
+      {r && <span className="jl-small">Reminder: <ReminderText e={e} /></span>}
       {it.entry.notes.length > 0 && <span className="jl-small jl-muted">{plural(it.entry.notes.length, 'note')}</span>}
       <StatusSelect it={it} />
     </div>
@@ -57,19 +63,19 @@ function Mini({ it }: { it: Item }) {
 }
 
 export function TrackerScreen() {
-  const applied = useTrackerView('applied');
-  const liked = useTrackerView('liked');
+  // One answer for the whole board: every job the person liked, applied to, or wrote a note or reminder on.
+  const tracked = useTrackerView('tracked');
   const closed = useTrackerView('closed');
   const [view, setView] = useState<'board' | 'table'>('board');
   const [over, setOver] = useState<Col | null>(null);
-  if ((applied.error && !applied.data) || (liked.error && !liked.data)) return <div className="jl-page"><ErrorState error={applied.error ?? liked.error} onRetry={() => { void applied.reload(); void liked.reload(); }} /></div>;
-  if (!applied.data || !liked.data) return <div className="jl-page"><Loading label="Loading your tracker" /></div>;
-  const saved = liked.data.items.filter((x) => x.entry.status === null);
+  if (tracked.error && !tracked.data) return <div className="jl-page"><ErrorState error={tracked.error} onRetry={() => { void tracked.reload(); }} /></div>;
+  if (!tracked.data) return <div className="jl-page"><Loading label="Loading your tracker" /></div>;
+  const all = tracked.data.items;
+  const saved = all.filter((x) => x.entry.status === null);
   const byCol: Record<Col, Item[]> = { saved, applied: [], interviewing: [], offer_received: [], rejected: [], archived: [] };
-  for (const it of applied.data.items) byCol[it.entry.status!].push(it);
-  const all = [...saved, ...applied.data.items];
-  const reminders = all.flatMap((it) => it.entry.reminders.filter((r) => !r.done).map((r) => ({ r, it }))).sort((a, b) => (a.r.at < b.r.at ? -1 : 1));
-  const counts = applied.data.counts;
+  for (const it of all) if (it.entry.status !== null) byCol[it.entry.status].push(it);
+  const reminders = openReminders(all, Date.now());
+  const counts = tracked.data.counts;
 
   const drop = (col: Col, e: React.DragEvent) => {
     e.preventDefault();
@@ -83,7 +89,7 @@ export function TrackerScreen() {
     <div className="jl-page">
       <div className="jl-page-inner" style={{ maxWidth: 1400 }}>
         <div className="jl-row jl-wrap" style={{ marginBottom: 12 }}>
-          <p className="jl-grow" style={{ fontSize: 15, fontWeight: 500 }}>{plural(counts.applied, 'application')} and {plural(saved.length, 'liked job')} not applied yet.</p>
+          <p className="jl-grow" style={{ fontSize: 15, fontWeight: 500 }}>{plural(counts.applied, 'application')} and {plural(saved.length, 'job')} not applied yet.</p>
           <Segmented value={view} onChange={(v) => setView(v as 'board' | 'table')} options={[{ value: 'board', label: 'Board' }, { value: 'table', label: 'Table' }]} aria-label="Tracker view" />
         </div>
         {!all.length ? (
@@ -110,15 +116,15 @@ export function TrackerScreen() {
               { title: 'Stage', key: 'st', width: 190, render: (_, r) => <StatusSelect it={r} /> },
               { title: 'Applied', key: 'ap', render: (_, r) => dateText(r.entry.appliedAt) ?? '', sorter: (a, b) => (a.entry.appliedAt ?? '').localeCompare(b.entry.appliedAt ?? '') },
               { title: 'Posting', key: 'po', render: (_, r) => (r.job.status === 'closed' ? 'Closed' : 'Open') },
-              { title: 'Next reminder', key: 'rm', render: (_, r) => { const x = nextReminder(r.entry); return x ? dateTimeText(x.at) : ''; } },
+              { title: 'Next reminder', key: 'rm', render: (_, r) => <ReminderText e={r.entry} /> },
               { title: 'Notes', key: 'no', render: (_, r) => r.entry.notes.length || '' },
             ]} />
         )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginTop: 16 }}>
           <section className="jl-card-box" aria-labelledby="rem-h">
-            <h2 id="rem-h" className="jl-section-title" style={{ fontSize: 17 }}>Upcoming reminders</h2>
+            <h2 id="rem-h" className="jl-section-title" style={{ fontSize: 17 }}>Open reminders</h2>
             {!reminders.length && <p className="jl-muted">No open reminders. Add one from a job's notes.</p>}
-            {reminders.slice(0, 12).map(({ r, it }) => (
+            {reminders.slice(0, 12).map(({ r, it, overdue }) => (
               <div key={r.id} className="jl-row" style={{ padding: '4px 0' }}>
                 <Checkbox aria-label={`Done: ${r.text}`} onChange={async (e) => {
                   const done = e.target.checked;
@@ -127,9 +133,10 @@ export function TrackerScreen() {
                     afterTrackerChange();
                   } catch (err) { ui.message?.error((err as UiError).message); }
                 }} />
-                <span className="jl-grow"><strong>{dateTimeText(r.at)}</strong>: {r.text} · <a href={`#/jobs/${encodeURIComponent(it.job.id)}`}>{it.job.company}</a></span>
+                <span className="jl-grow">{overdue && <span className="jl-chip warn" style={{ marginRight: 6 }}>Overdue</span>}<strong>{dateTimeText(r.at)}</strong>: {r.text} · <a href={`#/jobs/${encodeURIComponent(it.job.id)}`}>{it.job.company}</a></span>
               </div>
             ))}
+            {reminders.length > 12 && <p className="jl-small jl-muted">{plural(reminders.length - 12, 'more open reminder')}. Open a job to see all of its reminders.</p>}
           </section>
           <section className="jl-card-box" aria-labelledby="cl-h">
             <h2 id="cl-h" className="jl-section-title" style={{ fontSize: 17 }}>Closed postings ({closed.data?.counts.closed ?? 0})</h2>

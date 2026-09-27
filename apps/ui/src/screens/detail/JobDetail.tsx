@@ -17,6 +17,7 @@ import { confirmDiscard, dirtyLabels, ui, useLayer } from '../../app/layers.ts';
 import { navigate } from '../../app/router.ts';
 import { afterTrackerChange, profileIsSet, useH1bSource, useProfile } from '../../app/session.ts';
 import { openChat } from '../../components/chatStore.ts';
+import { NO_LINK_TEXT, realLink } from '../../lib/external.ts';
 import { IconAssistant, IconInterview, IconResume } from '../../components/Icons.tsx';
 import { CompanyMark, sponsorChip, sponsorTip } from '../../components/JobCard.tsx';
 import { BAND_WORD, bandOf, chipText, pct, type MatchResultX } from '../../components/Match.tsx';
@@ -167,7 +168,7 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
       <div className="jl-detail-main">
         <div className="jl-actionbar"><Button ref={closeRef} shape="circle" icon={<CloseOutlined />} aria-label="Close job detail" onClick={() => { void close(); }} /></div>
         {d.error.status === 404
-          ? <EmptyState art="box" title="This job is not in your saved jobs" text="It may have been removed. Go back to your list." action={<Button type="primary" shape="round" onClick={onClose}>Back to the list</Button>} />
+          ? <EmptyState art="box" title="jobleft has no job with this address" text="It may have been removed, or the link is wrong. Go back to your list." action={<Button type="primary" shape="round" onClick={onClose}>Back to the list</Button>} />
           : <ErrorState error={d.error} onRetry={() => { void d.reload(); }} />}
       </div>
     );
@@ -183,7 +184,8 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
   const match = d.data.match as MatchResultX | null;
   const profileSet = profileIsSet(profile.data);
   const closed = job.status === 'closed';
-  const applyUrl = job.applyUrl ?? job.url;
+  const applyUrl = realLink(job.applyUrl) ?? realLink(job.url);
+  const pageUrl = realLink(job.url);
   const sponsor = sponsorChip(h1bTag);
   const posted = job.postedAt ? `Posted ${ago(job.postedAt)}` : 'Posted date not listed';
   const blocks = textBlocks(job.description);
@@ -212,7 +214,8 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
     <div className="jl-2col">
       <div className="jl-detail-main" ref={scrollRef} role="region" aria-label={`Job: ${job.title} at ${job.company}`}>
         <div className="jl-actionbar">
-          <Tooltip title="Close (Esc)"><Button ref={closeRef} shape="circle" icon={<CloseOutlined />} aria-label="Close job detail and return to the list" onClick={() => { void close(); }} /></Tooltip>
+          {/* Focus lands here when a job opens; the tip shows on hover only, so it never sits over the page title (JL-tracker-17). */}
+          <Tooltip title="Close (Esc)" trigger={['hover']}><Button ref={closeRef} shape="circle" icon={<CloseOutlined />} aria-label="Close job detail and return to the list (Esc)" onClick={() => { void close(); }} /></Tooltip>
           {closed && <span className="jl-chip closed" style={{ height: 32, padding: '0 10px' }}>Posting closed {dateText(job.closedAt)}</span>}
           {tracker?.status && <span className="jl-chip dark" style={{ height: 32, padding: '0 10px' }}>{statusLabel(tracker.status)}</span>}
           {networkCount && <span className="jl-chip" style={{ height: 32, padding: '0 10px' }}><TeamOutlined /> You know {networkCount} {networkCount === 1 ? 'person' : 'people'} at {job.company}</span>}
@@ -223,12 +226,16 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
           </Tooltip>
           <Tooltip title={tracker?.liked ? 'Liked' : 'Like'}>
             <Button shape="circle" className="jl-icon-btn" icon={tracker?.liked ? <HeartFilled style={{ color: '#C8232A' }} /> : <HeartOutlined />} aria-pressed={!!tracker?.liked} aria-label={tracker?.liked ? 'Unlike this job' : 'Like this job'}
-              onClick={() => { void patch({ liked: !tracker?.liked }, tracker?.liked ? 'Removed from Liked.' : 'Added to Liked.'); }} />
+              onClick={() => { void patch({ liked: !tracker?.liked }, tracker?.liked ? `Removed from Liked.${tracker.notes.length || tracker.reminders.some((r) => !r.done) ? ' Its notes and reminders stay in the Tracker.' : ''}` : 'Added to Liked.'); }} />
           </Tooltip>
           {!tracker?.status && <Button shape="round" onClick={() => { void patch({ status: 'applied' }, 'Marked as applied.'); }}>Mark as applied</Button>}
           {closed ? (
             <Tooltip title="The employer closed this posting. The page may be gone.">
               <Button shape="round" className="jl-caps" disabled>Posting closed</Button>
+            </Tooltip>
+          ) : !applyUrl ? (
+            <Tooltip title={NO_LINK_TEXT}>
+              <Button shape="round" className="jl-caps" disabled>No apply link</Button>
             </Tooltip>
           ) : (
             <Button shape="round" className="jl-accent-btn jl-caps" href={applyUrl} target="_blank" rel="noopener noreferrer" icon={<ExportOutlined />} iconPosition="end" aria-label="Apply on the employer's site (opens your browser)">
@@ -248,8 +255,8 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
             <button type="button" role="tab" aria-selected={tab === 'overview'} className="jl-detail-tab" onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}>Overview</button>
             <button type="button" role="tab" aria-selected={tab === 'company'} className="jl-detail-tab" onClick={() => document.getElementById('sec-company-anchor')?.scrollIntoView({ behavior: 'smooth' })}>Company</button>
             <span style={{ marginLeft: 'auto' }} />
-            <Button type="text" icon={<CopyOutlined />} onClick={() => { void navigator.clipboard?.writeText(job.url).then(() => ui.message?.success('Link copied.')); }}>Copy link</Button>
-            <Button type="text" icon={<FileTextOutlined />} href={job.url} target="_blank" rel="noopener noreferrer">Original posting</Button>
+            {pageUrl && <Button type="text" icon={<CopyOutlined />} onClick={() => { void navigator.clipboard?.writeText(pageUrl).then(() => ui.message?.success('Link copied.')); }}>Copy link</Button>}
+            {pageUrl && <Button type="text" icon={<FileTextOutlined />} href={pageUrl} target="_blank" rel="noopener noreferrer">Original posting</Button>}
           </div>
 
           <section className="jl-detail-sec" aria-label="Job summary">
@@ -261,7 +268,7 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
                 </div>
                 <h1 style={{ fontSize: 24, fontWeight: 700, margin: '12px 0', overflowWrap: 'anywhere' }}>{job.title}</h1>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '8px 24px' }}>
-                  <Fact icon={<EnvironmentOutlined />} label="Location"><Places job={job} /></Fact>
+                  <Fact icon={<EnvironmentOutlined />} label="Location">{job.places.some((p) => p.text) ? <Places job={job} /> : <span className="jl-muted">Location not stated in the posting</span>}</Fact>
                   <Fact icon={<HomeOutlined />} label="Work model">{workModelText(job)}</Fact>
                   <Fact icon={<ClockCircleOutlined />} label="Job type">{typeText(job.employmentType)}</Fact>
                   <Fact icon={<IdcardOutlined />} label="Level">{levelsText(job.levels)}</Fact>
@@ -279,7 +286,8 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
                 </div>
                 {!payText(job.pay) && <p className="jl-small jl-muted" style={{ marginTop: 8 }}>Pay: not listed in the posting.</p>}
                 <div className="jl-row jl-wrap" style={{ marginTop: 12 }}>
-                  {sponsor && <Tooltip title={sponsorTip(h1bTag, h1bSrc)}><span className="jl-fitchip" tabIndex={0}><span className="tick" aria-hidden="true">✓</span>{sponsor.text}</span></Tooltip>}
+                  {/* A "no sponsorship" statement is a fact to know, not a plus: no green tick (JL-tracker-18). */}
+                  {sponsor && <Tooltip title={sponsorTip(h1bTag, h1bSrc)}><span className={`jl-fitchip${h1bTag === 'post_says_no' ? ' neg' : ''}`} tabIndex={0}><span className="tick" aria-hidden="true">{h1bTag === 'post_says_no' ? '•' : '✓'}</span>{sponsor.text}</span></Tooltip>}
                   {match?.whyFit.filter((c) => !(sponsor && /sponsor/i.test(chipText(c)))).map((c, i) => (
                     <span key={i} className={`jl-fitchip${c.positive ? '' : ' neg'}`}><span className="tick" aria-hidden="true">{c.positive ? '✓' : '•'}</span>{chipText(c)}</span>
                   ))}
@@ -311,7 +319,7 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
             </p>
           </section>
 
-          <SponsorSection job={job} company={company} />
+          <SponsorSection job={job} company={company} match={match} />
           <div id="sec-company-anchor" />
           <CompanySection job={job} company={company} />
           <NetworkSection job={job} networkCount={networkCount} />

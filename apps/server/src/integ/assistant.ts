@@ -74,6 +74,9 @@ export async function assistantRoute<K extends AssistantRouteName>(c: Ctx<RouteN
     return {
       sse: async (send: (e: ChatStreamEvent) => boolean) => {
         for await (const e of events) {
+          // A paid answer's balance is read again in the background once it ends. Wait for that before "done", so the
+          // balance chip, which re-reads on "done", shows the balance after the charge (JL-tracker-14).
+          if (e.type === 'done') { try { await a.engine.idle(); } catch { /* the balance keeps its last value */ } }
           const out = e.type === 'done' && (e.costMicros === null || e.costMicros === undefined) && before !== null
             ? { ...e, costMicros: await c.d.ai.chargeSince(before) } : e;
           if (!send(out)) break;

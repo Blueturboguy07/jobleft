@@ -24,8 +24,12 @@ export interface OpenAiDriverOptions {
   extraHeaders?: Record<string, string>;
   connectTimeoutMs?: number;
   idleTimeoutMs?: number;
-  /** Sees every answer's status and headers (publik reads its x-publik-* headers here). */
-  onResponse?: (status: number, headers: Record<string, string>) => void;
+  /**
+   * Sees every answer's status and headers (publik reads its x-publik-* headers here). `streamed`: the headers came
+   * before a streamed answer, so they were written before the answer was charged (publik's balance there is the
+   * balance minus a temporary hold, not the balance after the charge).
+   */
+  onResponse?: (status: number, headers: Record<string, string>, info?: { streamed: boolean }) => void;
   /** A provider-specific reading of a failed answer (publik 402). null = use the general rules. */
   classify?: (status: number, headers: Record<string, string>, raw: string) => AiError | null | Promise<AiError | null>;
   /** Cost of one answer from the response headers (publik), or null. */
@@ -111,9 +115,9 @@ export class OpenAiDriver implements ProviderDriver {
         throw await this.fail(res, raw, keySet);
       }
     }
-    this.o.onResponse?.(res.status, res.headers);
-    const cost = this.o.costFromHeaders?.(res.headers) ?? null;
     const ct = res.headers['content-type'] ?? '';
+    this.o.onResponse?.(res.status, res.headers, { streamed: /text\/event-stream/i.test(ct) });
+    const cost = this.o.costFromHeaders?.(res.headers) ?? null;
 
     if (!/text\/event-stream/i.test(ct)) {
       // A server that ignored stream:true (or a stand-in that answers with a page).
@@ -216,7 +220,7 @@ export class OpenAiDriver implements ProviderDriver {
     const res = await send({ method: 'POST', url: `${root}/embeddings`, headers, body: JSON.stringify({ model, input: texts }), signal, connectTimeoutMs: this.o.connectTimeoutMs, idleTimeoutMs: this.o.idleTimeoutMs });
     const raw = await res.text();
     if (res.status >= 400) throw await this.fail(res, raw, keySet);
-    this.o.onResponse?.(res.status, res.headers);
+    this.o.onResponse?.(res.status, res.headers, { streamed: false });
     const parsed = tryJson(raw) as Record<string, any> | undefined;
     const data = parsed?.data;
     if (!Array.isArray(data) || data.length !== texts.length) {

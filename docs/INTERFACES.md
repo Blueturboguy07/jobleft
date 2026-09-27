@@ -318,11 +318,11 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `getJob` | GET | `/api/v1/jobs/:jobId` | launch | store | — | — | `JobDetail` | One job with company, match, tracker and network count |
 | `addExternalJob` | POST | `/api/v1/jobs/external` | launch | sources-other | — | `ExternalJobRequest` | `{ job, tracker }` | Add a job from a URL or pasted text (External tab) |
 | `keywordGaps` | GET | `/api/v1/jobs/:jobId/keyword-gaps` | launch | resume | `{ resumeId }` | — | `KeywordGapReport` | Keyword gaps of a resume for a job |
-| `listTracker` | GET | `/api/v1/tracker` | launch | store | `{ view, status? }` | — | `TrackerList` | Liked, Applied, External, hidden and closed views |
+| `listTracker` | GET | `/api/v1/tracker` | launch | store | `{ view, status? }` | — | `TrackerList` | Liked, Applied, External, hidden, closed and tracked (everything the person did) views |
 | `updateTracker` | PATCH | `/api/v1/tracker/:jobId` | launch | store | — | `TrackerPatch` | `TrackerEntry` | Like, hide, set status, notes, reminders |
 | `listFilters` | GET | `/api/v1/filters` | launch | store | — | — | `SavedFilter[]` | Saved filters |
-| `createFilter` | POST | `/api/v1/filters` | launch | store | — | `{ name, filter, sort, alert? }` | `SavedFilter` | Save a filter |
-| `updateFilter` | PUT | `/api/v1/filters/:filterId` | launch | store | — | `{ name, filter, sort, alert? }` | `SavedFilter` | Change a saved filter |
+| `createFilter` | POST | `/api/v1/filters` | launch | store | — | `{ name, filter, sort, alert?, q? }` | `SavedFilter` | Save a filter |
+| `updateFilter` | PUT | `/api/v1/filters/:filterId` | launch | store | — | `{ name, filter, sort, alert?, q? }` | `SavedFilter` | Change a saved filter |
 | `deleteFilter` | DELETE | `/api/v1/filters/:filterId` | launch | store | — | — | `Ok` | Delete a saved filter |
 | `getProfile` | GET | `/api/v1/profile` | launch | store | — | — | `Profile` | The profile |
 | `putProfile` | PUT | `/api/v1/profile` | launch | store | — | `ProfileInput` | `Profile` | Replace the editable profile |

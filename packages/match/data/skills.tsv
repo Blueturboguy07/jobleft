@@ -116,7 +116,7 @@ spark | Apache Spark | tool | data,software | apache spark, pyspark, spark sql, 
 hadoop | Hadoop | tool | data | hadoop, hdfs, mapreduce, hive, =Hive@data |
 airflow | Airflow | tool | data,software | airflow, apache airflow | dagster
 dagster | Dagster | tool | data | dagster | airflow
-dbt | dbt | tool | data | =dbt, dbt cloud, dbt core, data build tool |
+dbt | dbt | tool | data | =dbt, =DBT@data, dbt cloud, dbt core, data build tool |
 kafka | Kafka | tool | data,software | kafka, apache kafka | rabbitmq, sqs
 rabbitmq | RabbitMQ | tool | software | rabbitmq | kafka, sqs
 sqs | Amazon SQS | tool | software | sqs, amazon sqs | kafka, rabbitmq
@@ -435,7 +435,7 @@ cpr_skill | Life support procedures | skill | @health | code blue, rapid respons
 case_management | Case management | skill | counseling,nursing,health_admin,legal | case management, case managing, caseload management, managing a caseload |
 crisis_intervention | Crisis intervention | skill | counseling,nursing,health_support,security_services | crisis intervention, de-escalation, deescalation, crisis management, cpi training, safety care |
 cbt | Cognitive behavioral therapy | method | counseling | cognitive behavioral therapy, cognitive behavioural therapy, =CBT@therapy | dbt_therapy
-dbt_therapy | Dialectical behavior therapy | method | counseling | dialectical behavior therapy, =DBT | cbt
+dbt_therapy | Dialectical behavior therapy | method | counseling | dialectical behavior therapy, =DBT@therapy | cbt
 motivational_interviewing | Motivational interviewing | method | counseling,nursing | motivational interviewing |
 trauma_informed | Trauma-informed care | method | counseling,teaching,childcare | trauma-informed care, trauma informed care, trauma-informed, trauma informed |
 treatment_planning | Treatment planning | skill | counseling,health_clinical | treatment planning, treatment plans, individualized treatment plans |
@@ -516,7 +516,7 @@ freight_mgmt | Freight management | skill | logistics,driving | freight manageme
 supply_chain | Supply chain management | skill | logistics,manufacturing,operations | supply chain management, supply chain operations, supply chain planning, end-to-end supply chain |
 procurement | Procurement and purchasing | skill | logistics,operations,manufacturing,finance | procurement, purchasing, sourcing suppliers, strategic sourcing, purchase orders, issuing purchase orders |
 demand_planning | Demand planning | skill | logistics,manufacturing,operations | demand planning, demand forecasting, supply planning, s&op, sales and operations planning, mrp, material requirements planning |
-customs | Customs and trade compliance | regime | logistics | customs, customs compliance, import/export, import and export, trade compliance, harmonized tariff, hts codes, incoterms |
+customs | Customs and trade compliance | regime | logistics | =customs, =Customs, customs compliance, import/export, import and export, trade compliance, harmonized tariff, hts codes, incoterms |
 fleet_mgmt | Fleet management | skill | driving,logistics,maintenance | fleet management, fleet maintenance, vehicle maintenance scheduling |
 dispatching | Dispatching | skill | driving,logistics,trades_mech,maintenance | dispatching, dispatch, dispatch operations, scheduling drivers, driver dispatch |
 safe_driving | Safe driving | skill | driving | clean driving record, safe driving record, defensive driving, safe driving, motor vehicle record, mvr |
@@ -527,7 +527,7 @@ nec | National Electrical Code | regime | trades_electrical,construction_mgmt | 
 conduit | Conduit bending | skill | trades_electrical | conduit bending, bending conduit, conduit, emt conduit, rigid conduit, pvc conduit, conduit installation, conduit runs |
 blueprints | Blueprint reading | skill | @trades,engineering,construction_mgmt | blueprint reading, blueprints, reading blueprints, read blueprints, schematics, electrical schematics, wiring diagrams, technical drawings, construction drawings, shop drawings, reading plans, read and interpret drawings |
 electrical_troubleshooting | Electrical troubleshooting | skill | trades_electrical,maintenance | electrical troubleshooting, troubleshooting electrical, electrical diagnostics, diagnosing electrical |
-motor_controls | Motor controls | skill | trades_electrical,maintenance,manufacturing | motor controls, motor control, motor control circuits, vfds, vfd, variable frequency drives, starters, contactors |
+motor_controls | Motor controls | skill | trades_electrical,maintenance,manufacturing | motor controls, motor control, motor control circuits, vfds, vfd, variable frequency drives, starters@trades, contactors |
 plc | PLC programming | skill | trades_electrical,maintenance,manufacturing,engineering | plc programming, plcs, programmable logic controllers, programmable logic controller, ladder logic, allen-bradley, allen bradley, rslogix, studio 5000, siemens plc, =PLC@trades |
 low_voltage | Low-voltage systems | skill | trades_electrical | low voltage, low-voltage, structured cabling, data cabling, cat6, cat5e, fiber optic cabling, access control systems, security systems installation, fire alarm, fire alarm systems | electrical_wiring
 three_phase | Three-phase power | skill | trades_electrical,maintenance | three-phase, three phase, 3-phase, 3 phase, 480v, 480 volt, high voltage, medium voltage |
@@ -541,9 +541,9 @@ welding | Welding | skill | construction,manufacturing,maintenance,trades_mech |
 mig | MIG welding | skill | construction,manufacturing | =MIG, mig welding, gmaw | tig, stick_welding
 tig | TIG welding | skill | construction,manufacturing | =TIG, tig welding, gtaw | mig, stick_welding
 stick_welding | Stick welding | skill | construction,manufacturing | stick welding, smaw, flux core, fcaw | mig, tig
-carpentry | Carpentry | skill | construction,maintenance | carpentry, framing, rough framing, finish carpentry, trim carpentry, cabinetry, cabinet installation |
+carpentry | Carpentry | skill | construction,maintenance | carpentry, framing@build, rough framing, finish carpentry, trim carpentry, cabinetry, cabinet installation |
 drywall | Drywall | skill | construction,maintenance | drywall, sheetrock, drywall repair, taping and mudding |
-concrete | Concrete work | skill | construction | concrete, concrete finishing, concrete forming, pouring concrete, rebar |
+concrete | Concrete work | skill | construction | concrete@build, concrete finishing, concrete forming, pouring concrete, rebar |
 masonry | Masonry | skill | construction | masonry, bricklaying, brick laying, stonework, block laying |
 roofing | Roofing | skill | construction | roofing, shingles, roof repair, roof installation |
 painting | Painting | skill | construction,maintenance | commercial painting, residential painting, interior painting, exterior painting, spray painting, surface preparation |
@@ -553,7 +553,7 @@ machining | Machining | skill | manufacturing,maintenance | machining, lathe, la
 cnc | CNC | skill | manufacturing | =CNC, cnc machining, cnc programming, cnc operation, cnc machines, g-code, gcode, mastercam, fanuc, haas | machining
 hydraulics | Hydraulics and pneumatics | skill | maintenance,manufacturing,construction | hydraulics, hydraulic systems, hydraulic, pneumatics, pneumatic systems, pneumatic |
 diesel | Diesel engines | skill | maintenance,driving | diesel, diesel engines, diesel repair, diesel mechanics, heavy duty trucks |
-auto_repair | Automotive repair | skill | maintenance | automotive repair, auto repair, vehicle repair, brake repair, brakes, suspension, engine diagnostics, oil changes, tire rotation, alignments, automotive diagnostics, obd |
+auto_repair | Automotive repair | skill | maintenance | automotive repair, auto repair, vehicle repair, brake repair, brakes@auto, suspension@auto, engine diagnostics, oil changes, tire rotation, wheel alignments, wheel alignment, alignments@auto, automotive diagnostics, obd |
 small_engine | Small engine repair | skill | maintenance | small engine repair, small engines, outdoor power equipment |
 heavy_equipment | Heavy equipment operation | skill | construction,logistics | heavy equipment, heavy equipment operation, excavator, excavators, backhoe, bulldozer, loader operation, skid steer, bobcat, front end loader, grader, dozer |
 crane | Crane operation | skill | construction,logistics | crane operation, crane operator, overhead crane, overhead cranes, mobile crane, rigging, signaling cranes |

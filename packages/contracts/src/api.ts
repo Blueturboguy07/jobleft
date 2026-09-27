@@ -206,11 +206,11 @@ export const LOCAL_API = {
   keywordGaps: route({ method: 'GET', path: '/api/v1/jobs/:jobId/keyword-gaps', auth: 'launch', owner: 'resume', summary: 'Keyword gaps of a resume for a job', query: obj({ resumeId: IdSchema }), response: KeywordGapReportSchema }),
 
   // ---- tracker and saved filters
-  listTracker: route({ method: 'GET', path: '/api/v1/tracker', auth: 'launch', owner: 'store', summary: 'Liked, Applied, External, hidden and closed views', query: obj({ view: TrackerViewSchema }, { status: TrackerStatusSchema }), response: TrackerListSchema }),
+  listTracker: route({ method: 'GET', path: '/api/v1/tracker', auth: 'launch', owner: 'store', summary: 'Liked, Applied, External, hidden, closed and tracked (everything the person did) views', query: obj({ view: TrackerViewSchema }, { status: TrackerStatusSchema }), response: TrackerListSchema }),
   updateTracker: route({ method: 'PATCH', path: '/api/v1/tracker/:jobId', auth: 'launch', owner: 'store', summary: 'Like, hide, set status, notes, reminders', body: TrackerPatchSchema, response: TrackerEntrySchema }),
   listFilters: route({ method: 'GET', path: '/api/v1/filters', auth: 'launch', owner: 'store', summary: 'Saved filters', response: arr(SavedFilterSchema) }),
-  createFilter: route({ method: 'POST', path: '/api/v1/filters', auth: 'launch', owner: 'store', summary: 'Save a filter', body: obj({ name: str({ minLength: 1, maxLength: 120 }), filter: JobFilterSchema, sort: JobSortSchema }, { alert: bool() }), response: SavedFilterSchema }),
-  updateFilter: route({ method: 'PUT', path: '/api/v1/filters/:filterId', auth: 'launch', owner: 'store', summary: 'Change a saved filter', body: obj({ name: str({ minLength: 1, maxLength: 120 }), filter: JobFilterSchema, sort: JobSortSchema }, { alert: bool() }), response: SavedFilterSchema }),
+  createFilter: route({ method: 'POST', path: '/api/v1/filters', auth: 'launch', owner: 'store', summary: 'Save a filter', body: obj({ name: str({ minLength: 1, maxLength: 120 }), filter: JobFilterSchema, sort: JobSortSchema }, { alert: bool(), q: str({ maxLength: 500 }) }), response: SavedFilterSchema }),
+  updateFilter: route({ method: 'PUT', path: '/api/v1/filters/:filterId', auth: 'launch', owner: 'store', summary: 'Change a saved filter', body: obj({ name: str({ minLength: 1, maxLength: 120 }), filter: JobFilterSchema, sort: JobSortSchema }, { alert: bool(), q: str({ maxLength: 500 }) }), response: SavedFilterSchema }),
   deleteFilter: route({ method: 'DELETE', path: '/api/v1/filters/:filterId', auth: 'launch', owner: 'store', summary: 'Delete a saved filter', response: Ok }),
 
   // ---- profile, resumes, cover letters

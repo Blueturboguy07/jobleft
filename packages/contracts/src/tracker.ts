@@ -11,8 +11,12 @@ export const TRACKER_STATUS_LABELS = {
   applied: 'Applied', interviewing: 'Interviewing', offer_received: 'Offer Received', rejected: 'Rejected', archived: 'Archived',
 } as const;
 
-/** The tabs and views of the tracker. closed = liked or tracked jobs whose posting closed. */
-export const TrackerViewSchema = enm(['liked', 'applied', 'external', 'hidden', 'closed']);
+/**
+ * The tabs and views of the tracker. closed = liked or tracked jobs whose posting closed. tracked (added by the
+ * tracker fix, additive) = every job that holds something the person did: a like, a status, an applied date, a note
+ * or a reminder. The tracker board reads it, so a job never drops out of every view while it holds notes or reminders.
+ */
+export const TrackerViewSchema = enm(['liked', 'applied', 'external', 'hidden', 'closed', 'tracked']);
 
 export const TrackerNoteSchema = named(obj({
   id: IdSchema, text: str({ maxLength: 20000 }), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema,

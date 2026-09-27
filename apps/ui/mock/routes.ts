@@ -105,6 +105,7 @@ function trackerList(state: MockState, view: string, status?: string): TrackerLi
       external: e.external,
       hidden: e.hidden,
       closed: !open && (e.liked || e.status !== null || e.external),
+      tracked: e.liked || e.status !== null || e.appliedAt !== null || e.notes.length > 0 || e.reminders.length > 0,
     };
     if (inView.liked) counts.liked++;
     if (inView.applied) { counts.applied++; counts.byStatus[e.status!]++; }
@@ -127,7 +128,7 @@ export function patchTracker(state: MockState, jobId: string, patch: TrackerPatc
     if (patch.status !== undefined && patch.status !== e.status) {
       e.status = patch.status;
       e.statusHistory.push({ status: patch.status, at: now });
-      if (patch.status === 'applied' && !e.appliedAt) e.appliedAt = now;
+      if (patch.status !== null && !e.appliedAt) e.appliedAt = now;
     }
     if (patch.resumeId !== undefined) e.resumeId = patch.resumeId;
     if (patch.notes) {
@@ -564,20 +565,21 @@ export const HANDLERS: Partial<Record<RouteName, Handler>> = {
 
   listFilters: ({ state }) => json(state.data.filters),
   createFilter: ({ state, body }) => {
-    const b = body as { name: string; filter: JobFilter; sort: SavedFilter['sort']; alert?: boolean };
+    const b = body as { name: string; filter: JobFilter; sort: SavedFilter['sort']; alert?: boolean; q?: string };
     const now = nowIso();
-    const f: SavedFilter = { id: newId('flt'), name: b.name.trim(), filter: b.filter, sort: b.sort, alert: { enabled: b.alert ?? false, lastNotifiedAt: null }, createdAt: now, updatedAt: now };
+    const f: SavedFilter = { id: newId('flt'), name: b.name.trim(), filter: b.filter, sort: b.sort, alert: { enabled: b.alert ?? false, lastNotifiedAt: null }, createdAt: now, updatedAt: now, ...(b.q?.trim() ? { q: b.q.trim() } : {}) };
     state.mutate('filters', 'the saved filter', (d) => { d.push(f); });
     return json(f);
   },
   updateFilter: ({ state, params, body }) => {
-    const b = body as { name: string; filter: JobFilter; sort: SavedFilter['sort']; alert?: boolean };
+    const b = body as { name: string; filter: JobFilter; sort: SavedFilter['sort']; alert?: boolean; q?: string };
     if (!state.data.filters.some((f) => f.id === params.filterId)) throw fail('not_found', 404, 'That saved filter was not found.');
     let out!: SavedFilter;
     state.mutate('filters', 'the saved filter', (d) => {
       const f = d.find((x) => x.id === params.filterId)!;
       f.name = b.name.trim(); f.filter = b.filter; f.sort = b.sort;
       if (b.alert !== undefined) f.alert.enabled = b.alert;
+      if (b.q !== undefined) { if (b.q.trim()) f.q = b.q.trim(); else delete f.q; }
       f.updatedAt = nowIso();
       out = f;
     });

@@ -225,7 +225,8 @@ export class AppData {
     for (const f of this.filters.list()) {
       if (!f.alert.enabled) continue;
       const since = f.alert.lastNotifiedAt ?? f.updatedAt;
-      const res = this.jobs.search({ sort: 'most_recent', filter: f.filter, limit: 100 }, { hasProfile: () => this.profile.exists(), networkCount: () => null });
+      // The alert watches what the filter shows: its filters AND its search words (JL-tracker-15).
+      const res = this.jobs.search({ sort: 'most_recent', filter: f.filter, ...(f.q ? { q: f.q } : {}), limit: 100 }, { hasProfile: () => this.profile.exists(), networkCount: () => null });
       const fresh = res.items.filter((i) => i.job.firstSeenAt > since).length;
       if (fresh > 0) {
         this.notifications.add({ kind: 'saved_filter_alert', title: `${fresh} new job${fresh === 1 ? '' : 's'} for "${f.name}"`, body: 'Open jobleft to see them.', target: `/jobs?filter=${encodeURIComponent(f.id)}` }, `alert:${f.id}:${nowIso()}`);

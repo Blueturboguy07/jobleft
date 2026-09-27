@@ -175,7 +175,9 @@ a { color: var(--jl-accent-ink); }
 /* detail */
 .jl-overlay { position: absolute; inset: 0; z-index: 20; display: flex; background: var(--jl-bg); }
 .jl-detail-main { flex: 1; min-width: 0; overflow-y: auto; padding: 16px; }
-.jl-actionbar { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; gap: 8px; padding: 0 0 12px; background: var(--jl-bg); flex-wrap: wrap; }
+/* The bar also covers the scroll area's 16px top padding (a sticky box stops at the padding), so no scrolled text
+   shows above it (JL-tracker-17). */
+.jl-actionbar { position: sticky; top: -16px; margin-top: -16px; z-index: 6; display: flex; align-items: center; gap: 8px; padding: 16px 0 12px; background: var(--jl-bg); flex-wrap: wrap; }
 .jl-detail-card { background: #fff; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--jl-line); }
 .jl-detail-tabs { position: sticky; top: 44px; z-index: 5; background: #fff; border-radius: 16px 16px 0 0; border-bottom: 1px solid var(--jl-line); padding: 0 24px; display: flex; align-items: center; gap: 24px; height: 56px; }
 .jl-detail-tab { background: none; border: 0; height: 56px; font-size: 16px; font-weight: 600; color: var(--jl-text3); cursor: pointer; border-bottom: 2px solid transparent; padding: 0; }
@@ -319,6 +321,9 @@ button.jl-kpi:hover { box-shadow: inset 0 0 0 1px #9AA0A6; }
 
 /* toasts sit at the bottom of the window, so they never cover the controls at the top (filters, actions, tabs) */
 .ant-message { top: auto !important; bottom: 20px; }
+/* A message never swallows a click on what it covers ("Note saved." over "Add reminder"); its own buttons still work. */
+.ant-message, .ant-message-notice, .ant-message-notice-content { pointer-events: none; }
+.ant-message button, .ant-message a { pointer-events: auto; }
 
 /* jumps inside the detail (Company tab, "See why") stop below the sticky action bar and tabs, and never move the window shell */
 .jl-detail-sec, #sec-company-anchor { scroll-margin-top: 112px; }

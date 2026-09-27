@@ -206,7 +206,9 @@ export function normalizeJob(board: BoardRef, raw: RawJob): Job | null {
   const evidence: JobEvidence = {};
   if (payEvidence) evidence.pay = payEvidence;
   if (level) {
-    const e = levelSource === 'title' ? ev('title', title) : ev('description', description.split('\n').find((l) => /years?/i.test(l)) ?? '');
+    // The evidence of a level read from the description is the line that level was read from (its years of
+    // experience), never the first line that merely says "year" ("16 hours of paid volunteer time per year").
+    const e = levelSource === 'title' ? ev('title', title) : ev('description', description.split('\n').find((l) => levelFromDescription(l) === level) ?? '');
     if (e) evidence.level = e;
   }
   if (places.length > 0) { const e = ev('board_field', raw.location || uniqueTexts.join('; ')); if (e) evidence.places = e; }

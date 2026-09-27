@@ -119,3 +119,20 @@ test('publik: no app token gives a plain message; with the stand-in the balance 
     for (const e of pub.log) assert.ok(!e.body.includes(s.home) && !e.body.includes('Testwell'));
   } finally { await s.stop(); await pub.close(); cleanup(s.home); }
 });
+
+test('publik: the balance after a chat is the balance after the charge, never the temporary hold (JL-tracker-14)', async () => {
+  const pub = await startPublik({ balanceMicros: 218_951, holdMicros: 105_132, priceMicros: 3_014, walletDelayMs: 300 });
+  const s = await startTest('pubhold', { env: { JOBLEFT_PUBLIK_APP_TOKEN: 'stand-in-app-token', JOBLEFT_PUBLIK_BASE_URL: `${pub.origin}/api/v1` } });
+  try {
+    assert.equal((await s.call('POST', '/api/v1/publik/connect', { disclosureAccepted: true, disclosureVersion: 1 })).json.wallet.balanceMicros, 218_951);
+    await s.call('PUT', '/api/v1/ai/settings', { provider: 'publik' });
+    for (let i = 1; i <= 2; i++) {
+      const r = await s.call('POST', '/api/v1/ai/chat', { requestId: `req-hold-${i}`, messages: [{ role: 'user', content: 'Summarize this posting in two lines.' }] });
+      assert.equal(events(r.text).at(-1).type, 'done', r.text);
+      // Read at once after "done", as the balance chip does.
+      const w = (await s.call('GET', '/api/v1/publik')).json.wallet;
+      assert.equal(w.balanceMicros, 218_951 - i * 3_014, 'the chip reads the settled balance');
+      assert.equal(w.balanceMicros, pub.balance());
+    }
+  } finally { await s.stop(); await pub.close(); cleanup(s.home); }
+});

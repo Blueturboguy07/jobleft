@@ -117,6 +117,10 @@ export const SavedFilterSchema = named(obj({
   alert: obj({ enabled: bool(), lastNotifiedAt: nullable(IsoDateTimeSchema) }),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
+}, {
+  // Added by the tracker fix (additive, JL-tracker-15): the search words saved with the filter; applying the filter
+  // and its alert search with them. Absent = no words.
+  q: str({ maxLength: 500 }),
 }), 'SavedFilter');
 
 export type JobSort = Infer<typeof JobSortSchema>;

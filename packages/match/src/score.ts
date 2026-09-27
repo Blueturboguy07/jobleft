@@ -139,7 +139,9 @@ function relevanceOf(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): { rel: n
   const reasons: Reason[] = [];
   const fam = jf.family;
   const jobKind = fam ? familyLabel(fam).toLowerCase() : null;
-  const titleWords = jf.familyEvidence ? q(jf.familyEvidence) : q(jf.job.title);
+  // Where the kind of work was read, quoted as the posting writes it (JL-tracker-16).
+  const titleWords = jf.familySource === 'department' ? `department ${q(jf.job.department ?? jf.familyEvidence ?? '')}`
+    : jf.familySource === 'description' ? 'from the duties in the posting' : `title ${q(jf.job.title)}`;
   if (!fam) {
     reasons.push({ code: 'role_unknown_job', text: `Not enough information: jobleft could not tell the kind of work from the title ${q(jf.job.title)} or the posting.`, points: 0 });
     return { rel: null, reasons, relevantMonths: null };
@@ -182,9 +184,9 @@ function relevanceOf(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): { rel: n
   if (rel <= 0) rel = cfg.experience.unrelated;
   if (bestRole && relRoles >= rel && relRoles > 0) {
     if (best >= 1) {
-      reasons.push({ code: 'role_match', text: `The job is ${jobKind} work (title ${titleWords}); you have ${formatMonths(sameMonths)} in it, as ${listNames([...new Set(pf.families.get(fam)!.roles.map((r) => q(r.title)))], 3)}.`, points: 0 });
+      reasons.push({ code: 'role_match', text: `The job is ${jobKind} work (${titleWords}); you have ${formatMonths(sameMonths)} in it, as ${listNames([...new Set(pf.families.get(fam)!.roles.map((r) => q(r.title)))], 3)}.`, points: 0 });
     } else {
-      reasons.push({ code: 'role_related', text: `The job is ${jobKind} work (title ${titleWords}); your closest role is ${q(bestRole.title)} (${familyLabel(bestRole.family!).toLowerCase()}), related but not the same work, so it counts ${Math.round(relRoles * 100)}%.`, points: -Math.round((1 - relRoles) * 100) });
+      reasons.push({ code: 'role_related', text: `The job is ${jobKind} work (${titleWords}); your closest role is ${q(bestRole.title)} (${familyLabel(bestRole.family!).toLowerCase()}), related but not the same work, so it counts ${Math.round(relRoles * 100)}%.`, points: -Math.round((1 - relRoles) * 100) });
     }
   } else if (target) {
     reasons.push({ code: 'role_target_only', text: `The job is ${jobKind} work; no past role in your profile is in it, but your target ${q(target.text)} is. Target titles count at most ${Math.round(cfg.experience.targetOnly * 100)}%.`, points: -Math.round((1 - rel) * 100) });
@@ -192,7 +194,7 @@ function relevanceOf(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): { rel: n
     reasons.push({ code: 'role_study_only', text: `The job is ${jobKind} work; no past role in your profile is in it, but your field of study ${q(study.text)} is. Study counts at most ${Math.round(cfg.experience.studyOnly * 100)}%.`, points: -Math.round((1 - rel) * 100) });
   } else {
     const kinds = [...new Set(pf.roles.filter((r) => r.family).map((r) => familyLabel(r.family!).toLowerCase()))];
-    reasons.push({ code: 'role_unrelated', text: `The job is ${jobKind} work (title ${titleWords}); none of your roles is in it or close to it${kinds.length ? ` (your roles are ${listNames(kinds, 3)})` : ''}.`, points: -Math.round((1 - rel) * 100) });
+    reasons.push({ code: 'role_unrelated', text: `The job is ${jobKind} work (${titleWords}); none of your roles is in it or close to it${kinds.length ? ` (your roles are ${listNames(kinds, 3)})` : ''}.`, points: -Math.round((1 - rel) * 100) });
   }
   return { rel, reasons, relevantMonths: best >= 1 ? sameMonths : bestRole ? 0 : null };
 }
@@ -257,7 +259,9 @@ function scoreExperience(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, now: 
   const levelFromYearsOnly = jf.levelSource === 'years';
   if (jf.level && !levelFromYearsOnly) {
     const jobOrd = LEVEL_ORD[scale][jf.level];
-    const levelSrc = jf.levelSource === 'title' || jf.levelSource === 'job' ? `title ${q(jf.levelEvidence ?? jf.job.title)}` : q(jf.levelEvidence ?? '');
+    const fromBoard = jf.levelSource === 'job' && jf.job.evidence?.level?.source === 'board_field';
+    const levelSrc = jf.levelFromPostingYears ? `from the years it asks for${jf.levelEvidence ? `, ${q(jf.levelEvidence)}` : ''}`
+      : fromBoard ? `the job board says ${q(jf.levelEvidence ?? '')}` : jf.levelSource === 'title' || jf.levelSource === 'job' ? `title ${q(jf.job.title)}` : q(jf.levelEvidence ?? '');
     if (years === null) {
       if (!levelFromYearsOnly) levelReasons.push({ code: 'level_no_dates', text: `The job is ${LEVEL_WORD[jf.level]} (${levelSrc}); your work dates are not in your profile, so the level cannot be checked.`, points: 0 });
     } else {
@@ -487,12 +491,21 @@ function scoreSkills(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): SkillsOu
   const percent = pct(coverage * 100);
   const met = checks.filter((c) => c.state === 'met');
   const reqChecks = checks.filter((c) => c.importance === 'required');
-  const reqMet = reqChecks.filter((c) => c.state === 'met');
+  // The skills the posting asks for are the required ones plus the ones it names in its text (the same list as
+  // `skills.required` and the tags the detail shows), so the count always equals the list (JL-tracker-4).
+  const textChecks = checks.filter((c) => c.importance === 'mentioned');
+  const needChecks = checks.filter((c) => c.importance !== 'preferred');
+  const needMet = needChecks.filter((c) => c.state === 'met');
   const share = (c: SkillCheck) => Math.round((weightOf(c.importance) / den) * 100);
-  if (reqChecks.length) {
-    reasons.push({ code: 'skills_required', text: `You have ${reqMet.length} of the ${reqChecks.length} skills and credentials the posting lists as required${reqMet.length ? `: ${listNames(reqMet.map((c) => c.name))}` : ''}.`, points: reqMet.reduce((s, c) => s + share(c), 0) });
+  if (needChecks.length) {
+    const names = needMet.length ? `: ${listNames(needMet.map((c) => c.name))}` : '';
+    const what = needChecks.length === 1 ? 'the 1 skill or credential' : `the ${needChecks.length} skills and credentials`;
+    const text = !textChecks.length
+      ? `You have ${needMet.length} of ${what} the posting lists as required${names}.`
+      : `You have ${needMet.length} of ${what} the posting asks for (${reqChecks.length ? `${reqChecks.length} in its requirement list, ${textChecks.length} named elsewhere in it` : 'named in its text; it has no requirement list'})${names}.`;
+    reasons.push({ code: 'skills_required', text, points: needMet.reduce((s, c) => s + share(c), 0) });
   }
-  const others = met.filter((c) => c.importance !== 'required');
+  const others = met.filter((c) => c.importance === 'preferred');
   if (others.length) reasons.push({ code: 'skills_matched', text: `You also have ${listNames(others.map((c) => `${c.name} (${c.importance})`))}.`, points: others.reduce((s, c) => s + share(c), 0) });
   const missing = checks.filter((c) => c.state === 'missing');
   if (missing.length) reasons.push({ code: 'skills_missing', text: `Not in your profile: ${listNames(missing.map((c) => `${c.name}${c.importance === 'preferred' ? ' (preferred)' : ''}`))}.`, points: -missing.reduce((s, c) => s + share(c), 0) });
@@ -849,8 +862,8 @@ function chips(pf: ProfileFacts, jf: JobFacts, company: Company | null, sk: Skil
   const out: Array<WhyFitChip & { rank: number }> = [];
   const needsSponsor = pf.profile.workAuthorization.needsSponsorship === 'yes';
   const spons = jf.requirements.find((r) => r.kind === 'sponsorship');
-  if (spons?.detail.sponsorship === 'no') out.push({ kind: 'post_says_no_sponsorship' as WhyFitChip['kind'], label: 'Post says no visa sponsorship', positive: false, rank: needsSponsor ? 0 : 9 });
-  if (spons?.detail.sponsorship === 'yes') out.push({ kind: 'post_says_sponsors', label: 'Post says it sponsors visas', positive: true, rank: needsSponsor ? 0 : 6 });
+  if (spons?.detail.sponsorship === 'no') out.push({ kind: 'post_says_no_sponsorship' as WhyFitChip['kind'], label: 'Posting says no sponsorship', positive: false, rank: needsSponsor ? 0 : 9 });
+  if (spons?.detail.sponsorship === 'yes') out.push({ kind: 'post_says_sponsors', label: 'Posting offers visa sponsorship', positive: true, rank: needsSponsor ? 0 : 6 });
   if (company?.h1b?.status === 'likely') out.push({ kind: 'h1b_sponsor_likely', label: 'H-1B sponsor likely', positive: true, rank: needsSponsor ? 1 : 7 });
   if (sk.sub.percent !== null && sk.total >= 3 && (sk.coverage ?? 0) >= 0.7) {
     const req = sk.checks.filter((c) => c.importance !== 'preferred');
@@ -892,7 +905,7 @@ function jobFactsView(jf: JobFacts, ind: IndustryOut): MatchExtras['jobFacts'] {
   const pay = job.pay;
   return {
     level: jf.level
-      ? { value: LEVEL_WORD[jf.level], text: `${LEVEL_WORD[jf.level]} (${jf.levelSource === 'years' ? 'from the years it asks for' : jf.levelSource === 'employment_type' ? 'an internship' : 'from the title'})`, quote: jf.levelSource === 'years' ? jf.levelEvidence : job.title }
+      ? { value: LEVEL_WORD[jf.level], text: `${LEVEL_WORD[jf.level]} (${jf.levelSource === 'years' || jf.levelFromPostingYears ? 'from the years it asks for' : jf.levelSource === 'employment_type' ? 'an internship' : jf.levelSource === 'job' && job.evidence?.level?.source === 'board_field' ? 'from the job board' : 'from the title'})`, quote: jf.levelSource === 'years' || jf.levelFromPostingYears || (jf.levelSource === 'job' && job.evidence?.level?.source === 'board_field') ? jf.levelEvidence : job.title }
       : { value: null, text: 'not stated', quote: null },
     years: y
       ? { value: yearsLabel(y.detail.minYears ?? null, y.detail.maxYears ?? null), text: `${yearsLabel(y.detail.minYears ?? null, y.detail.maxYears ?? null)}${y.importance === 'preferred' ? ' (preferred)' : ''}`, quote: y.quote }

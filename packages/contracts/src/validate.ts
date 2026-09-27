@@ -34,7 +34,7 @@ function typeOf(v: unknown): string {
 function checkFormat(format: string, v: string): string | null {
   switch (format) {
     case 'date-time':
-      return DATE_TIME.test(v) && Number.isFinite(Date.parse(v)) ? null : 'must be an RFC 3339 date-time';
+      return DATE_TIME.test(v) && Number.isFinite(Date.parse(v)) ? null : 'must be a date and time with a time zone, like 2026-10-01T10:00:00Z';
     case 'date': {
       if (!DATE.test(v)) return 'must be a date (YYYY-MM-DD)';
       const t = Date.parse(v + 'T00:00:00Z');
@@ -62,7 +62,15 @@ function check(s: JsonSchema, v: unknown, path: string, out: ValidationIssue[], 
       check(branch, v, path, trial, 1);
       if (trial.length === 0) return;
     }
-    out.push({ path, message: `matches none of the ${s.anyOf.length} allowed shapes` });
+    // A choice of plain values (a nullable enum such as a tracker status) names them (JL-tracker-20).
+    const values: unknown[] = [];
+    const plain = s.anyOf.every((b) => {
+      if (b.enum) { values.push(...b.enum); return true; }
+      if (b.const !== undefined) { values.push(b.const); return true; }
+      if (b.type === 'null') { values.push(null); return true; }
+      return false;
+    });
+    out.push({ path, message: plain && values.length ? `must be one of ${values.map((x) => JSON.stringify(x)).join(', ')}` : 'does not match any allowed form' });
     return;
   }
   if (s.const !== undefined && v !== s.const) {

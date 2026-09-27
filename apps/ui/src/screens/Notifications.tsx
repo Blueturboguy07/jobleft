@@ -11,6 +11,7 @@ import { navigate } from '../app/router.ts';
 import { useNotifications } from '../app/session.ts';
 import { EmptyState, ErrorState, Loading } from '../components/States.tsx';
 import { ago, calendarDate, dateTimeText } from '../lib/format.ts';
+import { openReminders } from '../lib/trackerView.ts';
 import { useTrackerView } from './jobs/TrackerTabs.tsx';
 
 const ICON: Record<Notification['kind'], React.ReactNode> = { new_matches: <SearchOutlined />, saved_filter_alert: <BellOutlined />, reminder: <CalendarOutlined />, follow_up: <TeamOutlined /> };
@@ -23,7 +24,8 @@ function targetRoute(t: string | null): string | null {
 
 export function Notifications() {
   const notes = useNotifications();
-  const applied = useTrackerView('applied');
+  // every tracked job's reminders: liked, applied, or only noted (JL-tracker-2)
+  const tracked = useTrackerView('tracked');
   const contacts = useApi<NetworkContact[]>('network:contacts:soon', () => call('listContacts', { query: { withFollowUp: 'true', due: 'false' } }));
   const dismiss = async (n: Notification) => {
     try { await call('ackNotification', { params: { notificationId: n.id } }); invalidate('notifications'); } catch (e) { ui.message?.error((e as UiError).message); }
@@ -31,7 +33,7 @@ export function Notifications() {
   if (notes.error && !notes.data) return <div className="jl-page"><ErrorState error={notes.error} onRetry={() => { void notes.reload(); }} /></div>;
   if (!notes.data) return <div className="jl-page"><Loading label="Loading notifications" /></div>;
   const now = Date.now();
-  const upcoming = (applied.data?.items ?? []).flatMap((it) => it.entry.reminders.filter((r) => !r.done && Date.parse(r.at) > now).map((r) => ({ r, it }))).sort((a, b) => (a.r.at < b.r.at ? -1 : 1)).slice(0, 8);
+  const upcoming = openReminders(tracked.data?.items ?? [], now).slice(0, 8);
   const today = new Date().toISOString().slice(0, 10);
   const followUps = (contacts.data ?? []).filter((c) => c.followUpOn && c.followUpOn > today).sort((a, b) => (a.followUpOn! < b.followUpOn! ? -1 : 1)).slice(0, 8);
   return (
@@ -60,8 +62,8 @@ export function Notifications() {
         </section>
         <section className="jl-card-box" aria-labelledby="up-h">
           <h2 id="up-h" className="jl-section-title">Coming up</h2>
-          {!upcoming.length && !followUps.length && <p className="jl-muted">No upcoming reminders or follow-ups.</p>}
-          {upcoming.map(({ r, it }) => <p key={r.id} style={{ margin: '4px 0' }}><CalendarOutlined /> {dateTimeText(r.at)}: {r.text} · <a href={`#/jobs/${encodeURIComponent(it.job.id)}`}>{it.job.company}</a></p>)}
+          {!upcoming.length && !followUps.length && <p className="jl-muted">No open reminders or upcoming follow-ups.</p>}
+          {upcoming.map(({ r, it, overdue }) => <p key={r.id} style={{ margin: '4px 0' }}><CalendarOutlined /> {overdue && <span className="jl-chip warn" style={{ marginRight: 6 }}>Overdue</span>}{dateTimeText(r.at)}: {r.text} · <a href={`#/jobs/${encodeURIComponent(it.job.id)}`}>{it.job.company}</a></p>)}
           {followUps.map((c) => <p key={c.id} style={{ margin: '4px 0' }}><TeamOutlined /> {calendarDate(c.followUpOn)}: follow up with {c.firstName} {c.lastName}{c.company ? ` (${c.company})` : ''}</p>)}
         </section>
       </div>

@@ -192,3 +192,24 @@ test('disconnect then connect resumes the same install and balance; delete-all f
     assert.notEqual(last[4], after[3]);
   });
 });
+
+test('a streamed answer never shows its temporary hold as the balance; the re-read after it does (JL-tracker-14)', async () => {
+  await withPublik({ balanceUsd: 5, priceUsd: 0.01 }, async (p) => {
+    const { engine } = makeEngine({ publikBaseUrl: p.baseUrl });
+    await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
+    // The headers written before a streamed answer: the balance there is minus a hold.
+    engine.publik.observeHeaders({ 'x-publik-balance': '3900000', 'x-publik-week-used': '10000' }, { balance: false });
+    let w = (await engine.publik.status()).wallet!;
+    assert.equal(w.balanceMicros, 5_000_000, 'the hold is not shown as spent');
+    assert.equal(w.week.usedMicros, 10_000, 'the other facts are still read');
+    // A whole (not streamed) answer's headers come after the charge: they are the balance.
+    engine.publik.observeHeaders({ 'x-publik-balance': '4990000' });
+    assert.equal((await engine.publik.status()).wallet!.balanceMicros, 4_990_000);
+    // A real streamed chat: the balance shown afterwards is what publik reports after the charge.
+    await use(engine, { provider: 'publik' });
+    await collect(engine.client().chat({ messages: [{ role: 'user', content: 'Reply with the word ready' }] }));
+    await engine.idle();
+    w = (await engine.publik.status()).wallet!;
+    assert.equal(w.balanceMicros, p.state().balanceMicros);
+  });
+});

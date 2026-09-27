@@ -56,6 +56,9 @@ export class TrackerService {
 
   /** Applies a patch in one transaction. A new entry needs an existing job. */
   patch(jobId: string, p: TrackerPatch, extra: { external?: boolean } = {}): TrackerEntry {
+    // An empty note or reminder is refused, as the screens refuse it (JL-tracker-20).
+    if (p.notes?.some((n) => !n.text.trim())) throw new ApiFailure('bad_request', 'A note needs some text. Nothing was saved.');
+    if (p.reminders?.some((m) => !m.text.trim())) throw new ApiFailure('bad_request', 'A reminder needs a few words, for example "Follow up". Nothing was saved.');
     const now = nowIso();
     tx(this.db, () => {
       let r = this.row(jobId);
@@ -72,7 +75,10 @@ export class TrackerService {
       if (p.resumeId !== undefined) { set.push('resume_id = ?'); args.push(p.resumeId); }
       if (p.status !== undefined && p.status !== r.status) {
         set.push('status = ?'); args.push(p.status);
-        if (p.status === 'applied' && !r.applied_at) { set.push('applied_at = ?'); args.push(now); }
+        // Every status is a stage of an application (Interviewing, Offer, Rejected and Archived come after applying),
+        // so a job moved straight to any of them gets its applied date now, as Applied does (JL-tracker-7). A date
+        // already set is kept, and moving back to "not applied" keeps it too (the status history shows both).
+        if (p.status !== null && !r.applied_at) { set.push('applied_at = ?'); args.push(now); }
         this.db.prepare('INSERT INTO srv_tracker_history (job_id, status, at) VALUES (?, ?, ?)').run(jobId, p.status, now);
       }
       this.db.prepare(`UPDATE srv_tracker SET ${set.join(', ')} WHERE job_id = ?`).run(...args, jobId);
@@ -106,7 +112,10 @@ export class TrackerService {
   }
 
   list(view: TrackerView, status?: TrackerStatus): TrackerList {
-    const rows = this.db.prepare('SELECT * FROM srv_tracker ORDER BY updated_at DESC, job_id').all() as unknown as EntryRow[];
+    const rows = this.db.prepare(`SELECT t.*,
+        EXISTS (SELECT 1 FROM srv_tracker_notes n WHERE n.job_id = t.job_id) AS has_notes,
+        EXISTS (SELECT 1 FROM srv_tracker_reminders m WHERE m.job_id = t.job_id) AS has_reminders
+      FROM srv_tracker t ORDER BY t.updated_at DESC, t.job_id`).all() as unknown as Array<EntryRow & { has_notes: number; has_reminders: number }>;
     const counts: TrackerList['counts'] = {
       liked: 0, applied: 0, external: 0, hidden: 0, closed: 0,
       byStatus: { applied: 0, interviewing: 0, offer_received: 0, rejected: 0, archived: 0 },
@@ -114,7 +123,10 @@ export class TrackerService {
     const items: TrackerList['items'] = [];
     for (const r of rows) {
       const job = this.deps.summary(r.job_id);
-      const tracked = r.liked === 1 || r.status !== null || r.external === 1;
+      // Anything the person did keeps a job in the tracker: a like, a status, an applied date, a note or a reminder.
+      // (Unliking a job, or setting it back to "not applied", must never make its notes and reminders vanish.)
+      const kept = r.liked === 1 || r.status !== null || r.applied_at !== null || Number(r.has_notes) === 1 || Number(r.has_reminders) === 1;
+      const tracked = kept || r.external === 1;
       const closed = tracked && job?.status === 'closed';
       if (r.liked === 1) counts.liked++;
       if (r.status !== null) { counts.applied++; counts.byStatus[r.status as TrackerStatus]++; }
@@ -125,7 +137,8 @@ export class TrackerService {
         : view === 'applied' ? r.status !== null
           : view === 'external' ? r.external === 1
             : view === 'hidden' ? r.hidden === 1
-              : closed;
+              : view === 'tracked' ? kept
+                : closed;
       if (!inView || (status && r.status !== status) || !job) continue;
       items.push({ entry: this.entry(r), job });
     }

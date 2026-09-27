@@ -54,3 +54,13 @@ test('parse: returns the value, or throws a ContractError naming the path', () =
   assert.deepEqual(parse(S, { a: 2 }), { a: 2 });
   assert.throws(() => parse(S, { a: 'x' }), (e: unknown) => e instanceof ContractError && /Thing/.test(e.message) && e.issues[0]?.path === '/a');
 });
+
+test('refusals name the allowed values and the date form in plain words (JL-tracker-20)', async () => {
+  const { TrackerPatchSchema, validate } = await import('../src/index.ts');
+  const bad = validate(TrackerPatchSchema, { status: 'bogus' });
+  assert.equal(bad.ok, false);
+  if (!bad.ok) assert.equal(bad.issues[0]!.message, 'must be one of "applied", "interviewing", "offer_received", "rejected", "archived", null');
+  const when = validate(TrackerPatchSchema, { reminders: [{ at: 'tomorrow', text: 'a', done: false }] });
+  if (!when.ok) assert.match(when.issues[0]!.message, /date and time with a time zone, like 2026-10-01T10:00:00Z/);
+  else assert.fail('a reminder at "tomorrow" is refused');
+});

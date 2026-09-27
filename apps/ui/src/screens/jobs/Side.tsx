@@ -34,18 +34,20 @@ export function useSavedFilters() {
   return useApi<SavedFilter[]>('filters', () => call('listFilters'));
 }
 
-export function SaveFilterModal({ open, onClose, filter, sort, onSaved }: { open: boolean; onClose: () => void; filter: JobFilter; sort: JobSort; onSaved: (s: SavedFilter) => void }) {
+/** Saves the filters, the sort AND the search words, so the saved filter and its alert show what the feed shows. */
+export function SaveFilterModal({ open, onClose, filter, sort, q = '', onSaved }: { open: boolean; onClose: () => void; filter: JobFilter; sort: JobSort; q?: string; onSaved: (s: SavedFilter) => void }) {
+  const words = q.trim();
   const [name, setName] = useState('');
   const [alert, setAlert] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   return (
-    <Modal open={open} title="Save this filter" onCancel={onClose} destroyOnClose afterOpenChange={(o) => { if (o) { setName(suggestName(filter)); setErr(null); } }}
+    <Modal open={open} title="Save this filter" onCancel={onClose} destroyOnClose afterOpenChange={(o) => { if (o) { setName((words ? `${words} · ${suggestName(filter)}` : suggestName(filter)).slice(0, 120)); setErr(null); } }}
       okText="Save filter" okButtonProps={{ shape: 'round', loading: busy, disabled: !name.trim() }} cancelButtonProps={{ shape: 'round' }}
       onOk={async () => {
         setBusy(true); setErr(null);
         try {
-          const s = await call('createFilter', { body: { name: name.trim(), filter: cleanFilter(filter), sort, alert } });
+          const s = await call('createFilter', { body: { name: name.trim(), filter: cleanFilter(filter), sort, alert, ...(words ? { q: words } : {}) } });
           invalidate('filters');
           ui.message?.success(`Saved "${s.name}".`);
           onSaved(s);
@@ -53,6 +55,7 @@ export function SaveFilterModal({ open, onClose, filter, sort, onSaved }: { open
         } catch (e) { setErr((e as { message: string }).message); } finally { setBusy(false); }
       }}>
       <Form layout="vertical">
+        {words && <p className="jl-small" style={{ marginBottom: 12 }}>It keeps your search words “{words}” with the filters.</p>}
         <Form.Item label="Name" required>
           <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoFocus aria-label="Filter name" />
         </Form.Item>
@@ -65,12 +68,12 @@ export function SaveFilterModal({ open, onClose, filter, sort, onSaved }: { open
   );
 }
 
-export function SavedFilters({ current, currentSort, savedId, onApply, onEdit }: { current: JobFilter; currentSort: JobSort; savedId: string | null; onApply: (s: SavedFilter) => void; onEdit: (s: SavedFilter) => void }) {
+export function SavedFilters({ current, currentSort, currentQ = '', savedId, onApply, onEdit }: { current: JobFilter; currentSort: JobSort; currentQ?: string; savedId: string | null; onApply: (s: SavedFilter) => void; onEdit: (s: SavedFilter) => void }) {
   const list = useSavedFilters();
   const [saving, setSaving] = useState(false);
   const toggleAlert = async (s: SavedFilter) => {
     try {
-      await call('updateFilter', { params: { filterId: s.id }, body: { name: s.name, filter: s.filter, sort: s.sort, alert: !s.alert.enabled } });
+      await call('updateFilter', { params: { filterId: s.id }, body: { name: s.name, filter: s.filter, sort: s.sort, alert: !s.alert.enabled, q: s.q ?? '' } });
       invalidate('filters');
       ui.message?.success(s.alert.enabled ? `Alerts off for "${s.name}".` : `You will be told about new jobs for "${s.name}".`);
     } catch (e) { ui.message?.error((e as { message: string }).message); }
@@ -88,10 +91,10 @@ export function SavedFilters({ current, currentSort, savedId, onApply, onEdit }:
         {list.data && !list.data.length && <span className="jl-small jl-muted">No saved filters yet. Set filters, then press + to keep them.</span>}
         {list.data?.map((s) => {
           const applied = savedId === s.id;
-          const modified = applied && (!sameFilter(s.filter, current) || s.sort !== currentSort);
+          const modified = applied && (!sameFilter(s.filter, current) || s.sort !== currentSort || (s.q ?? '') !== currentQ.trim());
           return (
             <div className="jl-saved-row" key={s.id} style={{ borderLeftColor: applied ? '#047A52' : 'var(--jl-accent)' }}>
-              <button type="button" className="name" onClick={() => onApply(s)} aria-current={applied} title={s.name}>
+              <button type="button" className="name" onClick={() => onApply(s)} aria-current={applied} title={s.q ? `${s.name} (words: ${s.q})` : s.name}>
                 {applied ? <strong>{s.name}</strong> : s.name}{modified && <span className="jl-muted"> (changed)</span>}
               </button>
               <Tooltip title={s.alert.enabled ? 'Alerts on' : 'Alerts off'}>
@@ -104,7 +107,7 @@ export function SavedFilters({ current, currentSort, savedId, onApply, onEdit }:
           );
         })}
       </div>
-      <SaveFilterModal open={saving} onClose={() => setSaving(false)} filter={current} sort={currentSort} onSaved={(s) => onApply(s)} />
+      <SaveFilterModal open={saving} onClose={() => setSaving(false)} filter={current} sort={currentSort} q={currentQ} onSaved={(s) => onApply(s)} />
     </section>
   );
 }

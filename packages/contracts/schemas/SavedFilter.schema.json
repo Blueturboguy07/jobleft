@@ -283,6 +283,10 @@
       "type": "string",
       "format": "date-time",
       "description": "RFC 3339 date-time, UTC (\"Z\")"
+    },
+    "q": {
+      "type": "string",
+      "maxLength": 500
     }
   },
   "required": [

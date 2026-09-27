@@ -300,8 +300,12 @@ export class PublikClient {
     return this.status();
   }
 
-  /** Updates the kept wallet from x-publik-* response headers after a paid call. */
-  observeHeaders(headers: Headers | Record<string, string | undefined>): void {
+  /**
+   * Updates the kept wallet from x-publik-* response headers after a paid call. `balance: false` (the headers of a
+   * streamed answer, written before the charge) skips x-publik-balance: there it is the balance minus a temporary
+   * hold, which the app must never show as spent money. The other fields are kept.
+   */
+  observeHeaders(headers: Headers | Record<string, string | undefined>, opts: { balance?: boolean } = {}): void {
     const get = (name: string): string | undefined => {
       if (typeof (headers as Headers).get === 'function') return (headers as Headers).get(name) ?? undefined;
       return (headers as Record<string, string | undefined>)[name];
@@ -311,7 +315,7 @@ export class PublikClient {
     const w: PublikWallet = { ...s.wallet, week: { ...s.wallet.week } };
     let changed = false;
     const balance = int(get('x-publik-balance') ?? get('x-publik-balance-micros'));
-    if (balance !== null) { w.balanceMicros = balance; changed = true; }
+    if (balance !== null && opts.balance !== false) { w.balanceMicros = balance; changed = true; }
     const claim = get('x-publik-claim-state');
     if (claim === 'claimed' || claim === 'anonymous') {
       if (w.claimState !== claim) {

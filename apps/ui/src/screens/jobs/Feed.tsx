@@ -126,7 +126,8 @@ export function Feed() {
   }, [seen]);
   useEffect(() => { if (progress && !progress.running) setNewJobs(false); }, [progress?.running]);
 
-  const applySaved = (s: SavedFilter) => { setFeed({ filter: s.filter, sort: s.sort, savedId: s.id, initialized: true }); scrollRef.current?.scrollTo({ top: 0 }); };
+  // A saved filter brings back its search words too (none = no words), so it shows what was saved (JL-tracker-15).
+  const applySaved = (s: SavedFilter) => { setFeed({ filter: s.filter, sort: s.sort, q: s.q ?? '', savedId: s.id, initialized: true }); scrollRef.current?.scrollTo({ top: 0 }); };
   const onFilter = (f: JobFilter) => { setFeed({ filter: f, initialized: true }); scrollRef.current?.scrollTo({ top: 0 }); };
   const onSort = (s: JobSort) => { setFeed({ sort: s }); scrollRef.current?.scrollTo({ top: 0 }); };
 
@@ -214,14 +215,14 @@ export function Feed() {
       </div>
       <aside className="jl-rightcol collapsible" aria-label="Your filters and setup">
         <UserCard />
-        <SavedFilters current={feed.filter} currentSort={feed.sort} savedId={feed.savedId} onApply={applySaved} onEdit={(s) => setDrawer({ open: true, saved: s })} />
+        <SavedFilters current={feed.filter} currentSort={feed.sort} currentQ={feed.q} savedId={feed.savedId} onApply={applySaved} onEdit={(s) => setDrawer({ open: true, saved: s })} />
         <BoardsCard />
         <Checklist />
       </aside>
       <AllFiltersDrawer open={drawer.open} saved={drawer.saved} filter={feed.filter} sort={feed.sort} onClose={() => setDrawer({ open: false, saved: null })}
         onApply={(f, s) => { setFeed({ filter: f, sort: s, savedId: drawer.saved ? drawer.saved.id : getFeed().savedId, initialized: true }); scrollRef.current?.scrollTo({ top: 0 }); }}
         onSaved={(s) => { void saved.reload(); if (!s && getFeed().savedId === drawer.saved?.id) setFeed({ savedId: null }); }} />
-      <SaveFilterModal open={savingNarrow} onClose={() => setSavingNarrow(false)} filter={feed.filter} sort={feed.sort} onSaved={(s) => { void saved.reload(); applySaved(s); }} />
+      <SaveFilterModal open={savingNarrow} onClose={() => setSavingNarrow(false)} filter={feed.filter} sort={feed.sort} q={feed.q} onSaved={(s) => { void saved.reload(); applySaved(s); }} />
     </div>
   );
 }

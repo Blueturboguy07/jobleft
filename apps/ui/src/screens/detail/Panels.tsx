@@ -3,7 +3,7 @@
 // "unknown", never "no"), people you know there, and your notes and reminders.
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, Button, Checkbox, Input, Select, Space } from 'antd';
+import { Alert, Button, Checkbox, Input, Popconfirm, Select, Space } from 'antd';
 import { Tooltip } from '../../components/Tip.tsx';
 import { BankOutlined, DeleteOutlined, PlusOutlined, SafetyCertificateOutlined, TeamOutlined, EditOutlined, CalendarOutlined } from '@ant-design/icons';
 import {
@@ -20,6 +20,8 @@ import { CompanyMark } from '../../components/JobCard.tsx';
 import { InlineError } from '../../components/States.tsx';
 import { calendarDate, dateText, dateTimeText, plural } from '../../lib/format.ts';
 import { noteKeep, patchFresh, reminderKeep } from '../../lib/trackerEdit.ts';
+import { postingSponsorship } from '../../lib/sponsorship.ts';
+import { reminderTimeProblem } from '../../lib/trackerView.ts';
 import { ContactName, MatchExplain, ProfileLink, ReasonList, StageSelect, saveContact } from '../network/shared.tsx';
 
 export function SecHead({ icon, title, id, right }: { icon: ReactNode; title: string; id?: string; right?: ReactNode }) {
@@ -89,9 +91,11 @@ export function CompanySection({ job, company }: { job: Job; company: Company | 
       </div>
       {!has && (
         <div className="jl-factbox">
-          <p>jobleft has no facts about this company yet. Nothing is guessed.</p>
+          <p>{busy === 'free' ? 'Looking up this company in Wikidata, SEC EDGAR and GLEIF…' : 'jobleft has no facts about this company yet. Nothing is guessed.'}</p>
           <Space wrap style={{ marginTop: 8 }}>
-            <Button shape="round" loading={busy === 'free'} onClick={() => { void refresh(false); }}>Look up company facts (free public sources)</Button>
+            <Tooltip title="Sends only the company name to these free public sites (Wikidata, SEC EDGAR, GLEIF). Nothing about you is sent.">
+              <Button shape="round" loading={busy === 'free'} onClick={() => { void refresh(false); }}>Look up company facts (Wikidata, SEC, GLEIF; free)</Button>
+            </Tooltip>
             {metered?.enabled && (
               <Button shape="round" loading={busy === 'paid'} onClick={() => { void refresh(true); }}>Paid web search (about {formatDollars(Math.round(metered.pricesPer1000Micros.search / 1000))} from your balance)</Button>
             )}
@@ -118,10 +122,10 @@ export function CompanySection({ job, company }: { job: Job; company: Company | 
   );
 }
 
-export function SponsorSection({ job, company }: { job: Job; company: Company | null }) {
+export function SponsorSection({ job, company, match }: { job: Job; company: Company | null; match?: Parameters<typeof postingSponsorship>[1] }) {
   const h = company?.h1b ?? null;
-  const s = job.statements.sponsorship;
-  const ev = job.evidence.sponsorship?.text;
+  // One reading for the section, the chip at the top and the match (JL-tracker-3).
+  const p = postingSponsorship(job, match);
   const max = h ? Math.max(1, ...h.byYear.map((y) => y.count)) : 1;
   return (
     <section className="jl-detail-sec" aria-labelledby="sec-visa-h" id="sec-visa">
@@ -129,15 +133,15 @@ export function SponsorSection({ job, company }: { job: Job; company: Company | 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div>
           <strong>What the posting says: </strong>
-          {s === 'yes' ? 'it offers visa sponsorship.' : s === 'no' ? 'it cannot sponsor a visa for this role.' : 'nothing about visa sponsorship.'}
-          {ev && <blockquote style={{ margin: '6px 0 0', paddingLeft: 10, borderLeft: '3px solid var(--jl-border)', color: 'var(--jl-text2)' }}>“{ev}”</blockquote>}
-          {(job.statements.usCitizenOnly || job.statements.clearanceRequired) && (
-            <p style={{ marginTop: 6 }}>{job.statements.usCitizenOnly && 'The posting requires US citizenship. '}{job.statements.clearanceRequired && 'The posting requires a security clearance.'}</p>
+          {p.text}
+          {p.quote && <blockquote style={{ margin: '6px 0 0', paddingLeft: 10, borderLeft: '3px solid var(--jl-border)', color: 'var(--jl-text2)' }}>“{p.quote}”</blockquote>}
+          {((job.statements.usCitizenOnly && p.because !== 'citizenship') || (job.statements.clearanceRequired && p.because !== 'clearance')) && (
+            <p style={{ marginTop: 6 }}>{job.statements.usCitizenOnly && p.because !== 'citizenship' && 'The posting requires US citizenship. '}{job.statements.clearanceRequired && p.because !== 'clearance' && 'The posting requires a security clearance.'}</p>
           )}
         </div>
         {h ? (
           <div className="jl-factbox" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <strong>{h.status === 'likely' ? 'H-1B sponsorship likely, based on past filings' : 'Some H-1B filing history'}</strong>
+            <strong>{p.says === 'no' ? "The company's past H-1B filings (not this role)" : h.status === 'likely' ? 'H-1B sponsorship likely, based on past filings' : 'Some H-1B filing history'}</strong>
             <span>{plural(h.certifiedFilings, 'certified H-1B filing')} from {calendarDate(h.window.from)} to {calendarDate(h.window.to)}.{h.similarRoleShare !== null && h.roleFamily ? ` About ${Math.round(h.similarRoleShare * 100)}% were for ${h.roleFamily} roles.` : ''}</span>
             <div className="jl-bars" aria-label="Filings by year">
               {h.byYear.map((y) => (
@@ -149,7 +153,7 @@ export function SponsorSection({ job, company }: { job: Job; company: Company | 
               ))}
             </div>
             <span className="jl-small">{h.note}</span>
-            <span className="jl-source">Source: {h.source}. Data through {calendarDate(h.dataThrough)}. Filer names: {h.filerEntities.join(', ')}.</span>
+            <span className="jl-source">Source: {h.source}. Data through {calendarDate(h.dataThrough)}. Filer names: {h.filerEntities.join(', ').replace(/\.+$/, '')}.</span>
           </div>
         ) : (
           <div className="jl-factbox">
@@ -231,6 +235,7 @@ export function NotesSection({ job, entry, onChange }: { job: Job; entry: Tracke
   const [err, setErr] = useState<UiError | null>(null);
   const notes = entry?.notes ?? [];
   const reminders = entry?.reminders ?? [];
+  const remProblem = reminderTimeProblem(remAt, Date.now());
   useDirty(`note:${job.id}`, !!newNote.trim() || (!!editing && editing.text !== (notes.find((n) => n.id === editing.id)?.text ?? '')), 'your note');
   // every save reads the newest copy first (see lib/trackerEdit.ts), so a second window never overwrites the first
   const save = async (build: (fresh: TrackerEntry | null) => TrackerPatch | null, ok: string): Promise<boolean> => {
@@ -270,7 +275,11 @@ export function NotesSection({ job, entry, onChange }: { job: Job; entry: Tracke
               <div className="jl-row" style={{ alignItems: 'flex-start' }}>
                 <p className="jl-grow" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{n.text}</p>
                 <Button size="small" type="text" icon={<EditOutlined />} aria-label="Edit note" onClick={() => setEditing({ id: n.id, text: n.text })} />
-                <Button size="small" type="text" icon={<DeleteOutlined />} aria-label="Delete note" onClick={() => { void save((f) => ({ notes: noteKeep(f).filter((k) => k.id !== n.id) }), 'Note deleted.'); }} />
+                {/* The trash sits next to the pencil: a delete asks first (JL-tracker-21). */}
+                <Popconfirm title="Delete this note?" description="It cannot be brought back." okText="Delete" cancelText="Keep" okButtonProps={{ danger: true }}
+                  onConfirm={() => { void save((f) => ({ notes: noteKeep(f).filter((k) => k.id !== n.id) }), 'Note deleted.'); }}>
+                  <Button size="small" type="text" icon={<DeleteOutlined />} aria-label="Delete note" />
+                </Popconfirm>
               </div>
             )}
             <span className="jl-source">Written {dateText(n.createdAt)}{n.updatedAt !== n.createdAt ? `, changed ${dateText(n.updatedAt)}` : ''}</span>
@@ -287,15 +296,24 @@ export function NotesSection({ job, entry, onChange }: { job: Job; entry: Tracke
           <div key={r.id} className="jl-row">
             <Checkbox checked={r.done} onChange={(e) => { const done = e.target.checked; void save((f) => ({ reminders: reminderKeep(f).map((k) => (k.id === r.id ? { ...k, done } : k)) }), done ? 'Reminder done.' : 'Reminder open again.'); }} aria-label={`Done: ${r.text}`} />
             <span className="jl-grow" style={r.done ? { textDecoration: 'line-through', color: 'var(--jl-text3)' } : undefined}>{dateTimeText(r.at)}: {r.text || 'Follow up'}</span>
-            <Button size="small" type="text" icon={<DeleteOutlined />} aria-label="Delete reminder" onClick={() => { void save((f) => ({ reminders: reminderKeep(f).filter((k) => k.id !== r.id) }), 'Reminder deleted.'); }} />
+            <Popconfirm title="Delete this reminder?" okText="Delete" cancelText="Keep" okButtonProps={{ danger: true }}
+              onConfirm={() => { void save((f) => ({ reminders: reminderKeep(f).filter((k) => k.id !== r.id) }), 'Reminder deleted.'); }}>
+              <Button size="small" type="text" icon={<DeleteOutlined />} aria-label="Delete reminder" />
+            </Popconfirm>
           </div>
         ))}
         <div className="jl-row jl-wrap">
           <Input type="datetime-local" value={remAt} onChange={(e) => setRemAt(e.target.value)} style={{ width: 220 }} aria-label="Reminder date and time" min={toLocalInput(new Date().toISOString())} />
           <Input value={remText} onChange={(e) => setRemText(e.target.value)} placeholder="What to do" aria-label="Reminder text" style={{ width: 240 }} maxLength={500} />
-          <Button shape="round" icon={<PlusOutlined />} disabled={!remAt} loading={busy}
-            onClick={async () => { const at = new Date(remAt).toISOString(); const text = remText.trim() || 'Follow up'; if (await save((f) => ({ reminders: [...reminderKeep(f), { at, text, done: false }] }), 'Reminder set.')) { setRemAt(''); setRemText(''); } }}>Add reminder</Button>
+          <Button shape="round" icon={<PlusOutlined />} disabled={!!remProblem} loading={busy}
+            onClick={async () => {
+              // checked again at the click: the time may have passed since it was typed
+              const problem = reminderTimeProblem(remAt, Date.now());
+              if (problem) { setErr({ code: 'bad_request', status: 400, message: problem, link: null }); return; }
+              const at = new Date(remAt).toISOString(); const text = remText.trim() || 'Follow up'; if (await save((f) => ({ reminders: [...reminderKeep(f), { at, text, done: false }] }), 'Reminder set.')) { setRemAt(''); setRemText(''); }
+            }}>Add reminder</Button>
         </div>
+        {remAt && remProblem && <span className="jl-small" role="alert" style={{ color: 'var(--jl-warn)' }}>{remProblem}</span>}
       </div>
     </section>
   );

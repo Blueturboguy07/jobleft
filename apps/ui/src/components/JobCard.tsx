@@ -2,7 +2,7 @@
 // detail view: the match comes from the API as-is. Icon-only buttons have spoken names; hover content (the three
 // part-scores) is also reachable with the keyboard through the match tile button.
 
-import { openExternal } from '../lib/external.ts';
+import { NO_LINK_TEXT, openExternal, realLink } from '../lib/external.ts';
 import { memo, useRef, useState } from 'react';
 import { Button, Dropdown, Popover } from 'antd';
 import { Tooltip } from './Tip.tsx';
@@ -78,21 +78,21 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
   const posted = ago(j.postedAt, now);
   const sponsor = sponsorChip(item.h1bTag);
   const h1bSrc = useH1bSource();
-  const applyUrl = j.applyUrl ?? j.url;
+  const applyUrl = realLink(j.applyUrl) ?? realLink(j.url);
+  const pageUrl = realLink(j.url);
   const titleId = `t-${j.id.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
   const pay = payText(j.pay);
 
   const menu = {
     items: [
       { key: 'hide', label: item.hidden ? 'Show this job again' : 'Not interested (hide)' },
-      { key: 'orig', label: 'Open the original posting' },
-      { key: 'copy', label: 'Copy the posting link' },
+      ...(pageUrl ? [{ key: 'orig', label: 'Open the original posting' }, { key: 'copy', label: 'Copy the posting link' }] : []),
       ...(item.trackerStatus ? [] : [{ key: 'applied', label: 'Mark as applied' }]),
     ],
     onClick: ({ key }: { key: string }) => {
       if (key === 'hide') actions.hide(item);
-      if (key === 'orig') openExternal(j.url);
-      if (key === 'copy') void navigator.clipboard?.writeText(j.url);
+      if (key === 'orig' && pageUrl) openExternal(pageUrl);
+      if (key === 'copy' && pageUrl) void navigator.clipboard?.writeText(pageUrl);
       if (key === 'applied') actions.markApplied(item);
     },
   };
@@ -163,6 +163,10 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
           {closed ? (
             <Tooltip title={`This posting closed${j.closedAt ? ` on ${dateText(j.closedAt)}` : ''}. The employer page may be gone.`}>
               <Button shape="round" className="jl-caps" disabled>Closed</Button>
+            </Tooltip>
+          ) : !applyUrl ? (
+            <Tooltip title={NO_LINK_TEXT}>
+              <Button shape="round" className="jl-caps" disabled aria-label={`${j.title}: no apply link`}>No link</Button>
             </Tooltip>
           ) : (
             <Popover open={askApplied} onOpenChange={(o) => { if (!o) setAskApplied(false); }} trigger="click" placement="topRight"
