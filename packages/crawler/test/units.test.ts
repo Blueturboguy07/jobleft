@@ -13,13 +13,13 @@ import { Store } from '../src/store.ts';
 import type { RawJob } from '../src/types.ts';
 
 test('identity: the default names jobleft and its version; browsers, personal mail and other products are refused', () => {
-  assert.equal(DEFAULT_USER_AGENT, 'jobleft/0.1.1 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
+  assert.equal(DEFAULT_USER_AGENT, 'jobleft/0.1.2 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
   assert.equal(makeConfig().userAgent, DEFAULT_USER_AGENT);
   // The identity is fixed in code: a config that names another one is refused (regression: placeholder default).
   assert.throws(() => makeConfig({ userAgent: 'jobleft/0.1 (contact: TBD)' }), /fixed in code/);
   assert.equal(makeConfig({ userAgent: DEFAULT_USER_AGENT }).userAgent, DEFAULT_USER_AGENT);
   assert.equal(checkUserAgent('jobleft/0.2 (contact: https://jobleft.example/bot)'), 'jobleft/0.2 (contact: https://jobleft.example/bot)');
-  assert.equal(productTokenOf('jobleft/0.1.1 (+https://github.com/Blueturboguy07/jobleft; no personal data)'), 'jobleft');
+  assert.equal(productTokenOf('jobleft/0.1.2 (+https://github.com/Blueturboguy07/jobleft; no personal data)'), 'jobleft');
   for (const bad of ['', 'Mozilla/5.0 jobleft/0.1', 'jobleft/0.1 (Macintosh; AppleWebKit)', 'jobleft/0.1 (mail: me@gmail.com)', 'Googlebot/2.1', 'jobleft']) {
     assert.throws(() => checkUserAgent(bad), ConfigError, bad);
   }

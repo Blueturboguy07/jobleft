@@ -162,7 +162,7 @@ jb jobs greenhouse:acme --all  # the jobs a board's refreshes stored; closed one
 - A failed, "not found", empty or broken answer never closes the board's jobs (the crawler closes a job only after a
   refresh that read the whole board has not listed it for 24 hours). An empty answer from a board that had jobs shows
   a warning, not "live, 0 jobs".
-- Every request carries `User-Agent: jobleft/0.1.1 (+https://github.com/Blueturboguy07/jobleft; no personal data)` and nothing else about
+- Every request carries `User-Agent: jobleft/0.1.2 (+https://github.com/Blueturboguy07/jobleft; no personal data)` and nothing else about
   you. Requests to one host are at least 1.1 seconds apart, across pastes, refreshes and even several jobleft
   processes (the schedule lives in the database, table `host_pacing`). robots.txt is obeyed (an answer is reused
   for 10 minutes; a robots.txt that cannot be read counts as "disallow everything"). A `429` or `503` with

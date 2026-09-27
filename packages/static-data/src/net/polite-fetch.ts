@@ -6,7 +6,7 @@
 // to a loopback mock origin; JOBLEFT_OFFLINE=1 sends nothing; a request budget stops runaway loops.
 
 /** Same value as USER_AGENT in @jobleft/crawler (static-data may not import the crawler). */
-export const USER_AGENT = 'jobleft/0.1.1 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
+export const USER_AGENT = 'jobleft/0.1.2 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
 export const PRODUCT_TOKEN = 'jobleft-build';
 
 export class OfflineError extends Error {

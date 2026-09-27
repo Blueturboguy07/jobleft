@@ -36,7 +36,7 @@ export function keepBigIntegers(_key: string, value: unknown, ctx?: { source?: s
   return value;
 }
 
-export const USER_AGENT = 'jobleft/0.1.1 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
+export const USER_AGENT = 'jobleft/0.1.2 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
 /** The robots.txt product token of USER_AGENT. A robots group for "jobleft" also matches it (prefix rule). */
 export const PRODUCT_TOKEN = 'jobleft-build';
 

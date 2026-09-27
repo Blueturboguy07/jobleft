@@ -3,7 +3,7 @@
 // jobs the person adds (ats = 'external', INTERFACES decision 6).
 //
 // Facts are shown exactly as stored (server O13): an empty column is null, never "", 0, "Onsite" or a crawl time.
-// A filter on a fact this build does not know yet (industry, company stage, years) matches nothing unless
+// A filter on a fact this build does not know yet (industry, company stage) matches nothing unless
 // `includeUnknown` names it, so an unknown never passes as a match.
 
 import { createHash } from 'node:crypto';
@@ -104,7 +104,7 @@ function snippetOf(text: string): string {
   return chars.length <= 300 ? t : chars.slice(0, 299).join('') + '…';
 }
 
-export function rowToJob(r: JobRow): Job {
+export function rowToJob(r: CrawlRow): Job {
   const external = r.ats === 'external';
   const id = contractJobId(r);
   const url = httpUrl(r.canonical_url) ?? `https://${NO_LINK_HOST}/job/${encodeURIComponent(id)}`;
@@ -133,8 +133,8 @@ export function rowToJob(r: JobRow): Job {
     remoteScope: null,
     employmentType: employment,
     level,
-    levels: level ? [experienceLevelOf(level)] : [],
-    yearsRequired: null,
+    levels: levelsOf(r.levels_json, level),
+    yearsRequired: r.years_min != null || r.years_max != null ? { min: r.years_min ?? null, max: r.years_max ?? null } : null,
     pay: payOf(r),
     postedAt: iso(r.posted_at),
     firstSeenAt: firstSeen,
@@ -171,7 +171,9 @@ const SELECT = `SELECT j.*, d.ats AS d_ats, d.board AS d_board, d.job_id AS d_jo
   LEFT JOIN jobs d ON d.id = j.duplicate_of
   LEFT JOIN srv_tracker t ON t.job_id = (lower(j.ats) || ':' || lower(j.board) || ':' || j.job_id)`;
 
-type Row = JobRow & { t_liked: number | null; t_hidden: number | null; t_status: string | null; sort_key?: number | null };
+// levels_json, years_min and years_max are crawler columns (SELECT j.*) that JobRow's type does not list yet.
+type CrawlRow = JobRow & { levels_json?: string | null; years_min?: number | null; years_max?: number | null };
+type Row = CrawlRow & { t_liked: number | null; t_hidden: number | null; t_status: string | null; sort_key?: number | null };
 
 interface Cursor { s: string; h: string; k: number | null; i: number }
 
@@ -184,10 +186,14 @@ function decodeCursor(text: string): Cursor | null {
   return null;
 }
 
-const LEVEL_BUCKETS: Record<ExperienceLevel, Level[]> = {
-  intern_new_grad: ['intern'], entry: ['entry'], mid: ['mid'], senior: ['senior'],
-  lead_staff: ['staff', 'principal', 'lead', 'manager'], director_exec: ['director', 'vp', 'exec'],
-};
+/** The levels the crawler read (levels_json), else the one from the primary level. */
+function levelsOf(levelsJson: string | null | undefined, level: Level | null): ExperienceLevel[] {
+  try {
+    const parsed = levelsJson ? (JSON.parse(levelsJson) as unknown) : null;
+    if (Array.isArray(parsed) && parsed.length && parsed.every((x) => typeof x === 'string')) return parsed as ExperienceLevel[];
+  } catch { /* fall through */ }
+  return level ? [experienceLevelOf(level)] : [];
+}
 
 /** Words for FTS5, each quoted as a phrase (operators and quotes are words, never syntax). */
 function ftsQuery(q: string): { match: string | null; exact: string[] } {
@@ -355,10 +361,11 @@ export class JobsService {
       where.push(`(${parts.join(' OR ')})`);
     }
     if (filter.levels?.length) {
-      const lv = filter.levels.flatMap((b) => LEVEL_BUCKETS[b] ?? []);
-      const parts = [lv.length ? `x.level IN (${lv.map(() => '?').join(',')})` : '0'];
-      args.push(...lv);
-      if (unknownOk.has('level')) parts.push('x.level IS NULL');
+      // The levels the card shows decide (levels_json: a posting can be entry AND mid, or senior AND lead/staff), not
+      // the single primary level; the two disagreed on 2,769 jobs in the founder's store (filters audit, 2026-09-27).
+      const parts = [`x.id IN (SELECT j.id FROM jobs j, json_each(j.levels_json) e WHERE e.value IN (${filter.levels.map(() => '?').join(',')}))`];
+      args.push(...filter.levels);
+      if (unknownOk.has('level')) parts.push(`x.id IN (SELECT id FROM jobs WHERE levels_json IS NULL OR levels_json = '[]')`);
       where.push(`(${parts.join(' OR ')})`);
     }
     if (filter.postedWithin) {
@@ -417,8 +424,14 @@ export class JobsService {
       }
       where.push(parts.length ? `(${parts.join(' OR ')})` : '0');
     }
-    // Facts this build does not have yet: a filter on them matches nothing (unless unknowns are allowed).
-    if (filter.maxYearsRequired !== undefined && !unknownOk.has('years')) nothing();
+    // Years: the posting's stated minimum (else its maximum) is at most the filter; a posting that states none is out
+    // unless unknowns are allowed.
+    if (filter.maxYearsRequired !== undefined) {
+      const parts = ['x.id IN (SELECT id FROM jobs WHERE COALESCE(years_min, years_max) <= ?)'];
+      args.push(filter.maxYearsRequired);
+      if (unknownOk.has('years')) parts.push('x.id IN (SELECT id FROM jobs WHERE years_min IS NULL AND years_max IS NULL)');
+      where.push(`(${parts.join(' OR ')})`);
+    }
     // i-core: remote regions. "US" keeps remote jobs open to people in the US (is_us); a remote scope that names only
     // other regions ("Remote (Europe only)") fails it. Other regions are not judged by this build.
     if (filter.remoteRegions?.length) {

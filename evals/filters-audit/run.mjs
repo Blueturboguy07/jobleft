@@ -23,7 +23,7 @@ for (const l of ['intern_new_grad', 'entry', 'mid', 'senior', 'lead_staff', 'dir
 for (const p of ['24h', '3d', '7d', '30d']) cases.push({ name: `postedWithin=${p}`, filter: { postedWithin: p }, want: (j) => !!j.postedAt && now - Date.parse(j.postedAt) <= WIN[p] });
 for (const m of [60000, 100000, 150000]) cases.push({ name: `minAnnualPayUsd=${m}`, filter: { minAnnualPayUsd: m }, want: (j) => { const a = annual(j.pay); return a !== null && j.pay.currency === 'USD' && a >= m; } });
 cases.push({ name: 'countries=US', filter: { countries: ['US'] }, want: (j) => j.isUs === true });
-cases.push({ name: 'maxYearsRequired=2', filter: { maxYearsRequired: 2 }, want: (j) => j.yearsRequired !== null && j.yearsRequired !== undefined && j.yearsRequired <= 2 });
+cases.push({ name: 'maxYearsRequired=2', filter: { maxYearsRequired: 2 }, want: (j) => { const y = j.yearsRequired; const v = y ? (y.min ?? y.max) : null; return v !== null && v !== undefined && v <= 2; } });
 cases.push({ name: 'workModels=remote + includeUnknown=workModel', filter: { workModels: ['remote'], includeUnknown: ['workModel'] }, want: (j) => j.workModel === 'remote' || j.workModel === null });
 cases.push({ name: 'minAnnualPayUsd=100000 + includeUnknown=pay', filter: { minAnnualPayUsd: 100000, includeUnknown: ['pay'] }, want: (j) => { const a = annual(j.pay); return a === null || (j.pay.currency === 'USD' && a >= 100000); } });
 cases.push({ name: 'remote + senior + 7d', filter: { workModels: ['remote'], levels: ['senior'], postedWithin: '7d' }, want: (j) => j.workModel === 'remote' && (j.levels ?? []).includes('senior') && !!j.postedAt && now - Date.parse(j.postedAt) <= WIN['7d'] });
@@ -34,7 +34,7 @@ for (const c of cases) {
   const want = new Set(jobs.filter(c.want).map((j) => j.id));
   const missing = [...want].filter((id) => !gotIds.has(id));
   const extra = [...gotIds].filter((id) => !want.has(id));
-  const ex = (ids) => ids.slice(0, 2).map((id) => { const j = jobs.find((x) => x.id === id) ?? got.items.find((it) => it.job.id === id)?.job; return j ? `${j.title.slice(0, 30)} [wm=${j.workModel} et=${j.employmentType} lv=${(j.levels ?? []).join('/')} yrs=${j.yearsRequired} pay=${j.pay ? `${j.pay.min}-${j.pay.max} ${j.pay.currency}/${j.pay.period}` : null} posted=${j.postedAt?.slice(0, 10)} us=${j.isUs}]` : id; }).join(' | ');
+  const ex = (ids) => ids.slice(0, 2).map((id) => { const j = jobs.find((x) => x.id === id) ?? got.items.find((it) => it.job.id === id)?.job; return j ? `${j.title.slice(0, 30)} [wm=${j.workModel} et=${j.employmentType} lv=${(j.levels ?? []).join('/')} yrs=${j.yearsRequired ? `${j.yearsRequired.min}-${j.yearsRequired.max}` : null} pay=${j.pay ? `${j.pay.min}-${j.pay.max} ${j.pay.currency}/${j.pay.period}` : null} posted=${j.postedAt?.slice(0, 10)} us=${j.isUs}]` : id; }).join(' | ');
   const ok = missing.length === 0 && extra.length === 0 && got.total === got.items.length;
   rows.push({ name: c.name, ok, api: got.total, listed: got.items.length, expected: want.size, missing: missing.length, extra: extra.length, exMissing: ex(missing), exExtra: ex(extra) });
   console.log(`${ok ? 'OK  ' : 'DIFF'} ${c.name}: api total ${got.total} (listed ${got.items.length}), expected ${want.size}, missing ${missing.length}, extra ${extra.length}${missing.length ? `\n      missing e.g. ${ex(missing)}` : ''}${extra.length ? `\n      extra e.g. ${ex(extra)}` : ''}`);
