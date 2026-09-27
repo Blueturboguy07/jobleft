@@ -88,6 +88,9 @@ if (existsSync(onnxBin)) for (const os of readdirSync(onnxBin)) {
   for (const arch of readdirSync(join(onnxBin, os))) if (arch !== 'arm64') rmSync(join(onnxBin, os, arch), { recursive: true, force: true });
 }
 rmSync(deployDir, { recursive: true, force: true });
+// pnpm deploy re-resolves the workspace and drops the other packages' bin links (vite, tauri); put them back.
+const relink = spawnSync('pnpm', ['install', '--offline'], { cwd: ROOT, encoding: 'utf8' });
+if (relink.status !== 0) throw new Error(`pnpm install --offline failed after deploy: ${relink.stderr.slice(0, 300)}`);
 const ui = join(ROOT, 'apps/ui/dist');
 if (!existsSync(join(ui, 'index.html'))) throw new Error('build the UI first: pnpm --filter @jobleft/ui build');
 cpSync(ui, join(OUT, 'ui'), { recursive: true });
