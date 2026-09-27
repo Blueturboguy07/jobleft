@@ -9,7 +9,7 @@ import { invalidate, setCached } from '../../app/data.ts';
 import { ui } from '../../app/layers.ts';
 import { useProfile } from '../../app/session.ts';
 import { InlineError } from '../../components/States.tsx';
-import { applyAnswer, profileQuestions, type Question } from '../../lib/profileQuestions.ts';
+import { ANSWER_MAX, answerProblem, applyAnswer, profileQuestions, type Question } from '../../lib/profileQuestions.ts';
 import { TailorDrawer } from '../detail/Tools.tsx';
 import { toInput } from '../Profile.tsx';
 
@@ -66,6 +66,8 @@ export function QuestionsModal({ open, onClose }: { open: boolean; onClose: () =
   const q = pending[0] ?? null;
   const save = async () => {
     if (!input || !q) return;
+    const problem = answerProblem(q, answer);
+    if (problem) { setErr({ code: 'bad_request', status: null, message: problem, link: null }); return; }
     const next = applyAnswer(input, q, answer);
     if (next === input) { setSkipped((s) => [...s, key(q)]); setAnswer(''); return; }
     setBusy(true); setErr(null);
@@ -89,12 +91,12 @@ export function QuestionsModal({ open, onClose }: { open: boolean; onClose: () =
           <span className="jl-muted">{pending.length} left{done > 0 ? ` · ${done} saved` : ''}. Each answer goes into one field of your profile; nothing is rewritten.</span>
           <strong>{q.text}</strong>
           <span className="jl-small">{q.hint}</span>
-          <Input.TextArea value={answer} onChange={(e) => setAnswer(e.target.value)} autoSize={{ minRows: 2, maxRows: 6 }} maxLength={2000} aria-label="Your answer" autoFocus
+          <Input.TextArea value={answer} onChange={(e) => { setAnswer(e.target.value); setErr(null); }} autoSize={{ minRows: 2, maxRows: 6 }} maxLength={ANSWER_MAX[q.kind]} showCount aria-label="Your answer" autoFocus
             onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); void save(); } }} />
           {err && <InlineError error={err} />}
           <Space>
             <Button type="primary" shape="round" loading={busy} disabled={!answer.trim()} onClick={() => { void save(); }}>Save and next</Button>
-            <Button shape="round" onClick={() => { setSkipped((s) => [...s, key(q)]); setAnswer(''); }}>Skip</Button>
+            <Button shape="round" onClick={() => { setSkipped((s) => [...s, key(q)]); setAnswer(''); setErr(null); }}>Skip</Button>
             <Button type="link" onClick={onClose}>Stop here</Button>
           </Space>
         </Space>
