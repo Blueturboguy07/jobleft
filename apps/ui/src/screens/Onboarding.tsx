@@ -239,13 +239,13 @@ export function Onboarding() {
         <strong>Work authorization</strong>
         <YesNo label="Are you legally allowed to work in the US?" value={d.workAuthorization.usAuthorized} onChange={(v) => setD({ ...d, workAuthorization: { ...d.workAuthorization, usAuthorized: v } })} />
         <YesNo label="Will you need visa sponsorship now or later?" value={d.workAuthorization.needsSponsorship} onChange={(v) => setD({ ...d, workAuthorization: { ...d.workAuthorization, needsSponsorship: v } })} />
-        <p className="jl-note">These answers stay on this Mac. They are never sent to an AI provider. A job that says it does not sponsor is flagged. A job that says nothing is never called "no sponsorship".</p>
+        <p className="jl-note">These answers stay on this computer. They are never sent to an AI provider. A job that says it does not sponsor is flagged. A job that says nothing is never called "no sponsorship".</p>
       </Space>
     ),
     (
       <Space direction="vertical" size={14} style={{ width: '100%' }} key="3">
         <h2 className="jl-display" style={{ fontSize: 28 }}>Add your resume</h2>
-        <p className="jl-muted">jobleft reads it on this Mac to fill your profile. You can check every fact. PDF or Word, up to 10 MB.</p>
+        <p className="jl-muted">jobleft reads it on this computer to fill your profile. You can check every fact. PDF or Word, up to 10 MB.</p>
         <input ref={fileRef} type="file" accept=".pdf,.docx" style={{ display: 'none' }} aria-label="Resume file" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
         {!imported && <div style={{ textAlign: 'center' }}><Art kind="doc" /><div><Button type="primary" shape="round" size="large" icon={<UploadOutlined />} loading={busy} onClick={() => fileRef.current?.click()}>Upload a resume</Button></div></div>}
         {imported && (
@@ -275,7 +275,7 @@ export function Onboarding() {
     (
       <Space direction="vertical" size={12} style={{ width: '100%' }} key="4">
         <h2 className="jl-display" style={{ fontSize: 28 }}>About you</h2>
-        <p className="jl-muted">Stays on this Mac. Used on your resumes and application forms.</p>
+        <p className="jl-muted">Stays on this computer. Used on your resumes and application forms.</p>
         <div className="jl-row jl-wrap" style={{ alignItems: 'flex-start' }}><Labeled label="First name" problem={problem('firstName')}><Input status={problem('firstName') ? 'error' : undefined} value={p.firstName ?? ''} onChange={(e) => setP({ firstName: e.target.value || null })} aria-label="First name" /></Labeled><Labeled label="Last name" problem={problem('lastName')}><Input status={problem('lastName') ? 'error' : undefined} value={p.lastName ?? ''} onChange={(e) => setP({ lastName: e.target.value || null })} aria-label="Last name" /></Labeled></div>
         <div className="jl-row jl-wrap" style={{ alignItems: 'flex-start' }}><Labeled label="Email" problem={problem('email')}><Input status={problem('email') ? 'error' : undefined} type="email" value={p.email ?? ''} onChange={(e) => setP({ email: e.target.value || null })} placeholder="name@example.com" aria-label="Email" /></Labeled><Labeled label="Phone" problem={problem('phone')}><Input status={problem('phone') ? 'error' : undefined} value={p.phone ?? ''} onChange={(e) => setP({ phone: e.target.value || null })} placeholder="+1 555 010 0100" aria-label="Phone" /></Labeled></div>
         <div className="jl-row jl-wrap" style={{ alignItems: 'flex-start' }}><Labeled label="City" problem={problem('city')}><Input status={problem('city') ? 'error' : undefined} value={p.city ?? ''} onChange={(e) => setP({ city: e.target.value || null })} aria-label="City" /></Labeled><Labeled label="State or region" problem={problem('region')}><Input status={problem('region') ? 'error' : undefined} value={p.region ?? ''} onChange={(e) => setP({ region: e.target.value || null })} aria-label="State or region" /></Labeled></div>
@@ -288,7 +288,7 @@ export function Onboarding() {
         <p className="jl-muted">AI is optional. Search, filters, match scores and the tracker work without it.</p>
         <div className="jl-choice-grid">
           <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/balance'} onClick={() => { void finish('settings/balance'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><span className="jl-row" style={{ gap: 8 }}><strong>publik API</strong><Tag color="green" style={{ margin: 0 }}>Cheapest</Tag></span><span className="jl-small">Pay per use from a dollar balance; publik may add a small free starting amount. You read the terms and connect on the next screen.</span></button>
-          <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/ai?pick=local'} onClick={() => { void finish('settings/ai?pick=local'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>A model on this computer</strong><span className="jl-small">Ollama, LM Studio and similar. Nothing leaves this Mac. Be warned: the small models that fit on a laptop tailor resumes and answer questions noticeably worse than the hosted ones. You pick the server and test it on the next screen.</span></button>
+          <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/ai?pick=local'} onClick={() => { void finish('settings/ai?pick=local'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>A model on this computer</strong><span className="jl-small">Ollama, LM Studio and similar. Nothing leaves this computer. Be warned: the small models that fit on a laptop tailor resumes and answer questions noticeably worse than the hosted ones. You pick the server and test it on the next screen.</span></button>
           <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/ai?pick=own_key'} onClick={() => { void finish('settings/ai?pick=own_key'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>Your own key</strong><span className="jl-small">Your account with OpenAI, Anthropic, OpenRouter or Google. The vendor bills you. You paste the key on the next screen; it stays in the macOS Keychain.</span></button>
         </div>
         <p className="jl-small">Want more than a free starting amount? <a href="https://publikhq.com/pricing" target="_blank" rel="noopener noreferrer">See the plans and prices on publikhq.com</a>. A plan adds a weekly budget to your balance; you still pay only for what you use.</p>

@@ -1,6 +1,6 @@
 // Before any AI step: where the text goes, and what it costs. With publik the note shows the expected charge to
-// the balance (in dollars); with a model on this computer it says nothing leaves this Mac. The first time text would
-// leave this Mac for a service, the person confirms once, naming that service.
+// the balance (in dollars); with a model on this computer it says nothing leaves this computer. The first time text would
+// leave this computer for a service, the person confirms once, naming that service.
 
 import { Button, Space } from 'antd';
 import { CloudOutlined, DesktopOutlined, WarningOutlined } from '@ant-design/icons';
@@ -64,7 +64,7 @@ export function AiNote({ kind, what }: { kind: AiKind; what: string }) {
         {d.charges
           ? <>Charges your publik balance{d.costMicros !== null ? <>: about <strong>{formatDollars(d.costMicros)}</strong></> : '. The exact charge shows when it finishes'}. Sends the text to publik.{limited ? <> Today's publik spending limit for this computer was reached: a step that would go over it is refused (see Settings &gt; Balance).</> : null}</>
           : d.remote ? <>Sends the text to {d.label}. No charge to your publik balance.</>
-            : <>Runs on {d.label}. Nothing leaves this Mac and nothing is charged.</>}
+            : <>Runs on {d.label}. Nothing leaves this computer and nothing is charged.</>}
       </span>
     </div>
   );
@@ -77,7 +77,7 @@ function consentId(s: AiSettings): string {
 }
 
 /**
- * Resolves true when the step may run. The first time text would leave this Mac for a service, asks once and names
+ * Resolves true when the step may run. The first time text would leave this computer for a service, asks once and names
  * the service. A model on this computer needs no question.
  */
 export async function ensureAiConsent(s: AiSettings | undefined, kind: AiKind): Promise<boolean> {
@@ -97,7 +97,7 @@ export async function ensureAiConsent(s: AiSettings | undefined, kind: AiKind): 
       <Space direction="vertical">
         <span>This AI step sends the job's text and a short summary of your profile to <strong>{d.label}</strong>. Your contact details, work authorization and equal-employment answers are never sent.</span>
         {d.charges && <span>Each step charges your publik balance{d.costMicros !== null ? ` (about ${formatDollars(d.costMicros)} each)` : ''}. You see the charge after each step.</span>}
-        <span>jobleft asks once for each service. You can change the service in Settings at any time, or use a model on this computer so nothing leaves this Mac.</span>
+        <span>jobleft asks once for each service. You can change the service in Settings at any time, or use a model on this computer so nothing leaves this computer.</span>
       </Space>
     ),
     okText: `Send to ${d.label}`,

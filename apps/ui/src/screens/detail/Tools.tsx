@@ -235,7 +235,7 @@ export function GapsDrawer({ job, open, onClose }: { job: Job; open: boolean; on
   return (
     <Drawer open={open} width="min(640px, 94vw)" title={`Keyword check for ${job.title}`} onClose={onClose}>
       <Space direction="vertical" style={{ width: '100%' }} size={12}>
-        <p>Runs on this Mac, free. It compares the skills the posting names with your resume and your profile.</p>
+        <p>Runs on this computer, free. It compares the skills the posting names with your resume and your profile.</p>
         <ResumePick value={resumeId} onChange={setResumeId} />
         {rep.error && <InlineError error={rep.error} onRetry={() => { void rep.reload(); }} />}
         {rep.loading && !rep.data && <Loading label="Checking" inline />}

@@ -54,7 +54,7 @@ export function scrub(text: string): string {
 const TECH = /(\{|\}|\bat\s+\S+\s*\(|Error:|\bHTTP\b|ECONN|stack|undefined|null|NaN|\[object)/;
 
 const FRIENDLY: Record<string, string> = {
-  unreachable: "jobleft's local service is not answering. Your data is safe on this Mac. Try again in a moment.",
+  unreachable: "jobleft's local service is not answering. Your data is safe on this computer. Try again in a moment.",
   unauthorized: 'This window has lost its connection to jobleft. Close it and open jobleft again.',
   internal: 'Something went wrong inside jobleft. Nothing was changed. Try again.',
   payload_too_large: 'That is too large. Nothing was stored.',

@@ -1,6 +1,6 @@
 // The resume editor. The header is copied from the profile (edit it there). Sections, entries and bullets are
 // edited here and saved with Save; leaving with unsaved changes asks first, and a failed save keeps the text.
-// The readability check grades the exact exported PDF, on this Mac, for free.
+// The readability check grades the exact exported PDF, on this computer, for free.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Checkbox, Drawer, Dropdown, Input, Select, Space, Tag } from 'antd';

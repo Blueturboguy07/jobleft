@@ -28,7 +28,7 @@ function NoToken() {
       <section className="jl-state" aria-labelledby="nt-h">
         <LogoMark size={56} />
         <h1 id="nt-h" style={{ fontSize: 22 }}>Open <Wordmark size={22} /> from its launcher</h1>
-        <p>This window has no key to talk to jobleft on this Mac. Close it and open jobleft again, or use the address the launcher printed.</p>
+        <p>This window has no key to talk to jobleft on this computer. Close it and open jobleft again, or use the address the launcher printed.</p>
       </section>
     </main>
   );

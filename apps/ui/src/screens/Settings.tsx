@@ -1,6 +1,6 @@
 // Settings: where AI answers come from (publik, a model on this computer, a custom address, your own key), the
 // publik balance in dollars, alerts, job sources and the refresh report, data and backup, the browser extension,
-// and what leaves this Mac. Nothing here spends money or sends anything without a button that says so.
+// and what leaves this computer. Nothing here spends money or sends anything without a button that says so.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Checkbox, Descriptions, Input, Menu, Popconfirm, Radio, Select, Space, Switch, Table, Tag } from 'antd';
@@ -21,6 +21,11 @@ import { ago, dateText, fitIndexText, hostOf, plural, secondsLeft } from '../lib
 import { readAllPages } from '../lib/pages.ts';
 import { rememberAiCheck } from '../lib/aiHealth.ts';
 import { dailyLimitText, zeroBalanceText } from '../lib/dailyLimit.ts';
+
+/** Where keys are kept on this system: the macOS Keychain, or an encrypted file in the data folder elsewhere (Windows). */
+function secureStore(): string {
+  return /Mac|iPhone|iPad/.test(navigator.userAgent) ? 'the macOS Keychain' : 'an encrypted file in the data folder';
+}
 
 const TABS = [
   { key: 'ai', label: 'AI provider', icon: <ApiOutlined /> },
@@ -148,7 +153,7 @@ function AiTab() {
       <Panel title="Where AI answers come from" desc="AI helps with chat, tailoring, cover letters, messages and interview practice. Pick one. jobleft uses only the one you pick; it never switches to another on its own.">
         <div className="jl-choice-grid">
           {card('publik', <CloudOutlined />, 'publik API', 'Pay per use from a dollar balance. publik may add a small free starting amount.')}
-          {card('local', <DesktopOutlined />, 'A model on this computer', 'Ollama, LM Studio, llama.cpp, MLX or similar. Nothing leaves this Mac. Free, but the small models that fit on a laptop tailor and answer noticeably worse than the hosted ones.')}
+          {card('local', <DesktopOutlined />, 'A model on this computer', 'Ollama, LM Studio, llama.cpp, MLX or similar. Nothing leaves this computer. Free, but the small models that fit on a laptop tailor and answer noticeably worse than the hosted ones.')}
           {card('custom', <LinkOutlined />, 'A custom address', 'Any OpenAI-compatible server you run or trust.')}
           {card('own_key', <KeyOutlined />, 'Your own key', 'Your account with an AI vendor. The vendor bills you.')}
         </div>
@@ -176,7 +181,7 @@ function AiTab() {
           : <Alert type="error" showIcon message={check.message} action={(check as ProviderCheck & { link?: { label: string; url: string } }).link ? <Button size="small" onClick={() => openExternal((check as ProviderCheck & { link: { url: string } }).link.url)}>{(check as ProviderCheck & { link: { label: string } }).link.label}</Button> : undefined} />)}
       </Panel>
       {(kind === 'custom' || kind === 'own_key' || kind === 'local') && (
-        <Panel title={kind === 'own_key' ? `Your ${keyFor} key` : 'Key'} desc={<>Kept in the macOS Keychain, never in a file. Only its last 4 characters are ever shown. It goes only to {kind === 'own_key' ? keyFor : 'the address above'}.{!sameKeySlot ? ' Saving the key also saves this provider choice.' : ''}</>}>
+        <Panel title={kind === 'own_key' ? `Your ${keyFor} key` : 'Key'} desc={<>Kept in {secureStore()}, never in a plain file. Only its last 4 characters are ever shown. It goes only to {kind === 'own_key' ? keyFor : 'the address above'}.{!sameKeySlot ? ' Saving the key also saves this provider choice.' : ''}</>}>
           {sameKeySlot && s.keySet ? (
             <Space><Tag icon={<KeyOutlined />}>Key saved, ending in {s.keyHint}</Tag><Popconfirm title="Forget this key?" onConfirm={() => { void forgetKey(); }}><Button shape="round">Forget key</Button></Popconfirm></Space>
           ) : (
@@ -199,7 +204,7 @@ function AiTab() {
 /** The fit index state in plain words, never the internal code (JL-network-24). */
 const FIT_STATE: Record<string, string> = {
   ready: 'Ready', indexing: 'Indexing now', downloading: 'Downloading the fit model',
-  model_missing: 'Not built yet: the fit model is not on this Mac', failed: 'Stopped with a problem',
+  model_missing: 'Not built yet: the fit model is not on this computer', failed: 'Stopped with a problem',
 };
 
 const DISCLOSURE = [
@@ -237,7 +242,7 @@ function BalanceTab() {
     try { const c = await call('refreshPublik'); setCached('ai:publik', () => c); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   const disconnect = async () => {
-    try { const c = await call('disconnectPublik'); setCached('ai:publik', () => c); invalidate('ai:'); ui.message?.success('Disconnected. Nothing can spend your balance from this Mac now. Connect again to use the same balance.'); } catch (e) { setErr(e as UiError); }
+    try { const c = await call('disconnectPublik'); setCached('ai:publik', () => c); invalidate('ai:'); ui.message?.success('Disconnected. Nothing can spend your balance from this computer now. Connect again to use the same balance.'); } catch (e) { setErr(e as UiError); }
   };
   const usePublikNow = async () => {
     try { const r = await call('putAiSettings', { body: { provider: 'publik' } }); setCached('ai:settings', () => r.settings); invalidate('ai:'); } catch (e) { setErr(e as UiError); }
@@ -260,7 +265,7 @@ function BalanceTab() {
           <p className="jl-small" style={{ margin: 0 }}><a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See publik's prices per tier</a> before you connect.</p>
           <Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)}>I have read this</Checkbox>
           <Button type="primary" shape="round" style={{ alignSelf: 'flex-start' }} disabled={!agree} loading={busy === 'connect'} onClick={() => { void connect(); }}>{notProvider ? 'Connect and use publik for AI' : 'Connect to publik'}</Button>
-          <p className="jl-small jl-muted" style={{ margin: 0 }}>No key is typed. jobleft keeps the connection key in the macOS Keychain.</p>
+          <p className="jl-small jl-muted" style={{ margin: 0 }}>No key is typed. jobleft keeps the connection key in {secureStore()}.</p>
         </Panel>
       )}
       {c && c.state === 'connected' && w && (
@@ -281,7 +286,7 @@ function BalanceTab() {
           <Space wrap>
             <Button type="primary" shape="round" icon={<LinkOutlined />} onClick={() => openExternal(w.topUpUrl)}>Add money to your balance</Button>
             <Button shape="round" icon={<ReloadOutlined />} loading={busy === 'refresh'} onClick={() => { void refresh(); }}>Read the balance again</Button>
-            <Popconfirm title="Disconnect from publik?" description="The key is deleted from this Mac, so nothing can spend the balance from here. The balance stays on this Mac's publik account: connect again to use it." onConfirm={() => { void disconnect(); }} okText="Disconnect">
+            <Popconfirm title="Disconnect from publik?" description="The key is deleted from this computer, so nothing can spend the balance from here. The balance stays on this computer's publik account: connect again to use it." onConfirm={() => { void disconnect(); }} okText="Disconnect">
               <Button shape="round">Disconnect</Button>
             </Popconfirm>
           </Space>
@@ -306,7 +311,7 @@ function AlertsTab() {
   const s = settings.data;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Panel title="Notifications" desc="jobleft shows these as macOS notifications and in Notifications. They are made on this Mac; nothing is emailed.">
+      <Panel title="Notifications" desc="jobleft shows these as macOS notifications and in Notifications. They are made on this computer; nothing is emailed.">
         <label className="jl-row"><Switch aria-label="Tracker reminders and follow-ups" checked={s.notifications.reminders} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, reminders: v } }); }} /> Tracker reminders and follow-ups</label>
         <label className="jl-row"><Switch aria-label="New jobs after a refresh, and saved-filter alerts" checked={s.notifications.alerts} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, alerts: v } }); }} /> New jobs after a refresh, and saved-filter alerts</label>
       </Panel>
@@ -449,7 +454,7 @@ function DataTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <InlineError error={err} />
-      <Panel title="Where your data lives" desc="Everything is on this Mac, in one folder. Keys are in the macOS Keychain, not in the folder.">
+      <Panel title="Where your data lives" desc={`Everything is on this computer, in one folder. Keys are in ${secureStore()}, not in plain files.`}>
         {storage.data ? (
           <Descriptions size="small" column={1} items={[
             { key: 'd', label: 'Data folder', children: <code style={{ overflowWrap: 'anywhere' }}>{storage.data.dataDir}</code> },
@@ -467,9 +472,9 @@ function DataTab() {
           <Button shape="round" icon={<DownloadOutlined />} loading={busy === 'exportAll'} onClick={() => { void dl('exportAll'); }}>Export all my data (readable files)</Button>
           <Button shape="round" icon={<DownloadOutlined />} loading={busy === 'exportJobs'} onClick={() => { void dl('exportJobs'); }}>Export saved jobs</Button>
         </Space>
-        <p className="jl-small jl-muted" style={{ margin: 0 }}>Backups and exports never include keys, tokens or your publik connection. A restore keeps this Mac's own.</p>
+        <p className="jl-small jl-muted" style={{ margin: 0 }}>Backups and exports never include keys, tokens or your publik connection. A restore keeps this computer's own.</p>
       </Panel>
-      <Panel title="Shipped data" desc="Data that comes with jobleft. It is used on this Mac; lookups never leave it.">
+      <Panel title="Shipped data" desc="Data that comes with jobleft. It is used on this computer; lookups never leave it.">
         <Table size="small" rowKey="id" dataSource={datasets.data ?? []} pagination={false}
           columns={[
             { title: 'Data', dataIndex: 'name' }, { title: 'Version', dataIndex: 'version' },
@@ -478,7 +483,7 @@ function DataTab() {
           ]} />
         <Button shape="round" icon={<ReloadOutlined />} loading={busy === 'datasets'} style={{ alignSelf: 'flex-start' }} onClick={() => { void updateData(); }}>Check for newer data</Button>
       </Panel>
-      <Panel title="Delete everything" desc="Deletes your profile, resumes, tracker, notes, saved filters, conversations, connections, jobs you added yourself, settings, saved AI keys and the publik connection from this Mac. Crawled jobs and the boards list stay. This cannot be undone.">
+      <Panel title="Delete everything" desc="Deletes your profile, resumes, tracker, notes, saved filters, conversations, connections, jobs you added yourself, settings, saved AI keys and the publik connection from this computer. Crawled jobs and the boards list stay. This cannot be undone.">
         <label>Type <strong>delete everything</strong> to confirm<Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} style={{ maxWidth: 300, display: 'block', marginTop: 4 }} aria-label="Type delete everything to confirm" /></label>
         <Button danger shape="round" icon={<DeleteOutlined />} disabled={confirmText !== 'delete everything'} loading={busy === 'delete'} style={{ alignSelf: 'flex-start' }} onClick={() => { void del(); }}>Delete my data</Button>
       </Panel>
@@ -540,12 +545,12 @@ function AboutTab() {
   const health = useApi<Health>('health', () => call('health'));
   const ai = useAiSettings();
   const s = ai.data;
-  const aiWhere = !s?.provider ? 'nowhere yet: no AI provider is chosen' : s.provider === 'publik' ? 'publik, for the AI steps you start' : s.provider === 'local' ? `the model on this computer (${s.baseUrl ? hostOf(s.baseUrl) : 'local'}), so it stays on this Mac` : s.provider === 'custom' ? `the server at ${s.baseUrl ? hostOf(s.baseUrl) : 'your address'}, for the AI steps you start` : 'your AI vendor, with your key, for the AI steps you start';
+  const aiWhere = !s?.provider ? 'nowhere yet: no AI provider is chosen' : s.provider === 'publik' ? 'publik, for the AI steps you start' : s.provider === 'local' ? `the model on this computer (${s.baseUrl ? hostOf(s.baseUrl) : 'local'}), so it stays on this computer` : s.provider === 'custom' ? `the server at ${s.baseUrl ? hostOf(s.baseUrl) : 'your address'}, for the AI steps you start` : 'your AI vendor, with your key, for the AI steps you start';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Panel title="About">
         <div className="jl-row" style={{ gap: 12 }}><LogoMark size={48} /><div><Wordmark size={26} /><div className="jl-muted">Version {health.data?.version ?? '…'} · local API v{health.data?.apiVersion ?? '…'}</div></div></div>
-        <p style={{ margin: 0 }}>jobleft is a job-search app that keeps your data on this Mac. It is open source (MIT licence).</p>
+        <p style={{ margin: 0 }}>jobleft is a job-search app that keeps your data on this computer. It is open source (MIT licence).</p>
         <Space wrap>
           <a href="https://github.com/Blueturboguy07/jobleft" target="_blank" rel="noopener noreferrer">Source code and releases</a>
           <a href="https://github.com/Blueturboguy07/jobleft/issues" target="_blank" rel="noopener noreferrer">Report a problem</a>
@@ -553,14 +558,14 @@ function AboutTab() {
         </Space>
         <Button type="link" style={{ padding: 0, alignSelf: 'flex-start' }} onClick={() => navigate('onboarding')}>Show the setup steps again</Button>
       </Panel>
-      <Panel title="What leaves this Mac">
+      <Panel title="What leaves this computer">
         <Table size="small" pagination={false} rowKey="what" dataSource={[
-          { what: 'Your profile, resumes, tracker, notes, connections, searches', where: 'Stay on this Mac. Only the parts an AI step you start needs go to your AI provider (next rows).' },
+          { what: 'Your profile, resumes, tracker, notes, connections, searches', where: 'Stay on this computer. Only the parts an AI step you start needs go to your AI provider (next rows).' },
           { what: 'Requests to employers\' public job boards', where: 'Sent to those boards, one a second per site, with no personal data. A careers link you paste is read the same way.' },
           { what: 'AI steps (chat, tailoring, letters, messages, practice)', where: `Sent to ${aiWhere}: the job's text and the parts of your profile, resume or contact the step needs.` },
           { what: 'Company facts (when you open a company block or ask for them)', where: 'The company name goes to free public sources: Wikidata, SEC EDGAR and GLEIF. No personal data.' },
           { what: '"Check for newer data" (shipped datasets)', where: 'Only when a release location is set: asks it for newer data files, with no personal data. This build has none set, so nothing is sent.' },
-          ...(s?.provider === 'publik' ? [{ what: 'publik balance', where: 'Read from publik with this Mac\'s publik key when you open Balance or after an AI step.' }] : []),
+          ...(s?.provider === 'publik' ? [{ what: 'publik balance', where: 'Read from publik with this computer\'s publik key when you open Balance or after an AI step.' }] : []),
           { what: 'Paid web lookups', where: s?.meteredFetch.enabled ? 'On: sent to publik or your key\'s service, priced per request.' : 'Off.' },
           { what: 'Usage data, analytics, crash reports', where: 'None. jobleft has no tracking.' },
           { what: 'Fonts, icons, company logos', where: 'None fetched: they are bundled, and company tiles use initials.' },

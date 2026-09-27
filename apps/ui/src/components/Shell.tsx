@@ -71,7 +71,7 @@ export function ProviderChip({ compact = false }: { compact?: boolean }) {
     else if (publik.error) { text = 'Balance: not available'; to = 'settings/balance'; }
     else if (publik.data) { text = 'publik: not connected'; to = 'settings/balance'; }
     else text = 'Balance: …';
-  } else if (s?.provider === 'local') { text = compact ? 'AI on this Mac' : 'AI: model on this Mac'; on = true; }
+  } else if (s?.provider === 'local') { text = compact ? 'AI on this computer' : 'AI: model on this computer'; on = true; }
   else if (s?.provider === 'custom') { text = 'AI: your server'; on = true; }
   else if (s?.provider === 'own_key') { text = 'AI: your own key'; on = true; }
   // The last setup check of these settings failed (JL-settings-3): never a green dot then.
@@ -185,7 +185,7 @@ export function ConnectionBanner() {
     window.addEventListener('jl-unreachable', soon);
     return () => { alive = false; clearInterval(t); window.removeEventListener('online', on); window.removeEventListener('offline', off); window.removeEventListener('jl-unreachable', soon); };
   }, [local]);
-  if (!local) return <Alert className="jl-banner" type="error" banner showIcon message="jobleft's local service is not answering. Your data is safe on this Mac; jobleft keeps trying to reconnect." />;
+  if (!local) return <Alert className="jl-banner" type="error" banner showIcon message="jobleft's local service is not answering. Your data is safe on this computer; jobleft keeps trying to reconnect." />;
   if (!online) return <Alert className="jl-banner" type="warning" banner showIcon message="This Mac reports no internet connection. Your saved jobs, tracker, resumes and profile still work. Steps that need the internet can fail until it is back." />;
   return null;
 }

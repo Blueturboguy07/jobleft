@@ -213,7 +213,7 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
       break;
     case 'auth':
       body = (<Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Alert type="info" showIcon icon={<LockOutlined />} message="These answers stay on this Mac. They are never sent to an AI provider. jobleft uses them to warn you when a posting has a limit you do not meet." />
+        <Alert type="info" showIcon icon={<LockOutlined />} message="These answers stay on this computer. They are never sent to an AI provider. jobleft uses them to warn you when a posting has a limit you do not meet." />
         {authConflicts(wa).map((x) => <Alert key={x} type="warning" showIcon message={x} description="These answers fill application forms. Check them before you save." />)}
         <YesNo label="Are you legally allowed to work in the US?" value={wa.usAuthorized} onChange={(v) => setWa({ usAuthorized: v })} />
         <YesNo label="Will you need visa sponsorship now or later?" value={wa.needsSponsorship} onChange={(v) => setWa({ needsSponsorship: v })} />
@@ -282,7 +282,7 @@ export function ProfileScreen() {
   return (
     <div className="jl-2col">
       <div className="jl-colmain">
-        <p className="jl-info-line"><LockOutlined /> Your profile stays on this Mac. It drives your match scores, resumes and application answers.</p>
+        <p className="jl-info-line"><LockOutlined /> Your profile stays on this computer. It drives your match scores, resumes and application answers.</p>
         <div className="jl-detail-card">
           <nav className="jl-detail-tabs" aria-label="Profile sections" style={{ top: -16, height: 'auto', flexWrap: 'wrap', gap: '0 20px', padding: '0 24px' }}>
             {BLOCKS.map((b) => <button key={b.id} type="button" className="jl-detail-tab" style={{ fontSize: 14, whiteSpace: 'nowrap', height: 48 }} onClick={() => document.getElementById(`pf-${b.id}`)?.scrollIntoView({ behavior: 'smooth' })}>{b.label}</button>)}

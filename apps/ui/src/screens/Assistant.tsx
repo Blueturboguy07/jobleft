@@ -1,4 +1,4 @@
-// The assistant, full screen: saved conversations (kept on this Mac) and the chat.
+// The assistant, full screen: saved conversations (kept on this computer) and the chat.
 
 import { useRef } from 'react';
 import { Button, Popconfirm } from 'antd';
@@ -29,7 +29,7 @@ export function AssistantScreen({ chatId }: { chatId: string | null }) {
         <div style={{ padding: 12 }}><Button block shape="round" icon={<PlusOutlined />} onClick={() => navigate('assistant')}>New conversation</Button></div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px' }}>
           {list.error && <InlineError error={list.error} onRetry={() => { void list.reload(); }} />}
-          {list.data && !list.data.length && <p className="jl-muted" style={{ padding: 8 }}>No saved conversations yet. They stay on this Mac.</p>}
+          {list.data && !list.data.length && <p className="jl-muted" style={{ padding: 8 }}>No saved conversations yet. They stay on this computer.</p>}
           {list.data?.map((c) => (
             <div key={c.id} className="jl-row" style={{ borderRadius: 8, background: c.id === chatId ? 'var(--jl-chip)' : undefined, padding: '6px 8px' }}>
               <a href={`#/assistant/${encodeURIComponent(c.id)}`} className="jl-grow" style={{ color: '#000', textDecoration: 'none', minWidth: 0 }} aria-current={c.id === chatId ? 'page' : undefined}>

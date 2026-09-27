@@ -1,6 +1,6 @@
 // Interview practice made for one job: practice questions from the posting (labelled as practice, never "asked
 // at" the employer), feedback on your answers (no invented achievements; placeholders are marked), and your own
-// question bank with answers and debriefs, kept on this Mac.
+// question bank with answers and debriefs, kept on this computer.
 
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Empty, Input, Popconfirm, Select, Space, Tabs, Tag } from 'antd';
@@ -114,7 +114,7 @@ function Bank({ jobs }: { jobs: Array<{ id: string; label: string }> }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <section className="jl-card-box" style={{ display: 'flex', flexDirection: 'column', gap: 8 }} aria-labelledby="deb-h">
         <h2 id="deb-h" className="jl-section-title" style={{ fontSize: 17, margin: 0 }}>Add a debrief after an interview</h2>
-        <p className="jl-muted" style={{ margin: 0 }}>Write down the questions you were asked and how it went, while you remember. Free, kept on this Mac.</p>
+        <p className="jl-muted" style={{ margin: 0 }}>Write down the questions you were asked and how it went, while you remember. Free, kept on this computer.</p>
         <Select placeholder="Which job?" value={debriefJob ?? undefined} onChange={setDebriefJob} options={jobs.map((j) => ({ value: j.id, label: j.label }))} aria-label="Job for this debrief" />
         <Input.TextArea value={debrief} onChange={(e) => setDebrief(e.target.value)} autoSize={{ minRows: 3 }} placeholder="Questions you were asked, what went well, what to prepare next time" aria-label="Debrief notes" maxLength={20000} />
         <Button type="primary" shape="round" style={{ alignSelf: 'flex-start' }} disabled={!debrief.trim() || !debriefJob} onClick={async () => {
@@ -171,7 +171,7 @@ export function InterviewScreen() {
   const options = [...jobs, ...(direct.data ? [{ id: direct.data.job.id, label: `${direct.data.job.title} at ${direct.data.job.company}` }] : [])];
   useEffect(() => { setSession(null); setErr(null); }, [jobId]);
   // The questions are made by fixed rules from the posting and the profile, on this computer: no AI, no charge, no
-  // text leaves this Mac (JL-network-13). Only "Get feedback" uses the AI.
+  // text leaves this computer (JL-network-13). Only "Get feedback" uses the AI.
   const start = async () => {
     if (!jobId) return;
     setBusy(true); setErr(null);
@@ -191,7 +191,7 @@ export function InterviewScreen() {
                 ) : (
                   <>
                     <Select value={jobId ?? undefined} onChange={setJobId} placeholder="Choose a job" options={options.map((j) => ({ value: j.id, label: j.label }))} aria-label="Job to practice for" showSearch optionFilterProp="label" />
-                    <p className="jl-small jl-muted" style={{ margin: 0 }}>Free. The questions are made on this Mac by fixed rules from the posting and your profile, so the same job gives the same questions. Only “Get feedback” uses AI.</p>
+                    <p className="jl-small jl-muted" style={{ margin: 0 }}>Free. The questions are made on this computer by fixed rules from the posting and your profile, so the same job gives the same questions. Only “Get feedback” uses AI.</p>
                     {!session && <Button type="primary" shape="round" style={{ alignSelf: 'flex-start' }} disabled={!jobId} loading={busy} onClick={() => { void start(); }}>Start practice</Button>}
                   </>
                 )}

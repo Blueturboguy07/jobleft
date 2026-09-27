@@ -100,7 +100,7 @@ export function AddResumeModal({ open, onClose, stay = false }: { open: boolean;
       {!result && mode === 'choose' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center', padding: '8px 0' }}>
           <Art kind="doc" />
-          <p className="jl-muted">PDF or Word (.docx), up to 10 MB. The file stays on this Mac.</p>
+          <p className="jl-muted">PDF or Word (.docx), up to 10 MB. The file stays on this computer.</p>
           <input ref={input} type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style={{ display: 'none' }}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} aria-label="Resume file" />
           <Space wrap>
