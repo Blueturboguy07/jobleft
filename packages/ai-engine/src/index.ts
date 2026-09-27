@@ -16,7 +16,7 @@ export type {
 } from './types.ts';
 export {
   PUBLIK_APP_SLUG, PUBLIK_DEFAULT_BASE_URL, PUBLIK_DEFAULT_MODEL, PUBLIK_DISCLOSURE, PUBLIK_DISCLOSURE_VERSION,
-  PUBLIK_JUSTIFICATION, PUBLIK_TIERS, PublikClient, type PublikClientOptions,
+  PUBLIK_JUSTIFICATION, PUBLIK_TIERS, PublikClient, dailyResetFrom, nextUtcMidnight, publikDailyLimitText, type PublikClientOptions,
 } from './publik.ts';
 export { AiEngine, CHECK_BUDGET_MS, NO_PROVIDER_MESSAGE, type AiEngineOptions } from './engine.ts';
 export {

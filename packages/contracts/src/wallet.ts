@@ -23,6 +23,21 @@ export const PublikWalletSchema = named(obj({
   addCreditUrl: nullable(HttpUrlSchema),
   /** When jobleft last read the balance (it refreshes after paid use, with no restart). */
   updatedAt: IsoDateTimeSchema,
+}, {
+  /**
+   * publik's daily spending limit for this computer (added by the network fix round, additive). publik refuses an AI
+   * step that would go over it (429 daily_cap_reached) even while balance is left; smaller steps may still fit.
+   */
+  daily: obj({
+    /** The limit per day in micros, as publik reported it; null = publik did not say. */
+    capMicros: nullable(MicrosSchema),
+    /** Spent today in micros, as publik reported it; null = publik did not say. */
+    usedMicros: nullable(MicrosSchema),
+    /** When the limit starts again (publik resets it at midnight UTC). */
+    resetsAt: IsoDateTimeSchema,
+    /** When publik last refused a step for this limit, while that day lasts; null = not today. */
+    reachedAt: nullable(IsoDateTimeSchema),
+  }),
 }), 'PublikWallet', 'The publik API balance');
 
 export const PublikConnectionSchema = named(obj({

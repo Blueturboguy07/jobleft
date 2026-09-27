@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { inflateRawSync } from 'node:zlib';
 import { startScriptedModel } from '../../../packages/assistant/src/mock/scripted-model.ts';
+import { startPublik } from '../scripts/mocks.ts';
 import { cleanup, startTest, type TestServer } from './helpers.ts';
 
 function events(text: string): any[] {
@@ -111,4 +112,40 @@ test('JL-network-23: "Export all my data" holds the assistant conversations, the
     assert.ok(files.has('ai-charges.json'));
     assert.match(files.get('README.txt')!, /interview-practice\.json/);
   } finally { await s.stop(); await model.close(); cleanup(s.home); }
+});
+
+test('JL-network-19: publik\'s daily limit is named the same way by every AI step, and the balance says it', async () => {
+  const pub = await startPublik({ balanceMicros: 100_000 });
+  const s = await startTest('jl19', { env: { JOBLEFT_PUBLIK_APP_TOKEN: 'stand-in-app-token', JOBLEFT_PUBLIK_BASE_URL: `${pub.origin}/api/v1` } });
+  try {
+    assert.equal((await s.call('POST', '/api/v1/publik/connect', { disclosureAccepted: true, disclosureVersion: 1 })).status, 200);
+    await s.call('PUT', '/api/v1/ai/settings', { provider: 'publik' });
+    pub.setDaily({ capMicros: 250_000, spentMicros: 145_795, refuse: false });
+    const before = (await s.call('POST', '/api/v1/publik/refresh')).json;
+    assert.equal(before.wallet.daily.capMicros, 250_000, 'the balance card knows the daily limit before it is reached');
+    assert.equal(before.wallet.daily.usedMicros, 145_795);
+    assert.equal(before.wallet.daily.reachedAt, null);
+    assert.match(before.wallet.daily.resetsAt, /T00:00:00\.000Z$/);
+
+    pub.setDaily({ capMicros: 250_000, spentMicros: 145_795, refuse: true });
+    const chat = events((await s.call('POST', '/api/v1/ai/chat', { requestId: 'req-jl19', messages: [{ role: 'user', content: 'Say OK.' }] })).text).at(-1);
+    assert.equal(chat.type, 'error');
+    const words = chat.error.message as string;
+    assert.match(words, /would go over today's publik spending limit for this computer \(\$0\.25 a day, \$0\.14 used so far\)/);
+    assert.match(words, /nothing was charged/);
+    assert.match(words, /smaller AI steps may still run/);
+    assert.match(words, /starts again (today|tomorrow) at .+ \(midnight UTC\)/);
+    assert.doesNotMatch(words, /credit/i);
+
+    // A message draft is refused with the same words (not a different story per feature).
+    await s.call('POST', '/api/v1/network/import', Buffer.from('First Name,Last Name,URL,Email Address,Company,Position,Connected On\nMaria,Delgado,,,Kroger,Data Manager,04 Mar 2025\n'), { 'content-type': 'text/csv' });
+    const contact = (await s.call('GET', '/api/v1/network/contacts')).json[0];
+    const draft = await s.call('POST', `/api/v1/network/contacts/${contact.id}/draft`, { variant: 'short', confirmRemote: true });
+    assert.ok(draft.status >= 400, draft.text);
+    assert.equal(draft.json.error.message, words);
+
+    const after = (await s.call('GET', '/api/v1/publik')).json;
+    assert.ok(after.wallet.daily.reachedAt, 'the balance card says the limit was reached today');
+    assert.equal(after.wallet.balanceMicros, 100_000, 'the balance itself is untouched');
+  } finally { await s.stop(); await pub.close(); cleanup(s.home); }
 });

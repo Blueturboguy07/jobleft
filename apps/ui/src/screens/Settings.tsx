@@ -18,6 +18,7 @@ import { useAiSettings, useCrawl, usePublik } from '../app/session.ts';
 import { LogoMark, Wordmark } from '../components/Art.tsx';
 import { ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { ago, dateText, hostOf, plural } from '../lib/format.ts';
+import { dailyLimitText } from '../lib/dailyLimit.ts';
 
 const TABS = [
   { key: 'ai', label: 'AI provider', icon: <ApiOutlined /> },
@@ -195,6 +196,7 @@ function BalanceTab() {
   };
   const c = pub.data;
   const w = c?.wallet;
+  const daily = w ? dailyLimitText(w) : null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {ai.data && ai.data.provider !== 'publik' && (
@@ -220,7 +222,9 @@ function BalanceTab() {
             { key: 'u', label: 'Used this week', children: formatDollars(w.week.usedMicros) },
             ...(w.week.budgetMicros !== null ? [{ key: 'b', label: 'Weekly budget', children: formatDollars(w.week.budgetMicros) }] : []),
             { key: 't', label: 'Last read', children: ago(w.updatedAt) },
+            ...(daily ? [{ key: 'd', label: 'Daily limit', children: daily.summary }] : []),
           ]} />
+          {daily?.reached && <Alert type="warning" showIcon message="Today's publik spending limit for this computer was reached" description={daily.reached} />}
           <p style={{ margin: 0 }}>{JUSTIFICATION}</p>
           <Space wrap>
             <Button type="primary" shape="round" icon={<LinkOutlined />} onClick={() => openExternal(w.topUpUrl)}>Add money to your balance</Button>

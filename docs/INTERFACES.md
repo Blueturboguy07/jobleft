@@ -959,7 +959,7 @@ routes `getAiSettings`, `putAiSettings`, `setAiKey`, `deleteAiKey`, `checkAi`, `
 ```ts
 export { AiError, asAiError, isAiError, toApiError, type AiErrorCode } from './errors.ts';
 export type { AiChunk, AiClient, AiCompletion, AiMessage, AiRequest, AiTool, AiToolCall, JsonRequest, ProviderDriver, } from './types.ts';
-export { PUBLIK_APP_SLUG, PUBLIK_DEFAULT_BASE_URL, PUBLIK_DEFAULT_MODEL, PUBLIK_DISCLOSURE, PUBLIK_DISCLOSURE_VERSION, PUBLIK_JUSTIFICATION, PUBLIK_TIERS, PublikClient, type PublikClientOptions, } from './publik.ts';
+export { PUBLIK_APP_SLUG, PUBLIK_DEFAULT_BASE_URL, PUBLIK_DEFAULT_MODEL, PUBLIK_DISCLOSURE, PUBLIK_DISCLOSURE_VERSION, PUBLIK_JUSTIFICATION, PUBLIK_TIERS, PublikClient, dailyResetFrom, nextUtcMidnight, publikDailyLimitText, type PublikClientOptions, } from './publik.ts';
 export { AiEngine, CHECK_BUDGET_MS, NO_PROVIDER_MESSAGE, type AiEngineOptions } from './engine.ts';
 export { defaultAiSettings, fileKvStore, kvSettingsStore, memoryKvStore, METERED_PRICES_PER_1000_MICROS, type AiSettingsStore, type KvStore, } from './state.ts';
 export { encryptedFileSecretStore, keychainSecretStore, memorySecretStore, osSecretStore } from './secrets.ts';

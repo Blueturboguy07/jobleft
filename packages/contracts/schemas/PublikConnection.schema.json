@@ -123,6 +123,56 @@
               "type": "string",
               "format": "date-time",
               "description": "RFC 3339 date-time, UTC (\"Z\")"
+            },
+            "daily": {
+              "type": "object",
+              "properties": {
+                "capMicros": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "description": "Integer millionths of a US dollar"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "usedMicros": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "description": "Integer millionths of a US dollar"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "resetsAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                "reachedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "RFC 3339 date-time, UTC (\"Z\")"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "capMicros",
+                "usedMicros",
+                "resetsAt",
+                "reachedAt"
+              ]
             }
           },
           "required": [
