@@ -43,6 +43,24 @@ function pureConstants(src: string): string {
       }
       if (c === '/' && src[j + 1] === '/') { const e = src.indexOf('\n', j); j = e < 0 ? n : e; continue; }
       if (c === '/' && src[j + 1] === '*') { const e = src.indexOf('*/', j + 2); j = e < 0 ? n : e + 1; continue; }
+      if (c === '/') {
+        // A regular expression literal (a quote or a semicolon inside it is not code): after an operator or at the
+        // start of the expression. Skipped whole, escapes and character classes respected.
+        const prev = src.slice(i + head.length, j).trimEnd().slice(-1);
+        if (prev === '' || '=(,[:?!&|{;'.includes(prev)) {
+          let k = j + 1;
+          let cls = false;
+          for (; k < n; k++) {
+            const d = src[k] as string;
+            if (d === '\\') { k++; continue; }
+            if (cls) { if (d === ']') cls = false; continue; }
+            if (d === '[') cls = true;
+            else if (d === '/' || d === '\n') break;
+          }
+          j = k;
+          continue;
+        }
+      }
       if (c === "'" || c === '"' || c === '`') { q = c; continue; }
       if (c === '(' || c === '[' || c === '{') depth++;
       else if (c === ')' || c === ']' || c === '}') depth--;

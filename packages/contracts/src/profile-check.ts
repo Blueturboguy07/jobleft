@@ -31,7 +31,7 @@ export function blankToNull(p: ProfileInput): ProfileInput {
   return changed || summary !== p.summary ? { ...p, personal, summary } : p;
 }
 
-const EMAIL = /^[^\s@<>()[\],;:"]+@[^\s@<>()[\],;:".]+(\.[^\s@<>()[\],;:".]+)+$/u;
+const EMAIL = /^[^\s@<>()\[\],;:"]+@[^\s@<>()\[\],;:".]+(\.[^\s@<>()\[\],;:".]+)+$/u;
 const LETTER = /\p{L}/u;
 
 export function emailProblem(v: string): string | null {

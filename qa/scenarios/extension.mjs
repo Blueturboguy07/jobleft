@@ -4,9 +4,7 @@
 // Env: JOBLEFT_QA_URL, JOBLEFT_QA_API, JOBLEFT_QA_TOKEN, JOBLEFT_QA_FIXTURES, JOBLEFT_QA_SHOTS,
 //      JOBLEFT_QA_STATE (fresh|golden), JOBLEFT_CHROME, JOBLEFT_QA_EXTENSION (built extension folder).
 //
-// The extension can only reach an app on ports 47821-47830 (its manifest). If JOBLEFT_QA_API is on
-// another port, every extension check is skipped with a reason (this is a real product limit, not a
-// scenario bug). Point JOBLEFT_QA_API at a port in that range to exercise the extension.
+// The extension pairs with the app's port typed next to the code (any loopback port).
 //
 // The practice pages log submit/Next to /__event, which bin/practice-server.mjs does NOT record, so we
 // inject our own recorder in every tab that POSTs submit/form.submit()/requestSubmit()/Next clicks to
@@ -123,6 +121,11 @@ async function pair(b, id, urlPart, page) {
   if (!code) throw new Error('no pairing code from API');
   await pop.eval(`document.querySelector('input').focus()`);
   await pop.send('Input.insertText', { text: code });
+  // The pairing is bound to one app: the popup takes the app's port next to the code (JL-extension-2/3/12).
+  if (await pop.eval(`!!document.querySelector('input[aria-label="App port"]')`)) {
+    await pop.eval(`document.querySelector('input[aria-label="App port"]').focus()`);
+    await pop.send('Input.insertText', { text: String(APP_PORT) });
+  }
   await pop.clickDeep('button', 'Pair');
   const okp = await until(async () => /Paired with/.test(await pop.eval('document.body.innerText')), 10000);
   return !!okp;

@@ -493,6 +493,8 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("jobleft could not start")
         .run(|app, event| match event {
+            // A dock icon click (macOS only: the event does not exist on Windows).
+            #[cfg(target_os = "macos")]
             RunEvent::Reopen { .. } => show_main(app),
             RunEvent::ExitRequested { .. } => {
                 let shell = app.state::<Shell>();
