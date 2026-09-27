@@ -6,10 +6,14 @@
 // Boards of the field the person picked come first, so their jobs arrive first.
 //
 // JOBLEFT_SEED_BOARDS: `none` = add nothing (mock runs); a path to a JSON file `[{ ats, board, company?, region? }]`
-// = use exactly those boards (a stranger's mock boards). JOBLEFT_SEED_LIMIT: how many built-in boards (default 40).
+// = use exactly those boards (a stranger's mock boards). JOBLEFT_SEED_LIMIT: how many boards (default 120, at most 400).
+// After the curated lists, the set is filled from the board directory's "live" rows (checked against the provider),
+// spread evenly across providers, in a fixed order, so the first feed draws on more employers than a few large ones
+// (the founder's review on 2026-09-27 found 39 employers and one of them with 1,799 of 11,893 jobs).
 
 import { readFileSync } from 'node:fs';
 import type { CrawlAtsId, JobPreferences } from '@jobleft/contracts';
+import { loadActiveDirectory } from '@jobleft/boards';
 
 export type Field = 'health' | 'education' | 'retail' | 'finance' | 'operations' | 'sales' | 'software';
 export interface SeedBoard { ats: CrawlAtsId; board: string; company: string; region?: string }
@@ -88,7 +92,7 @@ export function seedBoards(prefs: Pick<JobPreferences, 'jobFunctions' | 'targetT
     return list.filter((b) => typeof b.ats === 'string' && typeof b.board === 'string')
       .map((b) => ({ ats: b.ats as CrawlAtsId, board: b.board!, company: b.company || b.board!, ...(b.region ? { region: b.region } : {}) }));
   }
-  const limit = Math.max(1, Math.min(200, Number.parseInt(env.JOBLEFT_SEED_LIMIT ?? '', 10) || 40));
+  const limit = Math.max(1, Math.min(400, Number.parseInt(env.JOBLEFT_SEED_LIMIT ?? '', 10) || 120));
   const preferred = fieldsFor(prefs);
   const out: SeedBoard[] = [];
   const seen = new Set<string>();
@@ -100,5 +104,19 @@ export function seedBoards(prefs: Pick<JobPreferences, 'jobFunctions' | 'targetT
   // Then every field in turn.
   const rest = (Object.keys(SEED) as Field[]).map((f) => SEED[f].filter((b) => !seen.has(`${b.ats}:${b.board}`)));
   while (out.length < limit && rest.some((x) => x.length)) for (const x of rest) { const b = x.shift(); if (b) push(b); }
+  // Then the directory's live boards, one provider at a time, in slug order (the same set on every fresh install).
+  if (out.length < limit) {
+    let entries: Array<{ ats: string; board: string; company: string; region?: string | null; status: string }> = [];
+    try { entries = loadActiveDirectory({ home: env.JOBLEFT_HOME ?? null, env }).entries; } catch { entries = []; }
+    const byAts = new Map<string, SeedBoard[]>();
+    for (const e of entries) {
+      if (e.status !== 'live' || seen.has(`${e.ats}:${e.board}`)) continue;
+      const list = byAts.get(e.ats) ?? [];
+      list.push({ ats: e.ats as CrawlAtsId, board: e.board, company: e.company, ...(e.region ? { region: e.region } : {}) });
+      byAts.set(e.ats, list);
+    }
+    const lists = [...byAts.keys()].sort().map((k) => byAts.get(k)!.sort((x, y) => x.board.localeCompare(y.board)));
+    while (out.length < limit && lists.some((x) => x.length)) for (const x of lists) { const b = x.shift(); if (b) push(b); }
+  }
   return out;
 }

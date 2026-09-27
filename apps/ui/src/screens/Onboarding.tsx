@@ -184,8 +184,9 @@ export function Onboarding() {
         <p className="jl-muted">AI is optional. Search, filters, match scores and the tracker work without it.</p>
         <div className="jl-choice-grid">
           <button type="button" className="jl-choice" onClick={() => { void finish('settings/balance'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><span className="jl-row" style={{ gap: 8 }}><strong>publik API</strong><Tag color="green" style={{ margin: 0 }}>Cheapest</Tag></span><span className="jl-small">Pay per use from a dollar balance; a free starter amount is included. You read the terms and connect on the next screen.</span></button>
-          <button type="button" className="jl-choice" onClick={() => { void finish('settings/ai'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>A model on this computer</strong><span className="jl-small">Ollama, LM Studio and similar. Nothing leaves this Mac.</span></button>
+          <button type="button" className="jl-choice" onClick={() => { void finish('settings/ai'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>A model on this computer</strong><span className="jl-small">Ollama, LM Studio and similar. Nothing leaves this Mac. Be warned: the small models that fit on a laptop tailor resumes and answer questions noticeably worse than the hosted ones.</span></button>
         </div>
+        <p className="jl-small">Want more than the starter amount? <a href="https://publikhq.com/pricing" target="_blank" rel="noopener noreferrer">See the plans and prices on publikhq.com</a>. A plan adds a weekly budget to your balance; you still pay only for what you use.</p>
         <Button type="link" style={{ alignSelf: 'flex-start', padding: 0 }} onClick={() => { void finish('jobs'); }}>Decide later and see my jobs</Button>
       </Space>
     ),

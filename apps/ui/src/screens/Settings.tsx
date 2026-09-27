@@ -113,7 +113,7 @@ function AiTab() {
       <Panel title="Where AI answers come from" desc="AI helps with chat, tailoring, cover letters, messages and interview practice. Pick one. jobleft uses only the one you pick; it never switches to another on its own.">
         <div className="jl-choice-grid">
           {card('publik', <CloudOutlined />, 'publik API', 'Pay per use from a dollar balance. Starts with a small free amount.')}
-          {card('local', <DesktopOutlined />, 'A model on this computer', 'Ollama, LM Studio, llama.cpp, MLX or similar. Nothing leaves this Mac. Free.')}
+          {card('local', <DesktopOutlined />, 'A model on this computer', 'Ollama, LM Studio, llama.cpp, MLX or similar. Nothing leaves this Mac. Free, but the small models that fit on a laptop tailor and answer noticeably worse than the hosted ones.')}
           {card('custom', <LinkOutlined />, 'A custom address', 'Any OpenAI-compatible server you run or trust.')}
           {card('own_key', <KeyOutlined />, 'Your own key', 'Your account with an AI vendor. The vendor bills you.')}
         </div>

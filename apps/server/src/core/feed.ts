@@ -202,6 +202,44 @@ export interface FeedDeps {
 }
 
 const TOP_MATCHED_POOL = 200;
+const EMPLOYER_CAP = 3;
+const EMPLOYER_WINDOW = 20;
+const EMPLOYER_LOOKAHEAD = 400;
+
+/**
+ * Re-orders a ranked list so that no employer has more than EMPLOYER_CAP jobs in any run of EMPLOYER_WINDOW results.
+ * A job that would break the cap waits; the next job (looking at most EMPLOYER_LOOKAHEAD ahead) from another employer
+ * takes its place. Every job keeps its place relative to the other jobs of its own employer. Pure and deterministic.
+ */
+export function spreadEmployers(ids: number[], companyOf: Map<number, string>, cap = EMPLOYER_CAP, window = EMPLOYER_WINDOW): number[] {
+  const pending = [...ids];
+  const out: number[] = [];
+  let counts = new Map<string, number>();
+  const keyOf = (id: number) => (companyOf.get(id) ?? '').trim().toLowerCase();
+  while (pending.length) {
+    let pick = 0;
+    if ((counts.get(keyOf(pending[0]!)) ?? 0) >= cap) {
+      // The first job under the cap wins; when every employer ahead is at the cap (few employers in the store), the
+      // least-represented one in this window goes next, so the window stays as mixed as the store allows.
+      const limit = Math.min(pending.length, EMPLOYER_LOOKAHEAD);
+      let found = -1;
+      let least = 0;
+      let leastCount = counts.get(keyOf(pending[0]!)) ?? 0;
+      for (let i = 1; i < limit; i++) {
+        const c = counts.get(keyOf(pending[i]!)) ?? 0;
+        if (c < cap) { found = i; break; }
+        if (c < leastCount) { least = i; leastCount = c; }
+      }
+      pick = found === -1 ? least : found;
+    }
+    const id = pending.splice(pick, 1)[0]!;
+    out.push(id);
+    const k = keyOf(id);
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+    if (out.length % window === 0) counts = new Map();
+  }
+  return out;
+}
 
 export class FeedService {
   private readonly d: FeedDeps;
@@ -388,6 +426,10 @@ export class FeedService {
       ids = [...[...pool].sort((a, b) => (key(b) - key(a)) || byPref(a, b)), ...rest];
       fit.clear();
     }
+    // One employer never fills a screen: the top of the feed used to be six near-identical postings from one company
+    // (gate 7 note; the founder's review on 2026-09-27). At most EMPLOYER_CAP jobs of one employer in every run of
+    // EMPLOYER_WINDOW results; its other jobs keep their order further down.
+    ids = spreadEmployers(ids, new Map(rows.map((r) => [r.id, r.company])));
     return { ids, scores, fit, at: nowMs() };
   }
 
