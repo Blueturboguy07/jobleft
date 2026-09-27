@@ -56,6 +56,20 @@ jobs:
       - name: Node runtime for the sidecar
         run: node apps/shell/scripts/fetch-node.mjs --target win-x64
 
+      - name: Layout of node_modules on this runner
+        shell: pwsh
+        run: |
+          pnpm --version
+          "node-linker: $(pnpm config get node-linker)"
+          "enable-global-virtual-store: $(pnpm config get enable-global-virtual-store)"
+          "virtual-store-dir: $(pnpm config get virtual-store-dir)"
+          "store: $(pnpm store path)"
+          "root node_modules/.pnpm: $(Test-Path node_modules/.pnpm)"
+          "apps/ui/node_modules/vite: $(Test-Path apps/ui/node_modules/vite)"
+          Get-ChildItem node_modules -Force | Select-Object -First 40 Name, LinkType, Target | Format-Table -AutoSize | Out-String -Width 300
+          Get-ChildItem apps/ui/node_modules -Force -ErrorAction SilentlyContinue | Select-Object -First 40 Name, LinkType, Target | Format-Table -AutoSize | Out-String -Width 300
+          node -e "try { console.log('vite ->', require.resolve('vite/package.json', { paths: ['apps/ui'] })) } catch (e) { console.log('vite: ' + e.message.split('\n')[0]) }"
+
       - name: Sidecar tree
         env:
           JOBLEFT_PUBLIK_APP_TOKEN: ${{ secrets.PUBLIK_APP_TOKEN }}
