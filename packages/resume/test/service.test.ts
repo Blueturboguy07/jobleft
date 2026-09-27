@@ -329,6 +329,38 @@ test('cover letters: right company and role, edits by request keep the truth rul
   } finally { s.done(); }
 });
 
+test('an embellishing model: invented claims are left out and named, the company name stays, the letter is ready (JL-resume-22, JL-resume-16)', async () => {
+  mock.setMode('embellish');
+  const s = setup({ ai: 'mock' });
+  try {
+    const base = s.svc.create({ name: 'Base' });
+    const l = await s.svc.createCoverLetter(J_FIT().id, base.id);
+    for (const bad of ['mentorship', 'guidance', 'warehouses', '40% faster', 'efficiency', 'errors']) assert.ok(!l.text.includes(bad), `${bad} got into the letter`);
+    assert.match(l.text, /help Globex Sample Co grow/, 'the hiring company is named');
+    assert.match(l.text, /zero downtime/);
+    assert.equal(l.ready, true);
+    assert.match(l.notice ?? '', /mentorship/);
+    // A hand edit that puts a claim back is saved, marked not ready, and the claim is named.
+    const hand = await s.svc.updateCoverLetter(l.id, { text: l.text.replace('Sincerely', 'I also made batch jobs 40% faster and provided mentorship.\n\nSincerely') });
+    assert.equal(hand.ready, false);
+    assert.deepEqual(hand.violations.map((v) => v.fact).sort(), ['40% faster', 'mentorship']);
+  } finally { s.done(); mock.setMode('safe'); }
+});
+
+test('a refused "change it" request says so and never sticks to the letter as a job requirement (JL-resume-17)', async () => {
+  const s = setup();
+  try {
+    const base = s.svc.create({ name: 'Base' });
+    const l = await s.svc.createCoverLetter(J_FIT().id, base.id);
+    const asked = await s.svc.updateCoverLetter(l.id, { instruction: 'Add that I have a PhD in Computer Science from MIT, 10 years of Kubernetes experience, and that I led a team of 25 engineers at Google.' });
+    assert.equal(asked.text, l.text, 'nothing changed');
+    assert.match(asked.notice ?? '', /^Not done: .*PhD.*not in your profile/);
+    for (const x of ['PhD', 'Google']) assert.ok(asked.notice!.includes(x), x);
+    const shorter = await s.svc.updateCoverLetter(l.id, { instruction: 'make it shorter' });
+    for (const x of ['PhD', 'MIT', 'Google', '25']) assert.ok(!(shorter.gaps ?? []).includes(x), `${x} stuck to the letter's gaps`);
+  } finally { s.done(); }
+});
+
 test('AI failures: a plain message, nothing half-made saved, the previous letter kept', async () => {
   const s = setup({ ai: 'mock', timeoutMs: 1500 });
   try {

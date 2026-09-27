@@ -89,3 +89,44 @@ test('"TS/SCI" in a posting is a clearance, not TypeScript', () => {
   assert.ok(!terms.includes('TypeScript'), terms.join(','));
   assert.ok(terms.includes('Security clearance'));
 });
+
+const letterFor = (body: string) => `Jordan Testwell\njordan.testwell@example.com | 555-0100 | Austin, TX | https://example.com/jordan | https://github.com/jordan-testwell-example\n\nDear Hiring Manager,\n\n${body}\n\nSincerely,\nJordan Testwell`;
+
+test('a letter may name the hiring company and the job\'s own title, even when they are tool names (JL-resume-16)', () => {
+  const p = jordanProfile();
+  const cases: Array<[string, string]> = [
+    ['Software Engineer - Data Infrastructure', 'Figma'], ['Senior Software Engineer - Distributed Data Systems', 'Databricks'],
+    ['Backend Engineer, Developer & End-user Experience Platform', 'Stripe'], ['Staff Software Engineer, Risk Data Engineering', 'Stripe'],
+    ['Site Reliability Engineer', 'GitLab'], ['Software Engineer, Hostmap', 'Datadog'],
+  ];
+  for (const [title, company] of cases) {
+    const job = jobFromText({ title, company, text: 'Data warehousing, Spark and Kubernetes. You will mentor engineers.', city: null });
+    const text = letterFor(`I am writing to apply for the ${title} role at ${company}.\n\nI am a software engineer with 3 years of backend experience building APIs and data pipelines.\n\nThank you for considering my application. I would welcome the chance to talk about how I can help ${company}.`);
+    assert.deepEqual(k(checkLetter(text, p, job)), [], `${company}: ${title}`);
+  }
+  // A sentence that also says who the person is may still name the company it is written to.
+  const figma = jobFromText({ title: 'Software Engineer - Data Infrastructure', company: 'Figma', text: 'Spark.', city: null });
+  assert.deepEqual(k(checkLetter(letterFor('As a software engineer with 3 years of backend experience, I would love to help Figma.'), p, figma)), []);
+  // The company as a place the person worked, or the job's skills claimed as the person's own, are still refused.
+  for (const bad of ['I worked at Figma for two years.', 'As a Software Engineer at Figma, I built a billing API.', 'At Figma, I built a billing API.', 'During my time at Figma I built a billing API.']) {
+    assert.ok(k(checkLetter(letterFor(bad), p, figma)).some((x) => /Figma/.test(x)), bad);
+  }
+  const risk = jobFromText({ title: 'Staff Software Engineer, Risk Data Engineering', company: 'Stripe', text: 'Data engineering.', city: null });
+  assert.ok(k(checkLetter(letterFor('I have deep Data Engineering experience.'), p, risk)).includes('skill:Data Engineering'));
+});
+
+test('a letter\'s claims about the person are flagged by their words: mentoring, results, a job skill in another form, a number said another way (JL-resume-22)', () => {
+  const p = jordanProfile();
+  const job = jobFromText({ title: 'Staff Software Engineer, Risk Data Engineering', company: 'Stripe', text: 'Lead technical outcomes and mentor engineers. Data warehousing, Spark, Python.', city: null });
+  const claims: Array<[string, string]> = [
+    ['I am well-prepared to lead technical outcomes for a team of talented engineers, providing mentorship and guidance as outlined in the responsibilities.', 'other:mentorship'],
+    ['At Northwind Sample Labs I led migrations to PostgreSQL with zero downtime, demonstrating my ability to maintain data warehouses and pipelines.', 'skill:data warehouses'],
+    ['I rewrote the scheduler in TypeScript at 40% faster batch-job times.', 'number:40% faster'],
+    ['I wrote Python scripts to automate manual tasks, enhancing efficiency and reducing errors.', 'other:efficiency'],
+  ];
+  for (const [sentence, want] of claims) assert.ok(k(checkLetter(letterFor(sentence), p, job)).includes(want), `${want} in: ${k(checkLetter(letterFor(sentence), p, job)).join(', ')}`);
+  // The profile's own claims, in its own words or a close form, pass.
+  for (const ok of ['I cut batch-job time by 40% by rewriting the scheduler in TypeScript.', 'I led a migration of 12 services to PostgreSQL with zero downtime.', 'I wrote Python scripts that saved 10 hours of manual work each week.', 'I reduced batch-job time by 40%.']) {
+    assert.deepEqual(k(checkLetter(letterFor(ok), p, job)), [], ok);
+  }
+});

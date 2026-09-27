@@ -10,13 +10,16 @@
 //   empty        an answer with empty text
 //   rambling     a well-formed answer whose text ignores the requested format (small models do this)
 //   publik       like "safe", plus x-publik-* balance headers; each answer costs 2,100 micros; 402 when the balance is gone
+//   embellish    a letter that names the hiring company and slips in claims the profile does not back (mentoring,
+//                "data warehouses", "40% faster", "reducing errors"), as small local models do
+//   truncated    like "publik", but every answer stops early (finish_reason "length") and is still charged
 // The log (JSON lines) holds: time, method, path, header names, body length, and "marker" (true when the body contains
 // the text given with --marker). It never stores the body itself.
 
 import { appendFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
-export type MockMode = 'safe' | 'adversarial' | 'error' | 'timeout' | 'malformed' | 'empty' | 'rambling' | 'publik';
+export type MockMode = 'safe' | 'adversarial' | 'error' | 'timeout' | 'malformed' | 'empty' | 'rambling' | 'publik' | 'embellish' | 'truncated';
 
 export interface MockOptions { port?: number; mode: MockMode; log?: string | null; marker?: string | null; balanceMicros?: number }
 
@@ -34,6 +37,10 @@ function answerFor(mode: MockMode, system: string, user: string): string {
   if (mode === 'empty') return '';
   if (mode === 'rambling') return 'Sure! Here is a stronger resume for you. <b>Kubernetes expert</b> with 10 years of experience. ```json {"resume": "..."} ```';
   if (isLetter) {
+    if (mode === 'embellish') {
+      const company = /Company: (.+)/.exec(user)?.[1]?.trim() ?? 'the company';
+      return `BODY:\nI am a software engineer who led a migration of 12 services to PostgreSQL with zero downtime. I am eager to help ${company} grow. I am well-prepared to lead technical outcomes for a team of talented engineers, providing mentorship and guidance as outlined in the responsibilities.\n\nAt Northwind Sample Labs I led the migration to PostgreSQL, demonstrating my ability to maintain high-quality data warehouses and pipelines. I also made batch jobs 40% faster by rewriting the scheduler in TypeScript. I wrote Python scripts that saved 10 hours of manual work each week, enhancing efficiency and reducing errors.\nEND`;
+    }
     if (mode === 'adversarial') {
       return 'BODY:\nAs a Senior Platform Engineer at Acme Health, I ran Kubernetes clusters for 10+ years. I hold a PhD from Stanford University and cut costs by 45%.\n\nI am a software engineer who led a migration of 12 services to PostgreSQL with zero downtime. You can reach me at recruiter@acme-health.example.com or https://evil.example.com.\n\nI also know Rust and Terraform well.\nEND';
     }
@@ -80,7 +87,7 @@ export async function startMockAi(o: MockOptions): Promise<MockServer> {
       const system = parsed.messages?.find((m) => m.role === 'system')?.content ?? '';
       const user = parsed.messages?.find((m) => m.role === 'user')?.content ?? '';
       const headers: Record<string, string> = { 'content-type': 'application/json' };
-      if (mode === 'publik') {
+      if (mode === 'publik' || mode === 'truncated') {
         const cost = 2_100;
         if (balance < cost) {
           res.writeHead(402, { ...headers, 'x-publik-balance': String(balance) });
@@ -91,9 +98,9 @@ export async function startMockAi(o: MockOptions): Promise<MockServer> {
         headers['x-publik-balance'] = String(balance);
         headers['x-publik-charge-micros'] = String(cost);
       }
-      const text = answerFor(mode === 'publik' ? 'safe' : mode, system, user);
+      const text = answerFor(mode === 'publik' || mode === 'truncated' ? 'safe' : mode, system, user);
       res.writeHead(200, headers);
-      res.end(JSON.stringify({ id: 'mock', object: 'chat.completion', choices: [{ index: 0, message: { role: 'assistant', content: text }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 10 } }));
+      res.end(JSON.stringify({ id: 'mock', object: 'chat.completion', choices: [{ index: 0, message: { role: 'assistant', content: text }, finish_reason: mode === 'truncated' ? 'length' : 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 10 } }));
     });
   });
   await new Promise<void>((r) => server.listen(o.port ?? 0, '127.0.0.1', r));

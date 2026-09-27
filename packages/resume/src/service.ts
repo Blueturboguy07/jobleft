@@ -453,7 +453,9 @@ export class ResumeService {
       const res = await editLetter({ current: text, instruction: patch.instruction, profile, job, resume: resumeDoc, skills: this.#o.skills, ai });
       text = res.text;
       notice = res.notice;
-      gaps = [...new Set([...gaps, ...res.gaps])];
+      // This request's gaps only: what the job asks for that the profile lacks, plus what this request asked for and
+      // was refused. A refused request never sticks to the letter as if the job had asked for it (JL-resume-17).
+      gaps = [...new Set(res.gaps)];
       if (res.changed) provider = res.provider;
       costMicros = res.costMicros;
     }

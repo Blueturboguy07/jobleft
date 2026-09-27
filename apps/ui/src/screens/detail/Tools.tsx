@@ -175,8 +175,10 @@ export function CoverLetterDrawer({ job, open, onClose }: { job: Job; open: bool
         <InlineError error={err} />
         {current && (
           <>
-            {!current.ready && <Alert type="warning" showIcon message="This letter is not ready: some facts do not trace to your profile." description={current.violations.map((v) => v.reason).join(' ')} />}
-            {gaps.length > 0 && <Alert type="info" showIcon message={`The job asks for ${gaps.join(', ')}. Your profile does not show ${gaps.length === 1 ? 'it' : 'them'}, so the letter does not claim ${gaps.length === 1 ? 'it' : 'them'}.`} />}
+            {current.notice && <Alert type="info" showIcon message={current.notice} />}
+            {!current.ready && <Alert type="warning" showIcon message="This letter is not ready: these words do not trace to your profile. Remove them, or add them to your profile first if they are true."
+              description={<ul style={{ margin: 0, paddingLeft: 18, overflowWrap: 'anywhere' }}>{current.violations.map((v, i) => <li key={i}><strong>{v.fact}</strong> ({v.where}): {v.reason}</li>)}</ul>} />}
+            {gaps.length > 0 && <Alert type="info" showIcon message={`Not in your profile: ${gaps.join(', ')}. The letter does not claim ${gaps.length === 1 ? 'it' : 'them'}.`} />}
             <Input.TextArea value={text} onChange={(e) => setText(e.target.value)} autoSize={{ minRows: 10, maxRows: 24 }} aria-label="Cover letter text" />
             <div className="jl-row">
               <Button shape="round" icon={<CopyOutlined />} onClick={() => { void navigator.clipboard?.writeText(text).then(() => ui.message?.success('Copied.')); }}>Copy</Button>
