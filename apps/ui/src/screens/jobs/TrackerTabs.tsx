@@ -15,6 +15,7 @@ import { JobCard, type CardItem } from '../../components/JobCard.tsx';
 import { EmptyState, ErrorState, SkeletonCards } from '../../components/States.tsx';
 import { VirtualList } from '../../components/VirtualList.tsx';
 import { dateText, dateTimeText, plural } from '../../lib/format.ts';
+import { nextReminder } from '../../lib/trackerView.ts';
 import { useCardActions } from './cardActions.tsx';
 import { GAP, ROW } from './Feed.tsx';
 
@@ -44,7 +45,7 @@ function TrackedCard({ it, actions, profileSet, strip }: { it: Item; actions: Re
 function StatusStrip({ it }: { it: Item }) {
   const [busy, setBusy] = useState(false);
   const e = it.entry;
-  const next = e.reminders.filter((r) => !r.done).sort((a, b) => (a.at < b.at ? -1 : 1))[0];
+  const next = nextReminder(e, Date.now());
   const change = async (s: TrackerStatus) => {
     setBusy(true);
     try {
@@ -61,7 +62,7 @@ function StatusStrip({ it }: { it: Item }) {
       </label>
       {e.appliedAt && <span className="jl-muted">Applied {dateText(e.appliedAt)}</span>}
       <span className="jl-muted">{plural(e.notes.length, 'note')}</span>
-      {next && <span>Next reminder: {dateTimeText(next.at)}</span>}
+      {next && <span>Next reminder: {dateTimeText(next.r.at)}{next.overdue && <span className="jl-chip warn" style={{ marginLeft: 4 }}>Overdue</span>}</span>}
       <Button size="small" type="link" onClick={() => navigate(`jobs/${encodeURIComponent(it.job.id)}`)}>Notes and reminders</Button>
     </div>
   );
