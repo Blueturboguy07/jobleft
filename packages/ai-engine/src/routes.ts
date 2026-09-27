@@ -70,8 +70,10 @@ export async function* chatEvents(engine: AiEngine, req: ChatRequest, opts: { si
     yield { type: 'done', incomplete: true, costMicros: null, chatId: null };
   } catch (e) {
     const err = asAiError(e);
-    // Cancelled after some text: the part already shown stays, marked incomplete.
-    if (err.code === 'cancelled' && sent > 0) { yield { type: 'done', incomplete: true, costMicros: null, chatId: null }; return; }
+    // Cancelled by the person: never an error. The part already shown (if any) stays, marked incomplete. (Before a
+    // first delta the same cancel used to surface as a "provider_error" toast; seen on Windows, where the cancel
+    // lands before the first token.)
+    if (err.code === 'cancelled') { yield { type: 'done', incomplete: true, costMicros: null, chatId: null }; return; }
     const { body } = toApiError(err);
     yield { type: 'error', error: body.error.link ? { code: body.error.code, message: body.error.message, link: body.error.link } : { code: body.error.code, message: body.error.message } };
   }

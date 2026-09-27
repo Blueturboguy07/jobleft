@@ -28,7 +28,8 @@ test('encrypted file store: round trip, no plain text on disk, mode 0600', async
     assert.equal(await s.get('jobleft.ai.x.key'), CANARY);
     for (const f of allFiles(dir)) {
       assert.ok(!readFileSync(f).includes(Buffer.from('canary')), `${f} has no plain key`);
-      assert.equal(statSync(f).mode & 0o777, 0o600);
+      // POSIX modes only: Windows has no owner-only bit (the folder is under the person's profile there).
+      if (process.platform !== 'win32') assert.equal(statSync(f).mode & 0o777, 0o600);
     }
     const enc = JSON.parse(readFileSync(join(dir, 'secrets', 'secrets.enc'), 'utf8'));
     assert.equal(Object.keys(enc.entries).length, 1);
