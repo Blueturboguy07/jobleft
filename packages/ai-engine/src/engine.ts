@@ -267,6 +267,7 @@ export class AiEngine {
     this.saveEngineState(st);
     if ((await this.publik.status()).state === 'connected') { await this.publik.disconnect(); n++; }
     else await this.secrets.delete(SECRET_NAMES.publikKey);
+    this.publik.forget();
     return n;
   }
 

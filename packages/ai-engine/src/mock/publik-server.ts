@@ -52,7 +52,8 @@ export async function startMockPublikServer(opts: MockPublikOptions = {}): Promi
   let charges = 0;
   let mode: PublikMode = 'ok';
   const log = new RequestLog('publik', opts.log ?? null);
-  const installs = new Map<string, { keyHash: string; revoked: boolean; claimCode: string }>();
+  // revoked: the app revoked the key (a reconnect re-keys the install); finished: removed on the dashboard (never again).
+  const installs = new Map<string, { keyHash: string; revoked: boolean; claimCode: string; finished?: boolean }>();
   const keys = new Map<string, { installId: string; revoked: boolean; reprovision: boolean }>();
   const sockets = new Set<Socket>();
   let port = 0;
@@ -109,6 +110,11 @@ export async function startMockPublikServer(opts: MockPublikOptions = {}): Promi
           if (!(PUBLIK_MODES as readonly string[]).includes(body.mode)) return sendJson(res, 400, { error: `mode must be one of ${PUBLIK_MODES.join(', ')}` });
           mode = body.mode;
         } else if (path === '/__admin/revoke-all') { for (const k of keys.values()) { k.revoked = true; k.reprovision = body.reprovision === true; } }
+        else if (path === '/__admin/remove-installs') {
+          // Like "Revoke" on the publik dashboard: the install is finished and its install_id can never be re-keyed.
+          for (const i of installs.values()) { i.revoked = true; i.finished = true; }
+          for (const k of keys.values()) { k.revoked = true; k.reprovision = false; }
+        }
         else return sendJson(res, 404, { error: 'no such admin route' });
       }
       return sendJson(res, 200, { balanceMicros: balance, balanceUsd: (balance / 1_000_000).toFixed(6), priceMicros: price, claimState, mode, charges, keys: keys.size, liveKeys: [...keys.values()].filter((k) => !k.revoked).length });
@@ -130,6 +136,10 @@ export async function startMockPublikServer(opts: MockPublikOptions = {}): Promi
       if (!Number.isInteger(body.disclosure_version) || body.disclosure_version < 1) return err(res, 400, 'invalid_field', 'disclosure_version must be an integer >= 1.', { field: 'disclosure_version' });
       if (token !== appToken) return err(res, 401, 'invalid_app_token', 'The app token is not valid.');
       const existing = installs.get(body.install_id);
+      if (existing?.finished) {
+        log.note(entry, 'install removed on the dashboard', 403);
+        return err(res, 403, 'install_revoked', 'This install was disconnected by its owner. Provision a new install.', { reprovision: false });
+      }
       if (existing && !existing.revoked) {
         log.note(entry, 'replay: no new key', 200);
         return sendJson(res, 200, { install_id: body.install_id, key: null, starter_micros: 0, claim_state: claimState, base_url: base() }, common);

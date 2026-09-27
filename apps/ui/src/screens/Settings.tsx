@@ -207,7 +207,7 @@ function BalanceTab() {
     try { const c = await call('refreshPublik'); setCached('ai:publik', () => c); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   const disconnect = async () => {
-    try { const c = await call('disconnectPublik'); setCached('ai:publik', () => c); invalidate('ai:'); ui.message?.success('Disconnected. Nothing can spend your balance from this Mac now.'); } catch (e) { setErr(e as UiError); }
+    try { const c = await call('disconnectPublik'); setCached('ai:publik', () => c); invalidate('ai:'); ui.message?.success('Disconnected. Nothing can spend your balance from this Mac now. Connect again to use the same balance.'); } catch (e) { setErr(e as UiError); }
   };
   const usePublikNow = async () => {
     try { const r = await call('putAiSettings', { body: { provider: 'publik' } }); setCached('ai:settings', () => r.settings); invalidate('ai:'); } catch (e) { setErr(e as UiError); }
@@ -244,7 +244,7 @@ function BalanceTab() {
           <Space wrap>
             <Button type="primary" shape="round" icon={<LinkOutlined />} onClick={() => openExternal(w.topUpUrl)}>Add money to your balance</Button>
             <Button shape="round" icon={<ReloadOutlined />} loading={busy === 'refresh'} onClick={() => { void refresh(); }}>Read the balance again</Button>
-            <Popconfirm title="Disconnect from publik?" description="The key is deleted from this Mac. Nothing can spend the balance from here until you connect again." onConfirm={() => { void disconnect(); }} okText="Disconnect">
+            <Popconfirm title="Disconnect from publik?" description="The key is deleted from this Mac, so nothing can spend the balance from here. The balance stays on this Mac's publik account: connect again to use it." onConfirm={() => { void disconnect(); }} okText="Disconnect">
               <Button shape="round">Disconnect</Button>
             </Popconfirm>
           </Space>

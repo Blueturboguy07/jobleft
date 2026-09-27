@@ -36,6 +36,11 @@ const FALLBACK_TOP_UP = 'https://publikhq.com/dashboard/api';
 
 interface PublikState {
   state: 'connected' | 'disconnected';
+  /**
+   * This computer's publik install. Kept after a disconnect (only the key is deleted), so connecting again resumes
+   * the same install and the same balance (publik re-keys an install whose key the app revoked). Only forget()
+   * (delete all data) drops it.
+   */
   installId: string | null;
   baseUrl: string | null;
   disclosureVersion: number | null;
@@ -44,6 +49,7 @@ interface PublikState {
 }
 
 const EMPTY: PublikState = { state: 'disconnected', installId: null, baseUrl: null, disclosureVersion: null, wallet: null, connectedAt: null };
+const INSTALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export interface PublikClientOptions {
   baseUrl: string;
@@ -150,8 +156,8 @@ export class PublikClient {
     if (s.state === 'connected') {
       const key = await this.secrets.get(SECRET_NAMES.publikKey);
       if (!key) {
-        // The key is gone (deleted outside the app): the connection is gone too.
-        this.save({ ...EMPTY });
+        // The key is gone (deleted outside the app): the connection is gone too; the install is kept for a reconnect.
+        this.save({ ...EMPTY, installId: s.installId });
         return { state: 'disconnected', wallet: null, disclosureVersion: null };
       }
       return { state: 'connected', wallet: s.wallet, disclosureVersion: s.disclosureVersion };
@@ -175,9 +181,14 @@ export class PublikClient {
     try {
       // Nothing half-done is kept: the key is saved only after a valid answer, and state only after the key.
       await this.secrets.delete(SECRET_NAMES.publikKey);
-      let installId = randomUUID();
+      // A reconnect resumes this computer's install (JL-settings-9): publik gives an install whose key the app revoked
+      // a new key on the same balance. A new install is made only when there is none yet, or when publik cannot
+      // re-key the old one (403: removed on the publik dashboard; 200 with no key: its old key is still live).
+      const prior = this.load().installId;
+      let installId = prior && INSTALL_ID.test(prior) ? prior : randomUUID();
       let answer = await this.mint(installId, disclosureVersion);
-      if (answer.status === 200 && (answer.body?.key === null || answer.body?.key === undefined)) {
+      const noKey = answer.status === 200 && (answer.body?.key === null || answer.body?.key === undefined);
+      if (noKey || (installId === prior && answer.status === 403)) {
         installId = randomUUID(); // a replay without a saved key: mint once more with a new install id (R21 section 2.1)
         answer = await this.mint(installId, disclosureVersion);
       }
@@ -264,8 +275,14 @@ export class PublikClient {
     if (await this.secrets.get(SECRET_NAMES.publikKey)) {
       throw new AiError('not_ready', 'jobleft could not delete the publik key from this computer. Unlock the Keychain and try again.');
     }
-    this.save({ ...EMPTY });
+    // The key is gone; the install is kept, so a later connect returns to the same balance (JL-settings-9).
+    this.save({ ...EMPTY, installId: s.installId });
     return { state: 'disconnected', wallet: null, disclosureVersion: null };
+  }
+
+  /** Forgets this computer's publik install too (delete all data). Call after disconnect(). */
+  forget(): void {
+    this.save({ ...EMPTY });
   }
 
   /** Reads the balance again (GET /wallet). */
@@ -368,7 +385,7 @@ export class PublikClient {
     }
     if (status === 403 && type === 'key_revoked') {
       await this.secrets.delete(SECRET_NAMES.publikKey);
-      this.save({ ...EMPTY });
+      this.save({ ...EMPTY, installId: this.load().installId });
       return new AiError('key_refused', e.reprovision === true
         ? 'publik retired this connection because it was not used for a long time, so publik is now disconnected. Connect again to use it.'
         : 'This computer was removed from your publik account, so publik is now disconnected. Connect again to use it.');
