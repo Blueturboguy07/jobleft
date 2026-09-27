@@ -27,9 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 12
+      - uses: pnpm/action-setup@v4 # the version comes from package.json's packageManager
 
       # No pnpm cache here: setup-node's cache step fails on Windows with the pnpm shim path (2026-09-27).
       - uses: actions/setup-node@v5
