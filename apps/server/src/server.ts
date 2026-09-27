@@ -392,7 +392,9 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   // ~0.5 s for a cold page cache (gate 9); every later search takes tens of milliseconds.
   const warm = setTimeout(() => {
     try {
-      const db = app.data.db;
+      const d = app.data;
+      if (!d) return;
+      const db = d.db;
       db.prepare(`SELECT rowid FROM jobs_fts WHERE jobs_fts MATCH 'engineer OR manager OR nurse OR analyst OR sales' LIMIT 1`).all();
       db.prepare('SELECT count(*) AS n FROM jobs WHERE closed_at IS NULL').get();
     } catch { /* no index yet, or the folder is being replaced: nothing to warm */ }
