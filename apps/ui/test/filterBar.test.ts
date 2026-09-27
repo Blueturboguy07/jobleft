@@ -53,3 +53,33 @@ test('JL-feed-25: the pay filter says that the top of a stated range counts', as
   const { PAY_FILTER_NOTE } = await import('../src/lib/filters.ts');
   assert.match(PAY_FILTER_NOTE, /top of its stated pay range/);
 });
+
+test('JL-onboarding-28: the starting filters keep the jobs that do not state a fact they filter on', async () => {
+  const { filterFromProfile, unstatedLeftOut } = await import('../src/lib/filters.ts');
+  const preferences = {
+    jobFunctions: ['Software Engineering'], targetTitles: [], employmentTypes: ['full_time' as const], workModels: ['remote' as const],
+    levels: ['entry' as const], countries: ['US'], places: [], minAnnualPayUsd: null, industries: [], companyStages: [], roleTypes: [], excludedCompanies: [],
+  };
+  const f = filterFromProfile({ preferences } as never);
+  assert.deepEqual(f.employmentTypes, ['full_time']);
+  assert.deepEqual(new Set(f.includeUnknown), new Set(['employmentType', 'workModel', 'level', 'place']));
+  assert.deepEqual(unstatedLeftOut(f), [], 'no hidden strictness in the starting filters');
+  // only the facts the person chose: no job type chosen, no "include jobs with no job type" either
+  const g = filterFromProfile({ preferences: { ...preferences, employmentTypes: [], levels: [], countries: [] } } as never);
+  assert.deepEqual(g.includeUnknown, ['workModel']);
+  assert.deepEqual(filterFromProfile({ preferences: { ...preferences, employmentTypes: [], workModels: [], levels: [], countries: [] } } as never), { jobFunctions: ['Software Engineering'] });
+});
+
+test('JL-onboarding-28: the empty feed names the filters that are on and offers the jobs that do not state them', async () => {
+  const { emptyFeedText, withAllUnknown } = await import('../src/lib/filters.ts');
+  const strict: JobFilter = { jobFunctions: ['Software Engineering'], employmentTypes: ['full_time'], workModels: ['remote'] };
+  const e = emptyFeedText(strict, '');
+  assert.match(e.text, /these filters: Software Engineering, Full-time, Remote\./);
+  assert.match(e.text, /leave out every job that does not state its job type or work model\./);
+  assert.deepEqual(e.leftOut, ['employmentType', 'workModel']);
+  const open = withAllUnknown(strict);
+  assert.deepEqual(open.includeUnknown, ['employmentType', 'workModel']);
+  assert.deepEqual(emptyFeedText(open, '').leftOut, []);
+  assert.doesNotMatch(emptyFeedText(open, '').text, /leave out every job/);
+  assert.equal(emptyFeedText({}, 'rust').text, 'Nothing matches “rust”.');
+});

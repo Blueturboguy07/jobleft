@@ -14,7 +14,7 @@ import { getFeed, profileIsSet, setFeed, useCrawl, useFeed, useProfile, useTrack
 import { JobCard, type CardItem } from '../../components/JobCard.tsx';
 import { EmptyState, ErrorState, InlineError, SkeletonCards } from '../../components/States.tsx';
 import { VirtualList } from '../../components/VirtualList.tsx';
-import { activeCount, filterFromProfile, noDataFilters, withoutNoDataFilters } from '../../lib/filters.ts';
+import { activeCount, emptyFeedText, filterFromProfile, noDataFilters, withAllUnknown, withoutNoDataFilters } from '../../lib/filters.ts';
 import { clipWords, plural, searchable } from '../../lib/format.ts';
 import { AllFiltersDrawer } from './AllFilters.tsx';
 import { useCardActions } from './cardActions.tsx';
@@ -159,10 +159,18 @@ export function Feed() {
   else if (st.loading && !st.items.length) body = <SkeletonCards n={4} />;
   else if (!st.items.length) {
     if (progress?.running) body = <EmptyState art="search" title="Your job boards are being read" text={`Jobs appear here as each board finishes: ${progress.boardsDone} of ${plural(progress.boardsTotal, 'board')} done so far.`} />;
-    else if ((feed.q.trim() || nActive) && !noJobsStored) body = (
-      <EmptyState art="search" title="No jobs match" text={<>Nothing matches {feed.q.trim() ? <>“{feed.q.trim()}” and </> : null}these filters. Many postings do not state pay, level or a posted date; each filter can include those jobs.</>}
-        action={<div className="jl-row"><Button shape="round" type="primary" onClick={() => setFeed({ filter: {}, q: '' })}>Clear filters and words</Button><Button shape="round" onClick={() => setDrawer({ open: true, saved: null })}>Change filters</Button></div>} />
-    );
+    else if ((feed.q.trim() || nActive) && !noJobsStored) {
+      // The empty list names the filters that are on and offers the jobs that do not state a filtered fact in one
+      // click (JL-onboarding-28).
+      const empty = emptyFeedText(feed.filter, feed.q);
+      body = (
+        <EmptyState art="search" title="No jobs match" text={empty.text}
+          action={<div className="jl-row">
+            {empty.leftOut.length > 0 && <Button shape="round" type="primary" onClick={() => onFilter(withAllUnknown(feed.filter))}>Show jobs that do not state it</Button>}
+            <Button shape="round" type={empty.leftOut.length > 0 ? 'default' : 'primary'} onClick={() => setFeed({ filter: {}, q: '' })}>Clear filters and words</Button>
+            <Button shape="round" onClick={() => setDrawer({ open: true, saved: null })}>Change filters</Button></div>} />
+      );
+    }
     else body = <EmptyState art="search" title="No jobs yet" text="jobleft reads the public job boards you follow. Start a refresh, or add boards in Settings." action={<div className="jl-row"><Button shape="round" type="primary" icon={<ReloadOutlined />} onClick={() => { void call('crawlRun', { body: {} }).then(() => undefined, () => undefined); }}>Refresh now</Button><Button shape="round" onClick={() => navigate('settings/sources')}>Job sources</Button></div>} />;
   } else {
     body = (
