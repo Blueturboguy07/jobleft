@@ -231,9 +231,10 @@ export const LOCAL_API = {
   fitCheck: route({ method: 'GET', path: '/api/v1/resumes/:resumeId/fit-check', auth: 'launch', owner: 'resume', summary: 'Does it fit one page, and what would be left out', response: obj({ fitsOnePage: bool(), leftOut: arr(str()) }) }),
   exportResume: route({ method: 'GET', path: '/api/v1/resumes/:resumeId/export', auth: 'launch', owner: 'resume', summary: 'Download what the editor shows as a one-page PDF or a Word file, or ("original") the uploaded file as it was', query: obj({ format: enm(['pdf', 'docx', 'original']) }), response: 'file' }),
   atsCheck: route({ method: 'POST', path: '/api/v1/resumes/:resumeId/ats-check', auth: 'launch', owner: 'resume', summary: 'Grade the exported PDF', response: AtsReportSchema }),
-  listCoverLetters: route({ method: 'GET', path: '/api/v1/cover-letters', auth: 'launch', owner: 'resume', summary: 'Cover letters for a job', query: obj({ jobId: IdSchema }), response: arr(CoverLetterSchema) }),
+  listCoverLetters: route({ method: 'GET', path: '/api/v1/cover-letters', auth: 'launch', owner: 'resume', summary: 'Cover letters for a job, or every letter when no job is given', query: obj({}, { jobId: IdSchema }), response: arr(CoverLetterSchema) }),
   createCoverLetter: route({ method: 'POST', path: '/api/v1/cover-letters', auth: 'launch', owner: 'resume', summary: 'Draft a cover letter (truth-gated)', body: obj({ jobId: IdSchema, resumeId: IdSchema }), response: CoverLetterSchema }),
   updateCoverLetter: route({ method: 'PATCH', path: '/api/v1/cover-letters/:letterId', auth: 'launch', owner: 'resume', summary: 'Edit by hand (text) or by request (instruction); truth rules hold', body: obj({}, { text: str(), instruction: str({ maxLength: 2000 }) }), response: CoverLetterSchema }),
+  deleteCoverLetter: route({ method: 'DELETE', path: '/api/v1/cover-letters/:letterId', auth: 'launch', owner: 'resume', summary: 'Delete one cover letter', response: obj({ deleted: arr(IdSchema) }) }),
   exportCoverLetter: route({ method: 'GET', path: '/api/v1/cover-letters/:letterId/export', auth: 'launch', owner: 'resume', summary: 'Download a cover letter as a one-page PDF or a Word file (added in contracts 1.1.0)', query: obj({ format: enm(['pdf', 'docx']) }), response: 'file' }),
 
   // ---- match and fit index

@@ -5,8 +5,8 @@
 import { useRef, useState } from 'react';
 import { Alert, Button, Dropdown, Input, Modal, Space, Table, Tag } from 'antd';
 import { Tooltip } from '../components/Tip.tsx';
-import { EllipsisOutlined, FormOutlined, PlusOutlined, StarFilled, ToolOutlined, UploadOutlined, UserOutlined } from '@ant-design/icons';
-import type { ImportReport, ProfileInput, Resume } from '@jobleft/contracts';
+import { DeleteOutlined, EllipsisOutlined, FormOutlined, PlusOutlined, StarFilled, ToolOutlined, UploadOutlined, UserOutlined } from '@ant-design/icons';
+import type { CoverLetter, ImportReport, ProfileInput, Resume } from '@jobleft/contracts';
 import { call, download, type UiError } from '../app/api.ts';
 import { invalidate, useApi } from '../app/data.ts';
 import { ui } from '../app/layers.ts';
@@ -20,6 +20,7 @@ import { toInput } from './Profile.tsx';
 import { QuestionsModal, TailorForJobModal } from './resume/Extras.tsx';
 
 export const useResumeList = () => useApi<Resume[]>('resumes', () => call('listResumes'));
+const useLetterList = () => useApi<CoverLetter[]>('letters', () => call('listCoverLetters', { query: {} }));
 
 const MAX = 10 * 1024 * 1024;
 const TYPES: Record<string, string> = { pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
@@ -129,6 +130,7 @@ export function AddResumeModal({ open, onClose }: { open: boolean; onClose: () =
 
 export function ResumeScreen() {
   const list = useResumeList();
+  const letters = useLetterList();
   const [adding, setAdding] = useState(false);
   const [tailoring, setTailoring] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -142,13 +144,17 @@ export function ResumeScreen() {
       if (key === 'pdf' || key === 'docx' || key === 'original') { const f = await download('exportResume', { params: { resumeId: r.id }, query: { format: key } }); ui.message?.success(`Saved ${f} to your Downloads.`); }
       if (key === 'delete') {
         const versions = (list.data ?? []).filter((x) => x.baseResumeId === r.id);
+        const ids = new Set([r.id, ...versions.map((v) => v.id)]);
+        // The confirm names everything that goes (JL-resume-24): versions and cover letters made with this resume.
+        const own = (letters.data ?? []).filter((l) => ids.has(l.resumeId)).length;
+        const also = [versions.length ? plural(versions.length, 'tailored version') : '', own ? plural(own, 'cover letter') : ''].filter(Boolean).join(' and ');
         const ok = await ui.modal?.confirm({
-          title: `Delete "${r.name}"?`, content: versions.length ? `Its ${plural(versions.length, 'tailored version')} will be deleted too. This cannot be undone.` : 'This cannot be undone.',
+          title: `Delete "${r.name}"?`, content: also ? `Its ${also} will be deleted too. This cannot be undone.` : 'This cannot be undone.',
           okText: 'Delete', okButtonProps: { danger: true, shape: 'round' }, cancelButtonProps: { shape: 'round' },
         });
         if (!ok) return;
-        await call('deleteResume', { params: { resumeId: r.id }, query: versions.length ? { withVersions: 'true' } : {} });
-        invalidate('resumes');
+        await call('deleteResume', { params: { resumeId: r.id }, query: also ? { withVersions: 'true' } : {} });
+        invalidate('resumes', 'letters');
         ui.message?.success('Deleted.');
       }
     } catch (e) { ui.message?.error((e as UiError).message); }
@@ -218,6 +224,7 @@ export function ResumeScreen() {
           </div>
         )}
       </div>
+      <LetterList letters={letters} resumes={list.data} />
       <AddResumeModal open={adding} onClose={() => setAdding(false)} />
       <TailorForJobModal open={tailoring} onClose={() => setTailoring(false)} />
       <QuestionsModal open={asking} onClose={() => setAsking(false)} />
@@ -234,6 +241,39 @@ export function ResumeScreen() {
           <label>Target job title<Input value={rn.target} onChange={(e) => setRn({ ...rn, target: e.target.value })} placeholder="For example: Data analyst" /></label>
         </Space>
       </Modal>
+    </div>
+  );
+}
+
+/** Every cover letter in one place, with the job it is for and a delete (JL-resume-18). */
+function LetterList({ letters, resumes }: { letters: ReturnType<typeof useLetterList>; resumes: Resume[] | undefined }) {
+  const del = async (l: CoverLetter) => {
+    const what = l.jobLabel ? `${l.jobLabel.title} · ${l.jobLabel.company}` : 'this job';
+    const ok = await ui.modal?.confirm({ title: `Delete the cover letter for ${what}?`, content: 'This cannot be undone.', okText: 'Delete', okButtonProps: { danger: true, shape: 'round' }, cancelButtonProps: { shape: 'round' } });
+    if (!ok) return;
+    try { await call('deleteCoverLetter', { params: { letterId: l.id } }); invalidate('letters'); ui.message?.success('Cover letter deleted.'); } catch (e) { ui.message?.error((e as UiError).message); }
+  };
+  return (
+    <div className="jl-page-inner" style={{ marginTop: 20 }}>
+      <h2 className="jl-subhead">Cover letters</h2>
+      {letters.error && !letters.data ? <InlineError error={letters.error} onRetry={() => { void letters.reload(); }} />
+        : !letters.data ? <Loading label="Loading your cover letters" inline />
+          : !letters.data.length ? <p className="jl-muted">No cover letters yet. Open a job and choose "Write a cover letter".</p> : (
+            <div className="jl-card-box" style={{ padding: 8 }}>
+              <Table rowKey="id" dataSource={[...letters.data].reverse()} pagination={false}
+                columns={[
+                  { title: 'For job', key: 'j', render: (_, l) => <a href={`#/jobs/${encodeURIComponent(l.jobId)}`} style={{ overflowWrap: 'anywhere' }}>{l.jobLabel ? `${l.jobLabel.title} · ${l.jobLabel.company}` : 'Open the job'}</a> },
+                  { title: 'Resume used', key: 'r', render: (_, l) => <span className="jl-muted">{resumes?.find((x) => x.id === l.resumeId)?.name ?? 'Deleted'}</span> },
+                  { title: 'State', key: 's', render: (_, l) => (l.ready ? <Tag color="green">Ready</Tag> : <Tag color="gold">Not ready</Tag>) },
+                  { title: 'Last changed', key: 'u', render: (_, l) => <span title={dateText(l.updatedAt) ?? ''}>{ago(l.updatedAt)}</span> },
+                  {
+                    title: <span className="jl-sr">Actions</span>, key: 'a', width: 56, render: (_, l) => (
+                      <Tooltip title="Delete this cover letter"><Button shape="circle" icon={<DeleteOutlined />} aria-label={`Delete the cover letter for ${l.jobLabel ? `${l.jobLabel.title} at ${l.jobLabel.company}` : 'this job'}, written ${ago(l.createdAt) ?? ''}`} onClick={() => { void del(l); }} /></Tooltip>
+                    ),
+                  },
+                ]} />
+            </div>
+          )}
     </div>
   );
 }

@@ -337,9 +337,10 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `fitCheck` | GET | `/api/v1/resumes/:resumeId/fit-check` | launch | resume | — | — | `{ fitsOnePage, leftOut }` | Does it fit one page, and what would be left out |
 | `exportResume` | GET | `/api/v1/resumes/:resumeId/export` | launch | resume | `{ format }` | — | file | Download what the editor shows as a one-page PDF or a Word file, or ("original") the uploaded file as it was |
 | `atsCheck` | POST | `/api/v1/resumes/:resumeId/ats-check` | launch | resume | — | — | `AtsReport` | Grade the exported PDF |
-| `listCoverLetters` | GET | `/api/v1/cover-letters` | launch | resume | `{ jobId }` | — | `CoverLetter[]` | Cover letters for a job |
+| `listCoverLetters` | GET | `/api/v1/cover-letters` | launch | resume | `{ jobId? }` | — | `CoverLetter[]` | Cover letters for a job, or every letter when no job is given |
 | `createCoverLetter` | POST | `/api/v1/cover-letters` | launch | resume | — | `{ jobId, resumeId }` | `CoverLetter` | Draft a cover letter (truth-gated) |
 | `updateCoverLetter` | PATCH | `/api/v1/cover-letters/:letterId` | launch | resume | — | `{ text?, instruction? }` | `CoverLetter` | Edit by hand (text) or by request (instruction); truth rules hold |
+| `deleteCoverLetter` | DELETE | `/api/v1/cover-letters/:letterId` | launch | resume | — | — | `{ deleted }` | Delete one cover letter |
 | `exportCoverLetter` | GET | `/api/v1/cover-letters/:letterId/export` | launch | resume | `{ format }` | — | file | Download a cover letter as a one-page PDF or a Word file (added in contracts 1.1.0) |
 | `getMatch` | GET | `/api/v1/match/:jobId` | launch | match | — | — | `MatchResult` | Match score of a job (409 needs_profile without a profile) |
 | `fitIndexStatus` | GET | `/api/v1/index/status` | launch | store | — | — | `FitIndexStatus` | Fit indexing: indexed, waiting, last run, model |
@@ -1028,7 +1029,7 @@ ATS check. Owns: tables `resumes` (base resumes and tailored versions, `kind` = 
 `cover_letters` (migrations owner `resume`, version 1); files in `files/resumes/`; routes `listResumes`,
 `importResume`, `createResume`, `getResume`, `updateResume`, `deleteResume`, `tailorResume`, `acceptTailoring`,
 `fitCheck`, `exportResume`, `atsCheck`, `keywordGaps`, `listCoverLetters`, `createCoverLetter`, `updateCoverLetter`,
-`exportCoverLetter` (new in contracts 1.1.0).
+`exportCoverLetter` (new in contracts 1.1.0), `deleteCoverLetter`.
 
 <!-- BEGIN GENERATED: sig:packages/resume -->
 ```ts
@@ -1092,7 +1093,7 @@ for `insufficient_balance`):
 | `fitCheck(id)`, `export(id, format)` | `fitCheck`, `exportResume` | `export` returns `{ fileName, mimeType, bytes, leftOut }`; the PDF and the Word file always render the current document (an edited upload exports as edited); the PDF is always one page; the Word file holds the same items; `original` returns the uploaded file byte for byte (`not_found` for a resume with no upload) |
 | `atsCheck(id)` | `atsCheck` | Grades the PDF bytes the resume exports to now (so the grade follows edits) |
 | `keywordGaps(jobId, resumeId)` | `keywordGaps` | |
-| `coverLetters(jobId)`, `getCoverLetter(id)`, `createCoverLetter(jobId, resumeId, { useAi? }?)`, `updateCoverLetter(id, { text?, instruction? }, { useAi? }?)`, `exportCoverLetter(id, format)` | cover-letter routes | A request with a fact not in the profile is refused (letter unchanged, `notice`, `gaps`). A hand edit is saved and marked `ready: false` while it holds violations; a letter that is not ready is not exported (`conflict`) |
+| `coverLetters(jobId?)` (every letter when no job is given), `getCoverLetter(id)`, `createCoverLetter(jobId, resumeId, { useAi? }?)`, `updateCoverLetter(id, { text?, instruction? }, { useAi? }?)`, `deleteCoverLetter(id)`, `exportCoverLetter(id, format)` | cover-letter routes | A request with a fact not in the profile is refused (letter unchanged, `notice`, `gaps`). A hand edit is saved and marked `ready: false` while it holds violations; a letter that is not ready is not exported (`conflict`) |
 
 Rules: the profile is the only source of facts; the job posting is data, never instructions or facts; no model call
 during import, export or the ATS check; one model call per AI step and no retry; AI failures save nothing. The CLI

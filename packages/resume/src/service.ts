@@ -241,7 +241,8 @@ export class ResumeService {
     const ids = [id, ...versions];
     const letters = (this.#o.db.prepare(`SELECT id FROM cover_letters WHERE resume_id IN (${ids.map(() => '?').join(',')})`).all(...ids) as Array<{ id: string }>).map((x) => x.id);
     if ((versions.length || letters.length) && !withVersions) {
-      throw new ResumeError('conflict', `This resume has ${versions.length} tailored version${versions.length === 1 ? '' : 's'} and ${letters.length} cover letter${letters.length === 1 ? '' : 's'}. Nothing was deleted. Delete them too (withVersions=true), or keep the resume.`, { versions, letters });
+      const parts = [versions.length ? `${versions.length} tailored version${versions.length === 1 ? '' : 's'}` : '', letters.length ? `${letters.length} cover letter${letters.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' and ');
+      throw new ResumeError('conflict', `This resume has ${parts}. Nothing was deleted. Delete ${versions.length + letters.length === 1 ? 'it' : 'them'} together with the resume, or keep the resume.`, { versions, letters });
     }
     this.#o.db.exec('BEGIN');
     try {
@@ -395,11 +396,13 @@ export class ResumeService {
   // ---------------------------------------------------------------------------------------------- cover letters
 
   #letter(r: LetterRow): CoverLetter {
-    const extra = parse<{ gaps?: string[]; notice?: string | null; provider?: string; costMicros?: number | null }>(r.extra_json) ?? {};
+    const extra = parse<{ gaps?: string[]; notice?: string | null; provider?: string; costMicros?: number | null; jobLabel?: { title: string; company: string } | null }>(r.extra_json) ?? {};
+    let jobLabel = extra.jobLabel ?? null;
+    if (!jobLabel) { const j = this.#o.job(r.job_id); jobLabel = j ? { title: j.title.slice(0, 120), company: j.company.slice(0, 120) } : null; }
     return {
       id: r.id, jobId: r.job_id, resumeId: r.resume_id, text: r.text, violations: JSON.parse(r.violations_json), ready: !!r.ready,
       createdAt: r.created_at, updatedAt: r.updated_at, gaps: extra.gaps ?? [], notice: extra.notice ?? null, provider: extra.provider ?? 'none',
-      costMicros: extra.costMicros ?? null,
+      costMicros: extra.costMicros ?? null, jobLabel,
     };
   }
 
@@ -409,8 +412,20 @@ export class ResumeService {
     return r;
   }
 
-  coverLetters(jobId: string): CoverLetter[] {
-    return (this.#o.db.prepare('SELECT * FROM cover_letters WHERE job_id = ? ORDER BY created_at, rowid').all(jobId) as unknown as LetterRow[]).map((r) => this.#letter(r));
+  /** The letters for one job, or every letter (JL-resume-18: letters are listed in one place). Oldest first. */
+  coverLetters(jobId?: string): CoverLetter[] {
+    const rows = jobId === undefined
+      ? this.#o.db.prepare('SELECT * FROM cover_letters ORDER BY created_at, rowid').all()
+      : this.#o.db.prepare('SELECT * FROM cover_letters WHERE job_id = ? ORDER BY created_at, rowid').all(jobId);
+    return (rows as unknown as LetterRow[]).map((r) => this.#letter(r));
+  }
+
+  /** Deletes one cover letter; returns its id. */
+  deleteCoverLetter(id: string): string[] {
+    this.#letterRow(id);
+    this.#o.db.prepare('DELETE FROM cover_letters WHERE id = ?').run(id);
+    try { this.#o.db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* not in WAL mode, or busy: best effort */ }
+    return [id];
   }
 
   getCoverLetter(id: string): CoverLetter {
@@ -428,7 +443,7 @@ export class ResumeService {
     const id = `cl_${randomUUID()}`;
     const now = this.#iso();
     this.#o.db.prepare('INSERT INTO cover_letters (id, job_id, resume_id, text, violations_json, ready, extra_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, jobId, resumeId, res.text, JSON.stringify(violations), violations.length ? 0 : 1, JSON.stringify({ gaps: res.gaps, notice: res.notice, provider: res.provider, costMicros: res.costMicros }), now, now);
+      .run(id, jobId, resumeId, res.text, JSON.stringify(violations), violations.length ? 0 : 1, JSON.stringify({ gaps: res.gaps, notice: res.notice, provider: res.provider, costMicros: res.costMicros, jobLabel: { title: job.title.slice(0, 120), company: job.company.slice(0, 120) } }), now, now);
     return this.getCoverLetter(id);
   }
 
@@ -462,8 +477,9 @@ export class ResumeService {
     const violations = checkLetter(text, profile, job);
     if (violations.length && !notice) notice = `This letter holds ${violations.length === 1 ? 'a fact' : 'facts'} that ${violations.length === 1 ? 'is' : 'are'} not in your profile, so it is not ready: ${violations.slice(0, 5).map((v) => `"${v.fact}"`).join(', ')}.`;
     const history = [...(extra.history ?? []), r.text].slice(-10);
+    const jobLabel = { title: job.title.slice(0, 120), company: job.company.slice(0, 120) };
     this.#o.db.prepare('UPDATE cover_letters SET text = ?, violations_json = ?, ready = ?, extra_json = ?, updated_at = ? WHERE id = ?')
-      .run(text, JSON.stringify(violations), violations.length ? 0 : 1, JSON.stringify({ gaps, notice, provider, costMicros, history }), this.#iso(), id);
+      .run(text, JSON.stringify(violations), violations.length ? 0 : 1, JSON.stringify({ gaps, notice, provider, costMicros, history, jobLabel }), this.#iso(), id);
     return this.getCoverLetter(id);
   }
 

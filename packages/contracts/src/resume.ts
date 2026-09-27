@@ -156,6 +156,8 @@ export const CoverLetterSchema = named(obj({
   provider: str(),
   /** What the last step cost from the publik balance, in micros (null = free or unknown). Added in contracts 1.1.0. */
   costMicros: nullable(int({ minimum: 0 })),
+  /** The job the letter is for, as it was when the letter was written (kept if the job goes). null = unknown. */
+  jobLabel: nullable(obj({ title: str(), company: str() })),
 }), 'CoverLetter');
 
 export type ResumeItem = Infer<typeof ResumeItemSchema>;

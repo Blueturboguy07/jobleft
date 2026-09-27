@@ -716,7 +716,12 @@ export const HANDLERS: Partial<Record<RouteName, Handler>> = {
     return json(r.atsReport);
   },
 
-  listCoverLetters: ({ state, query }) => json(state.data.coverLetters.filter((c) => c.jobId === query.jobId)),
+  listCoverLetters: ({ state, query }) => json(state.data.coverLetters.filter((c) => query.jobId === undefined || c.jobId === query.jobId)),
+  deleteCoverLetter: ({ state, params }) => {
+    if (!state.data.coverLetters.some((c) => c.id === params.letterId)) throw fail('not_found', 404, 'That cover letter was not found.');
+    state.mutate('coverLetters', 'the deletion', (d) => { const i = d.findIndex((c) => c.id === params.letterId); if (i >= 0) d.splice(i, 1); });
+    return json({ deleted: [params.letterId!] });
+  },
   createCoverLetter: async ({ state, body }) => {
     const b = body as { jobId: string; resumeId: string };
     const rec = jobOr404(state, b.jobId);

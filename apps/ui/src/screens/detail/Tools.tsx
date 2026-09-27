@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { Alert, Button, Checkbox, Drawer, Empty, Input, Select, Space, Table, Tag } from 'antd';
-import { CopyOutlined, EditOutlined } from '@ant-design/icons';
+import { CopyOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import type { CoverLetter, Job, KeywordGapReport, Resume, TailorProposal } from '@jobleft/contracts';
 import { call, type UiError } from '../../app/api.ts';
 import { invalidate, useApi } from '../../app/data.ts';
@@ -12,6 +12,7 @@ import { navigate } from '../../app/router.ts';
 import { useAiSettings } from '../../app/session.ts';
 import { AiNote, afterAiStep, ensureAiConsent } from '../../components/AiNote.tsx';
 import { InlineError, Loading } from '../../components/States.tsx';
+import { ago } from '../../lib/format.ts';
 
 function changeLabel(field: string): string {
   if (field === 'skills.order') return 'Change to the order of your skills (no skill is added)';
@@ -137,13 +138,34 @@ export function CoverLetterDrawer({ job, open, onClose }: { job: Job; open: bool
   useEffect(() => { if (letters.data && !current && letters.data.length) { const l = letters.data.at(-1)!; setCurrent(l); setText(l.text); } }, [letters.data]);
   const dirty = !!current && text !== current.text;
   useDirty('letter', dirty, 'the cover letter');
+  const all = letters.data ?? [];
+  // Every letter for this job stays reachable (a new letter never hides the older ones) and each can be deleted
+  // (JL-resume-18).
+  const show = async (id: string) => {
+    if (dirty && !(await confirmDiscard(['the cover letter']))) return;
+    const l = all.find((x) => x.id === id);
+    if (l) { setCurrent(l); setText(l.text); }
+  };
+  const remove = async () => {
+    if (!current) return;
+    const ok = await ui.modal?.confirm({ title: 'Delete this cover letter?', content: 'This cannot be undone.', okText: 'Delete', okButtonProps: { danger: true, shape: 'round' }, cancelButtonProps: { shape: 'round' } });
+    if (!ok) return;
+    setBusy('delete'); setErr(null);
+    try {
+      await call('deleteCoverLetter', { params: { letterId: current.id } });
+      const next = all.filter((l) => l.id !== current.id).at(-1) ?? null;
+      setCurrent(next); setText(next?.text ?? '');
+      invalidate('letters');
+      ui.message?.success('Cover letter deleted.');
+    } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+  };
   const create = async () => {
     if (!resumeId || !(await ensureAiConsent(ai.data, 'coverLetter'))) return;
     setBusy('create'); setErr(null);
     try {
       const l = await call('createCoverLetter', { body: { jobId: job.id, resumeId } });
       setCurrent(l); setText(l.text);
-      void letters.reload();
+      invalidate('letters');
       afterAiStep((l as CoverLetter & { costMicros?: number | null }).costMicros);
     } catch (e) { setErr(e as UiError); invalidate('ai:publik'); } finally { setBusy(null); }
   };
@@ -173,6 +195,12 @@ export function CoverLetterDrawer({ job, open, onClose }: { job: Job; open: bool
         <AiNote kind="coverLetter" what="write a cover letter" />
         <Button type="primary" shape="round" loading={busy === 'create'} disabled={!resumeId} onClick={() => { void create(); }}>{current ? 'Write a new letter' : 'Write a cover letter'}</Button>
         <InlineError error={err} />
+        {all.length > 1 && current && (
+          <label className="jl-row">Letter
+            <Select style={{ minWidth: 280 }} value={current.id} onChange={(id) => { void show(id); }} aria-label="Cover letter to show"
+              options={all.map((l, i) => ({ value: l.id, label: `Letter ${i + 1}, written ${ago(l.createdAt) ?? ''}${l.ready ? '' : ' (not ready)'}` }))} />
+          </label>
+        )}
         {current && (
           <>
             {current.notice && <Alert type="info" showIcon message={current.notice} />}
@@ -184,6 +212,8 @@ export function CoverLetterDrawer({ job, open, onClose }: { job: Job; open: bool
               <Button shape="round" icon={<CopyOutlined />} onClick={() => { void navigator.clipboard?.writeText(text).then(() => ui.message?.success('Copied.')); }}>Copy</Button>
               <Button type="primary" shape="round" icon={<EditOutlined />} disabled={!dirty} loading={busy === 'save'} onClick={() => { void saveText(); }}>Save edits</Button>
               {dirty && <span className="jl-small" style={{ color: 'var(--jl-warn)' }}>Unsaved edits</span>}
+              <span className="jl-grow" />
+              <Button shape="round" danger icon={<DeleteOutlined />} loading={busy === 'delete'} onClick={() => { void remove(); }}>Delete this letter</Button>
             </div>
             <div className="jl-row">
               <Input value={instr} onChange={(e) => setInstr(e.target.value)} placeholder="Ask for a change, for example: make it shorter" aria-label="Change the letter by request" maxLength={2000} onPressEnter={() => { void byRequest(); }} />

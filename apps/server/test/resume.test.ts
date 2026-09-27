@@ -56,3 +56,34 @@ test('a tailoring step publik charged but cut short says what it cost, in dollar
     assert.equal(r.json.error.details.costMicros, 13_600);
   } finally { await s.stop(); await pub.close(); cleanup(s.home); }
 });
+
+test('cover letters are listed in one place and can be deleted; a resume with letters is deleted with them (JL-resume-18, JL-resume-24)', async () => {
+  const s = await startTest('resume-letters');
+  try {
+    assert.equal((await s.call('PUT', '/api/v1/profile', PERSONA)).status, 200);
+    const job = await s.call('POST', '/api/v1/jobs/external', { text: 'Data Analyst at Acme\nCompany: Acme\nSQL and dashboards.', applyUrl: 'https://example.com/a' });
+    const jobId = job.json.job.id as string;
+    const up = await s.call('POST', '/api/v1/resumes/import', PDF, upload);
+    const resumeId = up.json.resume.id as string;
+    const a = await s.call('POST', '/api/v1/cover-letters', { jobId, resumeId });
+    assert.equal(a.status, 200, a.text);
+    const b = await s.call('POST', '/api/v1/cover-letters', { jobId, resumeId });
+    assert.equal(b.status, 200, b.text);
+    const all = await s.call('GET', '/api/v1/cover-letters');
+    assert.equal(all.status, 200, all.text);
+    assert.deepEqual(all.json.map((l: { id: string }) => l.id), [a.json.id, b.json.id]);
+    assert.equal(all.json[0].jobLabel.company, job.json.job.company);
+    assert.equal((await s.call('GET', `/api/v1/cover-letters?jobId=${encodeURIComponent(jobId)}`)).json.length, 2);
+    const del = await s.call('DELETE', `/api/v1/cover-letters/${a.json.id}`);
+    assert.deepEqual(del.json, { deleted: [a.json.id] });
+    assert.equal((await s.call('DELETE', `/api/v1/cover-letters/${a.json.id}`)).status, 404);
+    // The resume still has one letter: the refusal says so in plain words, with no API flag in it.
+    const refused = await s.call('DELETE', `/api/v1/resumes/${resumeId}`);
+    assert.equal(refused.status, 409);
+    assert.match(refused.json.error.message, /^This resume has 1 cover letter\. Nothing was deleted\./);
+    assert.doesNotMatch(refused.json.error.message, /withVersions|0 tailored/);
+    const gone = await s.call('DELETE', `/api/v1/resumes/${resumeId}?withVersions=true`);
+    assert.deepEqual(gone.json.deleted.sort(), [resumeId, b.json.id].sort());
+    assert.equal((await s.call('GET', '/api/v1/cover-letters')).json.length, 0);
+  } finally { await s.stop(); cleanup(s.home); }
+});

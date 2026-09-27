@@ -243,7 +243,8 @@ export const HANDLERS: HandlerTable = {
     return { file: { fileName: f.fileName, mimeType: f.mimeType, bytes: Buffer.from(f.bytes) } };
   },
   atsCheck: async ({ d, params }) => ({ json: await step(() => d.resumes.svc.atsCheck(params.resumeId!)) }),
-  listCoverLetters: ({ d, query }) => { jobOr404(d, query.jobId); return { json: d.resumes.svc.coverLetters(query.jobId) }; },
+  listCoverLetters: ({ d, query }) => { if (query.jobId !== undefined) jobOr404(d, query.jobId); return { json: d.resumes.svc.coverLetters(query.jobId) }; },
+  deleteCoverLetter: ({ d, params }) => step(() => ({ json: { deleted: d.resumes.svc.deleteCoverLetter(params.letterId!) } })),
   createCoverLetter: async ({ d, body }) => { jobOr404(d, body.jobId); return { json: await d.ai.metered(() => step(() => d.resumes.svc.createCoverLetter(body.jobId, body.resumeId))) }; },
   updateCoverLetter: async ({ d, params, body }) => ({ json: await d.ai.metered(() => step(() => d.resumes.svc.updateCoverLetter(params.letterId!, body))) }),
   exportCoverLetter: async ({ d, params, query }) => {
