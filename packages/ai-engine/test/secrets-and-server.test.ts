@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import { encryptedFileSecretStore, keychainSecretStore, WordPieceTokenizer } from '../src/index.ts';
 import { startDevServer } from '../src/serve.ts';
 import { CANARY, makeEngine, use, withModel } from './helpers.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 function allFiles(dir: string): string[] {
   const out: string[] = [];
@@ -16,7 +19,7 @@ function allFiles(dir: string): string[] {
 }
 
 test('encrypted file store: round trip, no plain text on disk, mode 0600', async () => {
-  const dir = mkdtempSync('/private/tmp/jl-secrets-');
+  const dir = mkdtempSync(join(TMP, 'jl-secrets-'));
   try {
     const s = encryptedFileSecretStore(join(dir, 'secrets'));
     assert.equal(await s.get('jobleft.ai.x.key'), null);

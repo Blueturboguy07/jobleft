@@ -6,12 +6,15 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { SynthGenerator } from '../src/index.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 const CLI = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
 const run = (home: string, ...args: string[]) => spawnSync(process.execPath, [CLI, ...args, '--json'], { env: { ...process.env, JOBLEFT_HOME: home, JOBLEFT_OFFLINE: '1' }, encoding: 'utf8' });
 
 test('a force quit in the middle of an import loses nothing that was saved before, and the store opens cleanly', async () => {
-  const home = mkdtempSync('/private/tmp/jobleft-crash-test-');
+  const home = mkdtempSync(join(TMP, 'jobleft-crash-test-'));
   try {
     const g = new SynthGenerator({ seed: 21 });
     const first = join(home, 'first.ndjson');

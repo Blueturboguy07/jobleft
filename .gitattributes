@@ -1,9 +1,12 @@
-# Keep LF everywhere so fixtures and tests behave the same on macOS and Windows CI.
+# Every text file is checked out with LF on every system (Windows runners would otherwise turn fixtures and
+# snapshots into CRLF and break the parsers). Binary kinds are left alone.
 * text=auto eol=lf
+*.pdf binary
+*.docx binary
 *.png binary
 *.icns binary
 *.ico binary
-*.pdf binary
-*.docx binary
+*.gz binary
+*.zip binary
 *.onnx binary
 *.db binary

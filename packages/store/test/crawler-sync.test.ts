@@ -5,6 +5,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { crawl, HttpError, Store, type Ats, type BoardRef, type HttpGetter, type RawJob, type Source } from '@jobleft/crawler';
 import { JobStore, migrate, openDatabase, TrackerStore } from '../src/index.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 const D = 86_400_000;
 const START = Date.parse('2026-09-01T00:00:00Z');
@@ -18,7 +21,7 @@ function raw(id: string, title: string): RawJob {
 }
 
 test('crawler rows mirror into the store: new, unchanged, closed after the grace window, and a failing board closes nothing', async () => {
-  const dir = mkdtempSync('/private/tmp/jobleft-sync-test-');
+  const dir = mkdtempSync(join(TMP, 'jobleft-sync-test-'));
   const path = join(dir, 'jobleft.db');
   const db = openDatabase(path);
   migrate(db);

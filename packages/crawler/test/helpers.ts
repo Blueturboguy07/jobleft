@@ -1,4 +1,4 @@
-// Shared helpers for the end-to-end tests: loopback mock boards (testkit), a store in memory or under /private/tmp,
+// Shared helpers for the end-to-end tests: loopback mock boards (testkit), a store in memory or under the temp folder (/private/tmp on macOS, the system temp folder elsewhere),
 // and one crawl run through the same code path the CLI uses (runOnce).
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -12,6 +12,9 @@ import type { BoardRef } from '../src/types.ts';
 import { queryJobs } from '../src/contract.ts';
 import { startMockBoards } from '../testkit/mock-boards.ts';
 import type { MockBoard, MockJob, MockMode, MockServer } from '../testkit/mock-boards.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 export { startMockBoards };
 export type { MockBoard, MockJob, MockMode, MockServer };
@@ -19,7 +22,7 @@ export type { MockBoard, MockJob, MockMode, MockServer };
 export const TEST_UA = 'jobleft/0.1.2 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
 
 export function tempDir(): { dir: string; cleanup: () => void } {
-  const dir = mkdtempSync('/private/tmp/jobleft-crawler-test-');
+  const dir = mkdtempSync(join(TMP, 'jobleft-crawler-test-'));
   return { dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 

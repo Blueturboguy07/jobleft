@@ -6,6 +6,9 @@ import { mkdtempSync, rmSync, writeFileSync, existsSync, statSync, readFileSync 
 import { join } from 'node:path';
 import { checkModel, ensureModel, type ModelFile } from '../src/index.ts';
 import { WordPieceTokenizer } from '../src/embed/tokenizer.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 function fakeFiles(): { files: ModelFile[]; bytes: Map<string, Buffer> } {
   const bytes = new Map<string, Buffer>();
@@ -37,7 +40,7 @@ test('model download: resumes after a cut, verifies every file, refuses a damage
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
   const port = (server.address() as { port: number }).port;
-  const dir = mkdtempSync('/private/tmp/jobleft-model-test-');
+  const dir = mkdtempSync(join(TMP, 'jobleft-model-test-'));
   const source = { base: `http://127.0.0.1:${port}/`, files };
   try {
     await assert.rejects(ensureModel(dir, source));
@@ -65,7 +68,7 @@ test('model download: resumes after a cut, verifies every file, refuses a damage
     await ensureModel(dir, source);
     assert.equal(statSync(p).mode & 0o077, 0, 'model files are private to the account');
     // Offline with no model: a plain error, no request.
-    const dir2 = mkdtempSync('/private/tmp/jobleft-model-test-');
+    const dir2 = mkdtempSync(join(TMP, 'jobleft-model-test-'));
     const before = log.length;
     await assert.rejects(ensureModel(dir2, source, { offline: true }), /offline/);
     assert.equal(log.length, before);

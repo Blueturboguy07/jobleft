@@ -9,6 +9,9 @@ import { join } from 'node:path';
 import { MatchResultSchema, validate } from '@jobleft/contracts';
 import { startPreview } from '../src/serve.ts';
 import { PERSONA, SWE } from './helpers.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 function call(port: number, path: string, opts: { method?: string; headers?: Record<string, string>; body?: string } = {}): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
@@ -24,7 +27,7 @@ function call(port: number, path: string, opts: { method?: string; headers?: Rec
 }
 
 test('preview: security checks, the endpoint, and skill claims with undo', async () => {
-  const dir = mkdtempSync('/private/tmp/jobleft-match-test-');
+  const dir = mkdtempSync(join(TMP, 'jobleft-match-test-'));
   const lines: string[] = [];
   try {
     mkdirSync(join(dir, 'jobs'));

@@ -5,7 +5,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { formatDollars, nowMs, OUTREACH_STAGE_LABELS, OUTREACH_STAGES, type OutreachStage } from '@jobleft/contracts';
@@ -22,6 +22,8 @@ import { MOCK_MODES, startMockAi, type MockMode } from './dev/mock-ai.ts';
 import { showDesktopNotification } from './dev/notify.ts';
 import { startDevServer } from './dev/server.ts';
 import { StandIn } from './dev/standin.ts';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 // ---------------------------------------------------------------- arguments
 
@@ -617,7 +619,7 @@ function jobs(ctx: Ctx, a: Args): number {
 async function bench(a: Args): Promise<number> {
   const rows = Number(flag(a, 'rows') ?? '30000');
   const jobsN = Number(flag(a, 'jobs') ?? '2000');
-  const home = join('/private/tmp', `jobleft-network-bench-${process.pid}`);
+  const home = join(TMP, `jobleft-network-bench-${process.pid}`);
   rmSync(home, { recursive: true, force: true });
   mkdirSync(home, { recursive: true, mode: 0o700 });
   process.env.JOBLEFT_HOME = home;

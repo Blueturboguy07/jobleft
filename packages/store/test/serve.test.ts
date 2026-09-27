@@ -5,6 +5,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { StoreService } from '../src/service.ts';
 import { serve } from '../src/serve.ts';
 import { job, NOW } from './helpers.ts';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 function call(port: number, method: string, path: string, opts: { token?: string; body?: unknown; host?: string; origin?: string; type?: string } = {}): Promise<{ status: number; body: any }> {
   return new Promise((resolve, reject) => {
@@ -25,7 +29,7 @@ function call(port: number, method: string, path: string, opts: { token?: string
 }
 
 test('the loopback server: routes work with the token; foreign hosts, origins, missing tokens and form posts are refused', async () => {
-  const home = mkdtempSync('/private/tmp/jobleft-serve-test-');
+  const home = mkdtempSync(join(TMP, 'jobleft-serve-test-'));
   const svc = new StoreService(home, { offline: true });
   svc.jobs.upsertJobs([job({ id: 's:1', title: 'Payroll Specialist' }), job({ id: 's:2', title: 'Nurse' })], { now: NOW });
   const srv = await serve(svc, { port: 0, token: 'test-token-123', download: false, quiet: true });

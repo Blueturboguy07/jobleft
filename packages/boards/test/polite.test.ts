@@ -5,10 +5,13 @@ import { join } from 'node:path';
 import { USER_AGENT } from '@jobleft/crawler';
 import { SqlitePacer, createBoardHttp } from '../src/index.ts';
 import { startMockHosts } from '../scripts/mock-hosts.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 test('two clients with separate pacers on one database still space requests to a host', async () => {
   const mock = await startMockHosts({ boards: { 'greenhouse:acme': { name: 'Acme', jobs: 1 } } });
-  const dir = mkdtempSync(join('/private/tmp', 'jl-boards-pacer-'));
+  const dir = mkdtempSync(join(TMP, 'jl-boards-pacer-'));
   const db = join(dir, 'p.db');
   const p1 = new SqlitePacer(db, 300), p2 = new SqlitePacer(db, 300);
   try {
@@ -28,7 +31,7 @@ test('a host that answers 429 with Retry-After gets no request before that time;
     robots: { 'careers.mock.example': 'User-agent: *\nDisallow: /private' },
     pages: { '/private/jobs.html': '<a href="https://boards.greenhouse.io/x">x</a>' },
   });
-  const dir = mkdtempSync(join('/private/tmp', 'jl-boards-pacer-'));
+  const dir = mkdtempSync(join(TMP, 'jl-boards-pacer-'));
   const pacer = new SqlitePacer(join(dir, 'p.db'), 100);
   try {
     const http = createBoardHttp({ pacer, hostMap: mock.hostMap });
@@ -66,7 +69,7 @@ test('robots.txt is read once for several clients sharing one database, and its 
     boards: { 'greenhouse:acme': { name: 'Acme', jobs: 1 } },
     robots: { 'boards-api.greenhouse.io': 'User-agent: *\nDisallow: /v1/boards/secret' },
   });
-  const dir = mkdtempSync(join('/private/tmp', 'jl-boards-pacer-'));
+  const dir = mkdtempSync(join(TMP, 'jl-boards-pacer-'));
   const pacer = new SqlitePacer(join(dir, 'p.db'), 50);
   try {
     for (let i = 0; i < 3; i++) {

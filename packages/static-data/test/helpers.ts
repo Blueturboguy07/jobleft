@@ -1,11 +1,14 @@
-// Test helpers: a tiny zip writer (to make synthetic .xlsx files) and temporary folders under /private/tmp.
+// Test helpers: a tiny zip writer (to make synthetic .xlsx files) and temporary folders under the temp folder (/private/tmp on macOS, the system temp folder elsewhere).
 
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { crc32, deflateRawSync } from 'node:zlib';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 export function tempDir(prefix = 'jl-sd-'): { dir: string; done: () => void } {
-  const dir = mkdtempSync(join('/private/tmp', prefix));
+  const dir = mkdtempSync(join(TMP, prefix));
   return { dir, done: () => rmSync(dir, { recursive: true, force: true }) };
 }
 

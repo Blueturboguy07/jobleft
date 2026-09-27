@@ -6,6 +6,9 @@ import { request } from 'node:http';
 import { openBoardsApp } from '../src/app.ts';
 import { startDevServer } from '../src/server.ts';
 import { startMockHosts } from '../scripts/mock-hosts.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 function call(port: number, method: string, path: string, opts: { token?: string; body?: unknown; headers?: Record<string, string> } = {}): Promise<{ status: number; json: any; text: string }> {
   return new Promise((resolve, reject) => {
@@ -27,7 +30,7 @@ function call(port: number, method: string, path: string, opts: { token?: string
 
 test('the development server keeps the local API rules and serves the board routes', async () => {
   const mock = await startMockHosts({ boards: { 'greenhouse:acme': { name: 'Acme', jobs: 2 } } });
-  const home = mkdtempSync(join('/private/tmp', 'jl-srv-'));
+  const home = mkdtempSync(join(TMP, 'jl-srv-'));
   const app = openBoardsApp({ env: { JOBLEFT_HOME: home, JOBLEFT_HOST_MAP: JSON.stringify(mock.hostMap), JOBLEFT_BOARD_DIRECTORY: 'none' } });
   const srv = await startDevServer(app, { token: 't0ken' });
   const p = srv.port;

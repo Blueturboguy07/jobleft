@@ -10,6 +10,9 @@ import { parseCdx, slugsFromCdx } from '../src/commoncrawl.ts';
 import { BusyPacer, createBoardHttp, DIRECTORY_FORMAT } from '../src/index.ts';
 import { refreshDirectory } from '../src/refresh.ts';
 import { startMockHosts } from '../scripts/mock-hosts.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = join(HERE, '..', 'scripts', 'cc-discover.ts');
@@ -22,7 +25,7 @@ test('CDX answers: board tokens only, 200 answers only, cut-off lines skipped', 
 });
 
 test('replay of recorded-format answers works offline', () => {
-  const dir = mkdtempSync(join('/private/tmp', 'jl-cc-'));
+  const dir = mkdtempSync(join(TMP, 'jl-cc-'));
   try {
     const out = join(dir, 'd.json');
     execFileSync(process.execPath, [SCRIPT, '--crawl', 'CC-MAIN-2026-39', '--host', 'job-boards.greenhouse.io', '--host', 'jobs.ashbyhq.com',

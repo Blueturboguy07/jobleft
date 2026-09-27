@@ -1,4 +1,4 @@
-// Test helpers: a scratch data folder under /private/tmp, a server started in this process (memory secrets), a
+// Test helpers: a scratch data folder under the temp folder (/private/tmp on macOS, the system temp folder elsewhere), a server started in this process (memory secrets), a
 // server started as a child process (for kill -9 and parent-pid tests), and a small HTTP client that can send any
 // header (fetch() refuses to set Host and Origin).
 
@@ -8,12 +8,15 @@ import { request } from 'node:http';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { memorySecrets, newLaunchToken, startServer, type RunningServer } from '../src/index.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 export const MAIN = fileURLToPath(new URL('../src/main.ts', import.meta.url));
 export const CLI = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
 
 export function scratchHome(tag: string): string {
-  return mkdtempSync(join('/private/tmp', `jl-test-${tag}-`));
+  return mkdtempSync(join(TMP, `jl-test-${tag}-`));
 }
 
 export interface Reply { status: number; headers: Record<string, string | string[] | undefined>; text: string; json: any; body: Buffer }

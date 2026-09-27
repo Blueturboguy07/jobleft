@@ -9,6 +9,9 @@ import { allSources } from '../src/registry.ts';
 import { politeFetch } from '../src/polite-fetch.ts';
 import { startStandin } from '../src/standin.ts';
 import type { Standin } from '../src/standin.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 export const HERE = dirname(fileURLToPath(import.meta.url));
 export const FIXTURES = join(HERE, 'fixtures');
@@ -18,7 +21,7 @@ export function fixture(rel: string): string { return readFileSync(join(FIXTURES
 export function fixtureJson(rel: string): unknown { return JSON.parse(fixture(rel)); }
 
 export function tmp(prefix = 'jobleft-sats-'): { dir: string; done: () => void } {
-  const dir = mkdtempSync(join('/private/tmp', prefix));
+  const dir = mkdtempSync(join(TMP, prefix));
   return { dir, done: () => rmSync(dir, { recursive: true, force: true }) };
 }
 

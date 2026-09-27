@@ -5,6 +5,9 @@ import type { DirectoryRow } from '@jobleft/static-data';
 import { BoardDirectory, BoardService, BusyPacer, CrawlScheduler, boardSources, createBoardHttp } from '../src/index.ts';
 import type { PaidPageFetcher } from '../src/index.ts';
 import { startMockHosts, type MockConfig, type MockHosts } from '../scripts/mock-hosts.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 export interface Rig {
   mock: MockHosts;
@@ -24,7 +27,7 @@ export async function rig(config: MockConfig, opts: {
   fetchImpl?: typeof fetch;
 } = {}): Promise<Rig> {
   const mock = await startMockHosts(config);
-  const dir = mkdtempSync(join('/private/tmp', 'jl-boards-test-'));
+  const dir = mkdtempSync(join(TMP, 'jl-boards-test-'));
   const store = new Store(join(dir, 'jobleft.db'));
   const pacer = new BusyPacer(opts.intervalMs ?? 0);
   const clock = { now: Date.parse('2026-09-25T12:00:00Z') };

@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url';
 import type { Job, Profile } from '@jobleft/contracts';
 import { jobFromText } from '../src/cli/store.ts';
 import { JORDAN } from './fixtures/src/persona.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 export const FIX = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 export const read = (name: string) => new Uint8Array(readFileSync(join(FIX, name)));
@@ -42,6 +45,6 @@ export const J_GAP = () => fixtureJob('j-gap.txt', 'Senior Platform Engineer', '
 export const J_INJECT = () => fixtureJob('j-inject.txt', 'Senior Platform Engineer', 'Acme Health, Inc.', 'Seattle, WA');
 
 export function tempDir(prefix: string): { dir: string; done: () => void } {
-  const dir = mkdtempSync(`/private/tmp/${prefix}-`);
+  const dir = mkdtempSync(join(TMP, `${prefix}-`));
   return { dir, done: () => rmSync(dir, { recursive: true, force: true }) };
 }

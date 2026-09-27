@@ -55,7 +55,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Tests on Windows
-        run: pnpm -r --if-present test
+        run: pnpm -r --if-present --stream test
 
       - name: Build the UI
         run: pnpm --filter @jobleft/ui build

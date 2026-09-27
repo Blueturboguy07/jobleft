@@ -5,11 +5,14 @@ import type { Job, NetworkContact } from '@jobleft/contracts';
 import { interimCompanyKey } from '../src/company.ts';
 import { openNetworkDatabase } from '../src/db.ts';
 import { NetworkService } from '../src/service.ts';
+import { tmpdir } from 'node:os';
+// Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
+const TMP = process.platform === 'darwin' ? '/private/tmp' : tmpdir();
 
 export const NOW = Date.parse('2026-09-25T15:00:00Z');
 
 export function tempHome(): { dir: string; done: () => void } {
-  const dir = mkdtempSync('/private/tmp/jobleft-network-test-');
+  const dir = mkdtempSync(join(TMP, 'jobleft-network-test-'));
   return { dir, done: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
