@@ -83,7 +83,12 @@ export class TrackerService {
         // already set is kept; moving back to "not applied" clears it (the status history still shows both), while
         // its notes and reminders stay (JL-v2-4).
         if (p.status !== null && !appliedOf(r)) { set.push('applied_at = ?'); args.push(now); }
-        if (p.status === null) set.push('applied_at = NULL');
+        if (p.status === null) {
+          set.push('applied_at = NULL');
+          // Back to "not applied" on a job the person never liked: it moves to the "Not applied yet" column (the one
+          // the person chose) instead of leaving the board (JL-tracker-6); a hidden job stays hidden.
+          if (r.liked !== 1 && r.hidden !== 1 && p.liked === undefined) { set.push('liked = 1'); }
+        }
         this.db.prepare('INSERT INTO srv_tracker_history (job_id, status, at) VALUES (?, ?, ?)').run(jobId, p.status, now);
       }
       this.db.prepare(`UPDATE srv_tracker SET ${set.join(', ')} WHERE job_id = ?`).run(...args, jobId);
@@ -131,7 +136,9 @@ export class TrackerService {
       // Anything the person did keeps a job in the tracker: a like, a status, an applied date, a note or a reminder.
       // (Unliking a job, or setting it back to "not applied", must never make its notes and reminders vanish.) "Not
       // interested" alone is not tracking, and neither is the old applied date of a job set back to "not applied".
-      const kept = r.liked === 1 || r.status !== null || appliedOf(r) !== null || Number(r.has_notes) === 1 || Number(r.has_reminders) === 1;
+      const marks = r.status !== null || appliedOf(r) !== null || Number(r.has_notes) === 1 || Number(r.has_reminders) === 1;
+      // A hidden ("Not interested") job is on the board only for its own notes, reminders or stage, never for a like.
+      const kept = r.hidden === 1 ? marks : r.liked === 1 || marks;
       const tracked = kept || r.external === 1;
       const closed = tracked && job?.status === 'closed';
       if (r.liked === 1) counts.liked++;
