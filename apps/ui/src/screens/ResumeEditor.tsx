@@ -228,6 +228,9 @@ export function ResumeEditor({ id }: { id: string }) {
             <h2 style={{ fontSize: 30, fontWeight: 700 }}>{doc.header.name || 'Your name'}</h2>
             <p className="jl-muted">{[doc.header.email, doc.header.phone, doc.header.city, ...doc.header.links.map((l) => l.url)].filter(Boolean).join(' · ') || 'No contact details yet'}</p>
             <p className="jl-small jl-muted">The header comes from your profile, character for character. <a href="#/profile">Edit it in your profile</a>.</p>
+            {res.kind === 'base' && <p className="jl-small jl-muted">{res.file
+              ? `Made from your file ${res.file.fileName}. The rest is yours: a profile change never rewrites it.`
+              : 'Made from your profile. Until you save a change here it shows your latest profile facts; once you save one, it stays as you wrote it.'}</p>}
           </header>
           {doc.sections.map((s, i) => (
             <section key={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }} aria-label={s.title || 'Section'}>
