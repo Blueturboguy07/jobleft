@@ -87,3 +87,17 @@ test('cover letters are listed in one place and can be deleted; a resume with le
     assert.equal((await s.call('GET', '/api/v1/cover-letters')).json.length, 0);
   } finally { await s.stop(); cleanup(s.home); }
 });
+
+test('an oversized upload always gets the plain 413, never a reset connection (JL-resume-26)', async () => {
+  const { raw } = await import('./helpers.ts');
+  const s = await startTest('resume-big');
+  try {
+    for (const mb of [11, 11, 11, 20, 50, 50]) {
+      const body = Buffer.concat([PDF, Buffer.alloc(mb * 1_048_576, 0x20)]);
+      const r = await raw(s.port, { method: 'POST', path: '/api/v1/resumes/import', headers: { 'x-jobleft-token': s.token, 'content-type': 'application/pdf', 'x-jobleft-filename': 'big.pdf' }, body });
+      assert.equal(r.status, 413, `${mb} MB`);
+      assert.match(r.json.error.message, /larger than the 10 MB this request allows\. Nothing was stored\./);
+    }
+    assert.equal((await s.call('GET', '/api/v1/resumes')).json.length, 0);
+  } finally { await s.stop(); cleanup(s.home); }
+});
