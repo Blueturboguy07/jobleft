@@ -7,6 +7,7 @@
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { closeSync, fsyncSync, openSync, readFileSync, statSync, unlinkSync, writeSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 export interface LockHolder {
   pid: number;
@@ -31,19 +32,7 @@ export function isAlive(pid: number): boolean {
 
 /** Elapsed seconds of a process from `ps -o etime=` ([[dd-]hh:]mm:ss), or null when unknown. */
 function processAgeSeconds(pid: number): number | null {
-  if (process.platform === 'win32') {
-    // No ps on Windows: PowerShell reports the process start time (only consulted when a lock file exists, so its
-    // cold start, up to ten seconds on a fresh machine, is paid rarely). stdin is closed on purpose: PowerShell waits
-    // on an open pipe. The answer is an integer (ms since the epoch).
-    try {
-      const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', `([DateTimeOffset](Get-Process -Id ${pid}).StartTime).ToUnixTimeMilliseconds()`], { encoding: 'utf8', timeout: 30000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-      const start = Number.parseInt(out, 10);
-      if (!Number.isFinite(start) || start <= 0) return null;
-      return Math.max(0, Math.round((Date.now() - start) / 1000));
-    } catch {
-      return null;
-    }
-  }
+  if (process.platform === 'win32') return null; // no ps here: holderAlive() reads the run file instead
   try {
     const out = execFileSync('/bin/ps', ['-o', 'etime=', '-p', String(pid)], { encoding: 'utf8', timeout: 3000, env: { LC_ALL: 'C', PATH: '/usr/bin:/bin' } }).trim();
     const m = /^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+)$/.exec(out);
@@ -63,13 +52,26 @@ function readHolder(file: string): LockHolder | null {
 }
 
 /** True when the process that wrote the lock still runs (same pid AND same start time). */
-export function holderAlive(h: LockHolder): boolean {
+export function holderAlive(h: LockHolder, lockFile?: string): boolean {
   if (h.pid === process.pid) return false;
   if (!isAlive(h.pid)) return false;
   const age = processAgeSeconds(h.pid);
-  if (age === null) return true; // cannot tell: be safe, treat as alive
-  const start = Date.now() - age * 1000;
-  return Math.abs(start - h.procStart) < 5000;
+  if (age !== null) {
+    const start = Date.now() - age * 1000;
+    return Math.abs(start - h.procStart) < 5000;
+  }
+  // No process start time on this system (Windows). A live jobleft writes run/server.json with its pid right after
+  // it listens; a pid that another program reused never does. A server that is still starting gets a few seconds.
+  if (!lockFile) return true; // cannot tell: be safe, treat as alive
+  const runFile = join(dirname(lockFile), 'server.json');
+  for (let i = 0; i < 20; i++) {
+    try {
+      const j = JSON.parse(readFileSync(runFile, 'utf8')) as { pid?: unknown };
+      if (j.pid === h.pid) return true;
+    } catch { /* not written yet, or not ours */ }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+  }
+  return false;
 }
 
 function tryCreate(file: string, h: LockHolder): boolean {
@@ -102,7 +104,7 @@ export function acquireLock(file: string): LockResult {
       };
     }
     const holder = readHolder(file);
-    if (holder && holderAlive(holder)) return { ok: false, holder };
+    if (holder && holderAlive(holder, file)) return { ok: false, holder };
     if (!holder) {
       // Unreadable content: a writer may be half-way. Give a young file a moment, then treat it as stale.
       try { if (Date.now() - statSync(file).mtimeMs < 2000) return { ok: false, holder: null }; } catch { continue; }
