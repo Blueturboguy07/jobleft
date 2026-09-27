@@ -89,6 +89,8 @@ export type { MatchConfig, MatchConfigInput } from './config.ts';
 export type { FullMatchResult, MatchExtras, MustHave, DealBreakerCheck, SkillCheck, ExperienceDetail, JobFactView, Part } from './score.ts';
 export { matchSkillDictionary };
 export { taxonomyStats } from './taxonomy.ts';
+// The kind of work a job title names (occupation families), for job-function filters outside this package.
+export { FAMILIES, familyLabel, familyOfTitle, type TitleFamily } from './taxonomy.ts';
 export { bucketOf, bandCounts, rankTopMatched, type Bucket, type RankedItem } from './rank.ts';
 export { cardText, detailText } from './views.ts';
 export { narrativeBrief, checkNarrative, AI_TEXT_LABEL, type NarrativeBrief, type NarrativeIssue } from './narrative.ts';

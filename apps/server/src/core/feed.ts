@@ -20,7 +20,7 @@ import { ENGINE_VERSION, scoreMatch, summarize } from '@jobleft/match';
 import { h1bTagFor, type H1bIndex, type H1bLookupDetail, type H1bTag } from '@jobleft/static-data';
 import { ApiFailure } from '../errors.ts';
 import { companyKey } from '../interim/company-key.ts';
-import { contractJobId, toSummary, type CandidateRow, type JobsService, type SearchDeps } from '../interim/jobs.ts';
+import { contractJobId, familiesOfFunction, titleFamily, toSummary, type CandidateRow, type JobsService, type SearchDeps } from '../interim/jobs.ts';
 
 // ---------------------------------------------------------------- preferences
 
@@ -94,7 +94,7 @@ function titleWordsRaw(text: string): string[] {
   });
 }
 
-interface Target { label: string; words: string[]; weight: number }
+interface Target { label: string; words: string[]; weight: number; /** A job function's kinds of work: a title of one of them fits in full. */ families?: string[] }
 
 // Words that name a kind of role in many fields ("engineer", "manager"). They count half, so the distinctive word of a
 // target ("backend", "registered") decides the match.
@@ -123,7 +123,8 @@ export function prefModel(p: Profile): PrefModel {
     const all = titleWords(t);
     for (const w of all) if (LEVEL_OF_WORD[w] && pr.levels.length === 0) levels.add(LEVEL_OF_WORD[w]!);
     const words = [...new Set(all.filter((w) => !LEVEL_WORDS.has(w) && !STOP.has(w)))];
-    if (words.length) targets.push({ label: t.trim(), words, weight });
+    const families = weight < 1 ? familiesOfFunction(t) : null;
+    if (words.length) targets.push({ label: t.trim(), words, weight, ...(families ? { families } : {}) });
   }
   const states = new Set<string>();
   const labels: string[] = [];
@@ -154,7 +155,7 @@ export function scoreRow(m: PrefModel, r: CandidateRow): Scored {
     let full = false;
     for (const t of m.targets) {
       const total = t.words.reduce((a, w) => a + wordWeight(w), 0);
-      const frac = t.words.filter((w) => have.has(w)).reduce((a, w) => a + wordWeight(w), 0) / total;
+      const frac = t.families?.includes(titleFamily(r.title)) ? 1 : t.words.filter((w) => have.has(w)).reduce((a, w) => a + wordWeight(w), 0) / total;
       const hit = frac * t.weight;
       if (hit > title) { title = hit; bestLabel = t.label; full = frac >= 0.999; }
     }

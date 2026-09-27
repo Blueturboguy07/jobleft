@@ -135,3 +135,24 @@ test('JL-feed-7: role type uses the stated level; industry and company stage (no
   assert.equal((await all({ sort: 'most_recent', filter: { industries: ['Software'] } })).total, 0);
   assert.equal((await all({ sort: 'most_recent', filter: { companyStages: ['public'] } })).total, 0);
 });
+
+test('JL-feed-8 / JL-onboarding-28: a job function matches titles that name that kind of work, not only its literal words', async () => {
+  const { familiesOfFunction, titleFamily } = await import('../src/interim/jobs.ts');
+  const inFn = (fn: string, title: string) => (familiesOfFunction(fn) ?? []).includes(titleFamily(title));
+  for (const t of ['Software Engineer', 'Backend Developer', 'SWE II', 'Senior Frontend Engineer, Payments', 'Site Reliability Engineer', 'Full Stack Developer']) {
+    assert.ok(inFn('Software Engineering', t), `${t} is Software Engineering`);
+  }
+  for (const t of ['Data Analyst', 'Senior Data Scientist', 'Analytics Engineer', 'Business Analyst']) assert.ok(inFn('Data & Analytics', t), t);
+  for (const t of ['Registered Nurse', 'Charge Nurse - ICU']) assert.ok(inFn('Nursing', t), t);
+  for (const t of ['Staff Accountant', 'Financial Analyst', 'Payroll Specialist']) assert.ok(inFn('Accounting & Finance', t), t);
+  assert.ok(!inFn('Product', 'Senior Staff Product Designer'), 'a product designer is Design, not Product');
+  assert.ok(inFn('Design', 'Senior Staff Product Designer'));
+  assert.equal(familiesOfFunction('Underwater basket weaving'), null, 'free words stay words');
+  // Through the search: the analyst titles of both boards, none of the cooks.
+  const r = await all({ sort: 'most_recent', filter: { jobFunctions: ['Data & Analytics'] } }, 100);
+  assert.equal(r.total, 13);
+  assert.ok(r.items.every((it) => /Data Analyst/.test(it.job.title)));
+  assert.equal((await all({ sort: 'most_recent', filter: { jobFunctions: ['Software Engineering'] } })).total, 0);
+  // Free words: "cook" is not a listed field, so the title must contain it.
+  assert.deepEqual((await all({ sort: 'most_recent', filter: { jobFunctions: ['cook'] } }, 100)).items.map((it) => it.job.title).sort(), ['Line Cook', 'Prep Cook']);
+});

@@ -14,7 +14,7 @@ import { getFeed, profileIsSet, setFeed, useCrawl, useFeed, useProfile, useTrack
 import { JobCard, type CardItem } from '../../components/JobCard.tsx';
 import { EmptyState, ErrorState, InlineError, SkeletonCards } from '../../components/States.tsx';
 import { VirtualList } from '../../components/VirtualList.tsx';
-import { activeCount, filterFromProfile } from '../../lib/filters.ts';
+import { activeCount, filterFromProfile, noDataFilters, withoutNoDataFilters } from '../../lib/filters.ts';
 import { plural } from '../../lib/format.ts';
 import { AllFiltersDrawer } from './AllFilters.tsx';
 import { useCardActions } from './cardActions.tsx';
@@ -194,6 +194,11 @@ export function Feed() {
             {st.loading && st.items.length > 0 && <span className="jl-muted">Updating…</span>}
             {feed.q.trim() && <Button size="small" type="link" onClick={() => setFeed({ q: '' })}>Clear words</Button>}
           </div>
+          {noDataFilters(feed.filter).length > 0 && (
+            <Alert type="warning" showIcon style={{ marginBottom: 8 }}
+              message={`These filters ask for ${noDataFilters(feed.filter).join(', ')}, which jobleft does not know for any company yet, so they cannot pick jobs.`}
+              action={<Button size="small" onClick={() => onFilter(withoutNoDataFilters(feed.filter))}>Remove them</Button>} />
+          )}
           {indexing > 0 && (
             <Alert type="info" showIcon style={{ marginBottom: 8 }}
               message={`jobleft is still scoring ${plural(indexing, 'job')} for you. They are listed after the scored jobs until their score is ready; the order updates by itself.`}

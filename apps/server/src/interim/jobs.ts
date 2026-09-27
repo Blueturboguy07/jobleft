@@ -15,6 +15,7 @@ import {
 } from '@jobleft/contracts';
 import { makeJobId } from '@jobleft/store';
 import { canonicalizeUrl } from '@jobleft/crawler';
+import { FAMILIES, familyOfTitle } from '@jobleft/match';
 import { ApiFailure } from '../errors.ts';
 import { companyKey } from './company-key.ts';
 
@@ -81,6 +82,46 @@ const ROLE_LEVELS: Record<'ic' | 'manager', string[]> = {
   manager: ['manager', 'director', 'vp', 'exec'],
   ic: ['intern', 'entry', 'mid', 'senior', 'staff', 'principal'],
 };
+
+/**
+ * Job functions (the onboarding and filter choices) as kinds of work in the match lane's title taxonomy (JL-feed-8,
+ * JL-onboarding-28): "Software Engineering" is every title that names software work ("Backend Developer", "SWE II",
+ * "Site Reliability Engineer"), not only titles with those two words. A family's own label or id works too.
+ */
+const FUNCTION_FAMILIES: Record<string, string[]> = {
+  'software engineering': ['software'], 'software': ['software'], 'engineering': ['software', 'engineering'],
+  'data and analytics': ['data', 'business_analysis'], 'data': ['data', 'business_analysis'], 'analytics': ['data', 'business_analysis'],
+  'product': ['product'], 'product management': ['product'], 'design': ['design'],
+  'nursing': ['nursing'], 'healthcare': ['nursing', 'health_support', 'health_clinical', 'health_admin'],
+  'health care': ['nursing', 'health_support', 'health_clinical', 'health_admin'],
+  'accounting and finance': ['accounting', 'finance', 'payroll'], 'accounting': ['accounting', 'payroll'], 'finance': ['finance', 'accounting'],
+  'marketing': ['marketing'], 'sales': ['sales', 'sales_eng'], 'customer success': ['support'], 'customer service': ['support'],
+  'operations': ['operations', 'logistics'], 'human resources': ['hr', 'payroll'], 'hr': ['hr', 'payroll'], 'legal': ['legal'],
+  'education': ['teaching', 'childcare', 'training'], 'teaching': ['teaching'],
+};
+const functionKey = (s: string) => s.toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+const FAMILY_BY_NAME = new Map<string, string>();
+for (const [id, f] of FAMILIES) { FAMILY_BY_NAME.set(functionKey(id), id); FAMILY_BY_NAME.set(functionKey(f.label), id); }
+
+/** The title families a job function stands for, or null when it names none (then its words must be in the title). */
+export function familiesOfFunction(fn: string): string[] | null {
+  const k = functionKey(fn);
+  if (FUNCTION_FAMILIES[k]) return FUNCTION_FAMILIES[k]!;
+  const one = FAMILY_BY_NAME.get(k);
+  return one ? [one] : null;
+}
+
+const familyMemo = new Map<string, string>();
+/** The kind of work a title names ('' when the taxonomy cannot tell). */
+export function titleFamily(title: string): string {
+  let f = familyMemo.get(title);
+  if (f === undefined) {
+    try { f = familyOfTitle(title)?.family ?? ''; } catch { f = ''; }
+    if (familyMemo.size > 200_000) familyMemo.clear();
+    familyMemo.set(title, f);
+  }
+  return f;
+}
 
 /** The link of a pasted job with no link: a reserved name that never resolves (RFC 2606). The UI shows "no link". */
 export const NO_LINK_HOST = 'jobleft.invalid';
@@ -242,6 +283,7 @@ export class JobsService {
   constructor(db: DatabaseSync) {
     this.db = db;
     db.function('jl_company_key', { deterministic: true }, (s: unknown) => companyKey(String(s ?? '')));
+    db.function('jl_title_family', { deterministic: true }, (s: unknown) => titleFamily(String(s ?? '')));
     this.ensureIndexes();
   }
 
@@ -432,8 +474,14 @@ export class JobsService {
     }
     for (const t of filter.excludedTitles ?? []) { where.push('instr(lower(x.title), ?) = 0'); args.push(t.toLowerCase()); }
     if (filter.jobFunctions?.length) {
-      where.push(`(${filter.jobFunctions.map(() => 'instr(lower(x.title), ?) > 0').join(' OR ')})`);
-      args.push(...filter.jobFunctions.map((f) => f.toLowerCase()));
+      // A listed field matches every title that names that kind of work; other typed words must be in the title.
+      const parts: string[] = [];
+      for (const f of filter.jobFunctions) {
+        const fams = familiesOfFunction(f);
+        if (fams) { parts.push(`jl_title_family(x.title) IN (${fams.map(() => '?').join(',')})`); args.push(...fams); }
+        else { parts.push('instr(lower(x.title), ?) > 0'); args.push(f.toLowerCase()); }
+      }
+      where.push(`(${parts.join(' OR ')})`);
     }
     for (const sk of filter.skills ?? []) {
       const m = fts(sk);

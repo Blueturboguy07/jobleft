@@ -103,6 +103,24 @@ export function suggestName(f: JobFilter): string {
   return (parts.join(', ') || 'My filter').slice(0, 120);
 }
 
+/**
+ * Filters on facts this build has for no job (company industry, stage, staffing agency). They can only match nothing
+ * (or, for an exclusion, change nothing), so the screens do not offer them; an older saved filter may still hold them.
+ */
+export function noDataFilters(f: JobFilter): string[] {
+  const out: string[] = [];
+  if (f.industries?.length) out.push('industry');
+  if (f.excludedIndustries?.length) out.push('industries to leave out');
+  if (f.companyStages?.length) out.push('company stage');
+  if (f.excludeStaffingAgencies) out.push('staffing agencies');
+  return out;
+}
+
+export function withoutNoDataFilters(f: JobFilter): JobFilter {
+  const { industries: _i, excludedIndustries: _e, companyStages: _c, excludeStaffingAgencies: _s, ...rest } = f;
+  return cleanFilter(rest);
+}
+
 /** The starting filter from the profile's preferences. */
 export function filterFromProfile(p: Profile | null | undefined): JobFilter {
   if (!p) return {};

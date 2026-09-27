@@ -32,3 +32,11 @@ test('an Apply changes and clears only its own fields and its own "include unkno
   // Reset of one popover leaves the others.
   assert.ok(sameFilter(resetSection({ countries: ['US'], postedWithin: '24h', includeUnknown: ['postedAt', 'place'] }, 'posted'), { countries: ['US'], includeUnknown: ['place'] }));
 });
+
+test('JL-feed-7: filters on facts no job has (industry, company stage, staffing agency) are named and can be removed', async () => {
+  const { noDataFilters, withoutNoDataFilters } = await import('../src/lib/filters.ts');
+  const f: JobFilter = { countries: ['US'], industries: ['Health Care'], companyStages: ['public'], excludeStaffingAgencies: true };
+  assert.deepEqual(noDataFilters(f), ['industry', 'company stage', 'staffing agencies']);
+  assert.ok(sameFilter(withoutNoDataFilters(f), { countries: ['US'] }));
+  assert.deepEqual(noDataFilters({ countries: ['US'] }), []);
+});

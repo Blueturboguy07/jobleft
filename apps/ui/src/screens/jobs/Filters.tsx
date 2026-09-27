@@ -9,7 +9,7 @@ import { DownOutlined, QuestionCircleOutlined, CloseOutlined, FilterOutlined, Sa
 import type { JobFilter, JobSort, PlaceQuery } from '@jobleft/contracts';
 import {
   COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, activeCount, applySection, cleanFilter,
-  countryLabel, functionLabel, industryLabel, levelLabel, modelLabel, payLabel, postedLabel, resetSection, sameFilter, toggle, typeLabel, withUnknown, yearsLabel,
+  countryLabel, functionLabel, levelLabel, modelLabel, payLabel, postedLabel, resetSection, sameFilter, toggle, typeLabel, withUnknown, yearsLabel,
   type FilterSection,
 } from '../../lib/filters.ts';
 import { call } from '../../app/api.ts';
@@ -149,7 +149,7 @@ function FilterButton({ section, label, filter, onApply }: { section: Section; l
       body = (<>
         <Select mode="tags" value={draft.jobFunctions ?? []} onChange={(v) => set({ jobFunctions: v })} options={JOB_FUNCTION_SUGGESTIONS.map((x) => ({ value: x, label: x }))}
           placeholder="Pick or type a job function" aria-label="Job functions" style={{ width: '100%' }} />
-        <p className="jl-note">A job matches when its field is one of these, or its title contains the words you type.</p>
+        <p className="jl-note">A job matches when its title names work in one of these fields (a Backend Developer is Software Engineering). A title jobleft cannot place in a field is left out. Words you type that are not a listed field must be in the title.</p>
       </>);
       break;
     case 'level':
@@ -270,7 +270,6 @@ export function FilterBar({ filter, sort, onFilter, onSort, onAllFilters, hidden
         <FilterButton section="type" label={typeLabel(filter)} filter={filter} onApply={onFilter} />
         <FilterButton section="model" label={modelLabel(filter)} filter={filter} onApply={onFilter} />
         <FilterButton section="posted" label={postedLabel(filter)} filter={filter} onApply={onFilter} />
-        <FilterButton section="industry" label={industryLabel(filter)} filter={filter} onApply={onFilter} />
         <span style={{ marginLeft: 'auto' }} />
         <SortControl sort={sort} onChange={onSort} needsProfile={needsProfile} />
       </div>
