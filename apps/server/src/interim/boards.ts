@@ -61,6 +61,8 @@ export class BoardsService {
   private stopped = false;
   /** When the last refresh attempt found no network (i-core O13), or null. */
   private offlineAt: string | null = null;
+  /** Employer names a board resolve read from the board itself, by board id (used when the person adds it). */
+  private readonly knownNames = new Map<string, string>();
 
   constructor(o: CrawlOptions) { this.o = o; }
 
@@ -101,6 +103,7 @@ export class BoardsService {
     let items = rows.map((r) => this.toEntry(r));
     const view = q.view ?? 'all';
     if (view === 'followed') items = items.filter((e) => e.followed);
+    else if (view === 'user') items = items.filter((e) => e.origin === 'user'); // "Added by you" (JL-settings-13)
     else if (view === 'hidden') items = items.filter((e) => e.hidden);
     else if (view === 'disabled') items = items.filter((e) => e.disabled);
     else if (view === 'failing') items = items.filter((e) => e.state === 'failing' || e.state === 'cooldown');
@@ -109,6 +112,13 @@ export class BoardsService {
     const limit = q.limit ?? 50;
     const page = items.slice(start, start + limit);
     return { items: page, total, nextCursor: start + limit < total ? String(start + limit) : null };
+  }
+
+  /** Remembers the employer name a board resolve found (never a guess), so an added board shows it at once. */
+  rememberName(id: string, company: string): void {
+    if (!company.trim()) return;
+    this.knownNames.set(id.toLowerCase(), company.trim().slice(0, 200));
+    if (this.knownNames.size > 500) this.knownNames.delete(this.knownNames.keys().next().value!);
   }
 
   add(input: { ats: CrawlAtsId; board: string; region?: string }): BoardEntry {
@@ -122,7 +132,7 @@ export class BoardsService {
     tx(this.o.db, () => {
       if (this.o.db.prepare('SELECT 1 FROM srv_boards WHERE id = ?').get(id)) throw new ApiFailure('conflict', 'That board is already in your list.');
       this.o.db.prepare('INSERT INTO srv_boards (id, ats, board, region, company, followed, hidden, disabled, added_at) VALUES (?, ?, ?, ?, ?, 1, 0, 0, ?)')
-        .run(id, input.ats, board, region, board, nowIso());
+        .run(id, input.ats, board, region, this.knownNames.get(id) ?? board, nowIso());
     });
     return this.get(id)!;
   }

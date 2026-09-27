@@ -6,6 +6,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import { nowIso, nowMs, type SavedFilter } from '@jobleft/contracts';
 import { Store } from '@jobleft/crawler';
 import { createStaticDataRoutes, PoliteFetch, type StaticDataRoutes } from '@jobleft/static-data';
+import { BoardDirectory, BoardService, SqlitePacer, boardSources, createBoardHttp, loadActiveDirectory } from '@jobleft/boards';
+import { allSources } from '@jobleft/sources-ats';
 import { FeedService } from './core/feed.ts';
 import { seedBoards } from './core/seed.ts';
 import { NetworkService } from '@jobleft/network';
@@ -69,6 +71,7 @@ export class AppData {
   readonly migrated: { from: number; to: number; fresh: boolean };
   private timers: NodeJS.Timeout[] = [];
   private staticRoutes: StaticDataRoutes | null = null;
+  private resolver: { service: BoardService; pacer: SqlitePacer } | null = null;
   private readonly cfg: AppConfig;
 
   constructor(cfg: AppConfig) {
@@ -130,6 +133,28 @@ export class AppData {
       });
     }
     return this.staticRoutes;
+  }
+
+  /**
+   * JL-settings-12: finds the board behind a pasted careers or job link with the boards lane's resolver (preview
+   * only; it adds nothing). Forbidden hosts (LinkedIn, Indeed, Glassdoor, SmartRecruiters, Workday, iCIMS, ...) get
+   * no request and a plain refusal; every request goes through the polite client (1.1 s per host, robots.txt).
+   * "Already added" is read from this server's board list. Made on first use.
+   */
+  boardResolver(): BoardService {
+    if (!this.resolver) {
+      const cfg = this.cfg;
+      let directory: BoardDirectory;
+      try { directory = new BoardDirectory(loadActiveDirectory({ home: cfg.home, env: cfg.env ?? process.env }).entries); } catch { directory = new BoardDirectory([]); }
+      const pacer = new SqlitePacer(cfg.layout.db, 1100);
+      const newHttp = () => createBoardHttp({ pacer, hostMap: cfg.hostMap, offline: () => cfg.offline });
+      const service = new BoardService({
+        db: this.db, directory, http: newHttp(), newHttp, sources: boardSources(allSources()), offline: () => cfg.offline,
+        isAdded: (id) => this.boards.get(id) !== null,
+      });
+      this.resolver = { service, pacer };
+    }
+    return this.resolver.service;
   }
 
   /**
@@ -218,6 +243,7 @@ export class AppData {
     for (const t of this.timers) clearTimeout(t);
     this.ai.cancelAll();
     await this.boards.stop();
+    this.resolver?.pacer.close();
     try { this.crawlStore.close(); } catch { /* already closed */ }
     try { this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* best effort */ }
     try { this.db.close(); } catch { /* already closed */ }

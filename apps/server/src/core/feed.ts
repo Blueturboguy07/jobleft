@@ -252,10 +252,12 @@ export class FeedService {
 
   constructor(d: FeedDeps) { this.d = d; }
 
-  /** Changes whenever an open job is added, closed or merged (the rank cache key). */
+  /** Changes whenever an open job is added, closed or merged, or a board leaves or rejoins the feed (the rank cache key). */
   private stamp(): string {
     const r = this.d.db.prepare('SELECT count(*) AS n, max(id) AS m, total(id) AS s FROM srv_job_index').get() as { n: number; m: number | null; s: number };
-    return `${r.n}:${r.m ?? 0}:${r.s}`;
+    // JL-settings-27: the jobs of an unfollowed, hidden or turned-off board are not in the feed.
+    const off = this.d.db.prepare('SELECT group_concat(id) AS ids FROM (SELECT id FROM srv_boards WHERE followed = 0 OR hidden = 1 OR disabled = 1 ORDER BY id)').get() as { ids: string | null };
+    return `${r.n}:${r.m ?? 0}:${r.s}:${off.ids ?? ''}`;
   }
 
   /** The contract job with every fact the crawler stored (places, remote scope, years, statements, pay ranges). */

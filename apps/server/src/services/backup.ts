@@ -100,6 +100,7 @@ export async function createBackup(d: AppData, l: HomeLayout): Promise<{ path: s
     try {
       s.exec('PRAGMA secure_delete = ON; PRAGMA temp_store = MEMORY;');
       if (hasTable(s, 'pairings')) s.exec('DELETE FROM pairings');
+      if (hasTable(s, 'srv_kv')) stripComputerState(s);
       s.exec('PRAGMA journal_mode = DELETE');
       s.exec('VACUUM');
       counts = countsOf(s);
@@ -132,6 +133,18 @@ export async function createBackup(d: AppData, l: HomeLayout): Promise<{ path: s
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
+}
+
+/**
+ * What belongs to this computer, not to the person's records (JL-settings-14, -15): the publik connection (its
+ * install id, claim link and last balance, which let whoever holds them reach that account) and the hints of the AI
+ * keys in this computer's secret store. A backup carries neither; a restore keeps this computer's own.
+ */
+const COMPUTER_KV = { publik: 'ai:ai.publik', engine: 'ai:ai.engine' } as const;
+
+function stripComputerState(db: DatabaseSync): void {
+  db.prepare('DELETE FROM srv_kv WHERE key = ?').run(COMPUTER_KV.publik);
+  db.prepare("UPDATE srv_kv SET value = json_set(value, '$.keyHints', json('{}')) WHERE key = ? AND json_valid(value)").run(COMPUTER_KV.engine);
 }
 
 function reject(message: string): ApiFailure {
@@ -222,6 +235,9 @@ export async function restoreBackup(app: App, upload: string): Promise<Record<st
   const pairingRows = app.data
     ? app.data.db.prepare('SELECT * FROM pairings').all() as Array<Record<string, string | null>>
     : [];
+  // This computer's publik connection and AI key hints stay as they are (the keys are in this computer's secret store).
+  const ownPublik = app.data ? app.data.kv.get<unknown>(COMPUTER_KV.publik) : null;
+  const ownHints = app.data ? app.data.kv.get<{ keyHints?: Record<string, string | null> }>(COMPUTER_KV.engine)?.keyHints ?? {} : {};
   const aside = join(l.tmp, tmpName('pre-restore'));
   const journal = join(l.run, 'restore-journal.json');
   let counts: Record<string, number> = {};
@@ -242,10 +258,13 @@ export async function restoreBackup(app: App, upload: string): Promise<Record<st
       try {
         const ins = probe.db.prepare(`INSERT OR REPLACE INTO pairings (extension_id, token_hash, browser, extension_version, paired_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)`);
         for (const r of pairingRows) ins.run(r.extension_id, r.token_hash, r.browser, r.extension_version, r.paired_at, r.last_seen_at);
-        // Keys never travel in a backup, so the restored AI state must not say a key is set (its hints are dropped;
-        // the person saves the key again on this computer).
-        const aiState = probe.kv.get<{ keyHints?: Record<string, string | null> }>('ai:ai.engine');
-        if (aiState && aiState.keyHints && Object.keys(aiState.keyHints).length) probe.kv.set('ai:ai.engine', { ...aiState, keyHints: {} });
+        // Keys never travel in a backup: the restored AI state says a key is set only for the keys this computer's
+        // secret store holds (its own hints), and the publik connection is this computer's own, never the backup's
+        // (an older backup may still carry one).
+        const aiState = probe.kv.get<Record<string, unknown>>(COMPUTER_KV.engine);
+        if (aiState || Object.keys(ownHints).length) probe.kv.set(COMPUTER_KV.engine, { ...(aiState ?? {}), keyHints: ownHints });
+        if (ownPublik) probe.kv.set(COMPUTER_KV.publik, ownPublik);
+        else probe.kv.delete(COMPUTER_KV.publik);
         counts = countsOf(probe.db);
       } finally { await probe.close(); }
     } catch (e) {
@@ -363,12 +382,80 @@ export async function exportAll(d: AppData, l: HomeLayout): Promise<{ path: stri
 
 // ---------------------------------------------------------------- delete everything
 
+/**
+ * What "Delete my data" keeps (JL-settings-22): the crawled jobs and the boards they come from, which are public
+ * postings and no one's personal record. Every other table is emptied, so a table added later is personal until it
+ * is named here. Jobs the person added by link or text (ats "external") go with the personal records.
+ */
+const KEEP_ON_DELETE = new Set([
+  'schema_migrations',
+  // crawler: postings, the sources that listed them, board health, pacing, robots.txt answers and run history
+  'jobs', 'jobs_fts', 'job_sources', 'boards', 'crawler_hosts', 'crawler_meta', 'crawler_robots', 'crawler_runs', 'crawler_run_boards',
+  // the boards list and its refresh history; the search index of the jobs
+  'srv_boards', 'srv_crawl_runs', 'srv_job_index',
+  // the boards lane's tables, when present
+  'board_prefs', 'board_checks', 'crawl_runs', 'crawl_board_reports', 'host_pacing', 'robots_cache',
+]);
+/** srv_kv keys that describe the boards, not the person: which boards the first run added (their origin). */
+const KEEP_KV_ON_DELETE = ['core.seededBoards'];
+
+/** Empties every personal table of the database file in place and wipes the freed pages. Throws on any failure. */
+function deletePersonalRecords(dbPath: string): void {
+  const db = new DatabaseSync(dbPath);
+  try {
+    db.exec('PRAGMA busy_timeout = 5000; PRAGMA secure_delete = ON; PRAGMA foreign_keys = OFF;');
+    const tables = db.prepare('PRAGMA main.table_list').all() as Array<{ name: string; type: string }>;
+    const names = new Set(tables.map((t) => t.name));
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      if (names.has('jobs')) {
+        const added = "SELECT id FROM jobs WHERE ats = 'external'";
+        db.exec(`UPDATE jobs SET duplicate_of = NULL WHERE duplicate_of IN (${added})`);
+        if (names.has('job_sources')) db.exec(`DELETE FROM job_sources WHERE job IN (${added})`);
+        db.exec("DELETE FROM jobs WHERE ats = 'external'");
+      }
+      for (const t of tables) {
+        if (t.name.startsWith('sqlite_') || t.type === 'shadow' || t.type === 'view' || KEEP_ON_DELETE.has(t.name)) continue;
+        const q = `"${t.name.replace(/"/g, '""')}"`;
+        if (t.name === 'srv_kv') {
+          db.prepare(`DELETE FROM srv_kv WHERE key NOT IN (${KEEP_KV_ON_DELETE.map(() => '?').join(',')})`).run(...KEEP_KV_ON_DELETE);
+          continue;
+        }
+        if (t.type === 'virtual') {
+          // A full-text index without its own content (contentless) is emptied with its delete-all command.
+          try { db.exec(`DELETE FROM ${q}`); } catch { db.exec(`INSERT INTO ${q}(${q}) VALUES ('delete-all')`); }
+          continue;
+        }
+        db.exec(`DELETE FROM ${q}`);
+      }
+      db.exec('COMMIT');
+    } catch (e) {
+      try { db.exec('ROLLBACK'); } catch { /* ended */ }
+      throw e;
+    }
+    // secure_delete zeroes the freed pages; VACUUM rewrites the file, and the checkpoint leaves no copy in the -wal.
+    db.exec('VACUUM');
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  } finally { db.close(); }
+}
+
 export async function deleteAllData(app: App): Promise<void> {
   const l = app.cfg.layout;
   const names: string[] = [];
   if (app.data) await app.data.ai.forgetKeys();
   await app.swap('delete', async () => {
-    for (const part of [l.data, l.files, l.backups]) rmSync(part, { recursive: true, force: true });
+    // Personal records go; the crawled jobs and boards stay (the screen says "Crawled jobs stay"). When the file
+    // cannot be cleaned in place, the whole data folder goes, as before: nothing personal may stay behind.
+    let kept = false;
+    if (existsSync(l.db)) {
+      try { deletePersonalRecords(l.db); kept = true; } catch (e) {
+        app.cfg.log.warn('delete.in_place_failed', { error: e instanceof Error ? e.name : 'error' });
+      }
+    }
+    if (kept) {
+      for (const name of readdirSync(l.data)) if (join(l.data, name) !== l.db) rmSync(join(l.data, name), { recursive: true, force: true });
+    } else rmSync(l.data, { recursive: true, force: true });
+    for (const part of [l.files, l.backups]) rmSync(part, { recursive: true, force: true });
     for (const name of readdirSync(l.tmp)) rmSync(join(l.tmp, name), { recursive: true, force: true });
     for (const name of readdirSync(l.logs)) rmSync(join(l.logs, name), { recursive: true, force: true });
     for (const d of [l.data, l.files, l.resumes, l.exports, l.backups]) mkdirSync(d, { recursive: true, mode: 0o700 });

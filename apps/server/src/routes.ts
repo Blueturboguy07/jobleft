@@ -266,7 +266,11 @@ export const HANDLERS: HandlerTable = {
   crawlRun: async ({ d, body }) => ({ json: await d.boards.runNow(body.boardIds) }),
   crawlReport: ({ d }) => ({ json: d.boards.report() }),
   listBoards: ({ d, query }) => ({ json: d.boards.list({ q: query.q, view: query.view, cursor: query.cursor, limit: query.limit ? Math.min(100, Math.max(1, Number(query.limit))) : undefined }) }),
-  resolveBoard: () => notReady('Finding the board behind a link (the boards lane)'),
+  resolveBoard: async ({ d, body }) => {
+    const r = await d.boardResolver().resolve(body.url, { acceptPaidLookup: body.acceptPaidLookup === true });
+    for (const c of r.candidates) d.boards.rememberName(c.boardId, c.company);
+    return { json: r };
+  },
   addBoard: ({ d, body }) => ({ json: d.boards.add(body) }),
   updateBoard: ({ d, params, body }) => ({ json: d.boards.update(params.boardId!, body) }),
   exportBoards: ({ d }) => {

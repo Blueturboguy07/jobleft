@@ -96,8 +96,18 @@ test('disconnect during a stream stops it at once', async () => {
     await new Promise((r) => setTimeout(r, 150));
     const t0 = Date.now();
     await engine.publik.disconnect();
-    assert.equal((await running)?.code, 'cancelled');
+    // JL-settings-10: the stop names its real reason (it said "You stopped the answer." in the Assistant).
+    const stopped = await running;
+    assert.equal(stopped?.code, 'no_provider');
+    assert.match(stopped!.message, /publik was disconnected, so the answer stopped/);
     assert.ok(Date.now() - t0 < 2000);
+    // A stop the person asks for is still a plain cancel.
+    await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
+    const ctl = new AbortController();
+    const mine = collect(engine.client().chat({ messages: [{ role: 'user', content: 'hi' }], signal: ctl.signal })).then(() => null, (e: AiError) => e);
+    await new Promise((r) => setTimeout(r, 150));
+    ctl.abort();
+    assert.equal((await mine)?.code, 'cancelled');
   });
 });
 
@@ -145,5 +155,40 @@ test('the publik key never goes to another provider', async () => {
       await assert.rejects(use(engine, { provider: 'publik', model: 'gpt-4o' }), /publik tier/);
       for (const e of m.log.entries) assert.ok(!JSON.stringify(e).includes(key));
     } finally { await m.close(); }
+  });
+});
+
+// JL-settings-9: Disconnect then Connect made a new, empty publik account; the balance stayed on the old one.
+test('disconnect then connect resumes the same install and balance; delete-all forgets it', async () => {
+  await withPublik({ balanceUsd: 0.24 }, async (p) => {
+    const { engine, secrets } = makeEngine({ publikBaseUrl: p.baseUrl });
+    const installIds = () => p.log.entries.filter((e) => e.path === '/api/v1/installs' && e.method === 'POST').map((e) => JSON.parse(e.body).install_id as string);
+    await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
+    const firstKey = await secrets.get(SECRET_NAMES.publikKey);
+    await engine.publik.disconnect();
+    assert.equal(await secrets.get(SECRET_NAMES.publikKey), null, 'the key is deleted on disconnect');
+    assert.equal(p.state().liveKeys, 0, 'and revoked at publik');
+    const again = await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
+    assert.equal(again.state, 'connected');
+    assert.equal(again.wallet?.balanceMicros, 240_000, 'the same balance');
+    const ids = installIds();
+    assert.equal(ids.length, 2);
+    assert.equal(ids[1], ids[0], 'the reconnect resumes the same install');
+    const secondKey = await secrets.get(SECRET_NAMES.publikKey);
+    assert.ok(secondKey && secondKey !== firstKey, 'publik gave the install a new key');
+    // An install removed on the publik dashboard cannot be resumed: a new install is made, in the same connect.
+    await engine.publik.disconnect();
+    await fetch(`${p.baseUrl.replace(/\/api\/v1$/, '')}/__admin/remove-installs`, { method: 'POST', body: '{}' });
+    assert.equal((await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION)).state, 'connected');
+    const after = installIds();
+    assert.equal(after.length, 4);
+    assert.equal(after[2], ids[0]);
+    assert.notEqual(after[3], ids[0]);
+    // Delete all data forgets the install: the next connect is a new install.
+    await engine.forgetAllKeys();
+    await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
+    const last = installIds();
+    assert.equal(last.length, 5);
+    assert.notEqual(last[4], after[3]);
   });
 });

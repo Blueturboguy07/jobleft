@@ -17,7 +17,9 @@ import { navigate } from '../app/router.ts';
 import { useAiSettings, useCrawl, usePublik } from '../app/session.ts';
 import { LogoMark, Wordmark } from '../components/Art.tsx';
 import { ErrorState, InlineError, Loading } from '../components/States.tsx';
-import { ago, dateText, hostOf, plural } from '../lib/format.ts';
+import { ago, dateText, fitIndexText, hostOf, plural } from '../lib/format.ts';
+import { readAllPages } from '../lib/pages.ts';
+import { rememberAiCheck } from '../lib/aiHealth.ts';
 
 const TABS = [
   { key: 'ai', label: 'AI provider', icon: <ApiOutlined /> },
@@ -74,24 +76,41 @@ function AiTab() {
   }, [s?.updatedAt, s?.provider]);
   if (ai.error && !s) return <ErrorState error={ai.error} onRetry={() => { void ai.reload(); }} />;
   if (!s) return <Loading label="Loading AI settings" />;
+  const settingsBody = () => {
+    if ((kind === 'local' || kind === 'custom') && !/^https?:\/\//.test(baseUrl)) throw { code: 'bad_request', status: null, message: 'Type the full address, starting with http:// or https://.', link: null } satisfies UiError;
+    return { provider: kind!, ...(kind === 'local' ? { localKind, baseUrl } : {}), ...(kind === 'custom' ? { baseUrl } : {}), ...(kind === 'own_key' ? { vendor } : {}), ...(model.trim() ? { model: model.trim() } : {}) };
+  };
   const save = async () => {
     setBusy('save'); setErr(null); setCheck(null);
     try {
-      const body = { provider: kind!, ...(kind === 'local' ? { localKind, baseUrl } : {}), ...(kind === 'custom' ? { baseUrl } : {}), ...(kind === 'own_key' ? { vendor } : {}), ...(model.trim() ? { model: model.trim() } : {}) };
-      if ((kind === 'local' || kind === 'custom') && !/^https?:\/\//.test(baseUrl)) throw { code: 'bad_request', status: null, message: 'Type the full address, starting with http:// or https://.', link: null } satisfies UiError;
-      const r = await call('putAiSettings', { body });
+      const r = await call('putAiSettings', { body: settingsBody() });
       setCached('ai:settings', () => r.settings);
       setCheck(r.check);
+      rememberAiCheck(r.settings.updatedAt, r.check.ok);
       invalidate('ai:');
     } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   const test = async () => {
     setBusy('test'); setErr(null);
-    try { setCheck(await call('checkAi')); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+    try { const c = await call('checkAi'); setCheck(c); rememberAiCheck(s.updatedAt, c.ok); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
+  // A key belongs to the provider shown on this form (JL-settings-6). When the form shows another provider than the
+  // saved one, "Save key" saves that provider choice first; the key route then checks that the key's provider is the
+  // saved one, so a key typed for one vendor is never attached to another address.
   const saveKey = async () => {
     setBusy('key'); setErr(null);
-    try { const r = await call('setAiKey', { body: { key } }); setCached('ai:settings', () => r); setKey(''); ui.message?.success(`Key saved. It ends in ${r.keyHint ?? '…'}.`); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+    try {
+      let target: { provider: NonNullable<AiSettings['provider']>; vendor?: OwnKeyVendor; baseUrl?: string } = { provider: kind!, ...(kind === 'own_key' ? { vendor } : {}), ...(kind === 'local' || kind === 'custom' ? { baseUrl } : {}) };
+      if (changed) {
+        const saved = await call('putAiSettings', { body: settingsBody() });
+        setCached('ai:settings', () => saved.settings);
+        setCheck(null);
+        if (saved.settings.baseUrl && (kind === 'local' || kind === 'custom')) target = { ...target, baseUrl: saved.settings.baseUrl };
+      }
+      const r = await call('setAiKey', { body: { key, ...target } });
+      setCached('ai:settings', () => r); setKey(''); invalidate('ai:');
+      ui.message?.success(`Key saved for ${keyFor}. It ends in ${r.keyHint ?? '…'}. Use "Test again" to try it.`);
+    } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   const forgetKey = async () => {
     try { const r = await call('deleteAiKey'); setCached('ai:settings', () => r); ui.message?.success('Key forgotten.'); } catch (e) { setErr(e as UiError); }
@@ -101,6 +120,9 @@ function AiTab() {
     try { const r = await call('putAiSettings', { body: { provider: s.provider, meteredFetchEnabled: on } }); setCached('ai:settings', () => r.settings); ui.message?.success(on ? 'Paid lookups are on.' : 'Paid lookups are off.'); } catch (e) { ui.message?.error((e as UiError).message); }
   };
   const changed = kind !== s.provider || (kind === 'local' && (localKind !== s.localKind || baseUrl !== (s.baseUrl ?? ''))) || (kind === 'custom' && baseUrl !== (s.baseUrl ?? '')) || (kind === 'own_key' && vendor !== s.vendor) || model !== (s.model ?? '');
+  // The saved key state belongs to the saved provider; it shows only while the form shows that same provider.
+  const sameKeySlot = kind === s.provider && (kind === 'own_key' ? vendor === s.vendor : baseUrl === (s.baseUrl ?? ''));
+  const keyFor = kind === 'own_key' ? VENDORS.find((v) => v.value === vendor)!.label : `the server at ${hostOf(baseUrl) || 'this address'}`;
   const card = (v: NonNullable<AiSettings['provider']>, icon: ReactNode, title: string, text: string) => (
     <label className={`jl-choice${kind === v ? ' on' : ''}`} style={{ alignItems: 'flex-start', padding: 14 }}>
       <Radio checked={kind === v} onChange={() => { setKind(v); setCheck(null); if (v === 'local' && !baseUrl) setBaseUrl(LOCAL_KINDS.find((k) => k.value === localKind)!.url); }} aria-label={title} />
@@ -126,7 +148,7 @@ function AiTab() {
         {kind === 'custom' && <label className="jl-row">Address <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://your-server.example/v1" style={{ maxWidth: 480 }} aria-label="Server address" /></label>}
         {kind === 'own_key' && <label className="jl-row">Vendor <Select style={{ width: 220 }} value={vendor} options={VENDORS} onChange={setVendor} /></label>}
         {kind !== 'publik' && (
-          <label className="jl-row">Model <Select showSearch allowClear style={{ width: 280 }} value={model || undefined} onChange={(v) => setModel(v ?? '')} placeholder="The server's default"
+          <label className="jl-row">Model <Select showSearch allowClear style={{ width: 280 }} value={model || undefined} onChange={(v) => setModel(v ?? '')} placeholder="Choose a model (Save and test lists them)"
             options={(check?.models ?? []).map((m) => ({ value: m, label: m }))} onSearch={(v) => { if (v) setModel(v); }} notFoundContent="Save and test to list the server's models" aria-label="Model" /></label>
         )}
         {kind === 'publik' && <label className="jl-row">Speed and quality <Select style={{ width: 220 }} value={model || 'publik-balanced'} onChange={setModel} options={[{ value: 'publik-fast', label: 'Fast' }, { value: 'publik-balanced', label: 'Balanced' }, { value: 'publik-smart', label: 'Smartest' }]} aria-label="publik tier" /></label>}
@@ -134,24 +156,25 @@ function AiTab() {
           <Button type="primary" shape="round" loading={busy === 'save'} disabled={!kind || !changed} onClick={() => { void save(); }}>Save and test</Button>
           <Button shape="round" loading={busy === 'test'} disabled={!s.provider || changed} onClick={() => { void test(); }}>Test again</Button>
           {kind === 'publik' && <Button shape="round" onClick={() => navigate('settings/balance')}>Balance and connection</Button>}
+          {kind === 'publik' && <Button type="link" icon={<LinkOutlined />} onClick={() => openExternal(PRICING_URL)}>publik prices</Button>}
         </Space>
         <InlineError error={err} />
         {check && (check.ok ? <Alert type="success" showIcon message={check.message} description={check.models.length ? `Models: ${check.models.slice(0, 8).join(', ')}` : undefined} />
           : <Alert type="error" showIcon message={check.message} action={(check as ProviderCheck & { link?: { label: string; url: string } }).link ? <Button size="small" onClick={() => openExternal((check as ProviderCheck & { link: { url: string } }).link.url)}>{(check as ProviderCheck & { link: { label: string } }).link.label}</Button> : undefined} />)}
       </Panel>
-      {(s.provider === 'custom' || s.provider === 'own_key' || s.provider === 'local') && (
-        <Panel title="Key" desc="Kept in the macOS Keychain, never in a file. Only its last 4 characters are ever shown. It goes only to the address above.">
-          {s.keySet ? (
+      {(kind === 'custom' || kind === 'own_key' || kind === 'local') && (
+        <Panel title={kind === 'own_key' ? `Your ${keyFor} key` : 'Key'} desc={<>Kept in the macOS Keychain, never in a file. Only its last 4 characters are ever shown. It goes only to {kind === 'own_key' ? keyFor : 'the address above'}.{!sameKeySlot ? ' Saving the key also saves this provider choice.' : ''}</>}>
+          {sameKeySlot && s.keySet ? (
             <Space><Tag icon={<KeyOutlined />}>Key saved, ending in {s.keyHint}</Tag><Popconfirm title="Forget this key?" onConfirm={() => { void forgetKey(); }}><Button shape="round">Forget key</Button></Popconfirm></Space>
           ) : (
             <Space.Compact style={{ maxWidth: 480 }}>
-              <Input.Password value={key} onChange={(e) => setKey(e.target.value)} placeholder={s.provider === 'local' ? 'Optional for most local servers' : 'Paste your key'} aria-label="API key" autoComplete="off" />
+              <Input.Password value={key} onChange={(e) => setKey(e.target.value)} placeholder={kind === 'local' ? 'Optional for most local servers' : 'Paste your key'} aria-label="API key" autoComplete="off" />
               <Button type="primary" disabled={!key.trim()} loading={busy === 'key'} onClick={() => { void saveKey(); }}>Save key</Button>
             </Space.Compact>
           )}
         </Panel>
       )}
-      <Panel title="Paid web lookups" desc={<>Off unless you turn it on. When on, jobleft may pay per request, from your publik balance or your own key, to read pages a plain fetch cannot, or to look up company facts. Prices per 1,000 requests: web search {formatDollars(p.search)}, page {formatDollars(p.page)}, page that needs JavaScript {formatDollars(p.jsPage)}. jobleft always tries a free plain fetch first.</>}>
+      <Panel title="Paid web lookups" desc={<>Off unless you turn it on. When on, jobleft may pay per request, from your publik balance or your own key, to read pages a plain fetch cannot, or to look up company facts. Prices per 1,000 requests: web search {formatDollars(p.search)}, page {formatDollars(p.page)}, page that needs JavaScript {formatDollars(p.jsPage)}. jobleft always tries a free plain fetch first. <a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See publik's current prices</a>.</>}>
         <label className="jl-row"><Switch aria-label="Paid web lookups" checked={s.meteredFetch.enabled} disabled={!s.provider} onChange={(v) => { void setMetered(v); }} /> {s.meteredFetch.enabled ? 'On' : 'Off'}{!s.provider && <span className="jl-muted"> (choose a provider first)</span>}</label>
       </Panel>
     </div>
@@ -164,6 +187,8 @@ const DISCLOSURE = [
   'jobleft can send its AI requests to the publik API: each request is priced per use and paid in dollars from your publik balance, which starts with a small free amount.',
   "Your prompts go through publik's servers to the AI model's provider, publik does not train on them, and you can change to a local model or your own key at any time.",
 ];
+/** publik's live price list (JL-settings-25): every price the app quotes can be checked there. */
+const PRICING_URL = 'https://publikhq.com/pricing';
 const JUSTIFICATION = "The AI model behind publik charges per use; publik charges a fixed, published price per tier, a little above what the model costs publik, which keeps publik running and pays the app's developer. Nothing is charged behind your back, and every call is listed on your publik dashboard.";
 
 function BalanceTab() {
@@ -188,7 +213,7 @@ function BalanceTab() {
     try { const c = await call('refreshPublik'); setCached('ai:publik', () => c); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   const disconnect = async () => {
-    try { const c = await call('disconnectPublik'); setCached('ai:publik', () => c); invalidate('ai:'); ui.message?.success('Disconnected. Nothing can spend your balance from this Mac now.'); } catch (e) { setErr(e as UiError); }
+    try { const c = await call('disconnectPublik'); setCached('ai:publik', () => c); invalidate('ai:'); ui.message?.success('Disconnected. Nothing can spend your balance from this Mac now. Connect again to use the same balance.'); } catch (e) { setErr(e as UiError); }
   };
   const usePublikNow = async () => {
     try { const r = await call('putAiSettings', { body: { provider: 'publik' } }); setCached('ai:settings', () => r.settings); invalidate('ai:'); } catch (e) { setErr(e as UiError); }
@@ -205,6 +230,7 @@ function BalanceTab() {
       {c && c.state !== 'connected' && (
         <Panel title="Connect to publik">
           {DISCLOSURE.map((d) => <p key={d} style={{ margin: 0 }}>{d}</p>)}
+          <p className="jl-small" style={{ margin: 0 }}><a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See publik's prices per tier</a> before you connect.</p>
           <Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)}>I have read this</Checkbox>
           <Button type="primary" shape="round" style={{ alignSelf: 'flex-start' }} disabled={!agree} loading={busy === 'connect'} onClick={() => { void connect(); }}>{notProvider ? 'Connect and use publik for AI' : 'Connect to publik'}</Button>
           <p className="jl-small jl-muted" style={{ margin: 0 }}>No key is typed. jobleft keeps the connection key in the macOS Keychain.</p>
@@ -221,11 +247,11 @@ function BalanceTab() {
             ...(w.week.budgetMicros !== null ? [{ key: 'b', label: 'Weekly budget', children: formatDollars(w.week.budgetMicros) }] : []),
             { key: 't', label: 'Last read', children: ago(w.updatedAt) },
           ]} />
-          <p style={{ margin: 0 }}>{JUSTIFICATION}</p>
+          <p style={{ margin: 0 }}>{JUSTIFICATION} <a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See the prices per tier</a>.</p>
           <Space wrap>
             <Button type="primary" shape="round" icon={<LinkOutlined />} onClick={() => openExternal(w.topUpUrl)}>Add money to your balance</Button>
             <Button shape="round" icon={<ReloadOutlined />} loading={busy === 'refresh'} onClick={() => { void refresh(); }}>Read the balance again</Button>
-            <Popconfirm title="Disconnect from publik?" description="The key is deleted from this Mac. Nothing can spend the balance from here until you connect again." onConfirm={() => { void disconnect(); }} okText="Disconnect">
+            <Popconfirm title="Disconnect from publik?" description="The key is deleted from this Mac, so nothing can spend the balance from here. The balance stays on this Mac's publik account: connect again to use it." onConfirm={() => { void disconnect(); }} okText="Disconnect">
               <Button shape="round">Disconnect</Button>
             </Popconfirm>
           </Space>
@@ -274,7 +300,8 @@ function SourcesTab() {
   const sources = useApi<SourceInfo[]>('sources', () => call('listSources'));
   const [q, setQ] = useState('');
   const [view, setView] = useState<'all' | 'followed' | 'user' | 'hidden' | 'disabled' | 'failing'>('all');
-  const boards = useApi<{ items: BoardEntry[]; total: number; nextCursor: string | null }>(`boards:${view}:${q}`, () => call('listBoards', { query: { view, limit: '100', ...(q ? { q } : {}) } }));
+  // Every page (JL-settings-1): the table pages through all boards the count names, not the first 100.
+  const boards = useApi<{ items: BoardEntry[]; total: number; nextCursor: string | null }>(`boards:${view}:${q}`, () => readAllPages((cursor) => call('listBoards', { query: { view, limit: '100', ...(q ? { q } : {}), ...(cursor ? { cursor } : {}) } })));
   const { progress } = useCrawl();
   const [link, setLink] = useState('');
   const [resolved, setResolved] = useState<BoardResolveResponse | null>(null);
@@ -295,6 +322,7 @@ function SourcesTab() {
         {s && (
           <div className="jl-row jl-wrap" style={{ gap: 20 }}>
             <label className="jl-row">Refresh every <Select style={{ width: 130 }} value={s.crawl.intervalHours} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, intervalHours: v } }); }} options={[1, 3, 6, 12, 24, 48].map((h) => ({ value: h, label: `${h} ${h === 1 ? 'hour' : 'hours'}` }))} /></label>
+            <label className="jl-row"><Switch aria-label="Pause automatic refreshes" checked={s.crawl.paused} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, paused: v } }); }} /> Pause automatic refreshes{s.crawl.paused ? ' (only "Refresh now" reads the boards)' : ''}</label>
             <label className="jl-row"><Switch aria-label="Catch up when jobleft opens" checked={s.crawl.catchUpOnLaunch} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, catchUpOnLaunch: v } }); }} /> Catch up when jobleft opens</label>
             <label className="jl-row"><Switch aria-label="Keep refreshing from the menu bar when the window is closed" checked={s.crawl.runInTray} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, runInTray: v } }); }} /> Keep refreshing from the menu bar when the window is closed</label>
           </div>
@@ -310,7 +338,7 @@ function SourcesTab() {
             { title: 'Notes', key: 'n', render: (_, b) => b.closeHeld ?? b.reason ?? (b.unreadable ? `${b.unreadable} postings could not be read` : '') },
           ]} />
       </Panel>
-      <Panel title="Boards you follow">
+      <Panel title="Boards you follow" desc="Turn a board off to stop reading it. Its jobs leave your feed; jobs you track stay in your tracker.">
         <div className="jl-row jl-wrap">
           <Input.Search allowClear placeholder="Search companies" onSearch={setQ} style={{ maxWidth: 280 }} aria-label="Search boards" />
           <Select value={view} onChange={setView} style={{ width: 170 }} aria-label="Which boards" options={[{ value: 'all', label: 'All boards' }, { value: 'followed', label: 'Followed' }, { value: 'user', label: 'Added by you' }, { value: 'failing', label: 'Not answering' }, { value: 'hidden', label: 'Hidden' }, { value: 'disabled', label: 'Turned off' }]} />
@@ -331,7 +359,7 @@ function SourcesTab() {
         </div>
         {resolved && (resolved.candidates.length ? resolved.candidates.map((c) => (
           <div key={c.boardId} className="jl-row"><span className="jl-grow">{c.company} ({c.ats}{c.openJobs !== null ? `, ${plural(c.openJobs, 'open job')}` : ''})</span>
-            {c.alreadyAdded ? <Tag>Already followed</Tag> : <Button size="small" type="primary" shape="round" onClick={async () => { try { await call('addBoard', { body: { ats: c.ats, board: c.board, ...(c.region ? { region: c.region } : {}) } }); invalidate('boards'); setResolved(null); setLink(''); ui.message?.success(`Following ${c.company}.`); } catch (e) { ui.message?.error((e as UiError).message); } }}>Follow {c.company}</Button>}
+            {c.alreadyAdded ? <Tag>Already followed</Tag> : <Button size="small" type="primary" shape="round" onClick={async () => { try { const added = await call('addBoard', { body: { ats: c.ats, board: c.board, ...(c.region ? { region: c.region } : {}) } }); invalidate('boards'); setResolved(null); setLink(''); const r = await call('crawlRun', { body: { boardIds: [added.id] } }).catch(() => null); invalidate('crawl'); ui.message?.success(r?.started ? `Following ${c.company}. Its jobs are being read now.` : `Following ${c.company}. Its jobs come with the next refresh.`); } catch (e) { ui.message?.error((e as UiError).message); } }}>Follow {c.company}</Button>}
           </div>
         )) : <Alert type="info" showIcon message={resolved.message} />)}
       </Panel>
@@ -370,7 +398,7 @@ function DataTab() {
     try { const f = await download(name); ui.message?.success(`Saved ${f} to your Downloads.`); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   const restore = async (f: File) => {
-    const ok = await ui.modal?.confirm({ title: 'Restore this backup?', content: 'Your current data is replaced by the data in the backup. A damaged or foreign file is refused and nothing changes.', okText: 'Restore', okButtonProps: { shape: 'round' }, cancelButtonProps: { shape: 'round' } });
+    const ok = await ui.modal?.confirm({ title: 'Restore this backup?', content: "Your current data is replaced by the data in the backup. This Mac's saved AI keys and publik connection stay as they are. A damaged or foreign file is refused and nothing changes.", okText: 'Restore', okButtonProps: { shape: 'round' }, cancelButtonProps: { shape: 'round' } });
     if (!ok) return;
     setBusy('restore'); setErr(null);
     try {
@@ -397,7 +425,7 @@ function DataTab() {
             { key: 'd', label: 'Data folder', children: <code style={{ overflowWrap: 'anywhere' }}>{storage.data.dataDir}</code> },
             { key: 's', label: 'Size', children: `${(storage.data.dbBytes / 1_048_576).toFixed(1)} MB` },
             { key: 'j', label: 'Jobs stored', children: `${storage.data.jobs.toLocaleString('en-US')} (${storage.data.openJobs.toLocaleString('en-US')} open)` },
-            ...(fit.data ? [{ key: 'f', label: 'Fit index', children: `${fit.data.state === 'ready' ? 'Ready' : fit.data.state}${fit.data.model ? ` (${fit.data.model})` : ''}, ${fit.data.indexed.toLocaleString('en-US')} jobs indexed${fit.data.waiting ? `, ${fit.data.waiting} waiting` : ''}` }] : []),
+            ...(fit.data ? [{ key: 'f', label: 'Fit index', children: fitIndexText(fit.data) }] : []),
           ]} />
         ) : storage.error ? <InlineError error={storage.error} onRetry={() => { void storage.reload(); }} /> : <Loading inline label="Reading" />}
       </Panel>
@@ -409,18 +437,18 @@ function DataTab() {
           <Button shape="round" icon={<DownloadOutlined />} loading={busy === 'exportAll'} onClick={() => { void dl('exportAll'); }}>Export all my data (readable files)</Button>
           <Button shape="round" icon={<DownloadOutlined />} loading={busy === 'exportJobs'} onClick={() => { void dl('exportJobs'); }}>Export saved jobs</Button>
         </Space>
-        <p className="jl-small jl-muted" style={{ margin: 0 }}>Backups and exports never include keys or tokens.</p>
+        <p className="jl-small jl-muted" style={{ margin: 0 }}>Backups and exports never include keys, tokens or your publik connection. A restore keeps this Mac's own.</p>
       </Panel>
       <Panel title="Shipped data" desc="Data that comes with jobleft. It is used on this Mac; lookups never leave it.">
         <Table size="small" rowKey="id" dataSource={datasets.data ?? []} pagination={false}
           columns={[
             { title: 'Data', dataIndex: 'name' }, { title: 'Version', dataIndex: 'version' },
             { title: 'Data through', key: 't', render: (_, d) => d.dataThrough ?? '' }, { title: 'Licence', dataIndex: 'licence' },
-            { title: 'Attribution', key: 'a', render: (_, d) => d.attribution ?? '' },
+            { title: 'Attribution', key: 'a', render: (_, d) => <>{d.attribution ?? ''}{d.sourceUrl ? <> <a href={d.sourceUrl} target="_blank" rel="noopener noreferrer">Source</a></> : null}</> },
           ]} />
         <Button shape="round" icon={<ReloadOutlined />} loading={busy === 'datasets'} style={{ alignSelf: 'flex-start' }} onClick={() => { void updateData(); }}>Check for newer data</Button>
       </Panel>
-      <Panel title="Delete everything" desc="Deletes your profile, resumes, tracker, notes, saved filters, conversations, connections and settings from this Mac. Crawled jobs stay. This cannot be undone.">
+      <Panel title="Delete everything" desc="Deletes your profile, resumes, tracker, notes, saved filters, conversations, connections, jobs you added yourself, settings, saved AI keys and the publik connection from this Mac. Crawled jobs and the boards list stay. This cannot be undone.">
         <label>Type <strong>delete everything</strong> to confirm<Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} style={{ maxWidth: 300, display: 'block', marginTop: 4 }} aria-label="Type delete everything to confirm" /></label>
         <Button danger shape="round" icon={<DeleteOutlined />} disabled={confirmText !== 'delete everything'} loading={busy === 'delete'} style={{ alignSelf: 'flex-start' }} onClick={() => { void del(); }}>Delete my data</Button>
       </Panel>
@@ -480,14 +508,22 @@ function AboutTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Panel title="About">
         <div className="jl-row" style={{ gap: 12 }}><LogoMark size={48} /><div><Wordmark size={26} /><div className="jl-muted">Version {health.data?.version ?? '…'} · local API v{health.data?.apiVersion ?? '…'}</div></div></div>
-        <p style={{ margin: 0 }}>jobleft is a job-search app that keeps your data on this Mac.</p>
+        <p style={{ margin: 0 }}>jobleft is a job-search app that keeps your data on this Mac. It is open source (MIT licence).</p>
+        <Space wrap>
+          <a href="https://github.com/Blueturboguy07/jobleft" target="_blank" rel="noopener noreferrer">Source code and releases</a>
+          <a href="https://github.com/Blueturboguy07/jobleft/issues" target="_blank" rel="noopener noreferrer">Report a problem</a>
+          <a href={PRICING_URL} target="_blank" rel="noopener noreferrer">publik prices</a>
+        </Space>
         <Button type="link" style={{ padding: 0, alignSelf: 'flex-start' }} onClick={() => navigate('onboarding')}>Show the setup steps again</Button>
       </Panel>
       <Panel title="What leaves this Mac">
         <Table size="small" pagination={false} rowKey="what" dataSource={[
-          { what: 'Your profile, resumes, tracker, notes, connections, searches', where: 'Nothing leaves this Mac.' },
-          { what: 'Requests to employers\' public job boards', where: 'Sent to those boards, one a second per site, with no personal data.' },
-          { what: 'AI steps (chat, tailoring, letters, messages, practice)', where: `Sent to ${aiWhere}.` },
+          { what: 'Your profile, resumes, tracker, notes, connections, searches', where: 'Stay on this Mac. Only the parts an AI step you start needs go to your AI provider (next rows).' },
+          { what: 'Requests to employers\' public job boards', where: 'Sent to those boards, one a second per site, with no personal data. A careers link you paste is read the same way.' },
+          { what: 'AI steps (chat, tailoring, letters, messages, practice)', where: `Sent to ${aiWhere}: the job's text and the parts of your profile, resume or contact the step needs.` },
+          { what: 'Company facts (when you open a company block or ask for them)', where: 'The company name goes to free public sources: Wikidata, SEC EDGAR and GLEIF. No personal data.' },
+          { what: '"Check for newer data" (shipped datasets)', where: 'Only when a release location is set: asks it for newer data files, with no personal data. This build has none set, so nothing is sent.' },
+          ...(s?.provider === 'publik' ? [{ what: 'publik balance', where: 'Read from publik with this Mac\'s publik key when you open Balance or after an AI step.' }] : []),
           { what: 'Paid web lookups', where: s?.meteredFetch.enabled ? 'On: sent to publik or your key\'s service, priced per request.' : 'Off.' },
           { what: 'Usage data, analytics, crash reports', where: 'None. jobleft has no tracking.' },
           { what: 'Fonts, icons, company logos', where: 'None fetched: they are bundled, and company tiles use initials.' },

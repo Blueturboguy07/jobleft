@@ -1,0 +1,352 @@
+// Settings fixes from the black-box pass (jobleft-qa findings/settings.md, JL-settings-*): AI keys, the publik
+// connection, backup and restore, delete-all, load shedding and job sources.
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { inflateRawSync } from 'node:zlib';
+import { greenhouseJob, startAi, startBoards, startPublik } from '../scripts/mocks.ts';
+import { Turnstile } from '../src/http/turnstile.ts';
+import { cleanup, PERSONA, raw, scratchHome, startTest, type TestServer } from './helpers.ts';
+
+async function waitCrawl(s: TestServer): Promise<any> {
+  for (let i = 0; i < 200; i++) {
+    const st = (await s.call('GET', '/api/v1/crawl/status')).json;
+    if (!st.running && st.lastRun) return st.lastRun;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error('crawl did not finish');
+}
+
+/** A server with one loopback Greenhouse board ("mockco", three jobs) added and crawled. */
+async function withCrawledBoard(tag: string, fn: (s: TestServer, boardsFile: string) => Promise<void>): Promise<void> {
+  const dir = scratchHome(`${tag}-boards`);
+  const file = join(dir, 'boards.json');
+  writeFileSync(file, JSON.stringify({ greenhouse: { mockco: [
+    greenhouseJob(1, { board: 'mockco', title: 'Data Analyst', location: 'Austin, TX' }),
+    greenhouseJob(2, { board: 'mockco', title: 'Nurse', location: 'Denver, CO' }),
+    greenhouseJob(3, { board: 'mockco', title: 'Chef', location: 'Denver, CO' }),
+  ] } }));
+  const boards = await startBoards({ file });
+  const s = await startTest(tag, { env: { JOBLEFT_HOST_MAP: JSON.stringify({ 'boards-api.greenhouse.io': boards.origin }) } });
+  try {
+    assert.equal((await s.call('POST', '/api/v1/boards', { ats: 'greenhouse', board: 'mockco' })).status, 200);
+    assert.equal((await s.call('POST', '/api/v1/crawl/run', {})).json.started, true);
+    assert.equal((await waitCrawl(s)).inserted, 3);
+    await fn(s, file);
+  } finally { await s.stop(); await boards.close(); cleanup(s.home); cleanup(dir); }
+}
+
+test('JL-settings-6: a key typed for OpenAI while a custom address is saved is refused (409) and never sent there', async () => {
+  const ai = await startAi();
+  const s = await startTest('keybind');
+  try {
+    const set = await s.call('PUT', '/api/v1/ai/settings', { provider: 'custom', baseUrl: `${ai.origin}/v1`, model: 'mock-model' });
+    assert.equal(set.status, 200, set.text);
+    const k = await s.call('PUT', '/api/v1/ai/key', { key: 'sk-proj-QAOPENAI-9z8y7x6w5v4u3t2s', provider: 'own_key', vendor: 'openai' });
+    assert.equal(k.status, 409, k.text);
+    assert.equal(k.json.error.code, 'conflict');
+    assert.ok(!k.text.includes('QAOPENAI'));
+    const after = (await s.call('GET', '/api/v1/ai/settings')).json;
+    assert.equal(after.provider, 'custom');
+    assert.equal(after.keySet, false);
+    await s.call('POST', '/api/v1/ai/check');
+    assert.ok(ai.log.every((e) => !String(e.headers.authorization ?? '').includes('QAOPENAI')), 'the OpenAI key never reached the custom address');
+    // The provider saved first, then its key: kept for OpenAI, never for the custom address.
+    assert.equal((await s.call('PUT', '/api/v1/ai/settings', { provider: 'own_key', vendor: 'openai', model: 'gpt-x' })).status, 200);
+    const ok = await s.call('PUT', '/api/v1/ai/key', { key: 'sk-proj-QAOPENAI-9z8y7x6w5v4u3t2s', provider: 'own_key', vendor: 'openai' });
+    assert.equal(ok.status, 200, ok.text);
+    assert.equal(ok.json.keyHint, '3t2s');
+    assert.equal((await s.call('PUT', '/api/v1/ai/settings', { provider: 'custom', baseUrl: `${ai.origin}/v1`, model: 'mock-model' })).json.settings.keySet, false);
+  } finally { await s.stop(); await ai.close(); cleanup(s.home); }
+});
+
+test('JL-settings-9: Disconnect then Connect resumes the same publik install (same balance), not a new empty account', async () => {
+  const pub = await startPublik({ balanceMicros: 240_000 });
+  const s = await startTest('pubresume', { env: { JOBLEFT_PUBLIK_APP_TOKEN: 'stand-in-app-token', JOBLEFT_PUBLIK_BASE_URL: `${pub.origin}/api/v1` } });
+  try {
+    const mints = () => pub.log.filter((e) => e.path === '/api/v1/installs' && e.method === 'POST').map((e) => JSON.parse(e.body).install_id as string);
+    assert.equal((await s.call('POST', '/api/v1/publik/connect', { disclosureAccepted: true, disclosureVersion: 1 })).json.state, 'connected');
+    assert.equal((await s.call('POST', '/api/v1/publik/disconnect')).json.state, 'disconnected');
+    assert.equal((await s.call('GET', '/api/v1/publik')).json.state, 'disconnected');
+    const again = await s.call('POST', '/api/v1/publik/connect', { disclosureAccepted: true, disclosureVersion: 1 });
+    assert.equal(again.json.state, 'connected');
+    assert.equal(again.json.wallet.balanceMicros, 240_000);
+    const ids = mints();
+    assert.equal(ids.length, 2);
+    assert.equal(ids[1], ids[0], 'the reconnect asks publik for the same install');
+  } finally { await s.stop(); await pub.close(); cleanup(s.home); }
+});
+
+/** Every file inside a zip, inflated, as one string (for searches), as in backup.test.ts. */
+function unzipAll(buf: Buffer): string {
+  let out = '';
+  let p = 0;
+  while (p + 30 <= buf.length && buf.readUInt32LE(p) === 0x04034b50) {
+    const method = buf.readUInt16LE(p + 8);
+    const start = p + 30 + buf.readUInt16LE(p + 26) + buf.readUInt16LE(p + 28);
+    let d = start;
+    for (;;) {
+      d = buf.indexOf(Buffer.from([0x50, 0x4b, 0x07, 0x08]), d);
+      if (d < 0) return out;
+      if (buf.readUInt32LE(d + 8) === d - start) break;
+      d += 4;
+    }
+    const data = buf.subarray(start, d);
+    out += (method === 8 ? inflateRawSync(data) : data).toString('latin1');
+    p = d + 16;
+  }
+  return out;
+}
+
+test('JL-settings-14/15: a backup carries no publik connection; a restore keeps this computer\'s publik account and saved keys', async () => {
+  const pubA = await startPublik({ balanceMicros: 111_000 });
+  const pubB = await startPublik({ balanceMicros: 222_000 });
+  const a = await startTest('bk-pub-a', { env: { JOBLEFT_PUBLIK_APP_TOKEN: 'stand-in-app-token', JOBLEFT_PUBLIK_BASE_URL: `${pubA.origin}/api/v1` } });
+  const b = await startTest('bk-pub-b', { env: { JOBLEFT_PUBLIK_APP_TOKEN: 'stand-in-app-token', JOBLEFT_PUBLIK_BASE_URL: `${pubB.origin}/api/v1` } });
+  try {
+    assert.equal((await a.call('POST', '/api/v1/publik/connect', { disclosureAccepted: true, disclosureVersion: 1 })).json.wallet.balanceMicros, 111_000);
+    const installA = JSON.parse(pubA.log.find((e) => e.path === '/api/v1/installs')!.body).install_id as string;
+    assert.equal((await a.call('PUT', '/api/v1/ai/settings', { provider: 'own_key', vendor: 'openai', model: 'gpt-x' })).status, 200);
+    assert.equal((await a.call('PUT', '/api/v1/ai/key', { key: 'sk-proj-QAKEY-restore-Q7Z9', provider: 'own_key', vendor: 'openai' })).json.keyHint, 'Q7Z9');
+    const backup = (await a.call('POST', '/api/v1/backup')).body;
+    const all = unzipAll(backup);
+    assert.ok(!all.includes(installA), 'no publik install id in the backup');
+    assert.ok(!all.includes('claim/stand-in'), 'no publik claim link in the backup');
+    assert.ok(!all.includes('ai.publik'), 'no publik connection record in the backup');
+
+    // Same computer: everything back, the saved key still set (it never left this computer's secret store).
+    assert.equal((await a.call('POST', '/api/v1/restore', backup, { 'content-type': 'application/zip' })).status, 200);
+    const ai = (await a.call('GET', '/api/v1/ai/settings')).json;
+    assert.equal(ai.provider, 'own_key');
+    assert.equal(ai.keySet, true);
+    assert.equal(ai.keyHint, 'Q7Z9');
+    const pa = (await a.call('GET', '/api/v1/publik')).json;
+    assert.equal(pa.state, 'connected');
+    assert.equal(pa.wallet.balanceMicros, 111_000);
+
+    // Another computer: its own publik account stays; the backup's account never shows there.
+    assert.equal((await b.call('POST', '/api/v1/publik/connect', { disclosureAccepted: true, disclosureVersion: 1 })).json.wallet.balanceMicros, 222_000);
+    assert.equal((await b.call('POST', '/api/v1/restore', backup, { 'content-type': 'application/zip' })).status, 200);
+    const pb = (await b.call('GET', '/api/v1/publik')).json;
+    assert.equal(pb.state, 'connected');
+    assert.equal(pb.wallet.balanceMicros, 222_000, 'the balance card shows this computer\'s account, not the backup\'s');
+    assert.equal((await b.call('GET', '/api/v1/ai/settings')).json.keySet, false, 'no key is set on a computer that never saved one');
+    const before = pubA.log.length;
+    assert.equal((await b.call('POST', '/api/v1/publik/refresh')).json.wallet.balanceMicros, 222_000);
+    assert.equal(pubA.log.length, before, 'nothing went to the backup\'s publik account');
+  } finally { await a.stop(); await b.stop(); await pubA.close(); await pubB.close(); cleanup(a.home); cleanup(b.home); }
+});
+
+test('JL-settings-22: "Delete my data" deletes the personal records and keeps the crawled jobs and boards', async () => {
+  await withCrawledBoard('delkeep', async (s) => {
+    const NOTE = 'private-note-QX7-zebra';
+    await s.call('PUT', '/api/v1/profile', PERSONA);
+    await s.call('PATCH', `/api/v1/tracker/${encodeURIComponent('greenhouse:mockco:1')}`, { liked: true, status: 'applied', notes: [{ text: NOTE }] });
+    const ext = await s.call('POST', '/api/v1/jobs/external', { text: 'Secret Role at Hidden Co\nCompany: Hidden Co\nText', applyUrl: 'https://example.com/hidden' });
+    assert.equal(ext.status, 200, ext.text);
+    await s.call('POST', '/api/v1/filters', { name: 'my filter', filter: {}, sort: 'recommended' });
+    await s.call('PUT', '/api/v1/ai/settings', { provider: 'custom', baseUrl: 'http://127.0.0.1:9/v1', model: 'm' });
+    assert.equal((await s.call('POST', '/api/v1/data/delete', { confirm: 'delete everything' })).status, 200);
+
+    // Kept: the crawled jobs and the boards they come from.
+    assert.equal((await s.call('POST', '/api/v1/jobs/search', { sort: 'most_recent' })).json.total, 3);
+    assert.equal((await s.call('GET', '/api/v1/storage')).json.jobs, 3);
+    const boards = (await s.call('GET', '/api/v1/boards?view=all')).json;
+    assert.deepEqual(boards.items.map((b: any) => b.id), ['greenhouse:mockco']);
+    assert.equal((await s.call('GET', `/api/v1/jobs/${encodeURIComponent('greenhouse:mockco:1')}`)).json.tracker, null, 'the job stays; its tracking is gone');
+
+    // Gone: every personal record, the job the person added, their settings.
+    assert.equal((await s.call('GET', '/api/v1/profile')).json.personal.lastName, null);
+    assert.equal((await s.call('GET', `/api/v1/jobs/${encodeURIComponent(ext.json.job.id)}`)).status, 404);
+    assert.equal((await s.call('GET', '/api/v1/tracker?view=liked')).json.items.length, 0);
+    assert.equal((await s.call('GET', '/api/v1/filters')).json.length, 0);
+    assert.equal((await s.call('GET', '/api/v1/ai/settings')).json.provider, null);
+    // Nothing of the deleted text is left in the database file (freed pages are wiped).
+    const data = join(s.home, 'data');
+    for (const f of readdirSync(data)) {
+      const bytes = readFileSync(join(data, f)).toString('latin1');
+      for (const secret of [NOTE, 'Testwell', 'Hidden Co', 'my filter']) assert.ok(!bytes.includes(secret), `${f} holds "${secret}"`);
+    }
+  });
+});
+
+test('JL-settings-19: a burst waits its turn per client, beyond the queue it gets 429 at once, and the event loop stays free', async () => {
+  const t = new Turnstile(64);
+  let admitted = 0;
+  let refused = 0;
+  let maxGapMs = 0;
+  let last = performance.now();
+  const probe = setInterval(() => { const now = performance.now(); maxGapMs = Math.max(maxGapMs, now - last); last = now; }, 1);
+  const order: string[] = [];
+  const work: Array<Promise<void>> = [];
+  for (let i = 0; i < 400; i++) {
+    const turn = t.enter('app');
+    if (!turn) { refused++; continue; }
+    // Each handler holds the event loop for 5 ms (synchronous SQLite work in the real server).
+    work.push(turn.then(() => { admitted++; order.push('app'); const end = performance.now() + 5; while (performance.now() < end) { /* busy */ } }));
+  }
+  // Another client is not stuck behind the burst: it runs in the first turn.
+  work.push(t.enter('extension:x')!.then(() => { order.push('extension'); }));
+  await Promise.all(work);
+  clearInterval(probe);
+  assert.equal(admitted, 64);
+  assert.equal(refused, 336);
+  assert.ok(order.indexOf('extension') <= 1, `the other client ran at turn ${order.indexOf('extension')}`);
+  assert.ok(maxGapMs < 100, `the event loop was blocked for ${Math.round(maxGapMs)} ms at once (the whole burst is 320 ms)`);
+});
+
+test('JL-settings-19: a few hundred concurrent requests end in 200 or 429, health answers during the burst, the server stays up', async () => {
+  const s = await startTest('burst');
+  try {
+    await s.call('PUT', '/api/v1/profile', PERSONA);
+    const headers = { 'x-jobleft-token': s.token, 'content-type': 'application/json' };
+    const burst = Array.from({ length: 400 }, (_, i) => i % 2
+      ? raw(s.port, { method: 'POST', path: '/api/v1/jobs/search', headers, body: JSON.stringify({ sort: 'most_recent' }) })
+      : raw(s.port, { path: '/api/v1/profile', headers }));
+    const t0 = performance.now();
+    const health = await raw(s.port, { path: '/api/v1/health' });
+    const healthMs = performance.now() - t0;
+    const replies = await Promise.all(burst);
+    assert.equal(health.status, 200);
+    assert.ok(healthMs < 5000, `health took ${Math.round(healthMs)} ms during the burst`);
+    const by = new Map<number, number>();
+    for (const r of replies) by.set(r.status, (by.get(r.status) ?? 0) + 1);
+    assert.deepEqual([...by.keys()].filter((k) => k !== 200 && k !== 429), [], JSON.stringify([...by]));
+    assert.ok((by.get(200) ?? 0) >= 128, JSON.stringify([...by]));
+    for (const r of replies.filter((x) => x.status === 429)) {
+      assert.equal(r.json.error.code, 'rate_limited');
+      assert.equal(r.headers['retry-after'], '1');
+    }
+    // After the burst everything answers as usual.
+    assert.equal((await s.call('GET', '/api/v1/profile')).json.personal.lastName, 'Testwell');
+  } finally { await s.stop(); cleanup(s.home); }
+});
+
+test('JL-settings-12: a Greenhouse, Lever or Ashby link finds its board and adds it; LinkedIn, Indeed, Glassdoor, Workday, iCIMS and SmartRecruiters are refused in plain words', async () => {
+  const dir = scratchHome('resolve-boards');
+  const file = join(dir, 'boards.json');
+  writeFileSync(file, JSON.stringify({
+    greenhouse: { figma: [greenhouseJob(1, { board: 'figma', title: 'Designer' }), greenhouseJob(2, { board: 'figma', title: 'Engineer' })] },
+    lever: { plaid: [{ id: 'l1', text: 'Analyst', hostedUrl: 'https://jobs.lever.co/plaid/l1', applyUrl: 'https://jobs.lever.co/plaid/l1/apply', categories: { location: 'Remote' }, descriptionPlain: 'x', lists: [], createdAt: 1758000000000 }] },
+    ashby: { ramp: [{ id: 'a1', title: 'Ops', jobUrl: 'https://jobs.ashbyhq.com/ramp/a1', applyUrl: 'https://jobs.ashbyhq.com/ramp/a1/application', location: 'New York', descriptionPlain: 'x', isListed: true, publishedAt: '2026-09-20T00:00:00Z' }] },
+  }));
+  const boards = await startBoards({ file });
+  const hosts = ['boards-api.greenhouse.io', 'boards.greenhouse.io', 'job-boards.greenhouse.io', 'api.lever.co', 'jobs.lever.co', 'api.ashbyhq.com', 'jobs.ashbyhq.com'];
+  const s = await startTest('resolve', { env: { JOBLEFT_HOST_MAP: JSON.stringify(Object.fromEntries(hosts.map((h) => [h, boards.origin]))), JOBLEFT_BOARD_DIRECTORY: 'none' } });
+  try {
+    for (const [link, ats, board, open] of [
+      ['https://boards.greenhouse.io/figma', 'greenhouse', 'figma', 2],
+      ['https://jobs.lever.co/plaid', 'lever', 'plaid', 1],
+      ['https://jobs.ashbyhq.com/ramp', 'ashby', 'ramp', 1],
+    ] as const) {
+      const r = await s.call('POST', '/api/v1/boards/resolve', { url: link });
+      assert.equal(r.status, 200, `${link}: ${r.text}`);
+      assert.equal(r.json.candidates.length, 1, `${link}: ${r.text}`);
+      const c = r.json.candidates[0];
+      assert.deepEqual([c.ats, c.board, c.openJobs, c.alreadyAdded], [ats, board, open, false], link);
+      const added = await s.call('POST', '/api/v1/boards', { ats: c.ats, board: c.board });
+      assert.equal(added.status, 200, added.text);
+      assert.equal(added.json.origin, 'user');
+      const again = await s.call('POST', '/api/v1/boards/resolve', { url: link });
+      assert.equal(again.json.candidates[0].alreadyAdded, true, `${link}: already added`);
+    }
+    assert.equal((await s.call('GET', '/api/v1/boards?view=user')).json.total, 3);
+    const before = boards.log.length;
+    for (const [link, name] of [
+      ['https://www.linkedin.com/jobs/view/4012345678', 'LinkedIn'],
+      ['https://www.indeed.com/viewjob?jk=abc123', 'Indeed'],
+      ['https://www.glassdoor.com/job-listing/x-JV_IC1.htm', 'Glassdoor'],
+      ['https://acme.wd5.myworkdayjobs.com/en-US/External', 'Workday'],
+      ['https://careers-acme.icims.com/jobs/1234/job', 'iCIMS'],
+      ['https://jobs.smartrecruiters.com/Acme/123', 'SmartRecruiters'],
+    ] as const) {
+      const r = await s.call('POST', '/api/v1/boards/resolve', { url: link });
+      assert.equal(r.status, 200, r.text);
+      assert.equal(r.json.reason, 'forbidden_host', link);
+      assert.deepEqual(r.json.candidates, []);
+      assert.match(r.json.message, new RegExp(`does not support ${name}`), link);
+      assert.match(r.json.message, /Nothing was sent/);
+    }
+    assert.equal(boards.log.length, before, 'no request for a forbidden link');
+    assert.equal((await s.call('POST', '/api/v1/boards/resolve', { url: 'not a link' })).json.reason, 'not_a_link');
+  } finally { await s.stop(); await boards.close(); cleanup(s.home); cleanup(dir); }
+});
+
+test('JL-settings-13: "Added by you" lists only the boards the person added, not the starting boards', async () => {
+  const s = await startTest('userview');
+  try {
+    // The first-run choice adds the starting boards for the field (no crawl starts in a test).
+    await s.call('PUT', '/api/v1/profile', { ...PERSONA, preferences: { ...PERSONA.preferences, jobFunctions: ['Software Engineering'] } });
+    const seeded = (await s.call('GET', '/api/v1/boards?view=all&limit=100')).json;
+    assert.ok(seeded.total > 1, `the first run added starting boards (${seeded.total})`);
+    assert.equal((await s.call('GET', '/api/v1/boards?view=user&limit=100')).json.total, 0);
+    assert.equal((await s.call('POST', '/api/v1/boards', { ats: 'lever', board: 'plaid' })).status, 200);
+    const user = (await s.call('GET', '/api/v1/boards?view=user&limit=100')).json;
+    assert.deepEqual(user.items.map((b: any) => [b.id, b.origin]), [['lever:plaid', 'user']]);
+    assert.equal(user.total, 1);
+    assert.equal((await s.call('GET', '/api/v1/boards?view=all&limit=100')).json.total, seeded.total + 1);
+  } finally { await s.stop(); cleanup(s.home); }
+});
+
+test('JL-settings-27: an unfollowed, hidden or turned-off board\'s jobs leave the feed, stay tracked, and come back on follow', async () => {
+  await withCrawledBoard('unfollow', async (s) => {
+    await s.call('PUT', '/api/v1/profile', PERSONA); // the personal ranking (Recommended) is checked too
+    await s.call('PATCH', `/api/v1/tracker/${encodeURIComponent('greenhouse:mockco:1')}`, { liked: true });
+    const search = async (q?: string) => (await s.call('POST', '/api/v1/jobs/search', { sort: 'most_recent', ...(q ? { q } : {}) })).json;
+    const recommended = async () => (await s.call('POST', '/api/v1/jobs/search', { sort: 'recommended' })).json;
+    assert.equal((await search()).total, 3);
+    assert.equal((await recommended()).total, 3);
+    // The Settings switch turns a board off ({ disabled: true }); unfollowing and hiding do the same to the feed.
+    for (const patch of [{ disabled: true }, { followed: false }, { hidden: true }]) {
+      assert.equal((await s.call('PATCH', '/api/v1/boards/greenhouse:mockco', patch)).status, 200);
+      assert.equal((await search()).total, 0, JSON.stringify(patch));
+      assert.equal((await recommended()).total, 0, `recommended ${JSON.stringify(patch)}`);
+      assert.equal((await search('Nurse')).total, 0);
+      assert.equal((await s.call('GET', '/api/v1/tracker?view=liked')).json.items.length, 1, 'a liked job stays in the tracker');
+      assert.equal((await s.call('PATCH', '/api/v1/boards/greenhouse:mockco', { followed: true, disabled: false, hidden: false })).status, 200);
+      assert.equal((await search()).total, 3, 'following again brings the jobs back');
+      assert.equal((await recommended()).total, 3);
+    }
+  });
+});
+
+test('JL-settings-17: a resume uploaded without a file name comes back as .pdf in the export and the download', async () => {
+  const PDF = readFileSync(new URL('../../../packages/resume/test/fixtures/jordan-one-column.pdf', import.meta.url));
+  const s = await startTest('resext');
+  try {
+    const up = await s.call('POST', '/api/v1/resumes/import', PDF, { 'content-type': 'application/pdf' });
+    assert.equal(up.status, 200, up.text);
+    const id = up.json.resume.id as string;
+    const dl = await s.call('GET', `/api/v1/resumes/${id}/export?format=pdf`);
+    assert.equal(dl.status, 200);
+    assert.match(String(dl.headers['content-disposition']), /filename="resume\.pdf"/);
+    const zip = (await s.call('GET', '/api/v1/export')).body;
+    const names: string[] = [];
+    for (let p = 0; p + 30 <= zip.length && zip.readUInt32LE(p) === 0x04034b50;) {
+      const nameLen = zip.readUInt16LE(p + 26);
+      names.push(zip.subarray(p + 30, p + 30 + nameLen).toString('utf8'));
+      const next = zip.indexOf(Buffer.from([0x50, 0x4b, 0x03, 0x04]), p + 30 + nameLen);
+      if (next < 0) break;
+      p = next;
+    }
+    const file = names.find((n) => n.startsWith('files/resumes/'));
+    assert.ok(file && file.endsWith('.pdf'), JSON.stringify(names));
+  } finally { await s.stop(); cleanup(s.home); }
+});
+
+test('JL-settings-8: a publik Assistant answer ends with its charge (the balance drop), not costMicros null', async () => {
+  const pub = await startPublik({ balanceMicros: 250_000, chargeMicros: 1_374 });
+  const s = await startTest('pubcost', { env: { JOBLEFT_PUBLIK_APP_TOKEN: 'stand-in-app-token', JOBLEFT_PUBLIK_BASE_URL: `${pub.origin}/api/v1` } });
+  try {
+    assert.equal((await s.call('POST', '/api/v1/publik/connect', { disclosureAccepted: true, disclosureVersion: 1 })).json.state, 'connected');
+    await s.call('PUT', '/api/v1/ai/settings', { provider: 'publik' });
+    const r = await s.call('POST', '/api/v1/ai/chat', { requestId: 'req-cost', messages: [{ role: 'user', content: 'Reply with the single word: ok' }] });
+    const ev = r.text.split('\n\n').map((l) => l.trim()).filter((l) => l.startsWith('data: ')).map((l) => JSON.parse(l.slice(6)));
+    const done = ev.at(-1);
+    assert.equal(done.type, 'done', r.text);
+    assert.equal(done.costMicros, 1_374);
+    assert.equal((await s.call('GET', '/api/v1/publik')).json.wallet.balanceMicros, 250_000 - 1_374);
+  } finally { await s.stop(); await pub.close(); cleanup(s.home); }
+});

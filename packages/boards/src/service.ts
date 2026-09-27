@@ -52,6 +52,11 @@ export interface BoardServiceOptions {
   offline?: () => boolean;
   /** A resolve answers within this time (default 25 s; 60 s when a paid lookup was accepted). */
   resolveDeadlineMs?: number;
+  /**
+   * Whether the person already has this board (additive). A host app that keeps the person's board list in its own
+   * table (apps/server) answers here; without it, a board the person added through board_prefs counts.
+   */
+  isAdded?: (boardId: string) => boolean;
 }
 
 interface PrefRow {
@@ -126,6 +131,7 @@ export class BoardService {
   private paid: PaidPageFetcher | null;
   private offline: () => boolean;
   private deadlineMs: number;
+  private isAddedHook: ((boardId: string) => boolean) | null;
   private verified = new Map<string, { at: number; openJobs: number; name: string | null }>();
   private resolveCache = new Map<string, { at: number; answer: BoardResolveResponse }>();
 
@@ -139,6 +145,7 @@ export class BoardService {
     this.paid = opts.paid ?? null;
     this.offline = opts.offline ?? (() => false);
     this.deadlineMs = opts.resolveDeadlineMs ?? 25_000;
+    this.isAddedHook = opts.isAdded ?? null;
     migrateBoards(this.db);
   }
 
@@ -473,7 +480,12 @@ export class BoardService {
   }
 
   private refreshAlreadyAdded(a: BoardResolveResponse): BoardResolveResponse {
-    return { ...a, candidates: a.candidates.map((c) => ({ ...c, alreadyAdded: !!this.pref(c.boardId)?.added_by_user })) };
+    return { ...a, candidates: a.candidates.map((c) => ({ ...c, alreadyAdded: this.added(c.boardId) })) };
+  }
+
+  /** Whether the person already has this board. */
+  private added(id: string): boolean {
+    return this.isAddedHook ? this.isAddedHook(id) : !!this.pref(id)?.added_by_user;
   }
 
   private supportedList(): string {
@@ -539,7 +551,7 @@ export class BoardService {
       const dir = this.directory.get(id);
       const pref = this.pref(id);
       const company = (r.ok ? r.name : null) ?? dir?.company ?? pref?.company ?? f.board;
-      candidates.push({ boardId: id, ats: f.ats, board: f.board, region, company, openJobs: r.ok ? r.openJobs : null, alreadyAdded: !!pref?.added_by_user });
+      candidates.push({ boardId: id, ats: f.ats, board: f.board, region, company, openJobs: r.ok ? r.openJobs : null, alreadyAdded: this.added(id) });
     }
     if (candidates.length === 0) {
       if (offline) return this.reply([], 'offline', 'jobleft could not reach the network, so it could not check this link. The link is kept in your pending links; try again when you are online. Nothing was added.', null, true);

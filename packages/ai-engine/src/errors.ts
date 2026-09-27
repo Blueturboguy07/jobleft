@@ -8,7 +8,9 @@ export type AiErrorCode =
   | 'no_provider' | 'unreachable' | 'timeout' | 'key_refused' | 'model_not_found' | 'not_ai_server'
   | 'insufficient_balance' | 'provider_error' | 'bad_answer' | 'cancelled'
   // Added by the ai-engine lane (additive):
-  | 'needs_claim' | 'offline' | 'bad_request' | 'not_ready';
+  | 'needs_claim' | 'offline' | 'bad_request' | 'not_ready'
+  // A key typed for a provider that is not the saved one (nothing was saved):
+  | 'conflict';
 
 /** Every provider failure, in plain words. `topUpUrl` is set only for insufficient_balance (and needs_claim). */
 export class AiError extends Error {
@@ -49,6 +51,7 @@ const API_CODE: Record<AiErrorCode, ErrorCode> = {
   offline: 'offline',
   bad_request: 'bad_request',
   not_ready: 'not_ready',
+  conflict: 'conflict',
 };
 
 /** The local API error body for an AI failure (docs/INTERFACES.md section 6.2). At most one link. */

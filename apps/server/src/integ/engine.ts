@@ -64,18 +64,29 @@ export class AiFacade {
    */
   async metered<T extends { costMicros?: number | null }>(fn: () => Promise<T>): Promise<T> {
     if (this.engine.settings().provider !== 'publik') return fn();
-    const balance = (c: { wallet: { balanceMicros: number } | null } | null) => c?.wallet?.balanceMicros ?? null;
-    let before: number | null = null;
-    try { before = balance(await this.engine.publik.refresh()); } catch { before = null; }
+    const before = await this.publikBalance();
     const r = await fn();
-    if ((r.costMicros === null || r.costMicros === undefined) && before !== null) {
-      try {
-        await this.engine.idle();
-        const after = balance(await this.engine.publik.refresh());
-        if (after !== null && before - after > 0) return { ...r, costMicros: before - after };
-      } catch { /* the cost stays unknown */ }
+    if (r.costMicros === null || r.costMicros === undefined) {
+      const cost = await this.chargeSince(before);
+      if (cost !== null) return { ...r, costMicros: cost };
     }
     return r;
+  }
+
+  /** The publik balance read from publik now, or null (not publik, not connected, not readable). */
+  async publikBalance(): Promise<number | null> {
+    if (this.engine.settings().provider !== 'publik') return null;
+    try { return (await this.engine.publik.refresh()).wallet?.balanceMicros ?? null; } catch { return null; }
+  }
+
+  /** What the balance dropped since `before`, read after the step's own balance re-read ended. null = unknown. */
+  async chargeSince(before: number | null): Promise<number | null> {
+    if (before === null) return null;
+    try {
+      await this.engine.idle();
+      const after = (await this.engine.publik.refresh()).wallet?.balanceMicros ?? null;
+      return after !== null && before - after > 0 ? before - after : null;
+    } catch { return null; }
   }
 
   /**
