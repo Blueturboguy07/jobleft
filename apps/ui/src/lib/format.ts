@@ -121,6 +121,12 @@ export function ago(iso: string | null | undefined, now = Date.now()): string | 
   return dateText(iso);
 }
 
+/** Whole seconds until `iso` (0 once it passed), for a countdown that reads right from its first frame. */
+export function secondsLeft(iso: string, now = Date.now()): number {
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? Math.max(0, Math.round((t - now) / 1000)) : 0;
+}
+
 /** "Sep 20, 2026" in the person's time zone. */
 export function dateText(iso: string | null | undefined): string | null {
   if (!iso) return null;
