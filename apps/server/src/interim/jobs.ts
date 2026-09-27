@@ -166,7 +166,10 @@ function snippetOf(text: string): string {
 export function rowToJob(r: CrawlRow): Job {
   const external = r.ats === 'external';
   const id = contractJobId(r);
-  const url = httpUrl(r.canonical_url) ?? `https://${NO_LINK_HOST}/job/${encodeURIComponent(id)}`;
+  // The link as the person or the board gave it (JL-feed-13: an http link stays http); the canonical form is only the
+  // key that finds the same posting again.
+  const canonical = httpUrl(r.canonical_url);
+  const url = httpUrl(r.page_url) ?? canonical ?? `https://${NO_LINK_HOST}/job/${encodeURIComponent(id)}`;
   const apply = httpUrl(r.apply_url);
   const level = r.level && LEVEL_SET.has(r.level) ? (r.level as Level) : null;
   const employment = r.employment_type && EMPLOYMENT_SET.has(r.employment_type) ? (r.employment_type as Job['employmentType']) : null;
@@ -185,7 +188,7 @@ export function rowToJob(r: CrawlRow): Job {
     externalId: external ? null : r.job_id,
     url,
     applyUrl: apply && apply !== url ? apply : null,
-    canonicalUrl: url,
+    canonicalUrl: canonical ?? url,
     places: r.location ? [{ text: r.location, city: null, region: null, country: null, placeId: null }] : [],
     isUs: r.is_us === null ? null : r.is_us === 1,
     workModel: workModelOf(r),
@@ -231,7 +234,7 @@ const SELECT = `SELECT j.*, d.ats AS d_ats, d.board AS d_board, d.job_id AS d_jo
   LEFT JOIN srv_tracker t ON t.job_id = (lower(j.ats) || ':' || lower(j.board) || ':' || j.job_id)`;
 
 // levels_json, years_min and years_max are crawler columns (SELECT j.*) that JobRow's type does not list yet.
-type CrawlRow = JobRow & { levels_json?: string | null; years_min?: number | null; years_max?: number | null };
+type CrawlRow = JobRow & { levels_json?: string | null; years_min?: number | null; years_max?: number | null; page_url?: string | null };
 type Row = CrawlRow & { t_liked: number | null; t_hidden: number | null; t_status: string | null; sort_key?: number | null };
 
 interface Cursor { s: string; h: string; k: number | null; i: number }
