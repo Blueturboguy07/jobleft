@@ -139,8 +139,26 @@ fn publik_app_token(app: &AppHandle) -> Option<String> {
     if tok.starts_with("pat_jobleft_") && tok.len() < 120 { Some(tok) } else { None }
 }
 
+/// A path Node can take on Windows: without the `\\?\` verbatim prefix (`std::env::current_exe` and Tauri's resource
+/// folder carry it there, and Node then fails to resolve its main script). Other systems: unchanged.
+fn plain(p: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let s = p.to_string_lossy();
+        if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{rest}"));
+        }
+        if let Some(rest) = s.strip_prefix(r"\\?\") {
+            return PathBuf::from(rest);
+        }
+    }
+    p.to_path_buf()
+}
+
 fn spawn_server(app: &AppHandle, home: &Path, token: &str) -> Result<Child, String> {
     let (node, server, ui) = sidecar_paths(app)?;
+    let (node, server, ui, home) = (plain(&node), plain(&server), ui.map(|u| plain(&u)), plain(home));
+    let home = home.as_path();
     if !node.exists() {
         return Err(format!("the node runtime is missing at {}", node.display()));
     }

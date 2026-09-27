@@ -4,6 +4,21 @@
 import { readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+/**
+ * Puts `tmp` in place of `file` (atomic on POSIX). On Windows a rename over a file that a scanner or a reader holds
+ * open for a moment is refused with EPERM (seen after a killed server left its run file), so it retries briefly,
+ * removing the old file first; never a wrong file in place, at worst a delay.
+ */
+function replaceFile(tmp: string, file: string): void {
+  for (let attempt = 0; ; attempt++) {
+    try { renameSync(tmp, file); return; } catch (e) {
+      if (process.platform !== 'win32' || attempt >= 30) throw e;
+      try { unlinkSync(file); } catch { /* already gone, or still held: the next try tells */ }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    }
+  }
+}
+
 export interface RunInfo {
   pid: number;
   port: number;
@@ -15,7 +30,7 @@ export interface RunInfo {
 export function writeRunFile(file: string, info: RunInfo): void {
   const tmp = join(dirname(file), `.server.json.${process.pid}.tmp`);
   writeFileSync(tmp, JSON.stringify(info, null, 2) + '\n', { mode: 0o600 });
-  renameSync(tmp, file);
+  replaceFile(tmp, file);
 }
 
 export function readRunFile(file: string): RunInfo | null {
