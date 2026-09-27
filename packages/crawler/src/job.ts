@@ -39,7 +39,7 @@ function tryHook<T>(name: string, args: unknown[], check: (v: unknown) => v is T
  * board's stored validators are tied to it, so the next reading is a full one (not a 304) and every job is stored again
  * under the new rules.
  */
-export const NORMALIZER_VERSION = 4;
+export const NORMALIZER_VERSION = 5;
 
 /** Only absolute http(s) links survive; anything else (javascript:, file:, custom schemes, relative) is dropped. */
 export function httpUrl(v: string | null | undefined): string | null {
