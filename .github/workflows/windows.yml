@@ -64,9 +64,10 @@ jobs:
       - name: Build the installer
         shell: pwsh
         run: |
-          $cli = Get-ChildItem -Path node_modules/.pnpm -Directory -Filter '@tauri-apps+cli@*' | Select-Object -First 1
           Set-Location apps/shell
-          node "$($cli.FullName)/node_modules/@tauri-apps/cli/tauri.js" build --bundles nsis
+          $cli = node -p "require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })"
+          "tauri cli: $cli"
+          node $cli build --bundles nsis
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: "Smoke: install, start, health, stop"

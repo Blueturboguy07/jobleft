@@ -29,7 +29,7 @@ ENT="$ROOT/apps/shell/src-tauri/Entitlements.plist"
 echo "==> UI, sidecar tree, release bundle"
 pnpm --filter @jobleft/ui build >/dev/null
 node apps/shell/scripts/pack.ts
-TAURI="$(ls -d "$ROOT"/node_modules/.pnpm/@tauri-apps+cli@*/node_modules/@tauri-apps/cli | tail -1)/tauri.js"
+TAURI="$(cd "$ROOT/apps/shell" && node -p "require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })")"
 ( cd apps/shell && node "$TAURI" build --bundles app,dmg )
 APP="$CARGO_TARGET_DIR/release/bundle/macos/jobleft.app"
 [ -d "$APP" ] || { echo "No jobleft.app was produced." >&2; exit 1; }

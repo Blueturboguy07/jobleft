@@ -8,17 +8,19 @@
 //   src-tauri/binaries/node-<target>  the Node 24 runtime (put there by hand or by scripts/fetch-node.sh; verified
 //                                against nodejs.org's SHASUMS256.txt)
 // Usage: node apps/shell/scripts/pack.ts [--target darwin-arm64|win-x64]   (run from the repository root; safe to run again)
-import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(new URL('../../../', import.meta.url)));
 // esbuild comes with the UI's Vite; it is used here only as a TypeScript-to-JavaScript transform, one file at a time.
-const esbuildDir = readdirSync(join(ROOT, 'node_modules/.pnpm')).find((d) => /^esbuild@\d/.test(d));
-if (!esbuildDir) throw new Error('esbuild not found under node_modules/.pnpm (pnpm install first)');
+// Found through Vite's real folder (Node's own resolution), so pnpm's store may live anywhere.
+const require = createRequire(import.meta.url);
+const viteDir = realpathSync(dirname(require.resolve('vite/package.json', { paths: [join(ROOT, 'apps/ui')] })));
+const esbuildMain = require.resolve('esbuild/lib/main.js', { paths: [viteDir] });
 type Transform = (code: string, opts: Record<string, unknown>) => { code: string };
-const { transformSync } = (await import(pathToFileURL(join(ROOT, 'node_modules/.pnpm', esbuildDir, 'node_modules/esbuild/lib/main.js')).href)) as { transformSync: Transform };
+const { transformSync } = (await import(pathToFileURL(esbuildMain).href)) as { transformSync: Transform };
 /** Relative specifiers and URL literals that end in .ts point at the transpiled .js next to them. */
 const relinkSpecifiers = (code: string) => code.replace(/(['"])(\.{1,2}\/[^'"\n]+?)\.ts\1/g, '$1$2.js$1');
 const argTarget = process.argv.indexOf('--target') >= 0 ? process.argv[process.argv.indexOf('--target') + 1] : null;
@@ -65,37 +67,50 @@ while (queue.length) {
   copyPackage(from, join(serverOut, 'node_modules/@jobleft', name));
   queue.push(...deps(from));
 }
-// Third-party runtime packages: pnpm's own deploy of the server (production dependencies only) is the source of
-// truth. Each package is copied once, flat, under node_modules/<name> (no duplicate versions exist; the copy step
-// stops if one appears). onnxruntime-node ships binaries for every platform; only this Mac's stay.
-const deployDir = join(ROOT, '.cache/shell-deploy');
-rmSync(deployDir, { recursive: true, force: true });
-const PNPM = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-const dep = spawnSync(PNPM, ['--filter', '@jobleft/server', 'deploy', '--prod', '--legacy', deployDir], { cwd: ROOT, encoding: 'utf8', shell: process.platform === 'win32' });
-if (dep.status !== 0) throw new Error(`pnpm deploy failed: ${dep.stderr.slice(0, 400)}`);
-const pnpmDir = join(deployDir, 'node_modules/.pnpm');
+// Third-party runtime packages: every non-workspace dependency (dependencies + optionalDependencies, never dev) of
+// every workspace package the server uses, found the way Node finds them (walking up from the package's own real
+// folder), then their dependencies, and so on. Each package is copied once, flat, under node_modules/<name>; a second
+// version of a name stops the build (the flat layout needs one). This works with any pnpm layout (the virtual store
+// may sit outside the workspace, as on Windows runners). onnxruntime-node ships binaries for every platform; only
+// the target's stay.
+function findPackage(name: string, from: string): string | null {
+  let dir = from;
+  for (;;) {
+    const cand = join(dir, 'node_modules', name);
+    if (existsSync(join(cand, 'package.json'))) return realpathSync(cand);
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
 const third: string[] = [];
 const seenNames = new Map<string, string>();
-for (const entry of readdirSync(pnpmDir)) {
-  if (entry.startsWith('@jobleft') || !/^(@[^+@]+\+)?[^@]+@\d/.test(entry)) continue; // skips node_modules, lock.yaml and pnpm's own folders
-  const name = entry.replace(/@\d[^@]*$/, '').replace('+', '/');
-  const version = entry.slice(name.replace('/', '+').length + 1);
-  if (seenNames.has(name)) throw new Error(`two versions of ${name}: ${seenNames.get(name)} and ${version}; the flat layout needs one`);
-  seenNames.set(name, version);
-  const src = join(pnpmDir, entry, 'node_modules', name);
-  const dst = join(serverOut, 'node_modules', name);
-  cpSync(src, dst, { recursive: true, dereference: true, filter: (p) => !/\/(test|tests|docs|examples|\.github)(\/|$)/.test(p.slice(src.length)) });
-  third.push(`${name}@${version}`);
+function runtimeDeps(pkgDir: string): string[] {
+  const pkg = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8')) as { dependencies?: Record<string, string>; optionalDependencies?: Record<string, string> };
+  return [...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.optionalDependencies ?? {})];
 }
+function copyThirdParty(name: string, from: string, wantedBy: string): void {
+  if (name.startsWith('@jobleft/')) return;
+  const src = findPackage(name, from);
+  if (!src) throw new Error(`${name} (needed by ${wantedBy}) not found from ${from}`);
+  const version = (JSON.parse(readFileSync(join(src, 'package.json'), 'utf8')) as { version?: string }).version ?? '?';
+  const before = seenNames.get(name);
+  if (before !== undefined) { if (before !== version) throw new Error(`two versions of ${name}: ${before} and ${version}; the flat layout needs one`); return; }
+  seenNames.set(name, version);
+  cpSync(src, join(serverOut, 'node_modules', name), { recursive: true, dereference: true, filter: (p) => !/[\\/](test|tests|docs|examples|\.github)([\\/]|$)/.test(p.slice(src.length)) && !/[\\/]node_modules([\\/]|$)/.test(p.slice(src.length)) });
+  third.push(`${name}@${version}`);
+  for (const dep of runtimeDeps(src)) copyThirdParty(dep, src, name);
+}
+for (const name of ['server', ...seen]) {
+  const from = name === 'server' ? join(ROOT, 'apps/server') : [join(ROOT, 'packages', name), join(ROOT, 'apps', name)].find((d) => existsSync(join(d, 'package.json')))!;
+  for (const dep of runtimeDeps(from)) copyThirdParty(dep, from, name);
+}
+third.sort();
 const onnxBin = join(serverOut, 'node_modules/onnxruntime-node/bin/napi-v6');
 if (existsSync(onnxBin)) for (const os of readdirSync(onnxBin)) {
   if (os !== ONNX[0]) { rmSync(join(onnxBin, os), { recursive: true, force: true }); continue; }
   for (const arch of readdirSync(join(onnxBin, os))) if (arch !== ONNX[1]) rmSync(join(onnxBin, os, arch), { recursive: true, force: true });
 }
-rmSync(deployDir, { recursive: true, force: true });
-// pnpm deploy re-resolves the workspace and drops the other packages' bin links (vite, tauri); put them back.
-const relink = spawnSync(PNPM, ['install', '--offline'], { cwd: ROOT, encoding: 'utf8', shell: process.platform === 'win32' });
-if (relink.status !== 0) throw new Error(`pnpm install --offline failed after deploy: ${relink.stderr.slice(0, 300)}`);
 const ui = join(ROOT, 'apps/ui/dist');
 if (!existsSync(join(ui, 'index.html'))) throw new Error('build the UI first: pnpm --filter @jobleft/ui build');
 cpSync(ui, join(OUT, 'ui'), { recursive: true });
