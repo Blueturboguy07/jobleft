@@ -8,7 +8,7 @@ import { chmodSync, createReadStream, existsSync, mkdirSync, readdirSync, readFi
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
-import { CLI, MAIN, cleanup, raw, scratchHome, spawnServer, waitExit } from './helpers.ts';
+import { CLI, MAIN, childEnv, cleanup, raw, scratchHome, spawnServer, waitExit } from './helpers.ts';
 
 function hashes(dir: string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -19,7 +19,7 @@ function hashes(dir: string): Record<string, string> {
 test('--help, --version and a wrong argument start nothing and touch no data folder; --home picks the folder', async () => {
   const home = scratchHome('args');
   const target = join(home, 'never-made');
-  const env = { PATH: process.env.PATH ?? '', JOBLEFT_HOME: target };
+  const env = childEnv({ JOBLEFT_HOME: target });
   const run = (args: string[]) => new Promise<{ code: number | null; out: string }>((resolve) => {
     const c = spawn(process.execPath, [MAIN, ...args], { env, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
@@ -94,7 +94,7 @@ test('a busy port is skipped', async () => {
 
 test('the server stops within 10 seconds after its parent is killed', async () => {
   const home = scratchHome('parent');
-  const parent = spawn('/bin/sleep', ['60'], { stdio: 'ignore' });
+  const parent = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' }); // a parent that just lives (no /bin/sleep on Windows)
   const a = spawnServer(home, { JOBLEFT_PARENT_PID: String(parent.pid) });
   const info = await a.ready;
   const t0 = Date.now();
@@ -136,7 +136,7 @@ test('a newer data folder is refused and left byte for byte as it was', async ()
   cleanup(home);
 });
 
-test('a read-only data folder at start is refused and left as it was', async () => {
+test('a read-only data folder at start is refused and left as it was', { skip: process.platform === 'win32' && 'POSIX permissions only' }, async () => {
   const home = scratchHome('rostart');
   execFileSync(process.execPath, [CLI, 'fixture', '--home', home, '--schema', '1'], { stdio: 'ignore' });
   const before = hashes(join(home, 'data'));

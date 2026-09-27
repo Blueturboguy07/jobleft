@@ -188,17 +188,19 @@ test('at the default log level, refused requests leave every file in the data fo
   const { readdirSync, readFileSync, statSync } = await import('node:fs');
   const { join } = await import('node:path');
   const t = await startTest('secquiet', { env: { JOBLEFT_LOG_LEVEL: 'info' } });
-  const hashAll = (dir: string): string => {
-    const h = createHash('sha256');
+  // One hash per file, so a difference names the file. SQLite's -shm file is left out: it is the WAL's shared index,
+  // which readers touch too (read marks), so it is not a record of any write.
+  const hashAll = (dir: string): Record<string, string> => {
+    const out: Record<string, string> = {};
     const walk = (d: string) => {
       for (const n of readdirSync(d).sort()) {
         const p = join(d, n);
-        if (p.startsWith(join(t.home, 'run'))) continue;
-        if (statSync(p).isDirectory()) walk(p); else h.update(p).update(readFileSync(p));
+        if (p.startsWith(join(t.home, 'run')) || n.endsWith('-shm')) continue;
+        if (statSync(p).isDirectory()) walk(p); else out[p.slice(t.home.length)] = createHash('sha256').update(readFileSync(p)).digest('hex');
       }
     };
     walk(dir);
-    return h.digest('hex');
+    return out;
   };
   try {
     await t.call('PUT', '/api/v1/profile', { ...(await import('./helpers.ts')).PERSONA });
@@ -209,6 +211,6 @@ test('at the default log level, refused requests leave every file in the data fo
       await raw(t.port, { method: r.method, path, headers: { origin: 'http://127.0.0.1:8099', 'x-jobleft-token': t.token } });
       await raw(t.port, { method: r.method, path, host: 'attacker.example', headers: { 'x-jobleft-token': t.token } });
     }
-    assert.equal(hashAll(t.home), before);
+    assert.deepEqual(hashAll(t.home), before);
   } finally { await t.stop(); cleanup(t.home); }
 });

@@ -78,10 +78,19 @@ export function cleanup(home: string): void {
   rmSync(home, { recursive: true, force: true });
 }
 
+/** The smallest environment a child Node process needs: PATH, plus what Windows cannot run without (SystemRoot, temp, profile). */
+export function childEnv(extra: Record<string, string> = {}): Record<string, string> {
+  const keep = ['PATH', 'Path', 'SYSTEMROOT', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'APPDATA', 'LOCALAPPDATA', 'PATHEXT', 'COMSPEC', 'ComSpec', 'PROGRAMDATA'];
+  const env: Record<string, string> = {};
+  for (const k of keep) if (process.env[k] !== undefined) env[k] = process.env[k]!;
+  if (!env.PATH) env.PATH = '';
+  return { ...env, ...extra };
+}
+
 export function spawnServer(home: string, env: Record<string, string> = {}): { child: ChildProcess; token: string; ready: Promise<{ port: number; pid: number }> } {
   const token = newLaunchToken();
   const child = spawn(process.execPath, [MAIN], {
-    env: { PATH: process.env.PATH ?? '', JOBLEFT_HOME: home, JOBLEFT_LAUNCH_TOKEN: token, JOBLEFT_SECRET_STORE: 'memory', JOBLEFT_QUIET: '1', ...env },
+    env: childEnv({ JOBLEFT_HOME: home, JOBLEFT_LAUNCH_TOKEN: token, JOBLEFT_SECRET_STORE: 'memory', JOBLEFT_QUIET: '1', ...env }),
     stdio: ['ignore', 'ignore', 'pipe'],
   });
   let err = '';

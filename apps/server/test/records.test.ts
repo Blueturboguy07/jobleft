@@ -91,7 +91,7 @@ test('a save confirmed just before kill -9 is there after the restart', async ()
   cleanup(home);
 });
 
-test('a save into a read-only data folder is refused with a clear error, and old data stays', async () => {
+test('a save into a read-only data folder is refused with a clear error, and old data stays', { skip: process.platform === 'win32' && 'POSIX permissions only' }, async () => {
   const s = await startTest('ro');
   try {
     await s.call('PUT', '/api/v1/profile', PERSONA);
