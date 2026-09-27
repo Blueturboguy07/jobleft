@@ -56,6 +56,14 @@ const fail = {
   bad: (message: string) => new ApiFailure(400, 'bad_request', message),
 };
 
+/** The same limit as a contact's note: a question-bank field holds at most 20,000 characters (JL-network-16). */
+export const PRACTICE_TEXT_LIMIT = 20_000;
+function checkPracticeText(fields: { question?: string | null; answer?: string | null; feedback?: string | null; notes?: string | null }): void {
+  for (const [k, v] of Object.entries(fields)) {
+    if (typeof v === 'string' && v.length > PRACTICE_TEXT_LIMIT) throw fail.bad(`The ${k === 'notes' ? 'notes are' : `${k} is`} longer than 20,000 characters. Nothing was saved.`);
+  }
+}
+
 /** What the person decided about a proposal, in plain words, for the conversation. Only the stored summaries are used. */
 export function decisionText(actions: StoredAction[], r: { applied: string[]; declined: string[]; failed: Array<{ id: string; message: string }>; notes: string[] }): string {
   const summary = (id: string) => actions.find((a) => a.id === id)?.summary.replace(/[.\s]+$/, '') ?? 'A change';
@@ -393,11 +401,15 @@ export class Assistant {
   async listPracticeItems(jobId?: string): Promise<PracticeItem[]> { return this.practice.listItems(jobId); }
 
   async savePracticeItem(input: { jobId: string; kind: 'question' | 'debrief'; question?: string; answer?: string; feedback?: string; notes?: string }): Promise<PracticeItem> {
+    checkPracticeText(input);
+    if (input.kind === 'debrief' && !input.notes?.trim()) throw fail.bad('A debrief needs notes: what you were asked and how it went.');
+    if (input.kind === 'question' && !input.question?.trim()) throw fail.bad('A saved question needs the question text.');
     if (!(await this.data.job(input.jobId))) throw fail.notFound('That job');
     return this.practice.saveItem(input);
   }
 
   updatePracticeItem(id: string, patch: { question?: string | null; answer?: string | null; feedback?: string | null; notes?: string | null }): PracticeItem {
+    checkPracticeText(patch);
     const it = this.practice.updateItem(id, patch);
     if (!it) throw fail.notFound('That practice item');
     return it;

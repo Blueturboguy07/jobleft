@@ -24,15 +24,51 @@ type Q = PracticeSession['questions'][number];
 const HEALTH = /\b(nurs|patient|clinic|icu|hospital|medical|health ?care|rn\b|lpn|physician|therap)/i;
 const TECH = /\b(data|analy|engineer|develop|software|sql|python|program|devops|cloud|machine learning|security)/i;
 
-/** The words that name what a posting asks for: the match engine's lists when there are any, else the posting's skill list. */
-function skillLists(job: Job, match: MatchResult | null | 'needs_profile'): { required: string[]; missing: string[]; matched: string[] } {
-  if (match && match !== 'needs_profile') {
-    const required = [...new Set([...match.skills.required, ...match.skills.preferred])];
-    const all = required.length ? required : [...new Set([...match.skills.matched, ...match.skills.missing])];
-    return { required: all, missing: match.skills.missing, matched: match.skills.matched };
-  }
-  return { required: [...new Set(job.skills)], missing: [], matched: [] };
+type Importance = 'required' | 'preferred' | 'mentioned';
+
+/** The posting's own words (title and text), lower case: a question may only say the posting asks for what is in them. */
+function postingText(job: Job): string {
+  const description = (job as Job & { description?: string }).description ?? '';
+  return `${job.title}\n${description || job.skills.join('\n')}`.toLowerCase();
 }
+
+/** true when the posting's text names this skill (as whole words, case ignored). */
+export function postingNames(text: string, skill: string): boolean {
+  const s = skill.trim().toLowerCase();
+  if (s.length < 2) return false;
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])${s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s-]+')}(?![\\p{L}\\p{N}])`, 'iu');
+  return re.test(text);
+}
+
+/**
+ * The skills a question may name: only those whose name is in the posting's own words (a skill the match engine
+ * inferred from a synonym, such as "Motor controls" from "self-starters", is never claimed), each with how the
+ * posting states it. Skills from the person's profile that the posting names are added (never assumed otherwise).
+ */
+function skillLists(job: Job, match: MatchResult | null | 'needs_profile', profile: Profile | null): { skills: Array<{ name: string; importance: Importance }>; missing: string[] } {
+  const text = postingText(job);
+  const out = new Map<string, { name: string; importance: Importance }>();
+  const add = (name: string, importance: Importance) => {
+    const k = name.toLowerCase();
+    if (out.has(k) || !postingNames(text, name)) return;
+    out.set(k, { name, importance });
+  };
+  let missing: string[] = [];
+  if (match && match !== 'needs_profile') {
+    const detail = new Map((match.skillDetail ?? []).map((c) => [c.name.toLowerCase(), c.importance as Importance]));
+    const imp = (n: string, fallback: Importance): Importance => detail.get(n.toLowerCase()) ?? fallback;
+    for (const n of match.skills.required) add(n, imp(n, 'mentioned'));
+    for (const n of match.skills.preferred) add(n, imp(n, 'preferred'));
+    for (const n of [...match.skills.matched, ...match.skills.missing]) add(n, imp(n, 'mentioned'));
+    missing = match.skills.missing;
+  } else {
+    for (const n of job.skills) add(n, 'mentioned');
+  }
+  for (const sk of profile?.skills ?? []) add(sk.name, 'mentioned');
+  return { skills: [...out.values()], missing };
+}
+
+const ASKS: Record<Importance, string> = { required: 'asks for', preferred: 'lists as a plus', mentioned: 'mentions' };
 
 function profileEvidence(profile: Profile | null, skill: string): { title: string; company: string } | null {
   if (!profile) return null;
@@ -43,38 +79,70 @@ function profileEvidence(profile: Profile | null, skill: string): { title: strin
   return null;
 }
 
+/** true when the person's profile lists this skill by name. */
+function profileHasSkill(profile: Profile | null, skill: string): boolean {
+  const s = skill.toLowerCase();
+  return !!profile && (profile.skills.some((x) => x.name.toLowerCase() === s) || profileEvidence(profile, skill) !== null);
+}
+
+/**
+ * The practice questions. Every question states only what the posting says (in its words: "asks for", "prefers",
+ * "mentions") and what the profile shows; it never assumes the person has a degree, a licence or years they have not
+ * listed. Anything the posting names that the profile does not show is a gap ("Not in your profile yet").
+ */
 export function planQuestions(job: Job, match: MatchResult | null | 'needs_profile', profile: Profile | null, max = 10): Q[] {
-  const { required, missing } = skillLists(job, match);
+  const { skills, missing } = skillLists(job, match, profile);
   const missingSet = new Set(missing.map((s) => s.toLowerCase()));
+  const judged = !!match && match !== 'needs_profile';
+  const isGap = (name: string) => (judged ? missingSet.has(name.toLowerCase()) : !profileHasSkill(profile, name));
   const qs: Array<Omit<Q, 'id'>> = [];
 
-  // 1. gaps first: what the posting asks for and the profile does not show
-  for (const skill of required) {
-    if (!missingSet.has(skill.toLowerCase())) continue;
+  // 1. gaps first: what the posting names and the profile does not show
+  for (const sk of skills) {
+    if (!isGap(sk.name)) continue;
     qs.push({
-      text: `The posting asks for ${skill}, and your profile does not show it. What is the closest experience you have, and how would you get up to speed on ${skill} in your first month?`,
-      target: skill, gap: true,
+      text: `The posting ${ASKS[sk.importance]} ${sk.name}, and your profile does not show it. What is the closest experience you have, and how would you get up to speed on ${sk.name} in your first month?`,
+      target: sk.name, gap: true,
     });
   }
   // 2. skills the person has: tie the question to their own work
-  for (const skill of required) {
-    if (missingSet.has(skill.toLowerCase())) continue;
-    const ev = profileEvidence(profile, skill);
+  for (const sk of skills) {
+    if (isGap(sk.name)) continue;
+    const ev = profileEvidence(profile, sk.name);
     const text = ev
-      ? `You list ${skill} in your work as ${ev.title} at ${ev.company}. Tell me about a specific time you used ${skill}: the problem, what you did, and the result.`
-      : `Tell me about a specific time you used ${skill}: the problem, what you did, and the result.`;
-    qs.push({ text, target: skill, gap: false });
+      ? `You list ${sk.name} in your work as ${ev.title} at ${ev.company}. Tell me about a specific time you used ${sk.name}: the problem, what you did, and the result.`
+      : `The posting ${ASKS[sk.importance]} ${sk.name}, and your profile shows it. Tell me about a specific time you used ${sk.name}: the problem, what you did, and the result.`;
+    qs.push({ text, target: sk.name, gap: false });
   }
-  // 3. must-haves the posting states (licence, degree, years)
-  if (match && match !== 'needs_profile') {
-    for (const m of match.mustHaves ?? []) {
+  // 3. degrees and licences the posting states, with the posting's own weight ("prefers" stays "prefers")
+  if (judged) {
+    for (const m of (match as MatchResult).mustHaves ?? []) {
       if (m.kind !== 'licence' && m.kind !== 'degree') continue;
-      const gap = m.state === 'unmet' || m.state === 'not_in_profile';
-      qs.push({ text: gap ? `The posting requires ${m.requirement}. Your profile does not show it. What is your plan to meet that requirement?` : `The posting requires ${m.requirement}. Tell me about your ${m.requirement} and how you keep it current.`, target: m.requirement, gap });
+      const verb = m.importance === 'preferred' ? 'prefers' : 'requires';
+      const what = m.requirement;
+      if (m.importance === 'obtainable') {
+        qs.push({ text: `The posting asks you to get ${what} after you are hired. How would you plan for that in your first months?`, target: what, gap: m.state !== 'met' });
+      } else if (m.state === 'met') {
+        qs.push({ text: m.kind === 'degree' ? `The posting ${verb} ${what}, and your profile lists one. How did your studies prepare you for this role?` : `The posting ${verb} ${what}, and your profile lists it. Tell me how you keep it current and where you use it.`, target: what, gap: false });
+      } else if (m.state === 'in_progress') {
+        qs.push({ text: `The posting ${verb} ${what}, and yours is in progress in your profile. How would you explain where you are with it and when you finish?`, target: what, gap: false });
+      } else {
+        const weight = m.importance === 'preferred' ? ' It is a plus, not a must-have.' : '';
+        qs.push({ text: m.kind === 'degree'
+          ? `The posting ${verb} ${what}, and your profile does not show it.${weight} How would you show that you can do this work without it?`
+          : `The posting ${verb} ${what}, and your profile does not show it.${weight} What is your plan to meet it?`, target: what, gap: true });
+      }
     }
   }
   if (job.yearsRequired?.min) {
-    qs.push({ text: `The posting asks for ${job.yearsRequired.min} or more years of experience. Walk me through the experience that covers this.`, target: `${job.yearsRequired.min}+ years of experience`, gap: false });
+    const min = job.yearsRequired.min;
+    const ym = judged ? (match as MatchResult).mustHaves?.find((m) => m.kind === 'years') : undefined;
+    const verb = ym?.importance === 'preferred' ? 'prefers' : 'asks for';
+    const have = judged ? (match as MatchResult).experienceYearsUsed : null;
+    const covered = have !== null && have >= min;
+    qs.push(covered
+      ? { text: `The posting ${verb} ${min} or more years of experience, and your profile shows that much. Walk me through the experience that covers this.`, target: `${min}+ years of experience`, gap: false }
+      : { text: `The posting ${verb} ${min} or more years of experience, and your profile does not show that much yet. Which of your experience would you point to, and how would you talk about the difference?`, target: `${min}+ years of experience`, gap: true });
   }
   // 4. the role itself and behaviour, by kind of work
   const kindText = `${job.title} ${job.department ?? ''} ${job.skills.join(' ')}`;
