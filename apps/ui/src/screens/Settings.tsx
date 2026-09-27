@@ -161,6 +161,12 @@ function AiTab() {
 
 // ------------------------------------------------------------------ balance
 
+/** The fit index state in plain words, never the internal code (JL-network-24). */
+const FIT_STATE: Record<string, string> = {
+  ready: 'Ready', indexing: 'Indexing now', downloading: 'Downloading the fit model',
+  model_missing: 'Not built yet: the fit model is not on this Mac', failed: 'Stopped with a problem',
+};
+
 const DISCLOSURE = [
   'jobleft can send its AI requests to the publik API: each request is priced per use and paid in dollars from your publik balance, which starts with a small free amount.',
   "Your prompts go through publik's servers to the AI model's provider, publik does not train on them, and you can change to a local model or your own key at any time.",
@@ -401,7 +407,7 @@ function DataTab() {
             { key: 'd', label: 'Data folder', children: <code style={{ overflowWrap: 'anywhere' }}>{storage.data.dataDir}</code> },
             { key: 's', label: 'Size', children: `${(storage.data.dbBytes / 1_048_576).toFixed(1)} MB` },
             { key: 'j', label: 'Jobs stored', children: `${storage.data.jobs.toLocaleString('en-US')} (${storage.data.openJobs.toLocaleString('en-US')} open)` },
-            ...(fit.data ? [{ key: 'f', label: 'Fit index', children: `${fit.data.state === 'ready' ? 'Ready' : fit.data.state}${fit.data.model ? ` (${fit.data.model})` : ''}, ${fit.data.indexed.toLocaleString('en-US')} jobs indexed${fit.data.waiting ? `, ${fit.data.waiting} waiting` : ''}` }] : []),
+            ...(fit.data ? [{ key: 'f', label: 'Fit index', children: `${FIT_STATE[fit.data.state] ?? 'Unknown state'}${fit.data.model ? ` (${fit.data.model})` : ''}, ${fit.data.indexed.toLocaleString('en-US')} jobs indexed${fit.data.waiting ? `, ${fit.data.waiting.toLocaleString('en-US')} waiting` : ''}` }] : []),
           ]} />
         ) : storage.error ? <InlineError error={storage.error} onRetry={() => { void storage.reload(); }} /> : <Loading inline label="Reading" />}
       </Panel>

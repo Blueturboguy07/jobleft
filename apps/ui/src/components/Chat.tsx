@@ -9,6 +9,7 @@ import { Button, Checkbox, Input } from 'antd';
 import { Tooltip } from './Tip.tsx';
 import { CloseOutlined, SendOutlined, StopOutlined, ReloadOutlined } from '@ant-design/icons';
 import { formatDollars, type ActionProposal, type ChatThread } from '@jobleft/contracts';
+import { parseMarkdown, type Span } from '../lib/markdown.ts';
 import { EMPTY_CHAT, afterDecision, dropEmptyAnswer, onStreamEvent, proposalMode, startTurn, viewOfThread, type ChatView } from '../lib/chatState.ts';
 import { call, streamChat, type UiError } from '../app/api.ts';
 import { invalidate } from '../app/data.ts';
@@ -18,6 +19,27 @@ import { AiNote, afterAiStep, ensureAiConsent } from './AiNote.tsx';
 import { InlineError } from './States.tsx';
 
 let reqSeq = 0;
+
+function Spans({ spans }: { spans: Span[] }) {
+  return <>{spans.map((x, i) => (x.bold ? <strong key={i}>{x.text}</strong> : x.italic ? <em key={i}>{x.text}</em> : x.code ? <code key={i}>{x.text}</code> : <span key={i}>{x.text}</span>))}</>;
+}
+
+/** An assistant answer: its bold words and lists as text elements, never raw asterisks and never injected HTML. */
+function AnswerText({ text }: { text: string }) {
+  return (
+    <>
+      {parseMarkdown(text).map((b, i) => {
+        if (b.kind === 'h') return <div key={i} style={{ fontWeight: 700, margin: '6px 0 2px' }}><Spans spans={b.spans} /></div>;
+        if (b.kind === 'ul' || b.kind === 'ol') {
+          const List = b.kind;
+          return <List key={i} style={{ margin: '4px 0', paddingLeft: 20, whiteSpace: 'normal' }}>{b.items.map((it, j) => <li key={j} style={{ whiteSpace: 'pre-wrap' }}><Spans spans={it} /></li>)}</List>;
+        }
+        if (b.kind !== 'p') return null;
+        return <p key={i} style={{ margin: '0 0 6px' }}>{b.lines.map((l, j) => <span key={j}>{j > 0 && <br />}<Spans spans={l} /></span>)}</p>;
+      })}
+    </>
+  );
+}
 
 /** One suggestion: what would change, and the buttons that decide it. Nothing is ticked for the person. */
 function ProposalCard({ p, onDecide }: { p: ActionProposal; onDecide: (p: ActionProposal, approve: string[]) => Promise<void> }) {
@@ -154,7 +176,7 @@ export function Chat({ jobId, jobTitle, chatId: initialChatId, draft, onThread, 
         {msgs.map((m, i) => (
           <div key={i} className={`jl-bubble ${m.role}`}>
             <span className="jl-sr">{m.role === 'user' ? 'You said: ' : 'Assistant: '}</span>
-            {m.content || (busy && i === msgs.length - 1 ? '…' : '')}
+            {m.content ? (m.role === 'assistant' ? <AnswerText text={m.content} /> : m.content) : (busy && i === msgs.length - 1 ? '…' : '')}
             {m.incomplete && <div className="jl-small" style={{ marginTop: 6, opacity: 0.8 }}>The answer stopped early. What arrived is kept.</div>}
             {m.costMicros ? <div className="jl-small" style={{ marginTop: 6, opacity: 0.8 }}>Cost: {formatDollars(m.costMicros)} from your balance</div> : null}
           </div>
