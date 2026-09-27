@@ -68,7 +68,10 @@ export class ResumeBridge {
     const r = this.svc.get(id);
     if (!r?.file) return null;
     const ext = r.file.mimeType === PDF ? 'pdf' : r.file.mimeType === DOCX ? 'docx' : 'txt';
-    try { return { fileName: r.file.fileName, mimeType: r.file.mimeType, bytes: readFileSync(join(this.dir, `${id}.${ext}`)) }; } catch { return null; }
+    // An upload sent without a name is kept as "resume": the copy that leaves the app gets its type's extension, so it
+    // opens with a double-click (JL-settings-17).
+    const fileName = r.file.fileName.toLowerCase().endsWith(`.${ext}`) ? r.file.fileName : `${r.file.fileName}.${ext}`;
+    try { return { fileName, mimeType: r.file.mimeType, bytes: readFileSync(join(this.dir, `${id}.${ext}`)) }; } catch { return null; }
   }
 
   /** The resume to attach: the one asked for, else the tailored one for the job, else the primary. */

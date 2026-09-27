@@ -311,3 +311,27 @@ test('JL-settings-27: an unfollowed, hidden or turned-off board\'s jobs leave th
     }
   });
 });
+
+test('JL-settings-17: a resume uploaded without a file name comes back as .pdf in the export and the download', async () => {
+  const PDF = readFileSync(new URL('../../../packages/resume/test/fixtures/jordan-one-column.pdf', import.meta.url));
+  const s = await startTest('resext');
+  try {
+    const up = await s.call('POST', '/api/v1/resumes/import', PDF, { 'content-type': 'application/pdf' });
+    assert.equal(up.status, 200, up.text);
+    const id = up.json.resume.id as string;
+    const dl = await s.call('GET', `/api/v1/resumes/${id}/export?format=pdf`);
+    assert.equal(dl.status, 200);
+    assert.match(String(dl.headers['content-disposition']), /filename="resume\.pdf"/);
+    const zip = (await s.call('GET', '/api/v1/export')).body;
+    const names: string[] = [];
+    for (let p = 0; p + 30 <= zip.length && zip.readUInt32LE(p) === 0x04034b50;) {
+      const nameLen = zip.readUInt16LE(p + 26);
+      names.push(zip.subarray(p + 30, p + 30 + nameLen).toString('utf8'));
+      const next = zip.indexOf(Buffer.from([0x50, 0x4b, 0x03, 0x04]), p + 30 + nameLen);
+      if (next < 0) break;
+      p = next;
+    }
+    const file = names.find((n) => n.startsWith('files/resumes/'));
+    assert.ok(file && file.endsWith('.pdf'), JSON.stringify(names));
+  } finally { await s.stop(); cleanup(s.home); }
+});

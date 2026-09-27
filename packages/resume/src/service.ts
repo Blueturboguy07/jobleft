@@ -344,7 +344,9 @@ export class ResumeService {
       const path = join(this.#o.filesDir, `${row.id}.${format}`);
       const mime = format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
       if (file?.mimeType === mime && existsSync(path)) {
-        return { fileName: file.fileName || `${row.id}.${format}`, mimeType: mime, bytes: new Uint8Array(readFileSync(path)), leftOut: [] };
+        // The person's own file name, with its type's extension when the upload had none (JL-settings-17).
+        const own = file.fileName || row.id;
+        return { fileName: own.toLowerCase().endsWith(`.${format}`) ? own : `${own}.${format}`, mimeType: mime, bytes: new Uint8Array(readFileSync(path)), leftOut: [] };
       }
     }
     const base = safeFileName(`${doc.header.name || 'Resume'}_${row.kind === 'tailored' ? (parse<{ company: string }>(row.job_label_json)?.company ?? 'job') : row.name}`);
