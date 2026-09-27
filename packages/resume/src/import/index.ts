@@ -122,7 +122,7 @@ export async function importInProcess(bytes: Uint8Array, fileName: string, mimeT
     return failed('unsupported_type', 'This is an old Word (.doc) file. Save it as a .docx or a PDF and upload that.', null);
   } else if (real === 'text') {
     if (claim === 'pdf' || claim === 'docx' || claim === 'doc') {
-      return failed('unsupported_type', `The file is named like a ${claim === 'pdf' ? 'PDF' : 'Word file'} but it holds plain text. Upload the real ${claim === 'pdf' ? 'PDF' : 'Word file'}, or import the text as a .txt file.`, null);
+      return failed('unsupported_type', `The file is named like a ${claim === 'pdf' ? 'PDF' : 'Word file'} but it holds plain text. Upload the real ${claim === 'pdf' ? 'PDF' : 'Word file'}, or save the text as a PDF or a Word (.docx) file and upload that.`, null);
     }
     kind = 'text';
     lines = textLines(Buffer.from(bytes).toString('utf8'));

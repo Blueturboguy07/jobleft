@@ -20,7 +20,7 @@ import { plural, yearMonthText } from '../lib/format.ts';
 import { PlacePicker } from './jobs/Filters.tsx';
 import { YesNo } from './Profile.tsx';
 import { importChanges } from '../lib/importMerge.ts';
-import { LAST_STEP, MAX_FUNCTION_LENGTH, addJobFunction, bodyToSave, closedState, keptState, resumeSetup, toInput, type PendingImport } from '../lib/onboarding.ts';
+import { LAST_STEP, MAX_FUNCTION_LENGTH, addJobFunction, bodyToSave, closedState, keptState, replaceUpload, resumeSetup, toInput, type PendingImport } from '../lib/onboarding.ts';
 
 /** jobleft 0.1.2 and earlier kept "skipped" only in this browser; read once to carry it over, never written again. */
 const SKIP_KEY = 'jobleft.onboarding.skipped';
@@ -169,13 +169,11 @@ export function Onboarding() {
       setImported({ resumeId: r.resume.id, report: r.resume.importReport!, proposed: r.proposedProfile, useFacts: !hadFacts });
       // "Use another file" replaces the file the person did not keep; the kept file takes its place as the primary
       // resume (JL-onboarding-4).
-      if (before && before !== r.resume.id) {
-        try {
-          const old = await call('getResume', { params: { resumeId: before } });
-          await call('deleteResume', { params: { resumeId: before }, query: {} });
-          if (old.isPrimary) await call('updateResume', { params: { resumeId: r.resume.id }, body: { isPrimary: true } });
-        } catch { /* already gone, or it has tailored versions: it stays a resume of its own */ }
-      }
+      await replaceUpload({
+        isPrimary: async (id) => (await call('getResume', { params: { resumeId: id } })).isPrimary,
+        remove: async (id) => { await call('deleteResume', { params: { resumeId: id }, query: {} }); },
+        makePrimary: async (id) => { await call('updateResume', { params: { resumeId: id }, body: { isPrimary: true } }); },
+      }, before, r.resume.id);
       invalidate('resumes');
     } catch (e) { setErr(e as UiError); } finally { setBusy(false); if (fileRef.current) fileRef.current.value = ''; }
   };

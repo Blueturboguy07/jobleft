@@ -58,3 +58,23 @@ export function addJobFunction(chosen: string[], typed: string, listed: string[]
   if (chosen.some((x) => x.toLowerCase() === key)) return chosen;
   return [...chosen, canonical];
 }
+
+/** The resume calls the resume step needs (the local API client in the app, a fake in tests). */
+export interface ResumeCalls {
+  isPrimary(id: string): Promise<boolean>;
+  remove(id: string): Promise<void>;
+  makePrimary(id: string): Promise<void>;
+}
+
+/**
+ * "Use another file" on the resume step: the file it replaces is deleted, and when that file was the primary resume
+ * the new file takes its place (JL-onboarding-4). A file that cannot be deleted (it has tailored versions) stays.
+ */
+export async function replaceUpload(api: ResumeCalls, before: string | null, now: string): Promise<void> {
+  if (!before || before === now) return;
+  try {
+    const wasPrimary = await api.isPrimary(before);
+    await api.remove(before);
+    if (wasPrimary) await api.makePrimary(now);
+  } catch { /* already gone, or it has tailored versions: it stays a resume of its own */ }
+}
