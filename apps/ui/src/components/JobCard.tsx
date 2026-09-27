@@ -2,6 +2,7 @@
 // detail view: the match comes from the API as-is. Icon-only buttons have spoken names; hover content (the three
 // part-scores) is also reachable with the keyboard through the match tile button.
 
+import { openExternal } from '../lib/external.ts';
 import { memo, useRef, useState } from 'react';
 import { Button, Dropdown, Popover } from 'antd';
 import { Tooltip } from './Tip.tsx';
@@ -90,7 +91,7 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
     ],
     onClick: ({ key }: { key: string }) => {
       if (key === 'hide') actions.hide(item);
-      if (key === 'orig') window.open(j.url, '_blank', 'noopener,noreferrer');
+      if (key === 'orig') openExternal(j.url);
       if (key === 'copy') void navigator.clipboard?.writeText(j.url);
       if (key === 'applied') actions.markApplied(item);
     },

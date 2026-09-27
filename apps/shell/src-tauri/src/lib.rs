@@ -348,6 +348,8 @@ pub fn run() {
         libc::signal(libc::SIGINT, on_term as *const () as usize);
     }
     tauri::Builder::default()
+        // Links with target=_blank and window.open go to the default browser (the plugin's JS shim patches both).
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // A second launch: bring the one window forward and do nothing else.
             show_main(app);

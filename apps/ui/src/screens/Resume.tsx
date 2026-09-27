@@ -5,7 +5,7 @@
 import { useRef, useState } from 'react';
 import { Alert, Button, Dropdown, Input, Modal, Space, Table, Tag } from 'antd';
 import { Tooltip } from '../components/Tip.tsx';
-import { EllipsisOutlined, PlusOutlined, StarFilled, UploadOutlined, UserOutlined } from '@ant-design/icons';
+import { EllipsisOutlined, FormOutlined, PlusOutlined, StarFilled, ToolOutlined, UploadOutlined, UserOutlined } from '@ant-design/icons';
 import type { ImportReport, ProfileInput, Resume } from '@jobleft/contracts';
 import { call, download, type UiError } from '../app/api.ts';
 import { invalidate, useApi } from '../app/data.ts';
@@ -17,6 +17,7 @@ import { EmptyState, ErrorState, InlineError, Loading } from '../components/Stat
 import { ago, dateText, plural } from '../lib/format.ts';
 import { importChanges, mergeImported } from '../lib/importMerge.ts';
 import { toInput } from './Profile.tsx';
+import { QuestionsModal, TailorForJobModal } from './resume/Extras.tsx';
 
 export const useResumeList = () => useApi<Resume[]>('resumes', () => call('listResumes'));
 
@@ -129,6 +130,8 @@ export function AddResumeModal({ open, onClose }: { open: boolean; onClose: () =
 export function ResumeScreen() {
   const list = useResumeList();
   const [adding, setAdding] = useState(false);
+  const [tailoring, setTailoring] = useState(false);
+  const [asking, setAsking] = useState(false);
   const [renaming, setRenaming] = useState<Resume | null>(null);
   const [rn, setRn] = useState({ name: '', target: '' });
   const act = async (r: Resume, key: string) => {
@@ -158,6 +161,8 @@ export function ResumeScreen() {
       <div className="jl-page-inner">
         <div className="jl-row" style={{ marginBottom: 12 }}>
           <p className="jl-grow jl-info-line" style={{ margin: 0 }}>You have {plural(list.data.filter((r) => r.kind === 'base').length, 'resume')} and {plural(list.data.filter((r) => r.kind === 'tailored').length, 'tailored version')}. Match scores use your profile, not a resume.</p>
+          <Button shape="round" size="large" icon={<FormOutlined />} onClick={() => setAsking(true)}>Answer a few questions</Button>
+          <Button shape="round" size="large" icon={<ToolOutlined />} onClick={() => setTailoring(true)} disabled={!list.data.some((r) => r.kind === 'base')}>Tailor for a job</Button>
           <Button shape="round" size="large" icon={<PlusOutlined />} onClick={() => setAdding(true)}>Add resume</Button>
         </div>
         {!rows.length ? (
@@ -213,6 +218,8 @@ export function ResumeScreen() {
         )}
       </div>
       <AddResumeModal open={adding} onClose={() => setAdding(false)} />
+      <TailorForJobModal open={tailoring} onClose={() => setTailoring(false)} />
+      <QuestionsModal open={asking} onClose={() => setAsking(false)} />
       <Modal open={!!renaming} title="Rename and target title" onCancel={() => setRenaming(null)} okText="Save" okButtonProps={{ shape: 'round', disabled: !rn.name.trim() }} cancelButtonProps={{ shape: 'round' }}
         onOk={async () => {
           if (!renaming) return;

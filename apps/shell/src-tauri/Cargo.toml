@@ -16,5 +16,8 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-single-instance = "2"
+# Apply links and "Original posting" open in the default browser: WKWebView swallows window.open and target=_blank
+# without it (found 2026-09-27).
+tauri-plugin-opener = "2"
 serde_json = "1"
 libc = "0.2"

@@ -151,7 +151,4 @@ export async function streamChat(body: ChatRequest, onEvent: (e: ChatStreamEvent
 }
 
 /** Opens a link in the person's browser (the employer's posting, a top-up page). Never inside the app. */
-export function openExternal(url: string): void {
-  if (!/^https?:\/\//i.test(url)) return;
-  window.open(url, '_blank', 'noopener,noreferrer');
-}
+export { openExternal } from '../lib/external.ts';

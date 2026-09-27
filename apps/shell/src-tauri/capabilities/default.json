@@ -1,7 +1,18 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main window shows the local server's UI. It gets no Tauri commands: the page talks to the server over HTTP with the launch token, like a browser would.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "The main window shows the local server's UI. The page gets no app commands of its own; the opener plugin's link shim (target=_blank, window.open) is the only IPC, and it is allowed from the server's loopback origin.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "opener:default"
+  ],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:*/*",
+      "http://localhost:*/*"
+    ]
+  }
 }
