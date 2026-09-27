@@ -19,6 +19,7 @@ import { mediaType, parseJsonBody, readBody } from './http/body.ts';
 import { crossSiteFetch, extensionIdOf, headerValue, hostAllowed, ownOrigins, queryCarriesToken, sha256, tokenMatches } from './http/gate.ts';
 import { sendError, sendFile, sendJson, setSecurityHeaders, startSse } from './http/respond.ts';
 import { StaticSite } from './http/static.ts';
+import { Turnstile } from './http/turnstile.ts';
 import { acquireLock, holderAlive, type LockHolder } from './lock.ts';
 import { createLogger, parseLogLevel, redact, type Logger } from './log.ts';
 import { HANDLERS, STREAMED_BODY, type Ctx, type Out } from './routes.ts';
@@ -148,6 +149,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const launchDigest = sha256(opts.launchToken);
   let port = 0;
   const sockets = new Set<Socket>();
+  const turnstile = new Turnstile();
 
   const server = createServer({ headersTimeout: 15_000, requestTimeout: 600_000, keepAliveTimeout: 5_000, maxHeaderSize: 16_384 }, (req, res) => {
     dispatch(req, res).catch((e) => {
@@ -349,6 +351,16 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
 
     const gone = new AbortController();
     res.on('close', () => { if (!res.writableFinished) gone.abort(); });
+    // Load shedding (JL-settings-19): each client's handlers take turns; health never waits.
+    if (m.name !== 'health') {
+      const turn = turnstile.enter(spec.auth === 'launch' ? 'app' : extensionId ? `extension:${extensionId}` : 'open');
+      if (!turn) {
+        sendError(req, res, new ApiFailure('rate_limited', 'jobleft is answering many requests at once. Try again in a moment.', { retryAfterSeconds: 1 }));
+        return;
+      }
+      await turn;
+      if (gone.signal.aborted) return; // the client gave up while it waited: nothing to answer
+    }
     const ctx: Ctx<RouteName> = {
       app, d: d!, params: m.params, query: q as never, body: body as never, req, res, extensionId, contentType: ct,
       fileName: headerValue(req, FILE_NAME_HEADER) ?? null, gone: gone.signal,

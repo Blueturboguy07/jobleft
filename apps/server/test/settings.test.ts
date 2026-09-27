@@ -7,7 +7,8 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { inflateRawSync } from 'node:zlib';
 import { greenhouseJob, startAi, startBoards, startPublik } from '../scripts/mocks.ts';
-import { cleanup, PERSONA, scratchHome, startTest, type TestServer } from './helpers.ts';
+import { Turnstile } from '../src/http/turnstile.ts';
+import { cleanup, PERSONA, raw, scratchHome, startTest, type TestServer } from './helpers.ts';
 
 async function waitCrawl(s: TestServer): Promise<any> {
   for (let i = 0; i < 200; i++) {
@@ -169,4 +170,56 @@ test('JL-settings-22: "Delete my data" deletes the personal records and keeps th
       for (const secret of [NOTE, 'Testwell', 'Hidden Co', 'my filter']) assert.ok(!bytes.includes(secret), `${f} holds "${secret}"`);
     }
   });
+});
+
+test('JL-settings-19: a burst waits its turn per client, beyond the queue it gets 429 at once, and the event loop stays free', async () => {
+  const t = new Turnstile(64);
+  let admitted = 0;
+  let refused = 0;
+  let maxGapMs = 0;
+  let last = performance.now();
+  const probe = setInterval(() => { const now = performance.now(); maxGapMs = Math.max(maxGapMs, now - last); last = now; }, 1);
+  const order: string[] = [];
+  const work: Array<Promise<void>> = [];
+  for (let i = 0; i < 400; i++) {
+    const turn = t.enter('app');
+    if (!turn) { refused++; continue; }
+    // Each handler holds the event loop for 5 ms (synchronous SQLite work in the real server).
+    work.push(turn.then(() => { admitted++; order.push('app'); const end = performance.now() + 5; while (performance.now() < end) { /* busy */ } }));
+  }
+  // Another client is not stuck behind the burst: it runs in the first turn.
+  work.push(t.enter('extension:x')!.then(() => { order.push('extension'); }));
+  await Promise.all(work);
+  clearInterval(probe);
+  assert.equal(admitted, 64);
+  assert.equal(refused, 336);
+  assert.ok(order.indexOf('extension') <= 1, `the other client ran at turn ${order.indexOf('extension')}`);
+  assert.ok(maxGapMs < 100, `the event loop was blocked for ${Math.round(maxGapMs)} ms at once (the whole burst is 320 ms)`);
+});
+
+test('JL-settings-19: a few hundred concurrent requests end in 200 or 429, health answers during the burst, the server stays up', async () => {
+  const s = await startTest('burst');
+  try {
+    await s.call('PUT', '/api/v1/profile', PERSONA);
+    const headers = { 'x-jobleft-token': s.token, 'content-type': 'application/json' };
+    const burst = Array.from({ length: 400 }, (_, i) => i % 2
+      ? raw(s.port, { method: 'POST', path: '/api/v1/jobs/search', headers, body: JSON.stringify({ sort: 'most_recent' }) })
+      : raw(s.port, { path: '/api/v1/profile', headers }));
+    const t0 = performance.now();
+    const health = await raw(s.port, { path: '/api/v1/health' });
+    const healthMs = performance.now() - t0;
+    const replies = await Promise.all(burst);
+    assert.equal(health.status, 200);
+    assert.ok(healthMs < 5000, `health took ${Math.round(healthMs)} ms during the burst`);
+    const by = new Map<number, number>();
+    for (const r of replies) by.set(r.status, (by.get(r.status) ?? 0) + 1);
+    assert.deepEqual([...by.keys()].filter((k) => k !== 200 && k !== 429), [], JSON.stringify([...by]));
+    assert.ok((by.get(200) ?? 0) >= 128, JSON.stringify([...by]));
+    for (const r of replies.filter((x) => x.status === 429)) {
+      assert.equal(r.json.error.code, 'rate_limited');
+      assert.equal(r.headers['retry-after'], '1');
+    }
+    // After the burst everything answers as usual.
+    assert.equal((await s.call('GET', '/api/v1/profile')).json.personal.lastName, 'Testwell');
+  } finally { await s.stop(); cleanup(s.home); }
 });
