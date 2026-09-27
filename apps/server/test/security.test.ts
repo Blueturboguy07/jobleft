@@ -202,6 +202,9 @@ test('at the default log level, refused requests leave every file in the data fo
   };
   try {
     await t.call('PUT', '/api/v1/profile', { ...(await import('./helpers.ts')).PERSONA });
+    // The start-up warm-up read (300 ms after listen) updates SQLite's read marks in -shm; let it pass first, or a
+    // slow run (a busy test machine) sees that read as a change made by the refused requests.
+    await new Promise((r) => setTimeout(r, 600));
     const before = hashAll(t.home);
     for (const [, r] of ROUTES) {
       const path = samplePath(r);
