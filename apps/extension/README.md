@@ -107,7 +107,7 @@ You need macOS or Linux, Node 24 or newer, pnpm, and Google Chrome.
 | Not paired | "This browser is not paired with your jobleft app. jobleft does nothing until you pair it.", the steps, the code and port boxes, and the list of what jobleft reads |
 | App not running | "The jobleft app is not running on this computer (nothing answers on port ...)", **Try again** and **Unpair**. No Fill button. No other port is tried |
 | Pairing removed in the app | "not paired" again, with the code box |
-| Paired | The app version and **Unpair**; the page's system and level; the job (or "This page is not a job in your jobleft app"); "You already marked this job as applied on <date>" when the tracker says so; the resume to attach (you can pick another); **Fill this application** |
+| Paired | The app version and **Unpair**; the page's system and level; the job (or "This page is not a job in your jobleft app"); "You already marked this job as applied on <date>" when the tracker says so; the resume to attach (you can pick another; a resume made in the app goes as a PDF the app makes); **Fill this application** |
 | LinkedIn, Indeed, Glassdoor | "jobleft does not work on this site. It reads nothing here and fills nothing here." No Fill button |
 
 **Report panel** (on the page, after a fill):

@@ -50,9 +50,37 @@ export class ExtensionService {
     return id && this.d.jobs.exists(id) ? id : null;
   }
 
-  /** Resumes that have a file the extension can attach, newest first inside each group. */
+  /**
+   * Resumes the extension can attach: every one. An uploaded resume goes as its own file; a resume made or tailored
+   * in the app (no uploaded file) goes as the PDF the app exports, made when a fill needs it.
+   */
   private attachable(): Resume[] {
-    return this.d.resumes.list().filter((r) => r.file !== null);
+    return this.d.resumes.list();
+  }
+
+  /** The name the page shows for a resume: its uploaded file, or the PDF the app will make of it. */
+  private attachName(r: Resume): string {
+    if (r.file) return r.file.fileName;
+    try { return this.d.resumes.svc.renderedFileName(r.id, 'pdf'); } catch { return `${r.name}.pdf`; }
+  }
+
+  /**
+   * The file to attach for a resume: the uploaded file byte for byte, else the resume exported now as a PDF (or as
+   * a Word file when the PDF cannot be made, for example letters the PDF font lacks). `why` says what failed.
+   */
+  private async attachFile(r: Resume): Promise<{ file: ResumeFile | null; why: string | null }> {
+    const f = r.file ? this.d.resumes.file(r.id) : null;
+    if (f) return { file: { id: r.id, fileName: f.fileName, mimeType: f.mimeType, base64: f.bytes.toString('base64') }, why: null };
+    let why: string | null = null;
+    for (const format of ['pdf', 'docx'] as const) {
+      try {
+        const x = await this.d.resumes.svc.export(r.id, format);
+        return { file: { id: r.id, fileName: x.fileName, mimeType: x.mimeType, base64: Buffer.from(x.bytes).toString('base64') }, why: null };
+      } catch (e) {
+        why ??= e instanceof Error ? e.message : null;
+      }
+    }
+    return { file: null, why };
   }
 
   /** The resume a fill attaches unless the person picks another: the version for this job, else the default. */
@@ -82,7 +110,7 @@ export class ExtensionService {
       company: job?.company ?? null,
       applied: tracked && tracked.status !== null && tracked.appliedAt ? { at: tracked.appliedAt, resumeId: tracked.resumeId } : null,
       resumes: list.map((r) => ({
-        id: r.id, name: r.name, fileName: r.file!.fileName,
+        id: r.id, name: r.name, fileName: this.attachName(r),
         tailoredForThisJob: !!jobId && r.kind === 'tailored' && r.jobId === jobId, isDefault: r.isPrimary,
       })),
       suggestedResumeId: sug?.id ?? null,
@@ -106,15 +134,16 @@ export class ExtensionService {
     const profile = this.d.profile.get();
     const jobId = this.jobIdOf(req.pageUrl);
     const list = this.attachable();
-    // The person's pick wins; a resume that has no file cannot be attached, and the panel is told so.
+    // The person's pick wins. The file is read (or the PDF made) only when the form has a file field.
     const picked = req.resumeId ? list.find((r) => r.id === req.resumeId) ?? null : this.suggested(jobId, list);
-    const file = picked ? this.d.resumes.file(picked.id) : null;
-    const resume: ResumeFile | null = picked && file ? { id: picked.id, fileName: file.fileName, mimeType: file.mimeType, base64: file.bytes.toString('base64') } : null;
+    const made = picked && req.fields.some((f) => f.kind === 'file') ? await this.attachFile(picked) : null;
+    const resume = made?.file ?? null;
     const out = await answerFill(req, {
       profile, jobId, draftOffer: LOCAL_DRAFTS, resume,
       draft: async (fields) => this.makeDrafts(fields, profile),
     });
-    if (req.resumeId && !resume) out.warnings.push('The resume you picked has no file that can be attached, so the resume box stays empty.');
+    if (req.resumeId && !picked) out.warnings.push('The resume you picked is no longer in jobleft, so the resume box stays empty.');
+    if (picked && made && !resume) out.warnings.push(`jobleft could not make a file of the resume "${picked.name}", so the resume box stays empty.${made.why ? ` ${made.why}` : ''}`);
     this.applySavedAnswers(req, out);
     return out;
   }

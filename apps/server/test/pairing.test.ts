@@ -119,3 +119,47 @@ test('a review that the person submitted marks the job Applied and keeps saved a
     assert.equal(fill.json.fills[0].source, 'saved_answer');
   } finally { await s.stop(); cleanup(s.home); }
 });
+
+test('a resume made in the app is offered and attached as a PDF the app makes (JL-extension-5, JL-extension-11)', async () => {
+  const s = await startTest('built-resume');
+  try {
+    const ext = (path: string, token: string, body: unknown) => raw(s.port, { method: 'POST', path, body: JSON.stringify(body), headers: { origin: ORIGIN, 'x-jobleft-pairing': token, 'content-type': 'application/json' } });
+    const code = (await s.call('POST', '/api/v1/extension/pairing-code')).json.code;
+    const token = (await raw(s.port, { method: 'POST', path: '/api/v1/extension/pair', headers: { origin: ORIGIN, 'content-type': 'application/json' }, body: JSON.stringify({ code, extensionId: EXT, extensionVersion: '0.1.0', protocolVersion: 1, browser: 'Chrome' }) })).json.pairingToken;
+    // Plain letters: the PDF font has them all (the persona's summary has 日本語 and an emoji, see below).
+    await s.call('PUT', '/api/v1/profile', { ...PERSONA, summary: 'Data analyst.' });
+    const made = await s.call('POST', '/api/v1/resumes', { name: 'My resume' });
+    assert.equal(made.status, 200, made.text);
+    assert.equal(made.json.file, null, 'made from the profile: no uploaded file');
+
+    const page = await ext('/api/v1/extension/page', token, { pageUrl: 'https://boards.greenhouse.io/acme/jobs/1' });
+    assert.equal(page.status, 200, page.text);
+    const offered = page.json.resumes.find((r: any) => r.id === made.json.id);
+    assert.ok(offered, 'the resume made in the app is in the list to attach');
+    assert.match(offered.fileName, /\.pdf$/);
+    assert.equal(page.json.suggestedResumeId, made.json.id, 'the only resume is the one suggested');
+
+    const fill = await ext('/api/v1/extension/fill', token, {
+      requestId: 'r-built', pageUrl: 'https://boards.greenhouse.io/acme/jobs/1', ats: 'greenhouse', step: null, resumeId: made.json.id,
+      fields: [{ fieldId: 'cv', label: 'Resume/CV', name: 'resume', kind: 'file', required: true, options: [], maxLength: null, section: null }],
+    });
+    assert.equal(fill.status, 200, fill.text);
+    assert.equal(fill.json.files.length, 1, JSON.stringify(fill.json.warnings));
+    const f = fill.json.files[0];
+    assert.equal(f.resumeId, made.json.id);
+    assert.equal(f.mimeType, 'application/pdf');
+    assert.equal(f.fileName, offered.fileName, 'the file attached has the name the popup showed');
+    assert.equal(Buffer.from(f.base64, 'base64').subarray(0, 5).toString(), '%PDF-');
+
+    // Letters the PDF font lacks: the app makes the Word file instead of dropping letters, and attaches that.
+    await s.call('PUT', '/api/v1/profile', PERSONA);
+    const fill2 = await ext('/api/v1/extension/fill', token, {
+      requestId: 'r-built-2', pageUrl: 'https://boards.greenhouse.io/acme/jobs/1', ats: 'greenhouse', step: null, resumeId: made.json.id,
+      fields: [{ fieldId: 'cv', label: 'Resume/CV', name: 'resume', kind: 'file', required: true, options: [], maxLength: null, section: null }],
+    });
+    assert.equal(fill2.status, 200, fill2.text);
+    assert.equal(fill2.json.files.length, 1, JSON.stringify(fill2.json.warnings));
+    assert.match(fill2.json.files[0].fileName, /\.docx$/);
+    assert.equal(Buffer.from(fill2.json.files[0].base64, 'base64').subarray(0, 2).toString(), 'PK');
+  } finally { await s.stop(); cleanup(s.home); }
+});
