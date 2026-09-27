@@ -74,12 +74,14 @@ function AiTab() {
   }, [s?.updatedAt, s?.provider]);
   if (ai.error && !s) return <ErrorState error={ai.error} onRetry={() => { void ai.reload(); }} />;
   if (!s) return <Loading label="Loading AI settings" />;
+  const settingsBody = () => {
+    if ((kind === 'local' || kind === 'custom') && !/^https?:\/\//.test(baseUrl)) throw { code: 'bad_request', status: null, message: 'Type the full address, starting with http:// or https://.', link: null } satisfies UiError;
+    return { provider: kind!, ...(kind === 'local' ? { localKind, baseUrl } : {}), ...(kind === 'custom' ? { baseUrl } : {}), ...(kind === 'own_key' ? { vendor } : {}), ...(model.trim() ? { model: model.trim() } : {}) };
+  };
   const save = async () => {
     setBusy('save'); setErr(null); setCheck(null);
     try {
-      const body = { provider: kind!, ...(kind === 'local' ? { localKind, baseUrl } : {}), ...(kind === 'custom' ? { baseUrl } : {}), ...(kind === 'own_key' ? { vendor } : {}), ...(model.trim() ? { model: model.trim() } : {}) };
-      if ((kind === 'local' || kind === 'custom') && !/^https?:\/\//.test(baseUrl)) throw { code: 'bad_request', status: null, message: 'Type the full address, starting with http:// or https://.', link: null } satisfies UiError;
-      const r = await call('putAiSettings', { body });
+      const r = await call('putAiSettings', { body: settingsBody() });
       setCached('ai:settings', () => r.settings);
       setCheck(r.check);
       invalidate('ai:');
@@ -89,9 +91,23 @@ function AiTab() {
     setBusy('test'); setErr(null);
     try { setCheck(await call('checkAi')); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
+  // A key belongs to the provider shown on this form (JL-settings-6). When the form shows another provider than the
+  // saved one, "Save key" saves that provider choice first; the key route then checks that the key's provider is the
+  // saved one, so a key typed for one vendor is never attached to another address.
   const saveKey = async () => {
     setBusy('key'); setErr(null);
-    try { const r = await call('setAiKey', { body: { key } }); setCached('ai:settings', () => r); setKey(''); ui.message?.success(`Key saved. It ends in ${r.keyHint ?? '…'}.`); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+    try {
+      let target: { provider: NonNullable<AiSettings['provider']>; vendor?: OwnKeyVendor; baseUrl?: string } = { provider: kind!, ...(kind === 'own_key' ? { vendor } : {}), ...(kind === 'local' || kind === 'custom' ? { baseUrl } : {}) };
+      if (changed) {
+        const saved = await call('putAiSettings', { body: settingsBody() });
+        setCached('ai:settings', () => saved.settings);
+        setCheck(null);
+        if (saved.settings.baseUrl && (kind === 'local' || kind === 'custom')) target = { ...target, baseUrl: saved.settings.baseUrl };
+      }
+      const r = await call('setAiKey', { body: { key, ...target } });
+      setCached('ai:settings', () => r); setKey(''); invalidate('ai:');
+      ui.message?.success(`Key saved for ${keyFor}. It ends in ${r.keyHint ?? '…'}. Use "Test again" to try it.`);
+    } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   const forgetKey = async () => {
     try { const r = await call('deleteAiKey'); setCached('ai:settings', () => r); ui.message?.success('Key forgotten.'); } catch (e) { setErr(e as UiError); }
@@ -101,6 +117,9 @@ function AiTab() {
     try { const r = await call('putAiSettings', { body: { provider: s.provider, meteredFetchEnabled: on } }); setCached('ai:settings', () => r.settings); ui.message?.success(on ? 'Paid lookups are on.' : 'Paid lookups are off.'); } catch (e) { ui.message?.error((e as UiError).message); }
   };
   const changed = kind !== s.provider || (kind === 'local' && (localKind !== s.localKind || baseUrl !== (s.baseUrl ?? ''))) || (kind === 'custom' && baseUrl !== (s.baseUrl ?? '')) || (kind === 'own_key' && vendor !== s.vendor) || model !== (s.model ?? '');
+  // The saved key state belongs to the saved provider; it shows only while the form shows that same provider.
+  const sameKeySlot = kind === s.provider && (kind === 'own_key' ? vendor === s.vendor : baseUrl === (s.baseUrl ?? ''));
+  const keyFor = kind === 'own_key' ? VENDORS.find((v) => v.value === vendor)!.label : `the server at ${hostOf(baseUrl) || 'this address'}`;
   const card = (v: NonNullable<AiSettings['provider']>, icon: ReactNode, title: string, text: string) => (
     <label className={`jl-choice${kind === v ? ' on' : ''}`} style={{ alignItems: 'flex-start', padding: 14 }}>
       <Radio checked={kind === v} onChange={() => { setKind(v); setCheck(null); if (v === 'local' && !baseUrl) setBaseUrl(LOCAL_KINDS.find((k) => k.value === localKind)!.url); }} aria-label={title} />
@@ -139,13 +158,13 @@ function AiTab() {
         {check && (check.ok ? <Alert type="success" showIcon message={check.message} description={check.models.length ? `Models: ${check.models.slice(0, 8).join(', ')}` : undefined} />
           : <Alert type="error" showIcon message={check.message} action={(check as ProviderCheck & { link?: { label: string; url: string } }).link ? <Button size="small" onClick={() => openExternal((check as ProviderCheck & { link: { url: string } }).link.url)}>{(check as ProviderCheck & { link: { label: string } }).link.label}</Button> : undefined} />)}
       </Panel>
-      {(s.provider === 'custom' || s.provider === 'own_key' || s.provider === 'local') && (
-        <Panel title="Key" desc="Kept in the macOS Keychain, never in a file. Only its last 4 characters are ever shown. It goes only to the address above.">
-          {s.keySet ? (
+      {(kind === 'custom' || kind === 'own_key' || kind === 'local') && (
+        <Panel title={kind === 'own_key' ? `Your ${keyFor} key` : 'Key'} desc={<>Kept in the macOS Keychain, never in a file. Only its last 4 characters are ever shown. It goes only to {kind === 'own_key' ? keyFor : 'the address above'}.{!sameKeySlot ? ' Saving the key also saves this provider choice.' : ''}</>}>
+          {sameKeySlot && s.keySet ? (
             <Space><Tag icon={<KeyOutlined />}>Key saved, ending in {s.keyHint}</Tag><Popconfirm title="Forget this key?" onConfirm={() => { void forgetKey(); }}><Button shape="round">Forget key</Button></Popconfirm></Space>
           ) : (
             <Space.Compact style={{ maxWidth: 480 }}>
-              <Input.Password value={key} onChange={(e) => setKey(e.target.value)} placeholder={s.provider === 'local' ? 'Optional for most local servers' : 'Paste your key'} aria-label="API key" autoComplete="off" />
+              <Input.Password value={key} onChange={(e) => setKey(e.target.value)} placeholder={kind === 'local' ? 'Optional for most local servers' : 'Paste your key'} aria-label="API key" autoComplete="off" />
               <Button type="primary" disabled={!key.trim()} loading={busy === 'key'} onClick={() => { void saveKey(); }}>Save key</Button>
             </Space.Compact>
           )}

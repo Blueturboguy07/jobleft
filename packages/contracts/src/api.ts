@@ -14,8 +14,8 @@
 
 import { HttpUrlSchema, IdSchema, IsoDateTimeSchema, MicrosSchema } from './common.ts';
 import {
-  AiSettingsSchema, AiSettingsUpdateSchema, ChatRequestSchema, ChatThreadSchema, PracticeItemSchema, PracticeSessionSchema,
-  ProviderCheckSchema,
+  AiProviderKindSchema, AiSettingsSchema, AiSettingsUpdateSchema, ChatRequestSchema, ChatThreadSchema, OwnKeyVendorSchema, PracticeItemSchema,
+  PracticeSessionSchema, ProviderCheckSchema,
 } from './ai.ts';
 import { CompanySchema } from './company.ts';
 import {
@@ -284,7 +284,9 @@ export const LOCAL_API = {
   // ---- AI and publik
   getAiSettings: route({ method: 'GET', path: '/api/v1/ai/settings', auth: 'launch', owner: 'ai-engine', summary: 'Provider settings (never the key)', response: AiSettingsSchema }),
   putAiSettings: route({ method: 'PUT', path: '/api/v1/ai/settings', auth: 'launch', owner: 'ai-engine', summary: 'Choose a provider; runs the setup check', body: AiSettingsUpdateSchema, response: obj({ settings: AiSettingsSchema, check: ProviderCheckSchema }) }),
-  setAiKey: route({ method: 'PUT', path: '/api/v1/ai/key', auth: 'launch', owner: 'ai-engine', summary: 'Save the key of the current provider (secret store; only the last 4 characters come back)', body: obj({ key: str({ minLength: 1, maxLength: 1000 }) }), response: AiSettingsSchema }),
+  // provider, vendor and baseUrl (optional, additive): the provider the key is typed for. When given, the key is saved
+  // only if that is the saved provider (else 409, nothing saved), so a key is never attached to another server.
+  setAiKey: route({ method: 'PUT', path: '/api/v1/ai/key', auth: 'launch', owner: 'ai-engine', summary: 'Save the key of the current provider (secret store; only the last 4 characters come back)', body: obj({ key: str({ minLength: 1, maxLength: 1000 }) }, { provider: AiProviderKindSchema, vendor: OwnKeyVendorSchema, baseUrl: HttpUrlSchema }), response: AiSettingsSchema }),
   deleteAiKey: route({ method: 'DELETE', path: '/api/v1/ai/key', auth: 'launch', owner: 'ai-engine', summary: 'Forget the key', response: AiSettingsSchema }),
   checkAi: route({ method: 'POST', path: '/api/v1/ai/check', auth: 'launch', owner: 'ai-engine', summary: 'Test the provider now', response: ProviderCheckSchema }),
   listModels: route({ method: 'GET', path: '/api/v1/ai/models', auth: 'launch', owner: 'ai-engine', summary: 'Models the provider says it has', response: obj({ models: arr(str()) }) }),

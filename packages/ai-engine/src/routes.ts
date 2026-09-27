@@ -2,7 +2,7 @@
 // apps/server to mount behind its security rules (section 6.1). The standalone dev server (serve.ts) uses them too.
 // Chat history, job context and practice live with the store and the assistant; `chat` here streams one answer.
 
-import type { ChatRequest, ChatStreamEvent } from '@jobleft/contracts';
+import type { AiProviderKind, ChatRequest, ChatStreamEvent, OwnKeyVendor } from '@jobleft/contracts';
 import { LOCAL_API, validate } from '@jobleft/contracts';
 import type { AiEngine } from './engine.ts';
 import { AiError, asAiError, toApiError } from './errors.ts';
@@ -83,7 +83,12 @@ export function createAiRouteHandlers(engine: AiEngine): AiRouteHandlers {
   return {
     getAiSettings: () => guard(async () => ({ status: 200, json: engine.settings() })),
     putAiSettings: ({ body }) => guard(async () => checkBody('putAiSettings', body) ?? { status: 200, json: await engine.updateSettings(body as never) }),
-    setAiKey: ({ body }) => guard(async () => checkBody('setAiKey', body) ?? { status: 200, json: await engine.setKey((body as { key: string }).key) }),
+    setAiKey: ({ body }) => guard(async () => {
+      const invalid = checkBody('setAiKey', body);
+      if (invalid) return invalid;
+      const b = body as { key: string; provider?: AiProviderKind; vendor?: OwnKeyVendor; baseUrl?: string };
+      return { status: 200, json: await engine.setKey(b.key, b.provider ? { provider: b.provider, vendor: b.vendor ?? null, baseUrl: b.baseUrl ?? null } : undefined) };
+    }),
     deleteAiKey: () => guard(async () => ({ status: 200, json: await engine.deleteKey() })),
     checkAi: () => guard(async () => ({ status: 200, json: await engine.check() })),
     listModels: () => guard(async () => ({ status: 200, json: { models: await engine.listModels() } })),

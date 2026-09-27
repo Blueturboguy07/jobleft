@@ -376,7 +376,7 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `planTopContacts` | POST | `/api/v1/network/plan` | launch | network | — | `{ companyKey, count, jobId? }` | `NetworkContact[]` | Put the top N people at a company into the coffee-chat plan |
 | `getAiSettings` | GET | `/api/v1/ai/settings` | launch | ai-engine | — | — | `AiSettings` | Provider settings (never the key) |
 | `putAiSettings` | PUT | `/api/v1/ai/settings` | launch | ai-engine | — | `AiSettingsUpdate` | `{ settings, check }` | Choose a provider; runs the setup check |
-| `setAiKey` | PUT | `/api/v1/ai/key` | launch | ai-engine | — | `{ key }` | `AiSettings` | Save the key of the current provider (secret store; only the last 4 characters come back) |
+| `setAiKey` | PUT | `/api/v1/ai/key` | launch | ai-engine | — | `{ key, provider?, vendor?, baseUrl? }` | `AiSettings` | Save the key of the current provider (secret store; only the last 4 characters come back) |
 | `deleteAiKey` | DELETE | `/api/v1/ai/key` | launch | ai-engine | — | — | `AiSettings` | Forget the key |
 | `checkAi` | POST | `/api/v1/ai/check` | launch | ai-engine | — | — | `ProviderCheck` | Test the provider now |
 | `listModels` | GET | `/api/v1/ai/models` | launch | ai-engine | — | — | `{ models }` | Models the provider says it has |

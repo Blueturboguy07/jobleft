@@ -210,13 +210,29 @@ export class AiEngine {
 
   // ------------------------------------------------------------------ keys
 
-  /** Saves the key of the current provider (secret store; only the last 4 characters come back). */
-  async setKey(key: string): Promise<AiSettings> {
+  /**
+   * Saves the key of the current provider (secret store; only the last 4 characters come back). `target` is the
+   * provider the person typed the key for (the form on screen): the key is saved only when that is the saved
+   * provider, so a key typed for one vendor never goes to another address (JL-settings-6).
+   */
+  async setKey(key: string, target?: { provider?: AiProviderKind | null; vendor?: OwnKeyVendor | null; baseUrl?: string | null }): Promise<AiSettings> {
     const s = this.settings();
+    if (target?.provider === 'publik') throw new AiError('bad_request', 'publik connects without a key: use Connect publik. Nothing needs to be typed.');
     if (!s.provider) throw new AiError('no_provider', 'Choose a provider first, then save its key.');
     if (s.provider === 'publik') throw new AiError('bad_request', 'publik connects without a key: use Connect publik. Nothing needs to be typed.');
     const slot = this.keySlot(s);
     if (!slot) throw new AiError('bad_request', 'Choose the provider address first, then save its key.');
+    if (target?.provider) {
+      let wanted: string | null = null;
+      try {
+        wanted = this.keySlot({ provider: target.provider, vendor: target.vendor ?? null, baseUrl: target.baseUrl ? normalizeBaseUrl(target.baseUrl) : null });
+      } catch { wanted = null; }
+      if (wanted !== slot) {
+        const typedFor = target.provider === 'own_key' && target.vendor ? VENDOR_LABEL[target.vendor]
+          : target.baseUrl ? `the server at ${safeOrigin(target.baseUrl)}` : 'another provider';
+        throw new AiError('conflict', `This key is for ${typedFor}, but the saved provider is ${this.describe({ ...s, model: null })}. Save the provider first, then its key. Nothing was saved.`);
+      }
+    }
     const k = typeof key === 'string' ? key.trim() : '';
     if (!k) throw new AiError('bad_request', 'The key is empty.');
     if (k.length > 1000 || /[\s\u0000-\u001f\u007f]/.test(k)) throw new AiError('bad_request', 'The key has spaces or control characters in it. Paste only the key.');
@@ -536,6 +552,11 @@ export class AiEngine {
     }));
     return found.sort((a, b) => a.kind.localeCompare(b.kind));
   }
+}
+
+/** The origin of an address for a message, or the words "that address" when it cannot be read. */
+function safeOrigin(u: string): string {
+  try { return originOf(u); } catch { return 'that address'; }
 }
 
 /** Ollama's daemon address without a trailing /v1 or /api. */
