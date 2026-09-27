@@ -210,3 +210,18 @@ export function safeUrl(u: string | null | undefined): string | null {
 export function hostOf(u: string): string {
   try { return new URL(u).host; } catch { return u; }
 }
+
+/**
+ * The fit index row of Settings > Data and backup in plain words (JL-settings-2): never the raw state code, and
+ * numbers with thousands separators.
+ */
+export function fitIndexText(f: { state: 'ready' | 'indexing' | 'model_missing' | 'downloading' | 'failed'; model: string | null; modelBytes: number | null; indexed: number; waiting: number }): string {
+  const n = (x: number) => x.toLocaleString('en-US');
+  switch (f.state) {
+    case 'ready': return `Ready${f.model ? ` (${f.model})` : ''}: ${n(f.indexed)} jobs indexed${f.waiting ? `, ${n(f.waiting)} waiting` : ''}.`;
+    case 'indexing': return `Indexing: ${n(f.indexed)} of ${n(f.indexed + f.waiting)} jobs done.`;
+    case 'downloading': return `Downloading the matching model${f.modelBytes ? ` (${(f.modelBytes / 1_048_576).toFixed(0)} MB)` : ''}. ${n(f.waiting)} jobs wait for it.`;
+    case 'failed': return `Indexing stopped with an error: ${n(f.indexed)} jobs indexed, ${n(f.waiting)} waiting. jobleft ranks jobs with its own rules meanwhile.`;
+    default: return `Not in use: the matching model is not installed, so jobleft ranks the ${n(f.waiting)} open jobs with its own rules. Nothing to do.`;
+  }
+}

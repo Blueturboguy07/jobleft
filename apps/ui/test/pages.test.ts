@@ -27,3 +27,13 @@ test('a cursor that repeats, or too many pages, ends the loop', async () => {
   await readAllPages(async () => { m++; return { items: [], total: 0, nextCursor: String(m) }; }, 5);
   assert.equal(m, 5);
 });
+
+// JL-settings-2: "model_missing, 0 jobs indexed, 14679 waiting" was shown as-is.
+test('the fit index row is plain words with thousands separators', async () => {
+  const { fitIndexText } = await import('../src/lib/format.ts');
+  const t = fitIndexText({ state: 'model_missing', model: null, modelBytes: null, indexed: 0, waiting: 14679 });
+  assert.doesNotMatch(t, /model_missing/);
+  assert.match(t, /14,679/);
+  assert.match(fitIndexText({ state: 'ready', model: 'bge', modelBytes: null, indexed: 1234, waiting: 0 }), /^Ready \(bge\): 1,234 jobs indexed\.$/);
+  assert.match(fitIndexText({ state: 'indexing', model: null, modelBytes: null, indexed: 1000, waiting: 500 }), /1,000 of 1,500/);
+});

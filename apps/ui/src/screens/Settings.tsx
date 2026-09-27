@@ -17,7 +17,7 @@ import { navigate } from '../app/router.ts';
 import { useAiSettings, useCrawl, usePublik } from '../app/session.ts';
 import { LogoMark, Wordmark } from '../components/Art.tsx';
 import { ErrorState, InlineError, Loading } from '../components/States.tsx';
-import { ago, dateText, hostOf, plural } from '../lib/format.ts';
+import { ago, dateText, fitIndexText, hostOf, plural } from '../lib/format.ts';
 import { readAllPages } from '../lib/pages.ts';
 
 const TABS = [
@@ -146,7 +146,7 @@ function AiTab() {
         {kind === 'custom' && <label className="jl-row">Address <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://your-server.example/v1" style={{ maxWidth: 480 }} aria-label="Server address" /></label>}
         {kind === 'own_key' && <label className="jl-row">Vendor <Select style={{ width: 220 }} value={vendor} options={VENDORS} onChange={setVendor} /></label>}
         {kind !== 'publik' && (
-          <label className="jl-row">Model <Select showSearch allowClear style={{ width: 280 }} value={model || undefined} onChange={(v) => setModel(v ?? '')} placeholder="The server's default"
+          <label className="jl-row">Model <Select showSearch allowClear style={{ width: 280 }} value={model || undefined} onChange={(v) => setModel(v ?? '')} placeholder="Choose a model (Save and test lists them)"
             options={(check?.models ?? []).map((m) => ({ value: m, label: m }))} onSearch={(v) => { if (v) setModel(v); }} notFoundContent="Save and test to list the server's models" aria-label="Model" /></label>
         )}
         {kind === 'publik' && <label className="jl-row">Speed and quality <Select style={{ width: 220 }} value={model || 'publik-balanced'} onChange={setModel} options={[{ value: 'publik-fast', label: 'Fast' }, { value: 'publik-balanced', label: 'Balanced' }, { value: 'publik-smart', label: 'Smartest' }]} aria-label="publik tier" /></label>}
@@ -154,6 +154,7 @@ function AiTab() {
           <Button type="primary" shape="round" loading={busy === 'save'} disabled={!kind || !changed} onClick={() => { void save(); }}>Save and test</Button>
           <Button shape="round" loading={busy === 'test'} disabled={!s.provider || changed} onClick={() => { void test(); }}>Test again</Button>
           {kind === 'publik' && <Button shape="round" onClick={() => navigate('settings/balance')}>Balance and connection</Button>}
+          {kind === 'publik' && <Button type="link" icon={<LinkOutlined />} onClick={() => openExternal(PRICING_URL)}>publik prices</Button>}
         </Space>
         <InlineError error={err} />
         {check && (check.ok ? <Alert type="success" showIcon message={check.message} description={check.models.length ? `Models: ${check.models.slice(0, 8).join(', ')}` : undefined} />
@@ -171,7 +172,7 @@ function AiTab() {
           )}
         </Panel>
       )}
-      <Panel title="Paid web lookups" desc={<>Off unless you turn it on. When on, jobleft may pay per request, from your publik balance or your own key, to read pages a plain fetch cannot, or to look up company facts. Prices per 1,000 requests: web search {formatDollars(p.search)}, page {formatDollars(p.page)}, page that needs JavaScript {formatDollars(p.jsPage)}. jobleft always tries a free plain fetch first.</>}>
+      <Panel title="Paid web lookups" desc={<>Off unless you turn it on. When on, jobleft may pay per request, from your publik balance or your own key, to read pages a plain fetch cannot, or to look up company facts. Prices per 1,000 requests: web search {formatDollars(p.search)}, page {formatDollars(p.page)}, page that needs JavaScript {formatDollars(p.jsPage)}. jobleft always tries a free plain fetch first. <a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See publik's current prices</a>.</>}>
         <label className="jl-row"><Switch aria-label="Paid web lookups" checked={s.meteredFetch.enabled} disabled={!s.provider} onChange={(v) => { void setMetered(v); }} /> {s.meteredFetch.enabled ? 'On' : 'Off'}{!s.provider && <span className="jl-muted"> (choose a provider first)</span>}</label>
       </Panel>
     </div>
@@ -184,6 +185,8 @@ const DISCLOSURE = [
   'jobleft can send its AI requests to the publik API: each request is priced per use and paid in dollars from your publik balance, which starts with a small free amount.',
   "Your prompts go through publik's servers to the AI model's provider, publik does not train on them, and you can change to a local model or your own key at any time.",
 ];
+/** publik's live price list (JL-settings-25): every price the app quotes can be checked there. */
+const PRICING_URL = 'https://publikhq.com/pricing';
 const JUSTIFICATION = "The AI model behind publik charges per use; publik charges a fixed, published price per tier, a little above what the model costs publik, which keeps publik running and pays the app's developer. Nothing is charged behind your back, and every call is listed on your publik dashboard.";
 
 function BalanceTab() {
@@ -225,6 +228,7 @@ function BalanceTab() {
       {c && c.state !== 'connected' && (
         <Panel title="Connect to publik">
           {DISCLOSURE.map((d) => <p key={d} style={{ margin: 0 }}>{d}</p>)}
+          <p className="jl-small" style={{ margin: 0 }}><a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See publik's prices per tier</a> before you connect.</p>
           <Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)}>I have read this</Checkbox>
           <Button type="primary" shape="round" style={{ alignSelf: 'flex-start' }} disabled={!agree} loading={busy === 'connect'} onClick={() => { void connect(); }}>{notProvider ? 'Connect and use publik for AI' : 'Connect to publik'}</Button>
           <p className="jl-small jl-muted" style={{ margin: 0 }}>No key is typed. jobleft keeps the connection key in the macOS Keychain.</p>
@@ -241,7 +245,7 @@ function BalanceTab() {
             ...(w.week.budgetMicros !== null ? [{ key: 'b', label: 'Weekly budget', children: formatDollars(w.week.budgetMicros) }] : []),
             { key: 't', label: 'Last read', children: ago(w.updatedAt) },
           ]} />
-          <p style={{ margin: 0 }}>{JUSTIFICATION}</p>
+          <p style={{ margin: 0 }}>{JUSTIFICATION} <a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See the prices per tier</a>.</p>
           <Space wrap>
             <Button type="primary" shape="round" icon={<LinkOutlined />} onClick={() => openExternal(w.topUpUrl)}>Add money to your balance</Button>
             <Button shape="round" icon={<ReloadOutlined />} loading={busy === 'refresh'} onClick={() => { void refresh(); }}>Read the balance again</Button>
@@ -316,6 +320,7 @@ function SourcesTab() {
         {s && (
           <div className="jl-row jl-wrap" style={{ gap: 20 }}>
             <label className="jl-row">Refresh every <Select style={{ width: 130 }} value={s.crawl.intervalHours} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, intervalHours: v } }); }} options={[1, 3, 6, 12, 24, 48].map((h) => ({ value: h, label: `${h} ${h === 1 ? 'hour' : 'hours'}` }))} /></label>
+            <label className="jl-row"><Switch aria-label="Pause automatic refreshes" checked={s.crawl.paused} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, paused: v } }); }} /> Pause automatic refreshes{s.crawl.paused ? ' (only "Refresh now" reads the boards)' : ''}</label>
             <label className="jl-row"><Switch aria-label="Catch up when jobleft opens" checked={s.crawl.catchUpOnLaunch} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, catchUpOnLaunch: v } }); }} /> Catch up when jobleft opens</label>
             <label className="jl-row"><Switch aria-label="Keep refreshing from the menu bar when the window is closed" checked={s.crawl.runInTray} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, runInTray: v } }); }} /> Keep refreshing from the menu bar when the window is closed</label>
           </div>
@@ -418,7 +423,7 @@ function DataTab() {
             { key: 'd', label: 'Data folder', children: <code style={{ overflowWrap: 'anywhere' }}>{storage.data.dataDir}</code> },
             { key: 's', label: 'Size', children: `${(storage.data.dbBytes / 1_048_576).toFixed(1)} MB` },
             { key: 'j', label: 'Jobs stored', children: `${storage.data.jobs.toLocaleString('en-US')} (${storage.data.openJobs.toLocaleString('en-US')} open)` },
-            ...(fit.data ? [{ key: 'f', label: 'Fit index', children: `${fit.data.state === 'ready' ? 'Ready' : fit.data.state}${fit.data.model ? ` (${fit.data.model})` : ''}, ${fit.data.indexed.toLocaleString('en-US')} jobs indexed${fit.data.waiting ? `, ${fit.data.waiting} waiting` : ''}` }] : []),
+            ...(fit.data ? [{ key: 'f', label: 'Fit index', children: fitIndexText(fit.data) }] : []),
           ]} />
         ) : storage.error ? <InlineError error={storage.error} onRetry={() => { void storage.reload(); }} /> : <Loading inline label="Reading" />}
       </Panel>
@@ -437,7 +442,7 @@ function DataTab() {
           columns={[
             { title: 'Data', dataIndex: 'name' }, { title: 'Version', dataIndex: 'version' },
             { title: 'Data through', key: 't', render: (_, d) => d.dataThrough ?? '' }, { title: 'Licence', dataIndex: 'licence' },
-            { title: 'Attribution', key: 'a', render: (_, d) => d.attribution ?? '' },
+            { title: 'Attribution', key: 'a', render: (_, d) => <>{d.attribution ?? ''}{d.sourceUrl ? <> <a href={d.sourceUrl} target="_blank" rel="noopener noreferrer">Source</a></> : null}</> },
           ]} />
         <Button shape="round" icon={<ReloadOutlined />} loading={busy === 'datasets'} style={{ alignSelf: 'flex-start' }} onClick={() => { void updateData(); }}>Check for newer data</Button>
       </Panel>
@@ -501,14 +506,22 @@ function AboutTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Panel title="About">
         <div className="jl-row" style={{ gap: 12 }}><LogoMark size={48} /><div><Wordmark size={26} /><div className="jl-muted">Version {health.data?.version ?? '…'} · local API v{health.data?.apiVersion ?? '…'}</div></div></div>
-        <p style={{ margin: 0 }}>jobleft is a job-search app that keeps your data on this Mac.</p>
+        <p style={{ margin: 0 }}>jobleft is a job-search app that keeps your data on this Mac. It is open source (MIT licence).</p>
+        <Space wrap>
+          <a href="https://github.com/Blueturboguy07/jobleft" target="_blank" rel="noopener noreferrer">Source code and releases</a>
+          <a href="https://github.com/Blueturboguy07/jobleft/issues" target="_blank" rel="noopener noreferrer">Report a problem</a>
+          <a href={PRICING_URL} target="_blank" rel="noopener noreferrer">publik prices</a>
+        </Space>
         <Button type="link" style={{ padding: 0, alignSelf: 'flex-start' }} onClick={() => navigate('onboarding')}>Show the setup steps again</Button>
       </Panel>
       <Panel title="What leaves this Mac">
         <Table size="small" pagination={false} rowKey="what" dataSource={[
-          { what: 'Your profile, resumes, tracker, notes, connections, searches', where: 'Nothing leaves this Mac.' },
-          { what: 'Requests to employers\' public job boards', where: 'Sent to those boards, one a second per site, with no personal data.' },
-          { what: 'AI steps (chat, tailoring, letters, messages, practice)', where: `Sent to ${aiWhere}.` },
+          { what: 'Your profile, resumes, tracker, notes, connections, searches', where: 'Stay on this Mac. Only the parts an AI step you start needs go to your AI provider (next rows).' },
+          { what: 'Requests to employers\' public job boards', where: 'Sent to those boards, one a second per site, with no personal data. A careers link you paste is read the same way.' },
+          { what: 'AI steps (chat, tailoring, letters, messages, practice)', where: `Sent to ${aiWhere}: the job's text and the parts of your profile, resume or contact the step needs.` },
+          { what: 'Company facts (when you open a company block or ask for them)', where: 'The company name goes to free public sources: Wikidata, SEC EDGAR and GLEIF. No personal data.' },
+          { what: '"Check for newer data" (shipped datasets)', where: 'Only when a release location is set: asks it for newer data files, with no personal data. This build has none set, so nothing is sent.' },
+          ...(s?.provider === 'publik' ? [{ what: 'publik balance', where: 'Read from publik with this Mac\'s publik key when you open Balance or after an AI step.' }] : []),
           { what: 'Paid web lookups', where: s?.meteredFetch.enabled ? 'On: sent to publik or your key\'s service, priced per request.' : 'Off.' },
           { what: 'Usage data, analytics, crash reports', where: 'None. jobleft has no tracking.' },
           { what: 'Fonts, icons, company logos', where: 'None fetched: they are bundled, and company tiles use initials.' },
