@@ -219,6 +219,36 @@ test('a profile with no facts stops tailoring before any AI call, so nothing is 
   } finally { s.done(); }
 });
 
+test('the person\'s own edits always save: an unchanged upload, a one-character edit, ordinary words (JL-resume-5, JL-resume-25)', async () => {
+  const s = setup();
+  try {
+    const thin = structuredClone(s.getProfile());
+    thin.work = []; thin.education = []; thin.projects = []; thin.skills = [{ name: 'SQL', years: 3, source: 'user' }];
+    thin.summary = 'Data analyst.';
+    s.setProfile(thin);
+    const { resume } = await s.svc.import(read('jordan-one-column.pdf'), 'jordan-one-column.pdf', 'application/pdf');
+    const doc = s.svc.get(resume.id)!.document;
+    assert.deepEqual(s.svc.update(resume.id, { document: doc }).document.sections, doc.sections, 'the unchanged document saves');
+    const edited = structuredClone(doc);
+    edited.sections.find((x) => x.kind === 'summary')!.text += '!';
+    edited.sections.find((x) => x.kind === 'skills')!.items[0]!.tags.push('Kubernetes', 'Go');
+    s.svc.update(resume.id, { document: edited });
+    const back = s.svc.get(resume.id)!.document;
+    assert.match(back.sections.find((x) => x.kind === 'summary')!.text!, /!$/);
+    assert.ok(back.sections.find((x) => x.kind === 'skills')!.items[0]!.tags.includes('Kubernetes'));
+    const mine = s.svc.create({ name: 'Mine' });
+    for (const text of ['QA summary: data analyst who writes clear reports.', 'Data analyst for SaaS and B2B teams.', 'Data analyst. Agile teams.', 'Data analyst who likes Mondays.', 'Data analyst in Berlin.']) {
+      const d = structuredClone(s.svc.get(mine.id)!.document);
+      d.sections.find((x) => x.kind === 'summary')!.text = text;
+      assert.equal(s.svc.update(mine.id, { document: d }).document.sections.find((x) => x.kind === 'summary')!.text, text);
+    }
+    // The header is still the profile's, whatever the patch says.
+    const d = structuredClone(s.svc.get(mine.id)!.document);
+    d.header = { ...d.header, email: 'someone.else@example.com' };
+    assert.equal(s.svc.update(mine.id, { document: d }).document.header.email, thin.personal.email);
+  } finally { s.done(); }
+});
+
 test('an adversarial model cannot add a fact: every accepted version and every letter traces to the profile', async () => {
   mock.setMode('adversarial');
   const s = setup({ ai: 'mock' });

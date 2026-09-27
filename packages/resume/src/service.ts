@@ -223,10 +223,12 @@ export class ResumeService {
       this.#o.db.exec('COMMIT');
     }
     if (patch.document) {
+      // The person's own words are saved as written: the truth gate is for AI drafts (tailoring, letters, requests),
+      // never for what the person types or uploads (JL-resume-5, JL-resume-25). The header stays the profile's.
       const profile = this.#profile();
-      const doc: ResumeDocument = { ...structuredClone(patch.document), header: r.kind === 'base' ? documentFromProfile(profile).header : (JSON.parse(r.document_json) as ResumeDocument).header };
-      const v = checkDocument(doc, profile, null);
-      if (v.length) throw new ResumeError('bad_request', `These edits hold facts that are not in your profile: ${v.slice(0, 5).map((x) => `"${x.fact}"`).join(', ')}. Add them to your profile first if they are true.`, { violations: v });
+      const stored = JSON.parse(r.document_json) as ResumeDocument;
+      const header = r.kind === 'base' && !profileIsEmpty(profile) ? headerFromProfile(profile) : stored.header;
+      const doc: ResumeDocument = { ...structuredClone(patch.document), header };
       this.#o.db.prepare('UPDATE resumes SET document_json = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(doc), now, id);
     }
     return this.#toResume(this.#mustRow(id));
