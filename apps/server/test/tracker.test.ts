@@ -77,3 +77,19 @@ test('every stage after Applied records the applied date, so the weekly chart co
     assert.equal(list.items.filter((x: any) => x.entry.appliedAt).length, 5, 'every application has a date');
   } finally { await s.stop(); cleanup(s.home); }
 });
+
+test('tracker refusals: an empty note or reminder, and a wrong status, in plain words (JL-tracker-20)', async () => {
+  const s = await startTest('trkbad');
+  try {
+    const id = await addJob(s, 'Analyst refusals');
+    const note = await patch(s, id, { notes: [{ text: '  ' }] });
+    assert.equal(note.status, 400);
+    assert.equal(note.json.error.message, 'A note needs some text. Nothing was saved.');
+    assert.equal((await patch(s, id, { reminders: [{ at: '2026-10-01T10:00:00Z', text: '', done: false }] })).status, 400);
+    const bad = await patch(s, id, { status: 'bogus' });
+    assert.equal(bad.status, 400);
+    assert.match(JSON.stringify(bad.json.error.details), /must be one of \\"applied\\"/);
+    const entry = (await s.call('GET', `/api/v1/jobs/${encodeURIComponent(id)}`)).json.tracker;
+    assert.deepEqual([entry.notes.length, entry.reminders.length, entry.status], [0, 0, null], 'nothing was saved');
+  } finally { await s.stop(); cleanup(s.home); }
+});

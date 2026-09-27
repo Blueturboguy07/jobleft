@@ -56,6 +56,9 @@ export class TrackerService {
 
   /** Applies a patch in one transaction. A new entry needs an existing job. */
   patch(jobId: string, p: TrackerPatch, extra: { external?: boolean } = {}): TrackerEntry {
+    // An empty note or reminder is refused, as the screens refuse it (JL-tracker-20).
+    if (p.notes?.some((n) => !n.text.trim())) throw new ApiFailure('bad_request', 'A note needs some text. Nothing was saved.');
+    if (p.reminders?.some((m) => !m.text.trim())) throw new ApiFailure('bad_request', 'A reminder needs a few words, for example "Follow up". Nothing was saved.');
     const now = nowIso();
     tx(this.db, () => {
       let r = this.row(jobId);
