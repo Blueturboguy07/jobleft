@@ -55,14 +55,22 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Tests on Windows
-        run: pnpm -r --if-present --stream --no-bail test
-
-      # pnpm skips a project whose dependency failed; the server suite runs on its own so it is never skipped.
-      - name: Server tests on Windows
-        if: always()
-        working-directory: apps/server
-        # A per-test time limit and a forced exit: a hang shows up as a named failure, never as a silent 90-minute job.
-        run: node --test --test-timeout=180000 --test-force-exit "test/*.test.ts"
+        shell: pwsh
+        # Every workspace package's suite, one node --test each, with a per-test time limit and a forced exit: a hang
+        # or a lingering handle shows up as a named failure, never as a silent 90-minute job (pnpm -r cannot pass these flags).
+        run: |
+          $failed = @()
+          foreach ($dir in (Get-ChildItem -Path packages, apps -Directory)) {
+            if (-not (Test-Path (Join-Path $dir.FullName 'test'))) { continue }
+            if (-not (Get-ChildItem -Path (Join-Path $dir.FullName 'test') -Filter '*.test.ts' -ErrorAction SilentlyContinue)) { continue }
+            "`n===== $($dir.FullName)"
+            Push-Location $dir.FullName
+            node --test --test-timeout=180000 --test-force-exit "test/*.test.ts"
+            if ($LASTEXITCODE -ne 0) { $failed += $dir.Name }
+            Pop-Location
+          }
+          "`n===== failed suites: $($failed -join ', ')"
+          if ($failed.Count -gt 0) { exit 1 }
 
       - name: Build the UI
         run: pnpm --filter @jobleft/ui build
