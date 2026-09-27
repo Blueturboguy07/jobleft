@@ -13,7 +13,7 @@ import { navigate } from '../app/router.ts';
 import { setFeed, useCrawl, useProfile } from '../app/session.ts';
 import { Art, LogoMark, Wordmark } from '../components/Art.tsx';
 import { InlineError, Loading } from '../components/States.tsx';
-import { COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, TYPE_OPTIONS, filterFromProfile, toggle } from '../lib/filters.ts';
+import { COMMON_COUNTRY_OPTIONS, COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, TYPE_OPTIONS, filterFromProfile, toggle } from '../lib/filters.ts';
 import { plural, yearMonthText } from '../lib/format.ts';
 import { PlacePicker } from './jobs/Filters.tsx';
 import { YesNo, toInput } from './Profile.tsx';
@@ -129,7 +129,9 @@ export function Onboarding() {
       <Space direction="vertical" size={14} style={{ width: '100%' }} key="2">
         <h2 className="jl-display" style={{ fontSize: 28 }}>Where do you want to work?</h2>
         <strong>Countries</strong>
-        <div className="jl-choice-grid">{COUNTRY_OPTIONS.map((o) => <Choice key={o.value} on={pr.countries.includes(o.value)} onClick={() => setPr({ countries: toggle(pr.countries, o.value) })}>{o.label}</Choice>)}</div>
+        <div className="jl-choice-grid">{COUNTRY_OPTIONS.filter((o) => COMMON_COUNTRY_OPTIONS.includes(o) || pr.countries.includes(o.value)).map((o) => <Choice key={o.value} on={pr.countries.includes(o.value)} onClick={() => setPr({ countries: toggle(pr.countries, o.value) })}>{o.label}</Choice>)}</div>
+        <Select showSearch optionFilterProp="label" value={null} placeholder="Another country? Type its name" aria-label="Another country" style={{ maxWidth: 360 }}
+          options={COUNTRY_OPTIONS.filter((o) => !COMMON_COUNTRY_OPTIONS.includes(o) && !pr.countries.includes(o.value))} onChange={(v: string) => setPr({ countries: [...pr.countries, v] })} />
         <strong>Cities (optional)</strong>
         <PlacePicker places={pr.places} onChange={(places) => setPr({ places })} />
         <p className="jl-note">Remote jobs open to people in your countries are always included.</p>
