@@ -1,7 +1,7 @@
 # Live fixtures
 
 Each file is one real answer from a public board, fetched once on 2026-09-25 with the User-Agent
-`jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)`, after reading the host's robots.txt. They are public job
+`jobleft/0.1.1 (+https://github.com/Blueturboguy07/jobleft; no personal data)`, after reading the host's robots.txt. They are public job
 postings published by the employers. They hold no personal data: a scan for e-mail addresses found only job and
 role mailboxes (`job.<id>@bunq.recruitee.com`, `accommodations@gem.com`), and no phone numbers.
 

@@ -80,7 +80,7 @@ test('crawl, track, change the board, crawl again: the person\'s status, like an
       assert.equal(search.total, 0, 'a closed job leaves search');
       // Every request to the board carried the fixed User-Agent and nothing about the person.
       for (const e of [...boards.log, ...boards2.log]) {
-        assert.equal(e.headers['user-agent'], 'jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
+        assert.equal(e.headers['user-agent'], 'jobleft/0.1.1 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
         assert.ok(!JSON.stringify(e).includes('Testwell'));
       }
     } finally { await boards2.close(); }
@@ -121,6 +121,6 @@ test('a job added by link reads the page once, politely; never-crawl sites get n
     assert.equal(li.status, 422);
     assert.equal(li.json.error.code, 'forbidden_source');
     assert.equal(boards.log.length, before, 'nothing was sent');
-    for (const e of boards.log) assert.equal(e.headers['user-agent'], 'jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
+    for (const e of boards.log) assert.equal(e.headers['user-agent'], 'jobleft/0.1.1 (+https://github.com/Blueturboguy07/jobleft; no personal data)');
   } finally { await s.stop(); await boards.close(); cleanup(s.home); cleanup(dir); }
 });

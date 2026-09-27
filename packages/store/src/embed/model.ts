@@ -34,7 +34,7 @@ export const MODEL_FILES: readonly ModelFile[] = [
 
 export const MODEL_TOTAL_BYTES = MODEL_FILES.reduce((s, f) => s + f.bytes, 0);
 
-const USER_AGENT = 'jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
+const USER_AGENT = 'jobleft/0.1.1 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
 
 export interface ModelSource {
   /** http(s) base URL, a file:// URL, or a local folder path. */
