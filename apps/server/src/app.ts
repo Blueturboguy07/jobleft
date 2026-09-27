@@ -216,6 +216,7 @@ export class AppData {
   /** Stops background work and closes both connections (the WAL is checkpointed on close). */
   async close(): Promise<void> {
     for (const t of this.timers) clearTimeout(t);
+    this.feed.stop();
     this.ai.cancelAll();
     await this.boards.stop();
     try { this.crawlStore.close(); } catch { /* already closed */ }

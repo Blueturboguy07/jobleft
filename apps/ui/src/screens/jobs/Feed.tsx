@@ -126,6 +126,15 @@ export function Feed() {
   }, [seen]);
   useEffect(() => { if (progress && !progress.running) setNewJobs(false); }, [progress?.running]);
 
+  // Top matched while jobleft is still scoring jobs: the scored jobs come first; the order updates by itself while
+  // the list is at the top (JL-feed-6).
+  const indexing = st.fit?.state === 'indexing' ? st.fit.waiting : 0;
+  useEffect(() => {
+    if (!indexing) return;
+    const t = setTimeout(() => { if ((scrollRef.current?.scrollTop ?? 0) < 200) void load(true); }, 3000);
+    return () => clearTimeout(t);
+  }, [indexing, st.items]);
+
   const applySaved = (s: SavedFilter) => { setFeed({ filter: s.filter, sort: s.sort, savedId: s.id, initialized: true }); scrollRef.current?.scrollTo({ top: 0 }); };
   const onFilter = (f: JobFilter) => { setFeed({ filter: f, initialized: true }); scrollRef.current?.scrollTo({ top: 0 }); };
   const onSort = (s: JobSort) => { setFeed({ sort: s }); scrollRef.current?.scrollTo({ top: 0 }); };
@@ -185,6 +194,11 @@ export function Feed() {
             {st.loading && st.items.length > 0 && <span className="jl-muted">Updating…</span>}
             {feed.q.trim() && <Button size="small" type="link" onClick={() => setFeed({ q: '' })}>Clear words</Button>}
           </div>
+          {indexing > 0 && (
+            <Alert type="info" showIcon style={{ marginBottom: 8 }}
+              message={`jobleft is still scoring ${plural(indexing, 'job')} for you. They are listed after the scored jobs until their score is ready; the order updates by itself.`}
+              action={<Button size="small" onClick={() => { scrollRef.current?.scrollTo({ top: 0 }); void load(true); }}>Update now</Button>} />
+          )}
           {needsProfile && <Alert type="info" showIcon style={{ marginBottom: 8 }} message="Top matched needs your profile, so this list uses the recommended order." action={<Button size="small" onClick={() => navigate('profile')}>Add profile</Button>} />}
           {progress?.running && (
             <div className="jl-progress" role="status" style={{ marginBottom: 8 }}>

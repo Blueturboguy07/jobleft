@@ -191,7 +191,16 @@ function clip(s: string): string { return s.length <= 60 ? s : s.slice(0, 59) + 
 
 // ---------------------------------------------------------------- the service
 
-interface Ranked { ids: number[]; scores: Map<number, Scored>; fit: Map<number, number>; at: number }
+interface Ranked {
+  ids: number[]; scores: Map<number, Scored>; fit: Map<number, number>; at: number;
+  /** Top Matched: jobs not scored yet (they follow the scored ones), and the fit index generation the order used. */
+  waiting: number; gen: number;
+}
+/**
+ * Match percents of the open jobs for one profile (Top Matched). Keyed by crawler row id; `h` is the posting's content
+ * hash, so a changed posting is scored again. `p` null = the job could not be scored.
+ */
+interface FitIndex { version: string; pct: Map<number, { h: string; p: number | null }>; gen: number; running: boolean }
 interface PCursor { p: 1; h: string; o: number }
 
 export interface FeedDeps {
@@ -202,6 +211,10 @@ export interface FeedDeps {
 }
 
 const TOP_MATCHED_POOL = 200;
+/** Top Matched: after the first TOP_MATCHED_POOL jobs, a search scores more jobs itself for at most this long. */
+const TOP_MATCHED_SYNC_MS = 250;
+/** The background fit index scores jobs in slices of this length, so other requests are served in between. */
+const FIT_SLICE_MS = 40;
 const EMPLOYER_CAP = 3;
 const EMPLOYER_WINDOW = 20;
 const EMPLOYER_LOOKAHEAD = 400;
@@ -249,8 +262,13 @@ export class FeedService {
   private readonly matches = new Map<string, MatchResult>();
   private readonly h1bCache = new Map<string, H1bLookupDetail>();
   private h1bSet: { stamp: string; ids: number[] } | null = null;
+  private fitIdx: FitIndex | null = null;
+  private stopped = false;
 
   constructor(d: FeedDeps) { this.d = d; }
+
+  /** Stops the background fit index (the app is closing). */
+  stop(): void { this.stopped = true; }
 
   /** Changes whenever an open job is added, closed or merged (the rank cache key). */
   private stamp(): string {
@@ -353,7 +371,10 @@ export class FeedService {
       res = this.d.jobs.search(req, deps, restrict);
     }
     res.items = res.items.map((it) => this.decorate(it, profile, ranked));
-    if (personal) res.fit = { state: 'ready', waiting: 0, model: `jobleft-match ${ENGINE_VERSION}` };
+    if (personal) {
+      const waiting = ranked?.waiting ?? 0;
+      res.fit = { state: waiting > 0 ? 'indexing' : 'ready', waiting, model: `jobleft-match ${ENGINE_VERSION}` };
+    }
     res.tookMs = Math.round(performance.now() - t0);
     return res;
   }
@@ -375,10 +396,16 @@ export class FeedService {
     }
     // First page: a fresh order for the current data. Later pages: the order the first page used (kept in memory), so
     // paging never repeats or skips a job while a crawl adds jobs.
+    // Hidden jobs never appear and never count (JL-feed-11): the set of hidden jobs is part of the cached order's key,
+    // so a hide or an unhide gives a fresh order at once; a later page of an older order skips jobs hidden since.
+    const hidden = this.d.jobs.hiddenRowIds().sort((a, b) => a - b);
+    const hiddenKey = hidden.length ? createHash('sha256').update(hidden.join(',')).digest('hex').slice(0, 12) : '-';
     let ranked = cursor ? this.ranked.get(h) : undefined;
     if (!ranked) {
-      const full = `${key}:${this.stamp()}`;
+      const full = `${key}:${this.stamp()}:${hiddenKey}`;
       ranked = this.ranked.get(full);
+      // Top Matched while the fit index is still scoring: a first page takes the newer scores into its order.
+      if (ranked && ranked.waiting > 0 && ranked.gen !== (this.fitIdx?.gen ?? 0)) ranked = undefined;
       if (!ranked) {
         ranked = this.rank(req, profile, m, restrict);
         this.ranked.set(full, ranked);
@@ -391,10 +418,12 @@ export class FeedService {
       h = full;
     }
     const limit = req.limit ?? 20;
-    const page = ranked.ids.slice(offset, offset + limit);
+    const hiddenNow = new Set(hidden);
+    const page = ranked.ids.slice(offset, offset + limit).filter((id) => !hiddenNow.has(id));
     const items = this.d.jobs.itemsFor(page, deps);
     const next = offset + limit < ranked.ids.length ? Buffer.from(JSON.stringify({ p: 1, h, o: offset + limit } satisfies PCursor)).toString('base64url') : null;
-    return { res: { items, total: ranked.ids.length, nextCursor: next, fit: { state: 'ready', waiting: 0, model: null }, tookMs: 0 }, ranked };
+    const total = hiddenNow.size ? ranked.ids.reduce((n, id) => n + (hiddenNow.has(id) ? 0 : 1), 0) : ranked.ids.length;
+    return { res: { items, total, nextCursor: next, fit: { state: 'ready', waiting: 0, model: null }, tookMs: 0 }, ranked };
   }
 
   private rank(req: JobSearchRequest, profile: Profile, m: PrefModel, restrict: number[] | null): Ranked {
@@ -407,6 +436,7 @@ export class FeedService {
     // The match engine scores the best preference candidates. Top Matched orders them by the match percent (the rest
     // follow, marked "not scored"); Recommended adds 0.3 x the percent to the preference score, so a better match
     // wins among jobs that fit the preferences alike, while a firm preference (title, place) still decides first.
+    if (req.sort === 'top_matched') return this.rankTopMatched(ids, scores, byPref, profile);
     const fit = new Map<number, number>();
     const pool = ids.slice(0, TOP_MATCHED_POOL);
     const idOf = this.d.db.prepare('SELECT ats, board, job_id FROM jobs WHERE id = ?');
@@ -418,19 +448,102 @@ export class FeedService {
     }
     const inPool = new Set(pool);
     const rest = ids.filter((id) => !inPool.has(id));
-    if (req.sort === 'top_matched') {
-      const scored = pool.filter((id) => fit.has(id)).sort((a, b) => (fit.get(b)! - fit.get(a)!) || byPref(a, b));
-      ids = [...scored, ...pool.filter((id) => !fit.has(id)), ...rest];
-    } else {
-      const key = (id: number) => scores.get(id)!.score + 0.3 * (fit.get(id) ?? 0);
-      ids = [...[...pool].sort((a, b) => (key(b) - key(a)) || byPref(a, b)), ...rest];
-      fit.clear();
-    }
+    const key = (id: number) => scores.get(id)!.score + 0.3 * (fit.get(id) ?? 0);
+    ids = [...[...pool].sort((a, b) => (key(b) - key(a)) || byPref(a, b)), ...rest];
+    fit.clear();
     // One employer never fills a screen: the top of the feed used to be six near-identical postings from one company
     // (gate 7 note; the founder's review on 2026-09-27). At most EMPLOYER_CAP jobs of one employer in every run of
     // EMPLOYER_WINDOW results; its other jobs keep their order further down.
     ids = spreadEmployers(ids, new Map(rows.map((r) => [r.id, r.company])));
-    return { ids, scores, fit, at: nowMs() };
+    return { ids, scores, fit, at: nowMs(), waiting: 0, gen: 0 };
+  }
+
+  /**
+   * Top Matched (JL-feed-6): every matching job in the order of its match percent, highest first, across all pages
+   * (ties by preference, then row id). The percent is the one the card and the detail show. Jobs the fit index has not
+   * scored yet follow the scored ones in preference order and are counted as `waiting`; the index scores them in the
+   * background, and the next first page puts them in their place. No employer spreading here: it would break the order.
+   */
+  private rankTopMatched(prefOrder: number[], scores: Map<number, Scored>, byPref: (a: number, b: number) => number, profile: Profile): Ranked {
+    const idx = this.fitIndexFor(profile);
+    const hashes = this.contentHashes();
+    const fit = new Map<number, number>();
+    const unscorable = new Set<number>();
+    const missing: number[] = [];
+    for (const id of prefOrder) {
+      const e = idx.pct.get(id);
+      if (e && e.h === hashes.get(id)) { if (e.p === null) unscorable.add(id); else fit.set(id, e.p); } else missing.push(id);
+    }
+    // The best preference candidates are scored now, then more while the time allows; the rest in the background.
+    const t0 = performance.now();
+    let k = 0;
+    for (; k < missing.length; k++) {
+      if (k >= TOP_MATCHED_POOL && performance.now() - t0 > TOP_MATCHED_SYNC_MS) break;
+      const id = missing[k]!;
+      const p = this.scoreInto(idx, profile, id, hashes.get(id) ?? '');
+      if (p === null) unscorable.add(id); else fit.set(id, p);
+    }
+    const waiting = missing.length - k;
+    if (waiting > 0) this.startFitIndex(profile);
+    const scored = prefOrder.filter((id) => fit.has(id)).sort((a, b) => (fit.get(b)! - fit.get(a)!) || byPref(a, b));
+    const ids = [...scored, ...prefOrder.filter((id) => !fit.has(id) && !unscorable.has(id)), ...prefOrder.filter((id) => unscorable.has(id))];
+    return { ids, scores, fit, at: nowMs(), waiting, gen: idx.gen };
+  }
+
+  /** The fit index of this profile (a new one when the profile or the month changes: the score counts months). */
+  private fitIndexFor(profile: Profile): FitIndex {
+    const version = `${profile.version}|${new Date(nowMs()).toISOString().slice(0, 7)}`;
+    if (!this.fitIdx || this.fitIdx.version !== version) this.fitIdx = { version, pct: new Map(), gen: (this.fitIdx?.gen ?? 0) + 1, running: false };
+    return this.fitIdx;
+  }
+
+  /** Content hash of every open job (crawler row id -> hash). */
+  private contentHashes(): Map<number, string> {
+    const out = new Map<number, string>();
+    for (const r of this.d.db.prepare('SELECT j.id AS id, j.content_hash AS h FROM srv_job_index x JOIN jobs j ON j.id = x.id').all() as Array<{ id: number; h: string }>) out.set(Number(r.id), String(r.h));
+    return out;
+  }
+
+  /** Scores one job for the profile and keeps only its percent in the index (null when it cannot be scored). */
+  private scoreInto(idx: FitIndex, profile: Profile, id: number, hash: string): number | null {
+    const r = this.d.db.prepare('SELECT ats, board, job_id FROM jobs WHERE id = ?').get(id) as { ats: string; board: string; job_id: string } | undefined;
+    const job = r ? this.job(contractJobId(r)) : null;
+    let p: number | null = null;
+    if (job) {
+      const cached = this.matches.get(`${profile.version}|${job.id}|${job.contentHash}`);
+      if (cached) p = cached.percent;
+      else { try { p = (scoreMatch({ profile, job, company: null, now: nowMs() }) as MatchResult).percent; } catch { p = null; } }
+    }
+    idx.pct.set(id, { h: hash || job?.contentHash || '', p });
+    return p;
+  }
+
+  /** Scores the open jobs the index lacks, in short slices between other requests, until all are done. */
+  private startFitIndex(profile: Profile): void {
+    const idx = this.fitIndexFor(profile);
+    if (idx.running || this.stopped) return;
+    idx.running = true;
+    let todo: Array<[number, string]> | null = null;
+    let at = 0;
+    const slice = () => {
+      try {
+        if (this.stopped || this.fitIdx !== idx) { idx.running = false; return; }
+        const cur = this.d.profile();
+        if (!cur || cur.version !== profile.version) { idx.running = false; return; }
+        if (!todo) todo = [...this.contentHashes()].filter(([id, h]) => idx.pct.get(id)?.h !== h);
+        const t0 = performance.now();
+        while (at < todo.length && performance.now() - t0 < FIT_SLICE_MS) {
+          const [id, h] = todo[at++]!;
+          if (idx.pct.get(id)?.h !== h) this.scoreInto(idx, profile, id, h);
+        }
+        idx.gen++;
+        if (at < todo.length) { setTimeout(slice, 0).unref?.(); return; }
+        idx.running = false;
+      } catch {
+        idx.running = false; // the database closed (restore, delete-all, shutdown): the next search starts again
+      }
+    };
+    setTimeout(slice, 0).unref?.();
   }
 
   /** Full facts, the match percent with its reasons, and the sponsor tag on one card. */
@@ -446,6 +559,8 @@ export class FeedService {
       const rowId = this.rowId(job.id);
       const pref = ranked && rowId !== null ? ranked.scores.get(rowId) : undefined;
       if (res) {
+        const idx = this.fitIdx;
+        if (idx && rowId !== null && idx.version.startsWith(`${profile.version}|`) && idx.pct.get(rowId)?.h !== job.contentHash) idx.pct.set(rowId, { h: job.contentHash, p: res.percent });
         const sum = summarize(res);
         const chips = [...(pref?.chips ?? []), ...sum.whyFit.filter((c) => !(pref?.chips ?? []).some((p) => p.kind === c.kind))];
         out.match = { ...sum, whyFit: chips.slice(0, 2) };

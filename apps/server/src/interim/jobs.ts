@@ -277,7 +277,7 @@ export class JobsService {
   }
 
   /** Crawler row ids of the jobs the person hid. */
-  private hiddenRowIds(): number[] {
+  hiddenRowIds(): number[] {
     const out: number[] = [];
     for (const r of this.db.prepare('SELECT job_id FROM srv_tracker WHERE hidden = 1').all() as Array<{ job_id: string }>) {
       const row = this.getRow(r.job_id);
