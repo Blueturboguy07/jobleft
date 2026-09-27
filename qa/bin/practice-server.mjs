@@ -11,7 +11,7 @@ const events = [];
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css' };
 createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://x');
-  if (url.pathname === '/__log' && req.method === 'POST') { let b = ''; req.on('data', (d) => { b += d; }); req.on('end', () => { events.push({ at: new Date().toISOString(), body: b.slice(0, 500) }); res.end('ok'); }); return; }
+  if ((url.pathname === '/__log' || url.pathname === '/__event') && req.method === 'POST') { /* the pages' logger beacons to /__event */ let b = ''; req.on('data', (d) => { b += d; }); req.on('end', () => { events.push({ at: new Date().toISOString(), body: b.slice(0, 500) }); res.end('ok'); }); return; }
   if (url.pathname === '/__log') { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ count: events.length, submit: events.filter((e) => /submit/i.test(e.body)).length, next: events.filter((e) => /next/i.test(e.body)).length, events })); return; }
   if (url.pathname === '/__reset') { events.length = 0; res.end('ok'); return; }
   const f = join(DIR, url.pathname.replace(/^\/practice\//, '').replace(/^\/+/, '') || 'index.html');

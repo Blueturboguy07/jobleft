@@ -60,7 +60,9 @@ jobs:
       # pnpm skips a project whose dependency failed; the server suite runs on its own so it is never skipped.
       - name: Server tests on Windows
         if: always()
-        run: pnpm --filter @jobleft/server test
+        working-directory: apps/server
+        # A per-test time limit and a forced exit: a hang shows up as a named failure, never as a silent 90-minute job.
+        run: node --test --test-timeout=180000 --test-force-exit "test/*.test.ts"
 
       - name: Build the UI
         run: pnpm --filter @jobleft/ui build
