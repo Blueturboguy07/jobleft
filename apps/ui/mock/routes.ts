@@ -565,20 +565,21 @@ export const HANDLERS: Partial<Record<RouteName, Handler>> = {
 
   listFilters: ({ state }) => json(state.data.filters),
   createFilter: ({ state, body }) => {
-    const b = body as { name: string; filter: JobFilter; sort: SavedFilter['sort']; alert?: boolean };
+    const b = body as { name: string; filter: JobFilter; sort: SavedFilter['sort']; alert?: boolean; q?: string };
     const now = nowIso();
-    const f: SavedFilter = { id: newId('flt'), name: b.name.trim(), filter: b.filter, sort: b.sort, alert: { enabled: b.alert ?? false, lastNotifiedAt: null }, createdAt: now, updatedAt: now };
+    const f: SavedFilter = { id: newId('flt'), name: b.name.trim(), filter: b.filter, sort: b.sort, alert: { enabled: b.alert ?? false, lastNotifiedAt: null }, createdAt: now, updatedAt: now, ...(b.q?.trim() ? { q: b.q.trim() } : {}) };
     state.mutate('filters', 'the saved filter', (d) => { d.push(f); });
     return json(f);
   },
   updateFilter: ({ state, params, body }) => {
-    const b = body as { name: string; filter: JobFilter; sort: SavedFilter['sort']; alert?: boolean };
+    const b = body as { name: string; filter: JobFilter; sort: SavedFilter['sort']; alert?: boolean; q?: string };
     if (!state.data.filters.some((f) => f.id === params.filterId)) throw fail('not_found', 404, 'That saved filter was not found.');
     let out!: SavedFilter;
     state.mutate('filters', 'the saved filter', (d) => {
       const f = d.find((x) => x.id === params.filterId)!;
       f.name = b.name.trim(); f.filter = b.filter; f.sort = b.sort;
       if (b.alert !== undefined) f.alert.enabled = b.alert;
+      if (b.q !== undefined) { if (b.q.trim()) f.q = b.q.trim(); else delete f.q; }
       f.updatedAt = nowIso();
       out = f;
     });

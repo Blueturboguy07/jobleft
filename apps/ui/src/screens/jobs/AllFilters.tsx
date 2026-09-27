@@ -126,7 +126,7 @@ export function AllFiltersDrawer({ open, onClose, filter, sort, saved, onApply, 
       if (!name.trim()) { setErr('Give the saved filter a name.'); return; }
       setBusy(true);
       try {
-        const s = await call('updateFilter', { params: { filterId: saved.id }, body: { name: name.trim(), filter: cleanFilter(draft), sort: dsort, alert } });
+        const s = await call('updateFilter', { params: { filterId: saved.id }, body: { name: name.trim(), filter: cleanFilter(draft), sort: dsort, alert, q: saved.q ?? '' } });
         onSaved(s);
         onApply(s.filter, s.sort);
         ui.message?.success(`Saved "${s.name}".`);

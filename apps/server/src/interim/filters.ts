@@ -7,7 +7,7 @@ import { ApiFailure } from '../errors.ts';
 
 interface Row {
   id: string; name: string; filter: string; sort: string; alert_enabled: number; last_notified_at: string | null;
-  created_at: string; updated_at: string;
+  created_at: string; updated_at: string; q: string | null;
 }
 
 function toFilter(r: Row): SavedFilter {
@@ -15,10 +15,14 @@ function toFilter(r: Row): SavedFilter {
     id: r.id, name: r.name, filter: parseJson<JobFilter>(r.filter, {}), sort: r.sort as JobSort,
     alert: { enabled: r.alert_enabled === 1, lastNotifiedAt: r.last_notified_at },
     createdAt: r.created_at, updatedAt: r.updated_at,
+    ...(r.q ? { q: r.q } : {}),
   };
 }
 
-export interface FilterInput { name: string; filter: JobFilter; sort: JobSort; alert?: boolean }
+/** `q`: the search words the filter keeps (JL-tracker-15); blank = none. On a change, absent keeps the saved words. */
+export interface FilterInput { name: string; filter: JobFilter; sort: JobSort; alert?: boolean; q?: string }
+
+const words = (q: string | undefined): string | null => (q && q.trim() ? q.trim() : null);
 
 export class FilterService {
   private readonly db: DatabaseSync;
@@ -37,8 +41,8 @@ export class FilterService {
     const id = newId('flt');
     const now = nowIso();
     tx(this.db, () => {
-      this.db.prepare('INSERT INTO srv_saved_filters (id, name, filter, sort, alert_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(id, input.name, JSON.stringify(prune(JobFilterSchema, input.filter)), input.sort, b(input.alert ?? false), now, now);
+      this.db.prepare('INSERT INTO srv_saved_filters (id, name, filter, sort, alert_enabled, created_at, updated_at, q) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(id, input.name, JSON.stringify(prune(JobFilterSchema, input.filter)), input.sort, b(input.alert ?? false), now, now, words(input.q));
     });
     return this.get(id)!;
   }
@@ -46,8 +50,8 @@ export class FilterService {
   update(id: string, input: FilterInput): SavedFilter {
     const now = nowIso();
     tx(this.db, () => {
-      const r = this.db.prepare(`UPDATE srv_saved_filters SET name = ?, filter = ?, sort = ?, alert_enabled = COALESCE(?, alert_enabled), updated_at = ? WHERE id = ?`)
-        .run(input.name, JSON.stringify(prune(JobFilterSchema, input.filter)), input.sort, input.alert === undefined ? null : b(input.alert), now, id);
+      const r = this.db.prepare(`UPDATE srv_saved_filters SET name = ?, filter = ?, sort = ?, alert_enabled = COALESCE(?, alert_enabled), updated_at = ?, q = CASE WHEN ? THEN ? ELSE q END WHERE id = ?`)
+        .run(input.name, JSON.stringify(prune(JobFilterSchema, input.filter)), input.sort, input.alert === undefined ? null : b(input.alert), now, input.q === undefined ? 0 : 1, words(input.q), id);
       if (Number(r.changes) === 0) throw new ApiFailure('not_found', 'That saved filter does not exist.');
     });
     return this.get(id)!;
