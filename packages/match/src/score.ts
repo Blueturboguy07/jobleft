@@ -487,12 +487,21 @@ function scoreSkills(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig): SkillsOu
   const percent = pct(coverage * 100);
   const met = checks.filter((c) => c.state === 'met');
   const reqChecks = checks.filter((c) => c.importance === 'required');
-  const reqMet = reqChecks.filter((c) => c.state === 'met');
+  // The skills the posting asks for are the required ones plus the ones it names in its text (the same list as
+  // `skills.required` and the tags the detail shows), so the count always equals the list (JL-tracker-4).
+  const textChecks = checks.filter((c) => c.importance === 'mentioned');
+  const needChecks = checks.filter((c) => c.importance !== 'preferred');
+  const needMet = needChecks.filter((c) => c.state === 'met');
   const share = (c: SkillCheck) => Math.round((weightOf(c.importance) / den) * 100);
-  if (reqChecks.length) {
-    reasons.push({ code: 'skills_required', text: `You have ${reqMet.length} of the ${reqChecks.length} skills and credentials the posting lists as required${reqMet.length ? `: ${listNames(reqMet.map((c) => c.name))}` : ''}.`, points: reqMet.reduce((s, c) => s + share(c), 0) });
+  if (needChecks.length) {
+    const names = needMet.length ? `: ${listNames(needMet.map((c) => c.name))}` : '';
+    const what = needChecks.length === 1 ? 'the 1 skill or credential' : `the ${needChecks.length} skills and credentials`;
+    const text = !textChecks.length
+      ? `You have ${needMet.length} of ${what} the posting lists as required${names}.`
+      : `You have ${needMet.length} of ${what} the posting asks for (${reqChecks.length ? `${reqChecks.length} in its requirement list, ${textChecks.length} named elsewhere in it` : 'named in its text; it has no requirement list'})${names}.`;
+    reasons.push({ code: 'skills_required', text, points: needMet.reduce((s, c) => s + share(c), 0) });
   }
-  const others = met.filter((c) => c.importance !== 'required');
+  const others = met.filter((c) => c.importance === 'preferred');
   if (others.length) reasons.push({ code: 'skills_matched', text: `You also have ${listNames(others.map((c) => `${c.name} (${c.importance})`))}.`, points: others.reduce((s, c) => s + share(c), 0) });
   const missing = checks.filter((c) => c.state === 'missing');
   if (missing.length) reasons.push({ code: 'skills_missing', text: `Not in your profile: ${listNames(missing.map((c) => `${c.name}${c.importance === 'preferred' ? ' (preferred)' : ''}`))}.`, points: -missing.reduce((s, c) => s + share(c), 0) });

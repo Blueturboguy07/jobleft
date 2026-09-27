@@ -228,6 +228,10 @@ const ABA_ANCHORS = words('therapy autism behavior behavioral rbt bcba children 
 const ACCT_ANCHORS = words('accounting 50 100 300 intacct quickbooks erp software bookkeeping ledger xero netsuite');
 const SPOKEN_ANCHORS = words('fluent fluency bilingual speak speaking spoken written language languages native proficient proficiency conversational english verbal read write');
 const TRADES_ANCHORS = words('programming ladder controls automation allen bradley siemens hmi scada troubleshoot troubleshooting motor electrical logic vfd vfds instrumentation');
+// Building trades ("framing", "concrete" are skills only next to these; "framing the question" and "concrete metric
+// definitions" are not) and car repair ("alignment", "brakes", "suspension").
+const BUILD_ANCHORS = words('construction carpentry carpenter carpenters lumber wood drywall roofing masonry mason rebar studs joists trim cabinets cabinetry blueprints jobsite site tools saw saws nail nails nailer hammer building buildings remodel remodeling renovation renovations install installation forms forming pour pouring poured slab slabs foundation foundations finishing framing concrete cement sidewalk sidewalks curbs walls floors flooring');
+const AUTO_ANCHORS = words('brake brakes tire tires wheel wheels vehicle vehicles automotive auto car cars truck trucks engine engines suspension oil diagnostics mechanic mechanics technician technicians steering alignment alignments rotation rotations lube shop');
 const HR_ANCHORS = words('ats applicant applicants candidate candidates recruiting recruiter recruiters sourcing hiring requisitions offers interview interviews lever greenhouse workday icims taleo');
 const MFG_NEIGHBORS = words('line mechanical electrical product products component components parts manual electronic electronics');
 const HEALTH_NEIGHBORS = words('ehr emr systems charting hyperspace certification certified credentialed');
@@ -334,8 +338,11 @@ export const CONTEXT_RULES: Record<string, (doc: ScanDoc, i: number, len: number
   aba: (doc, i, len) => neighbors(doc, i, len, 8, ABA_ANCHORS),
   acct: (doc, i, len) => neighbors(doc, i, len, 4, ACCT_ANCHORS),
   spoken: (doc, i, len) => neighbors(doc, i, len, 3, SPOKEN_ANCHORS),
-  trades: (doc, i, len) => neighbors(doc, i, len, 5, TRADES_ANCHORS),
+  // Never part of a hyphenated word ("self-starter" is not a motor starter).
+  trades: (doc, i, len) => !hyphenated(doc, i, len) && neighbors(doc, i, len, 5, TRADES_ANCHORS),
   hr: (doc, i, len) => neighbors(doc, i, len, 8, HR_ANCHORS) || docHas(doc, 'hr', HR_ANCHORS, 3),
+  build: (doc, i, len) => !hyphenated(doc, i, len) && neighbors(doc, i, len, 5, BUILD_ANCHORS),
+  auto: (doc, i, len) => !hyphenated(doc, i, len) && neighbors(doc, i, len, 5, AUTO_ANCHORS),
   health: (doc, i, len) => neighbors(doc, i, len, 3, HEALTH_NEIGHBORS) || docHas(doc, 'health', HEALTH_DOC, 2),
   sw: (doc) => docHas(doc, 'sw', SW_DOC, 2),
   mfg: (doc, i, len) => neighbors(doc, i, len, 3, MFG_NEIGHBORS) || docHas(doc, 'mfg', MFG_DOC, 1),

@@ -71,6 +71,15 @@ function lineImportance(section: SectionKind, line: string, credential = false):
 
 const RANK: Record<SkillImportance, number> = { required: 0, preferred: 1, mentioned: 2 };
 
+/**
+ * A sentence of the employer's standard statements (equal opportunity, E-Verify, privacy, social links). Such a
+ * sentence names no skill the job needs, even when no heading marks it: "E-Verify Notice of Participation" is not
+ * employment law, "our experience that hiring and developing great people" is not hiring (JL-tracker-5).
+ */
+const BOILERPLATE = /\b(equal (employment )?opportunity|affirmative action|without regard to|protected (veteran|characteristic|class)|e-?verify|know your rights|employee rights|privacy (policy|notice|statement)|personal (information|data)|candidate privacy|reasonable accommodations?|pay transparency|fair chance|use of artificial intelligence|ai[- ]powered tools|follow (us|[A-Z][\w&.'-]*) on (linkedin|x|twitter|instagram|youtube|facebook)|diverse backgrounds|different perspectives)\b/i;
+/** How the employer hires: boilerplate in any posting except one for hiring work itself (recruiters, HR). */
+const HIRING_TALK = /\b((hiring|recruitment|recruiting|application|interview) process(es)?|hiring (guidelines|decisions))\b/i;
+
 function jobFamily(job: Job, a: AnalyzedText): { family: string | null; source: JobFacts['familySource']; evidence: string | null } {
   const byTitle = familyOfTitle(job.title);
   if (byTitle) return { family: byTitle.family, source: 'title', evidence: byTitle.phrase };
@@ -339,6 +348,7 @@ export function readJob(job: Job, company: Company | null): JobFacts {
       const line = a.lines[tok.line];
       if (!line || SKIP_SECTIONS.has(line.section)) continue;
       const sentence = a.sentences[tok.sentence]?.text ?? line.text;
+      if (BOILERPLATE.test(sentence) || (fam.family !== 'hr' && HIRING_TALK.test(sentence))) continue;
       const imp = lineImportance(line.section, sentence, def.kind === 'cred');
       if (def.kind === 'cred' && imp === 'mentioned') continue;
       if (imp === 'mentioned' && def.families && fam.family) {
