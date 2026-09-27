@@ -757,7 +757,11 @@ function describeDegree(pf: ProfileFacts, rank: number): string {
 
 // ---------------------------------------------------------------- deal-breakers
 
-interface DealOut { checks: DealBreakerCheck[]; blockers: Blocker[]; capBy: Array<{ cap: number; reason: string }> }
+interface DealOut {
+  checks: DealBreakerCheck[]; blockers: Blocker[]; capBy: Array<{ cap: number; reason: string }>;
+  /** The job's first place that is in a place the person wants (JL-v1-1), or null. */
+  placeMatched: Place | null;
+}
 
 function formatPay(p: NonNullable<Job['pay']>): string {
   const cur = p.currency === 'USD' ? '$' : `${p.currency} `;
@@ -785,6 +789,7 @@ function evaluateDealBreakers(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, 
   const checks: DealBreakerCheck[] = [];
   const blockers: Blocker[] = [];
   const capBy: DealOut['capBy'] = [];
+  let placeMatched: Place | null = null;
   const broken = (kind: DealBreakerCheck['kind'], message: string, quote: string | null, source: 'description' | 'location_text' | 'board_field' | 'title') => {
     checks.push({ kind, state: 'broken', message, quote });
     blockers.push({
@@ -825,11 +830,11 @@ function evaluateDealBreakers(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, 
         let anyMatch = false, anyUnknown = false;
         for (const jp of places) for (const wp of wantPlaces) {
           const v = comparePlace(jp, wp, distanceMiles);
-          if (v === 'match') anyMatch = true;
+          if (v === 'match') { anyMatch = true; placeMatched ??= jp; }
           else if (v !== 'different') anyUnknown = true;
         }
         const wantText = listNames(wantPlaces.map((p) => p.text + (p.radiusMiles ? ` (within ${p.radiusMiles} miles)` : '')), 3);
-        if (anyMatch) checks.push({ kind: 'location', state: 'ok', message: `This job is in ${listNames(places.map(placeLabel), 3)}, in a place you want (${wantText}).`, quote: places[0].text });
+        if (anyMatch) checks.push({ kind: 'location', state: 'ok', message: `This job is in ${listNames(places.map(placeLabel), 3)}, in a place you want (${wantText}).`, quote: (placeMatched ?? places[0]).text });
         else if (anyUnknown) checks.push({ kind: 'location', state: 'not_stated', message: `This job is in ${listNames(places.map(placeLabel), 3)}; jobleft could not check its distance from ${wantText}.`, quote: places[0].text });
         else if (jf.workModel === 'hybrid' || jf.workModel === 'onsite' || jf.workModel === null) {
           broken('location', `This job is in ${listNames(places.map(placeLabel), 3)} (${q(places[0].text)}). The places you want are ${wantText}.`, places[0].text, 'location_text');
@@ -867,7 +872,7 @@ function evaluateDealBreakers(pf: ProfileFacts, jf: JobFacts, cfg: MatchConfig, 
       broken('employment_type', `This job is ${TYPE_WORD[jf.employmentType]}${jf.employmentTypeEvidence ? ` (${q(jf.employmentTypeEvidence)})` : ''}. You want ${types.map((t) => TYPE_WORD[t]).join(' or ')} work.`, jf.employmentTypeEvidence, jf.employmentTypeEvidence === job.title ? 'title' : 'description');
     } else checks.push({ kind: 'employment_type', state: 'ok', message: `This job is ${TYPE_WORD[jf.employmentType]}, as you want.`, quote: jf.employmentTypeEvidence });
   }
-  return { checks, blockers, capBy };
+  return { checks, blockers, capBy, placeMatched };
 }
 
 // ---------------------------------------------------------------- why-fit chips
@@ -901,7 +906,10 @@ function chips(pf: ProfileFacts, jf: JobFacts, company: Company | null, sk: Skil
     out.push({ kind: 'location', label: `Remote${scope}`.slice(0, 60), positive: (!wants.length || wants.includes('remote')) && !outside, rank: outside ? 0 : 5 });
   } else {
     const loc = deal.checks.find((c) => c.kind === 'location' && c.state === 'ok');
-    if (loc && jf.job.places.length) out.push({ kind: 'location', label: `In a place you want: ${placeLabel(jf.job.places[0])}`.slice(0, 60), positive: true, rank: 5 });
+    // The place that matched, never simply the job's first one ("San Francisco / New York City / Austin" for a person
+    // who wants Austin says Austin, JL-v1-1). A job that is fine only because it can be done remotely says so.
+    const where = deal.placeMatched;
+    if (loc && (where || jf.job.places.length)) out.push({ kind: 'location', label: (where ? `In a place you want: ${placeLabel(where)}` : 'Can be done remotely').slice(0, 60), positive: true, rank: 5 });
   }
   if (ind.matched) out.push({ kind: 'industry', label: `${ind.matched} experience`.slice(0, 60), positive: true, rank: 6 });
   // Growth: only when the posting or the company data says so.

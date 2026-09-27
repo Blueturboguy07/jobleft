@@ -62,3 +62,31 @@ test('a remote job open only outside the countries the person wants is a warning
   const us = profileOf({ ...SWE, preferences: { ...(SWE.preferences as object), countries: ['US'], workModels: ['remote'], places: [] } });
   assert.equal(score(us, job({ title: 'Software Engineer', location: 'Remote - US' })).whyFit.find((c) => c.kind === 'location')?.positive, true);
 });
+
+// JL-v1-1: a person who wants only Austin, TX saw "In a place you want: San Francisco, CA" on a job listed as
+// "San Francisco / New York City / Austin": the reason named the job's first city, not the one that matched.
+test('the place reason names the place that matched, not the job\'s first city (JL-v1-1)', () => {
+  const distanceMiles = distanceFromPlaceIndex(index);
+  const tx = wanting({ text: 'Austin, TX', placeId: 'gnis:1384879', radiusMiles: 25 });
+  // The places as the store holds them for "Hybrid - San Francisco, New York City, Austin" (Vercel 6188894004).
+  const stored: Place[] = [
+    { text: 'San Francisco', city: 'San Francisco', region: 'CA', country: 'US', placeId: null },
+    { text: 'New York City', city: 'New York', region: 'NY', country: 'US', placeId: null },
+    { text: 'Austin', city: 'Austin', region: 'TX', country: 'US', placeId: null },
+  ];
+  for (const j of [{ ...onsite('San Francisco, CA'), places: stored }, onsite(['San Francisco, CA', 'New York, NY', 'Austin, TX'] as unknown as string)]) {
+    const r = score(tx, j, { distanceMiles });
+    const where = j.places.map((p) => p.text).join(' / ');
+    assert.equal(placeOk(r)?.state, 'ok', where);
+    assert.equal(r.whyFit.find((c) => c.kind === 'location')?.label, 'In a place you want: Austin, TX', where);
+    assert.match(placeOk(r)?.quote ?? '', /^Austin/, where);
+  }
+  // The radius still counts: a job in Round Rock and Plano is within 25 miles of Austin by Round Rock.
+  const near = score(tx, onsite(['Plano, TX', 'Round Rock, TX'] as unknown as string), { distanceMiles });
+  assert.equal(near.whyFit.find((c) => c.kind === 'location')?.label, 'In a place you want: Round Rock, TX');
+  // A job in no wanted place that is fine only because it can also be done remotely names no city as wanted.
+  const open = profileOf({ ...SWE, preferences: { ...(SWE.preferences as object), workModels: ['hybrid', 'remote'], places: [{ text: 'Austin, TX', placeId: 'gnis:1384879', radiusMiles: 25 }] } });
+  const hybrid = job({ title: 'Software Engineer', location: ['Plano, TX', 'Remote - US'], workModel: 'hybrid', description: 'Hybrid role in Plano, or remote in the US.' });
+  const chip = score(open, hybrid, { distanceMiles }).whyFit.find((c) => c.kind === 'location');
+  assert.equal(chip?.label, 'Can be done remotely');
+});
