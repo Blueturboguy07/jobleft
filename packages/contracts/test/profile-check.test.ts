@@ -56,3 +56,11 @@ test('with the stored profile, only new or changed values are checked; entries a
   assert.equal(edited.length, 1, 'an edited entry is checked');
   assert.equal(profileIssues({ ...stored, personal: { ...stored.personal, email: 'x' } }, stored, NOW).length, 1, 'a changed email is checked');
 });
+
+test('a minimum yearly pay has a sane ceiling (JL-onboarding-21)', () => {
+  const p = emptyProfileLike();
+  const huge = { ...p, preferences: { ...p.preferences, minAnnualPayUsd: 1e23 } };
+  assert.deepEqual(profileIssues(huge, null, NOW).map((i) => i.message), ['Minimum yearly pay: type an amount up to $10,000,000.']);
+  assert.deepEqual(profileIssues({ ...p, preferences: { ...p.preferences, minAnnualPayUsd: 150000 } }, null, NOW), []);
+  assert.deepEqual(profileIssues(huge, huge, NOW), [], 'a value stored earlier never blocks another save');
+});

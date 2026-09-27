@@ -147,8 +147,8 @@ export function Onboarding() {
   };
   const goTo = (n: number) => { if (!leavingRef.current) setStep(Math.min(Math.max(0, n), LAST_STEP)); };
   const next = async () => {
-    if (step === 4) {
-      const found = problemsIn(d, ['personal'], ABOUT_PATHS);
+    if (step === 1 || step === 4) {
+      const found = step === 1 ? problemsIn(d, ['preferences']) : problemsIn(d, ['personal'], ABOUT_PATHS);
       setProblems(found);
       if (found.length) return;
     }
@@ -221,7 +221,8 @@ export function Onboarding() {
         <strong>Experience level</strong>
         <div className="jl-choice-grid">{LEVEL_OPTIONS.map((o) => <Choice key={o.value} on={pr.levels.includes(o.value)} onClick={() => setPr({ levels: toggle(pr.levels, o.value) })}>{o.label}</Choice>)}</div>
         <strong>Minimum yearly pay (US dollars, optional)</strong>
-        <InputNumber min={0} step={5000} style={{ width: 220 }} value={pr.minAnnualPayUsd ?? undefined} onChange={(v) => setPr({ minAnnualPayUsd: v ?? null })} placeholder="Not set" aria-label="Minimum yearly pay in US dollars" />
+        <InputNumber min={0} step={5000} precision={0} style={{ width: 220 }} status={problems.some((x) => x.path === '/preferences/minAnnualPayUsd') ? 'error' : undefined} value={pr.minAnnualPayUsd ?? undefined} onChange={(v) => { setPr({ minAnnualPayUsd: v ?? null }); setProblems([]); }} placeholder="Not set" aria-label="Minimum yearly pay in US dollars" />
+        {problems.filter((x) => x.path === '/preferences/minAnnualPayUsd').map((x) => <span key={x.path} role="alert" style={{ color: 'var(--jl-error)', fontSize: 13 }}>{x.message}</span>)}
         <p className="jl-note">A job that does not state its pay is never hidden by this. It is marked "pay not stated".</p>
       </Space>
     ),

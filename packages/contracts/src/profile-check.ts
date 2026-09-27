@@ -9,10 +9,10 @@
 
 import type { ProfileInput } from './profile.ts';
 
-export type ProfileBlock = 'personal' | 'education' | 'work' | 'projects';
+export type ProfileBlock = 'personal' | 'education' | 'work' | 'projects' | 'preferences';
 export interface ProfileIssue { block: ProfileBlock; path: string; message: string }
 
-export const PROFILE_LIMITS = { name: 100, email: 254, text: 200, linkLabel: 100 } as const;
+export const PROFILE_LIMITS = { name: 100, email: 254, text: 200, linkLabel: 100, minAnnualPayUsd: 10_000_000 } as const;
 
 const PERSONAL_TEXT: Array<[keyof ProfileInput['personal'], string]> = [
   ['firstName', 'First name'], ['middleName', 'Middle name'], ['lastName', 'Last name'], ['email', 'Email'], ['phone', 'Phone'],
@@ -120,5 +120,9 @@ export function profileIssues(next: ProfileInput, prev: ProfileInput | null, now
     return { block: 'work', path: `/work/${i}/company`, message: `Work experience, job ${i + 1}: add the company name.` };
   });
   entries('projects', 'projects', next.projects, (x, i) => `Projects, ${x.name.trim() || `project ${i + 1}`}`);
+  const pay = next.preferences.minAnnualPayUsd;
+  if (pay !== null && pay > PROFILE_LIMITS.minAnnualPayUsd && (!prev || prev.preferences.minAnnualPayUsd !== pay)) {
+    out.push({ block: 'preferences', path: '/preferences/minAnnualPayUsd', message: `Minimum yearly pay: type an amount up to $${PROFILE_LIMITS.minAnnualPayUsd.toLocaleString('en-US')}.` });
+  }
   return out;
 }

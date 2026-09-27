@@ -5,9 +5,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Dropdown, Progress } from 'antd';
 import { ArrowUpOutlined, ReloadOutlined, FolderOpenOutlined } from '@ant-design/icons';
-import type { FitState, JobFilter, JobListItem, JobSort, SavedFilter } from '@jobleft/contracts';
+import type { FitState, JobFilter, JobListItem, JobSort, SavedFilter, StorageInfo } from '@jobleft/contracts';
 import { call, type UiError } from '../../app/api.ts';
-import { invalidate } from '../../app/data.ts';
+import { invalidate, useApi } from '../../app/data.ts';
 import { ui } from '../../app/layers.ts';
 import { navigate } from '../../app/router.ts';
 import { getFeed, profileIsSet, setFeed, useCrawl, useFeed, useProfile, useTrackerCounts } from '../../app/session.ts';
@@ -114,6 +114,11 @@ export function Feed() {
   }, [profile.data, feed.initialized]);
 
   const { st, load, more, ops, retryMore } = useJobPages(feed.filter, feed.sort, feed.q);
+  // an empty filtered list: is any job stored at all? Before the first refresh the honest answer is "No jobs yet",
+  // not "nothing matches these filters" (JL-onboarding-29)
+  const emptyFiltered = !st.loading && !st.error && st.items.length === 0 && !progress?.running && (!!feed.q.trim() || activeCount(feed.filter) > 0);
+  const storage = useApi<StorageInfo>(emptyFiltered ? 'storage' : null, () => call('storage'), { revalidate: true });
+  const noJobsStored = emptyFiltered && storage.data?.openJobs === 0;
   const actions = useCardActions(ops);
 
   // new jobs arriving during a refresh: update in place when at the top, otherwise offer a button
@@ -141,7 +146,7 @@ export function Feed() {
   else if (st.loading && !st.items.length) body = <SkeletonCards n={4} />;
   else if (!st.items.length) {
     if (progress?.running) body = <EmptyState art="search" title="Your job boards are being read" text={`Jobs appear here as each board finishes: ${progress.boardsDone} of ${plural(progress.boardsTotal, 'board')} done so far.`} />;
-    else if (feed.q.trim() || nActive) body = (
+    else if ((feed.q.trim() || nActive) && !noJobsStored) body = (
       <EmptyState art="search" title="No jobs match" text={<>Nothing matches {feed.q.trim() ? <>“{feed.q.trim()}” and </> : null}these filters. Many postings do not state pay, level or a posted date; each filter can include those jobs.</>}
         action={<div className="jl-row"><Button shape="round" type="primary" onClick={() => setFeed({ filter: {}, q: '' })}>Clear filters and words</Button><Button shape="round" onClick={() => setDrawer({ open: true, saved: null })}>Change filters</Button></div>} />
     );

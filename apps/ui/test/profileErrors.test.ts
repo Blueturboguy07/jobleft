@@ -39,3 +39,10 @@ test('skills: blanks and letter-case duplicates are dropped (JL-onboarding-19)',
   assert.deepEqual(uniqueNames(['TypeScript', 'typescript', '   ', ' SQL ', 'K'.repeat(500)]).map((x) => x.slice(0, 5)), ['TypeS', 'SQL', 'KKKKK']);
   assert.equal(uniqueNames(['K'.repeat(500)])[0]!.length, 100);
 });
+
+test('work-authorization answers that cannot all be true are pointed out (JL-onboarding-20)', async () => {
+  const { authConflicts } = await import('../src/lib/profileErrors.ts');
+  const wa = { usAuthorized: 'no' as const, needsSponsorship: 'yes' as const, usCitizen: 'yes' as const, hasSecurityClearance: null, authorizedCountries: [] };
+  assert.equal(authConflicts(wa).length, 2);
+  assert.deepEqual(authConflicts({ ...wa, usCitizen: 'no' }), []);
+});

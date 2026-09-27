@@ -19,7 +19,7 @@ import { typeText, yearMonthText } from '../lib/format.ts';
 import { INDUSTRY_SUGGESTIONS, PlacePicker, SKILL_SUGGESTIONS } from './jobs/Filters.tsx';
 import { AddResumeModal } from './Resume.tsx';
 import { toInput } from '../lib/onboarding.ts';
-import { cleanForSave, problemsIn, serverProblems, uniqueNames, type FieldProblem } from '../lib/profileErrors.ts';
+import { authConflicts, cleanForSave, problemsIn, serverProblems, uniqueNames, type FieldProblem } from '../lib/profileErrors.ts';
 
 type Block = 'personal' | 'prefs' | 'education' | 'work' | 'skills' | 'auth' | 'eeo';
 const BLOCKS: Array<{ id: Block; label: string }> = [
@@ -53,7 +53,7 @@ function Field({ label, children, required, problem }: { label: string; children
 }
 
 /** The checks each editor runs before it saves (the whole block it edits). */
-const CHECKED: Partial<Record<Block, ProfileBlock[]>> = { personal: ['personal'], education: ['education'], work: ['work'] };
+const CHECKED: Partial<Record<Block, ProfileBlock[]>> = { personal: ['personal'], education: ['education'], work: ['work'], prefs: ['preferences'] };
 
 const Row = ({ children }: { children: ReactNode }) => <div className="jl-row jl-wrap" style={{ gap: 12, alignItems: 'flex-start' }}>{children}</div>;
 
@@ -136,7 +136,7 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
         <Field label="Experience levels"><Checkbox.Group value={pr.levels} onChange={(v) => setPr({ levels: v as never })} options={LEVEL_OPTIONS} /></Field>
         <Field label="Countries"><Select mode="multiple" optionFilterProp="label" filterSort={countrySort} value={pr.countries} onChange={(v) => setPr({ countries: v })} options={COUNTRY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))} /></Field>
         <Field label="Cities"><PlacePicker places={pr.places} onChange={(places) => setPr({ places })} /></Field>
-        <Field label="Minimum yearly pay (US dollars)"><InputNumber min={0} step={5000} style={{ width: 200 }} value={pr.minAnnualPayUsd ?? undefined} onChange={(v) => setPr({ minAnnualPayUsd: v ?? null })} placeholder="Not set" /></Field>
+        <Field label="Minimum yearly pay (US dollars)" problem={bad('/preferences/minAnnualPayUsd')}><InputNumber min={0} step={5000} precision={0} status={badStatus('/preferences/minAnnualPayUsd')} style={{ width: 200 }} value={pr.minAnnualPayUsd ?? undefined} onChange={(v) => setPr({ minAnnualPayUsd: v ?? null })} placeholder="Not set" /></Field>
         <Field label="Industries"><Select mode="tags" value={pr.industries} onChange={(v) => setPr({ industries: v })} options={INDUSTRY_SUGGESTIONS.map((x) => ({ value: x, label: x }))} /></Field>
         <Field label="Company stages"><Checkbox.Group value={pr.companyStages} onChange={(v) => setPr({ companyStages: v as never })} options={STAGE_OPTIONS} /></Field>
         <Field label="Role types"><Checkbox.Group value={pr.roleTypes} onChange={(v) => setPr({ roleTypes: v as never })} options={[{ value: 'ic', label: 'Individual contributor' }, { value: 'manager', label: 'Manager' }]} /></Field>
@@ -196,6 +196,7 @@ function EditDrawer({ block, profile, onClose }: { block: Block | null; profile:
     case 'auth':
       body = (<Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Alert type="info" showIcon icon={<LockOutlined />} message="These answers stay on this Mac. They are never sent to an AI provider. jobleft uses them to warn you when a posting has a limit you do not meet." />
+        {authConflicts(wa).map((x) => <Alert key={x} type="warning" showIcon message={x} description="These answers fill application forms. Check them before you save." />)}
         <YesNo label="Are you legally allowed to work in the US?" value={wa.usAuthorized} onChange={(v) => setWa({ usAuthorized: v })} />
         <YesNo label="Will you need visa sponsorship now or later?" value={wa.needsSponsorship} onChange={(v) => setWa({ needsSponsorship: v })} />
         <YesNo label="Are you a US citizen?" value={wa.usCitizen} onChange={(v) => setWa({ usCitizen: v })} />
@@ -340,7 +341,7 @@ export function ProfileScreen() {
         </section>
       </aside>
       <EditDrawer block={edit} profile={p} onClose={() => setEdit(null)} />
-      <AddResumeModal open={importing} onClose={() => setImporting(false)} />
+      <AddResumeModal open={importing} stay onClose={() => setImporting(false)} />
     </div>
   );
 }

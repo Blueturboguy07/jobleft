@@ -53,3 +53,14 @@ export function uniqueNames(names: string[]): string[] {
   }
   return out;
 }
+
+/**
+ * Work-authorization answers that cannot all be true (JL-onboarding-20): a US citizen may work in the US and never
+ * needs a visa. A warning only; the person decides.
+ */
+export function authConflicts(wa: ProfileInput['workAuthorization']): string[] {
+  const out: string[] = [];
+  if (wa.usCitizen === 'yes' && wa.usAuthorized === 'no') out.push('You said you are a US citizen but not allowed to work in the US. A US citizen may work in the US.');
+  if (wa.usCitizen === 'yes' && wa.needsSponsorship === 'yes') out.push('You said you are a US citizen and need visa sponsorship. A US citizen never needs a visa to work in the US.');
+  return out;
+}
