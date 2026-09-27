@@ -1,5 +1,5 @@
 // How facts read on screen. Rule (INTERFACES 1.5): null means unknown. These helpers return null for an unknown
-// fact, so the screen leaves it out; they never print "$0", "0+ years", "undefined", "null" or "NaN".
+// fact, and the screen says it is not stated (NOT_STATED); they never print "$0", "0+ years", "undefined", "null" or "NaN".
 // Pure functions: the unit tests run them under Node.
 
 import {
@@ -18,9 +18,14 @@ function num(v: number): string {
   return v.toLocaleString('en-US', { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 });
 }
 
-/** "$88K" only when that is exact to the hundred ("$88.5K"); otherwise the full number ("$88,550"). */
-export function money(v: number, currency: string, compact = true): string {
+/**
+ * "$88K" when that is exact to the hundred ("$88.5K"); otherwise the full number ("$88,550"). `yearly`: a yearly
+ * figure is always in thousands to one decimal ("$141.8K"), so both ends of a range read alike (JL-feed-20); the
+ * exact figures stay in payExactText.
+ */
+export function money(v: number, currency: string, compact = true, yearly = false): string {
   const sym = SYMBOL[currency] ?? `${currency} `;
+  if (yearly && v >= 1000) return `${sym}${(Math.round(v / 100) / 10).toLocaleString('en-US', { maximumFractionDigits: 1 })}K`;
   if (compact && v >= 1000 && v % 100 === 0) {
     const k = v / 1000;
     return `${sym}${k.toLocaleString('en-US', { maximumFractionDigits: 1 })}K`;
@@ -36,10 +41,21 @@ export function payText(pay: Pay | null | undefined): string | null {
   const max = typeof pay.max === 'number' && Number.isFinite(pay.max) && pay.max > 0 ? pay.max : null;
   if (min === null && max === null) return null;
   const u = PERIOD_SHORT[pay.period] ?? '';
-  const f = (v: number) => `${money(v, pay.currency, pay.period === 'year')}${u}`;
+  const f = (v: number) => `${money(v, pay.currency, pay.period === 'year', pay.period === 'year')}${u}`;
   if (min !== null && max !== null) return min === max ? f(min) : `${f(min)} - ${f(max)}`;
   if (min !== null) return `From ${f(min)}`;
   return `Up to ${f(max!)}`;
+}
+
+/** The exact yearly figures when payText rounded them ("Exactly $141,773 - $162,000 a year"); null otherwise. */
+export function payExactText(pay: Pay | null | undefined): string | null {
+  if (!pay || pay.period !== 'year') return null;
+  const ok = (v: number | null) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
+  const min = ok(pay.min), max = ok(pay.max);
+  if ([min, max].every((v) => v === null || v % 100 === 0)) return null;
+  const f = (v: number) => money(v, pay.currency, false);
+  const range = min !== null && max !== null ? (min === max ? f(min) : `${f(min)} - ${f(max)}`) : min !== null ? `from ${f(min)}` : `up to ${f(max!)}`;
+  return `Exactly ${range} a year`;
 }
 
 /** The yearly figure for hourly or monthly pay, marked as converted. null for yearly pay or no pay. */
@@ -200,6 +216,22 @@ export function textBlocks(text: string): Block[] {
   flushPara();
   flushList();
   return out;
+}
+
+/** What a card or the detail shows for a fact the posting does not state (JL-feed-10: unknown is said, not left out). */
+export const NOT_STATED = {
+  place: 'Place not stated', type: 'Job type not stated', pay: 'Pay not stated', workModel: 'Work model not stated',
+  level: 'Level not stated', years: 'Years not stated',
+} as const;
+
+/** The host of the placeholder link of a job pasted without a link (server NO_LINK_HOST): it never loads. */
+export const NO_LINK_HOST = 'jobleft.invalid';
+
+/** A job's link to open or copy, or null when it has none (JL-feed-16: never the placeholder address). */
+export function jobLink(u: string | null | undefined): string | null {
+  const s = safeUrl(u);
+  if (!s) return null;
+  try { return new URL(s).hostname.toLowerCase() === NO_LINK_HOST ? null : s; } catch { return null; }
 }
 
 /** Keeps a URL only when it is an absolute http(s) link. */
