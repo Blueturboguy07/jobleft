@@ -91,6 +91,11 @@ rmSync(deployDir, { recursive: true, force: true });
 const ui = join(ROOT, 'apps/ui/dist');
 if (!existsSync(join(ui, 'index.html'))) throw new Error('build the UI first: pnpm --filter @jobleft/ui build');
 cpSync(ui, join(OUT, 'ui'), { recursive: true });
+// The public publik app token (CONTRACT section 7) from JOBLEFT_PUBLIK_APP_TOKEN or apps/shell/publik-app-token.local
+// (git-ignored). Without one, the bundle refuses "Connect to publik" in plain words and everything else works.
+const localTok = join(ROOT, 'apps/shell/publik-app-token.local');
+const tok = (process.env.JOBLEFT_PUBLIK_APP_TOKEN ?? (existsSync(localTok) ? readFileSync(localTok, 'utf8') : '')).trim();
+writeFileSync(join(OUT, 'publik-app-token.txt'), /^pat_jobleft_[A-Za-z0-9]+$/.test(tok) ? tok + '\n' : '');
 const node = join(ROOT, 'apps/shell/src-tauri/binaries/node-aarch64-apple-darwin');
 const size = (dir: string): number => readdirSync(dir).reduce((n, f) => { const p = join(dir, f); const s = statSync(p); return n + (s.isDirectory() ? size(p) : s.size); }, 0);
-console.log(`third-party: ${third.join(', ')}\nserver tree: ${[...seen].sort().join(', ')}; ${transpiled} files transpiled (${(size(serverOut) / 1e6).toFixed(1)} MB); ui: ${(size(join(OUT, 'ui')) / 1e6).toFixed(1)} MB; node runtime: ${existsSync(node) ? `${(statSync(node).size / 1e6).toFixed(0)} MB` : 'MISSING (apps/shell/README.md says how to fetch it)'}`);
+console.log(`third-party: ${third.join(', ')}\nserver tree: ${[...seen].sort().join(', ')}; ${transpiled} files transpiled (${(size(serverOut) / 1e6).toFixed(1)} MB); ui: ${(size(join(OUT, 'ui')) / 1e6).toFixed(1)} MB; node runtime: ${existsSync(node) ? `${(statSync(node).size / 1e6).toFixed(0)} MB` : 'MISSING (apps/shell/README.md says how to fetch it)'}; publik app token: ${tok ? 'shipped' : 'none (Connect to publik stays off)'}`);

@@ -27,7 +27,8 @@
     "externalBin": ["binaries/node"],
     "resources": {
       "resources/server/": "server/",
-      "resources/ui/": "ui/"
+      "resources/ui/": "ui/",
+      "resources/publik-app-token.txt": "publik-app-token.txt"
     },
     "macOS": {
       "minimumSystemVersion": "14.0"

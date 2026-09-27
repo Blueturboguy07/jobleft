@@ -28,3 +28,4 @@ evals/**/out/
 apps/shell/src-tauri/binaries/
 apps/shell/src-tauri/resources/
 apps/shell/src-tauri/gen/
+apps/shell/publik-app-token.local

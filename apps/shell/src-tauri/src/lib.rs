@@ -117,6 +117,14 @@ fn sidecar_paths(app: &AppHandle) -> Result<(PathBuf, PathBuf, Option<PathBuf>),
     Ok((node, server, ui))
 }
 
+/// The public app token in Resources, if the build carries one (a `pat_jobleft_...` line; anything else is ignored).
+fn publik_app_token(app: &AppHandle) -> Option<String> {
+    let res = app.path().resource_dir().ok()?;
+    let text = [res.join("publik-app-token.txt"), res.join("resources/publik-app-token.txt")].into_iter().find_map(|p| fs::read_to_string(p).ok())?;
+    let tok = text.trim().to_string();
+    if tok.starts_with("pat_jobleft_") && tok.len() < 120 { Some(tok) } else { None }
+}
+
 fn spawn_server(app: &AppHandle, home: &Path, token: &str) -> Result<Child, String> {
     let (node, server, ui) = sidecar_paths(app)?;
     if !node.exists() {
@@ -142,6 +150,12 @@ fn spawn_server(app: &AppHandle, home: &Path, token: &str) -> Result<Child, Stri
         .stderr(Stdio::from(log2));
     if let Some(ui) = ui {
         cmd.env("JOBLEFT_UI_DIR", ui);
+    }
+    // The public publik app token a packaged build ships with (CONTRACT section 7): Resources/publik-app-token.txt,
+    // put there by scripts/pack.ts from a local file that git never sees. Only a packaged build may talk to the live
+    // publik API; dev runs and tests use loopback stand-ins.
+    if let Some(tok) = publik_app_token(app) {
+        cmd.env("JOBLEFT_PUBLIK_APP_TOKEN", tok).env("JOBLEFT_PUBLIK_ALLOW_LIVE", "1");
     }
     cmd.spawn().map_err(|e| format!("could not start node: {e}"))
 }
