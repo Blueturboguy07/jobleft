@@ -2,7 +2,7 @@
   "name": "@jobleft/sources-ats",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "ATS adapters beyond Greenhouse, Lever and Ashby (Workable, Recruitee, Personio, Teamtailor, Gem), the ATS source list, and ATS detection from a URL.",
   "exports": {

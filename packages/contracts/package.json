@@ -2,7 +2,7 @@
   "name": "@jobleft/contracts",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "Shared types, JSON Schemas and small runtime validators for every jobleft package, the local API and the extension protocol.",
   "exports": {

@@ -196,7 +196,7 @@ file between crawls.
 
 | Rule | Where |
 |---|---|
-| User-Agent `jobleft-build/0.1 (research build; no personal data)`, no other identifying header, no cookie, no profile data in any URL or body | crawler `HttpClient` |
+| User-Agent `jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)`, no other identifying header, no cookie, no profile data in any URL or body | crawler `HttpClient` |
 | At most 1 request per second per host, counted from what the host last saw (with a 100 ms margin), also right after a `Retry-After` wait; a path robots.txt disallows is never requested; a longer `Crawl-delay` is kept between every two requests to that host, the first request after robots.txt included. A `Crawl-delay` over 60 s fails the board at once with that reason; a shorter one is waited, and the wait does not use up the request's 20 s timeout | crawler `HttpClient`, `Pacer`; `politeFetch` (this package) |
 | After a 429 or 503 with `Retry-After`, no request reaches that host until the time has passed, and the queued requests then leave 1.1 s apart (waits over 60 s fail the board at once instead of holding the crawl) | `politeFetch` (this package, used by `crawl`) |
 | An answer body is read with a 64 MiB limit while it streams (an endless answer stops at the limit; memory never holds more); a Latin-1 feed is turned into UTF-8 | `politeFetch` |

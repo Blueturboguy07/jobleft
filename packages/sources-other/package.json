@@ -2,7 +2,7 @@
   "name": "@jobleft/sources-other",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "Non-ATS job sources, add-a-job by URL or pasted text, and the metered fetch client.",
   "exports": {

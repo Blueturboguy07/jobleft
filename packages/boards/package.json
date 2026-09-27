@@ -2,7 +2,7 @@
   "name": "@jobleft/boards",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "The board directory, board discovery from a careers link, user board choices and crawl planning.",
   "exports": {

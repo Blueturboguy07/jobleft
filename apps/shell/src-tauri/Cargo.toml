@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "jobleft desktop shell: starts the local server as a sidecar, opens the window, lives in the menu bar"
 edition = "2021"
 rust-version = "1.77"
-license = "UNLICENSED"
+license = "MIT"
 
 [lib]
 name = "jobleft_shell_lib"

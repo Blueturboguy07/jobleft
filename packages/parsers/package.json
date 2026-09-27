@@ -2,7 +2,7 @@
   "name": "@jobleft/parsers",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "Pure, offline readers for the facts of a job posting: pay, seniority, required years, places, US or not, work model and remote area, with evidence. Plus a CLI that reads postings from files or a local mock board.",
   "exports": {

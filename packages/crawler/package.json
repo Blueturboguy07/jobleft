@@ -2,7 +2,7 @@
   "name": "@jobleft/crawler",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "Crawler core: the Source adapter contract, the polite HTTP client, the per-host pacer, robots.txt, conditional requests, dedupe, close-vanished logic, the crawl store, the scheduler and the jobleft-crawl CLI.",
   "exports": {

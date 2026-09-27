@@ -47,7 +47,7 @@ test('model download: resumes after a cut, verifies every file, refuses a damage
     const ok = await checkModel(dir, files, true);
     assert.equal(ok.state, 'ready');
     assert.ok(log.some((l) => l.path === 'onnx/model.onnx' && l.range === 'bytes=100000-'), 'the second try resumed with a Range request');
-    assert.ok(log.every((l) => l.ua === 'jobleft-build/0.1 (research build; no personal data)'));
+    assert.ok(log.every((l) => l.ua === 'jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)'));
     // Ready: nothing is fetched again (offline works).
     const n = log.length;
     await ensureModel(dir, source, { offline: true });

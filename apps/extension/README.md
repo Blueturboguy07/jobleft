@@ -185,7 +185,7 @@ request log shows no request about that page.
 
 `pnpm --filter @jobleft/extension record -- --ats lever --board <board> --count 1` saves copies of public application
 pages into `fixtures/recorded/`. It reads `robots.txt` first and obeys it, sends at most one request a second per host
-with the User-Agent `jobleft-build/0.1 (research build; no personal data)`, blocks images, fonts and every host outside
+with the User-Agent `jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)`, blocks images, fonts and every host outside
 the job system, and stops at a request budget. Use it only for public pages, never for sign-in pages.
 
 ## 8. For the app (the server lane)

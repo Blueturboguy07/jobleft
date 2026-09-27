@@ -51,7 +51,7 @@ package also names it `jobleft-crawl` in its `bin` field. Below, `jobleft-crawl`
              www.linkedin.com is a LinkedIn site; jobleft never contacts LinkedIn; nothing was sent
    skipped   https://acme.wd5.myworkdayjobs.com/en-US/External
              acme.wd5.myworkdayjobs.com is a Workday site; Workday sources are off until the owner turns them on; nothing was sent
-   jobleft-crawl run: 4 board(s), database /private/tmp/jl/jobleft.db, clock 2026-09-25T07:02:42Z, identity "jobleft-build/0.1 (research build; no personal data)"
+   jobleft-crawl run: 4 board(s), database /private/tmp/jl/jobleft.db, clock 2026-09-25T07:02:42Z, identity "jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)"
    ok          greenhouse:acme-health            listed     3  new 3  updated 0  same 0  1 req  1.1s
    ok          lever:northwind-logistics         listed     2  new 2  updated 0  same 0  1 req  2.2s
    ok          ashby:brightline-energy           listed     2  new 2  updated 0  same 0  1 req  3.3s
@@ -223,7 +223,7 @@ accepted only when every board is a mock server on this computer; real boards re
 
 | Rule | Detail |
 |---|---|
-| One honest identity | Every request carries `user-agent: jobleft-build/0.1 (research build; no personal data)` (fixed in code; a config value or `--user-agent` flag that names another identity is refused) and only these headers: `host`, `connection`, `user-agent`, `accept`, `accept-encoding`, and `if-none-match` / `if-modified-since` on a conditional request. No cookie, no referrer, no install id. The identity must start with `jobleft/<version>`; a browser word (Mozilla, Chrome, Safari, ...) or a personal e-mail address is refused. It is never read from a profile, git or the environment |
+| One honest identity | Every request carries `user-agent: jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)` (fixed in code; a config value or `--user-agent` flag that names another identity is refused) and only these headers: `host`, `connection`, `user-agent`, `accept`, `accept-encoding`, and `if-none-match` / `if-modified-since` on a conditional request. No cookie, no referrer, no install id. The identity must start with `jobleft/<version>`; a browser word (Mozilla, Chrome, Safari, ...) or a personal e-mail address is refused. It is never read from a profile, git or the environment |
 | Nothing personal leaves | A crawl request holds no name, e-mail, resume, profile, search words or filters. The crawler contacts only the boards and their `robots.txt`. It sends the job store and the board list nowhere |
 | Never-crawl hosts | LinkedIn, Indeed, Glassdoor, SmartRecruiters: refused before any request, also as redirect targets. Workday, iCIMS, Oracle, UKG, Taleo: refused unless the owner turns the family on in code (`allowHeldBack`); off by default |
 | No local network | A host that is this computer or the local network (by address or by name, checked when the connection is made) is refused, except a loopback mock named by a board `origin` or `JOBLEFT_HOST_MAP` |
@@ -252,7 +252,7 @@ is an example.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `userAgent` | `jobleft-build/0.1 (research build; no personal data)` | The identity. Fixed in code: any other value is refused |
+| `userAgent` | `jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)` | The identity. Fixed in code: any other value is refused |
 | `refreshHours` | 24 | A healthy board is read again after this long |
 | `confirmHours` | 2 | A missing job is confirmed (and closed) by a reading this long after the first miss (at most half the refresh) |
 | `graceHours` | 48 | A job last seen this long ago closes on a confirmed miss inside one run |

@@ -2,7 +2,7 @@
   "name": "@jobleft/shell",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "The desktop shell (Tauri v2, Electron as the fallback). It starts the local server and opens the UI.",
   "exports": {

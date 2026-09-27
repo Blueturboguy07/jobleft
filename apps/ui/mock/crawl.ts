@@ -98,7 +98,7 @@ export class Crawler {
     const status = this.state.data.boardStatus[b.id] ?? { state: 'not_checked', lastCheckAt: null, lastSuccessAt: null, openJobs: null, lastError: null };
     let postings: RawPosting[];
     try {
-      const res = await fetch(`${boardsOrigin()}/api/boards/${encodeURIComponent(b.id)}`, { signal: AbortSignal.timeout(10_000), headers: { 'user-agent': 'jobleft-build/0.1 (research build; no personal data)' } });
+      const res = await fetch(`${boardsOrigin()}/api/boards/${encodeURIComponent(b.id)}`, { signal: AbortSignal.timeout(10_000), headers: { 'user-agent': 'jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)' } });
       if (!res.ok) throw new Error(res.status === 503 ? 'The employer site answered "service unavailable".' : `The employer site answered with an error (${res.status}).`);
       const body = await res.json() as { postings?: unknown };
       if (!Array.isArray(body.postings)) throw new Error('The board answered with something that is not a job list.');

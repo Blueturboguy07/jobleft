@@ -2,7 +2,7 @@
   "name": "@jobleft/network",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "The Network tool: import the user's own Connections.csv, match contacts to companies, rank them, track outreach and draft messages.",
   "exports": {

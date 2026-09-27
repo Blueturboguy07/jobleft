@@ -2,7 +2,7 @@
   "name": "@jobleft/extension",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "The Chrome MV3 autofill extension (assisted apply): it fills, you review, you submit. It talks only to the paired jobleft app on this computer.",
   "exports": {

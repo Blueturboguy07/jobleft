@@ -2,7 +2,7 @@
   "name": "@jobleft/resume",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "Resume import, truth-gated tailoring, keyword gaps, cover letters, the ATS check, and PDF and Word export.",
   "exports": {

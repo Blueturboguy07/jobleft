@@ -1,5 +1,5 @@
 // Saves copies of PUBLIC job application pages as practice pages (test data), politely:
-//   * User-Agent "jobleft-build/0.1 (research build; no personal data)" on every request;
+//   * User-Agent "jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)" on every request;
 //   * robots.txt read first for every host, and obeyed (a disallowed path is never requested);
 //   * at most 1 request per second per host; images, fonts, media and every host outside the system are blocked;
 //   * a hard budget of requests for the whole run; no login pages; no personal data anywhere.
@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Browser } from './cdp.ts';
 
-const UA = 'jobleft-build/0.1 (research build; no personal data)';
+const UA = 'jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)';
 const here = dirname(fileURLToPath(import.meta.url));
 const outDir = join(here, '..', 'fixtures', 'recorded');
 const args = process.argv.slice(2);

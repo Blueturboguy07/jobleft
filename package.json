@@ -2,8 +2,8 @@
   "name": "jobleft",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
-  "description": "jobleft: a local-first desktop job-search app. Workspace root. The project licence is not decided yet, so every package is UNLICENSED.",
+  "license": "MIT",
+  "description": "jobleft: a local-first desktop job-search app. Workspace root. MIT (see LICENSE).",
   "type": "module",
   "packageManager": "pnpm@12.4.1",
   "engines": {

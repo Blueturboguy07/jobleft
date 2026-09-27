@@ -2,7 +2,7 @@
   "name": "@jobleft/store",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "The local job store: SQLite (node:sqlite, WAL), word search, every filter, fit order with bge-small-en-v1.5 on ONNX Runtime, and the person's records.",
   "exports": {

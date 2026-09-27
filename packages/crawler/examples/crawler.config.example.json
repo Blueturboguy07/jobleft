@@ -1,5 +1,5 @@
 {
-  "userAgent": "jobleft-build/0.1 (research build; no personal data)",
+  "userAgent": "jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)",
   "refreshHours": 24,
   "confirmHours": 2,
   "graceHours": 48,

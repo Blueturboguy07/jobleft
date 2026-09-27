@@ -2,7 +2,7 @@
   "name": "@jobleft/ai-engine",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "AI providers (publik API, local model, custom URL, own key), the publik connection and wallet, secrets, and embeddings.",
   "exports": {

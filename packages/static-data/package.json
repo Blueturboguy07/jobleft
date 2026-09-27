@@ -2,7 +2,7 @@
   "name": "@jobleft/static-data",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "H-1B sponsor data (US Department of Labor LCA filings), places (USGS GNIS, Natural Earth), company names and company facts (Wikidata, SEC, GLEIF), with signed dataset releases.",
   "exports": {

@@ -2,7 +2,7 @@
   "name": "@jobleft/match",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "The match score: percent, band, Experience Level, Skills and Industry Experience sub-scores, why-fit chips, blockers and reasons.",
   "exports": {

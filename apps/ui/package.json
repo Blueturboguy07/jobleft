@@ -2,7 +2,7 @@
   "name": "@jobleft/ui",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "The desktop UI (React 18 and Ant Design 5), plus a mock of the local API for building and checking the UI on its own.",
   "exports": {

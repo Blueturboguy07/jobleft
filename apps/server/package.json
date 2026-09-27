@@ -2,7 +2,7 @@
   "name": "@jobleft/server",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "The local HTTP server: loopback only, launch token, Host and Origin checks. It serves the local API and the built UI.",
   "exports": {

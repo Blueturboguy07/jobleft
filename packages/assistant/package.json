@@ -2,7 +2,7 @@
   "name": "@jobleft/assistant",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "description": "The assistant (chat with tools over the person's own data), interview practice, the company facts panel and the metered fetch and search client.",
   "exports": {

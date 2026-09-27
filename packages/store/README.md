@@ -295,7 +295,7 @@ writers and readers are never blocked.
 - The data folder is created with mode 0700 and the database with 0600 (`-wal` and `-shm` take the same mode). The
   model files are 0600. Nothing is written outside `$JOBLEFT_HOME` except what you redirect yourself.
 - Search, filters, fit indexing and the profile never cause a network request. The only outbound request is the
-  model download of section 7, with the User-Agent `jobleft-build/0.1 (research build; no personal data)` and
+  model download of section 7, with the User-Agent `jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)` and
   nothing about you in it. There is no telemetry, analytics or crash reporter.
 - No log holds search words, profile text, resume text or job text.
 

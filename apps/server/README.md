@@ -302,7 +302,7 @@ curl -s -H "x-jobleft-token: $T" "http://127.0.0.1:$P/api/v1/jobs?limit=20"
 
 | Rule | Detail |
 |---|---|
-| Politeness | 1 request a second per host, robots.txt obeyed, User-Agent `jobleft-build/0.1 (research build; no personal data)`, no redirects followed |
+| Politeness | 1 request a second per host, robots.txt obeyed, User-Agent `jobleft/0.1.0 (+https://github.com/Blueturboguy07/jobleft; no personal data)`, no redirects followed |
 | The person's changes | A crawl never changes a like, status, note or reminder. Tracker rows are separate from postings |
 | Facts from a board | As the board states them. Pay keeps its exact amounts (a Greenhouse `pay_input_ranges` of 1850 to 2225 cents is `18.5` to `22.25` a `hour`, never rounded). A Greenhouse posted date is `first_published` only: a job without it has `postedAt: null`, even though `updated_at` (the last edit) is there. A missing work model, employment type, department or place is `null` |
 | Closing | A job closes only when a board was read in full and the job was not seen for 48 hours, and never when over half of a board would close at once. A failing, unreachable or offline board closes nothing |
