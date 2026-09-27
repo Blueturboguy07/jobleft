@@ -7,13 +7,28 @@ import { letterDocx, resumeDocx } from './docx.ts';
 import { fitLetter, fitResume, type FitResult } from './layout.ts';
 import { chooseFonts, resetFonts, writePdf } from './pdf-writer.ts';
 
-/** Picks fonts that can show every character, or refuses (jobleft never replaces or drops a letter). */
-function withFontsFor<T>(text: string, f: () => T): T {
+/**
+ * Picks fonts that can show every character, or refuses (jobleft never replaces or drops a letter). The refusal says
+ * where the characters are and what the person can do in the app (JL-resume-7); the font setting stays in the docs.
+ */
+function withFontsFor<T>(text: string, f: () => T, where: (ch: string) => string | null = () => null): T {
   const c = chooseFonts(text);
   if (!c.ok) {
-    throw new ResumeError('bad_request', `The PDF cannot show these characters on this computer: ${c.missing.slice(0, 8).join(' ')}. jobleft never replaces or drops letters, so it did not make the PDF. Export the Word file instead (it keeps every character), or set JOBLEFT_PDF_FONT to a TrueType font that has them.`, { characters: c.missing });
+    const places = [...new Set(c.missing.map(where).filter((x): x is string => !!x))];
+    const at = places.length ? ` (in ${places.slice(0, 3).join(', ')})` : '';
+    throw new ResumeError('bad_request', `The PDF cannot show these characters: ${c.missing.slice(0, 8).join(' ')}${at}. No font jobleft can use on this computer has them, and jobleft never replaces or drops letters, so it did not make the PDF. Export the Word file instead (it keeps every character), or remove these characters and export again.`, { characters: c.missing, where: places });
   }
   try { return f(); } finally { resetFonts(); }
+}
+
+/** Where a character first appears in a resume: "your name or contact details (from your profile)" or a section title. */
+function placeOf(doc: ResumeDocument): (ch: string) => string | null {
+  return (ch) => {
+    const h = doc.header;
+    if ([h.name, h.email, h.phone, h.city, ...h.links.map((l) => l.url)].some((x) => x?.includes(ch))) return 'your name or contact details (from your profile)';
+    const s = doc.sections.find((x) => [x.title, x.text ?? '', ...x.items.flatMap((i) => [i.heading, i.subheading, i.location, ...i.bullets, ...i.tags])].some((t) => t?.includes(ch)));
+    return s ? `the ${s.title || 'untitled'} section` : null;
+  };
 }
 
 export interface RenderedResume { bytes: Uint8Array; pages: number; leftOut: string[]; fit: FitResult }
@@ -29,7 +44,7 @@ export function renderResumePdf(doc: ResumeDocument): RenderedResume {
     }
     const bytes = writePdf([fit.page], { title: `${doc.header.name} resume`.trim(), subject: 'Resume' });
     return { bytes, pages: 1, leftOut: fit.leftOut, fit };
-  });
+  }, placeOf(doc));
 }
 
 function fitOverflowed(fit: FitResult): boolean {
@@ -53,7 +68,7 @@ export function renderLetterPdf(text: string): Uint8Array {
     const fit = fitLetter(text);
     if (!fit.fits) throw new ResumeError('conflict', 'The letter is longer than one page. Shorten it (for example ask "make it shorter") and export again.');
     return writePdf([fit.page], { title: 'Cover letter', subject: 'Cover letter' });
-  });
+  }, () => 'the letter');
 }
 
 export function renderLetterDocx(text: string): Uint8Array {
