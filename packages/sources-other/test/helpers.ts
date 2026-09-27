@@ -27,7 +27,11 @@ export function openTestStore(dir: string): Store {
 
 export function cleanup(dir: string): void {
   // Windows keeps a just-closed database file busy for a moment; a few retries make the removal reliable there.
-  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  try { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch (e) {
+    // A locked temp folder on Windows must never hide the test's own result.
+    if (process.platform !== 'win32') throw e;
+    console.warn(`temp folder left behind (Windows keeps it busy): ${dir}`);
+  }
 }
 
 /** A pacer that never waits (tests that are not about pacing). */

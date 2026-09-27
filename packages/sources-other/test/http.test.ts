@@ -132,10 +132,11 @@ test('secrets never appear in an error text', async () => {
 
 test('pacing: two processes sharing the database never send to one host less than 1 second apart', async () => {
   const dir = tempDir();
+  let a: DatabaseSync | undefined, b: DatabaseSync | undefined;
   try {
     const path = join(dir, 'pace.db');
-    const a = new DatabaseSync(path); migrateSourcesOther(a);
-    const b = new DatabaseSync(path); b.exec('PRAGMA busy_timeout = 5000');
+    a = new DatabaseSync(path); migrateSourcesOther(a);
+    b = new DatabaseSync(path); b.exec('PRAGMA busy_timeout = 5000');
     const pa = new DbPacer(a), pb = new DbPacer(b);
     const times: number[] = [];
     await Promise.all([0, 1, 2].map(async (i) => { await (i % 2 ? pb : pa).wait('feed.example', 0); times.push(Date.now()); }));
@@ -145,8 +146,7 @@ test('pacing: two processes sharing the database never send to one host less tha
     const t0 = Date.now();
     await pa.wait('other.example', 0);
     assert.ok(Date.now() - t0 < 200);
-    a.close(); b.close();
-  } finally { cleanup(dir); }
+  } finally { a?.close(); b?.close(); cleanup(dir); } // closed before the removal: Windows cannot delete an open database
 });
 
 test('memory pacer spaces one host by at least MIN_GAP_MS and honours a longer crawl delay', async () => {
