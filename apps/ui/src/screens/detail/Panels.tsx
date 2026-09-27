@@ -20,6 +20,7 @@ import { CompanyMark } from '../../components/JobCard.tsx';
 import { InlineError } from '../../components/States.tsx';
 import { calendarDate, dateText, dateTimeText, plural } from '../../lib/format.ts';
 import { noteKeep, patchFresh, reminderKeep } from '../../lib/trackerEdit.ts';
+import { postingSponsorship } from '../../lib/sponsorship.ts';
 import { reminderTimeProblem } from '../../lib/trackerView.ts';
 import { ContactName, MatchExplain, ProfileLink, ReasonList, StageSelect, saveContact } from '../network/shared.tsx';
 
@@ -119,10 +120,10 @@ export function CompanySection({ job, company }: { job: Job; company: Company | 
   );
 }
 
-export function SponsorSection({ job, company }: { job: Job; company: Company | null }) {
+export function SponsorSection({ job, company, match }: { job: Job; company: Company | null; match?: Parameters<typeof postingSponsorship>[1] }) {
   const h = company?.h1b ?? null;
-  const s = job.statements.sponsorship;
-  const ev = job.evidence.sponsorship?.text;
+  // One reading for the section, the chip at the top and the match (JL-tracker-3).
+  const p = postingSponsorship(job, match);
   const max = h ? Math.max(1, ...h.byYear.map((y) => y.count)) : 1;
   return (
     <section className="jl-detail-sec" aria-labelledby="sec-visa-h" id="sec-visa">
@@ -130,15 +131,15 @@ export function SponsorSection({ job, company }: { job: Job; company: Company | 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div>
           <strong>What the posting says: </strong>
-          {s === 'yes' ? 'it offers visa sponsorship.' : s === 'no' ? 'it cannot sponsor a visa for this role.' : 'nothing about visa sponsorship.'}
-          {ev && <blockquote style={{ margin: '6px 0 0', paddingLeft: 10, borderLeft: '3px solid var(--jl-border)', color: 'var(--jl-text2)' }}>“{ev}”</blockquote>}
-          {(job.statements.usCitizenOnly || job.statements.clearanceRequired) && (
-            <p style={{ marginTop: 6 }}>{job.statements.usCitizenOnly && 'The posting requires US citizenship. '}{job.statements.clearanceRequired && 'The posting requires a security clearance.'}</p>
+          {p.text}
+          {p.quote && <blockquote style={{ margin: '6px 0 0', paddingLeft: 10, borderLeft: '3px solid var(--jl-border)', color: 'var(--jl-text2)' }}>“{p.quote}”</blockquote>}
+          {((job.statements.usCitizenOnly && p.because !== 'citizenship') || (job.statements.clearanceRequired && p.because !== 'clearance')) && (
+            <p style={{ marginTop: 6 }}>{job.statements.usCitizenOnly && p.because !== 'citizenship' && 'The posting requires US citizenship. '}{job.statements.clearanceRequired && p.because !== 'clearance' && 'The posting requires a security clearance.'}</p>
           )}
         </div>
         {h ? (
           <div className="jl-factbox" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <strong>{h.status === 'likely' ? 'H-1B sponsorship likely, based on past filings' : 'Some H-1B filing history'}</strong>
+            <strong>{p.says === 'no' ? "The company's past H-1B filings (not this role)" : h.status === 'likely' ? 'H-1B sponsorship likely, based on past filings' : 'Some H-1B filing history'}</strong>
             <span>{plural(h.certifiedFilings, 'certified H-1B filing')} from {calendarDate(h.window.from)} to {calendarDate(h.window.to)}.{h.similarRoleShare !== null && h.roleFamily ? ` About ${Math.round(h.similarRoleShare * 100)}% were for ${h.roleFamily} roles.` : ''}</span>
             <div className="jl-bars" aria-label="Filings by year">
               {h.byYear.map((y) => (
@@ -150,7 +151,7 @@ export function SponsorSection({ job, company }: { job: Job; company: Company | 
               ))}
             </div>
             <span className="jl-small">{h.note}</span>
-            <span className="jl-source">Source: {h.source}. Data through {calendarDate(h.dataThrough)}. Filer names: {h.filerEntities.join(', ')}.</span>
+            <span className="jl-source">Source: {h.source}. Data through {calendarDate(h.dataThrough)}. Filer names: {h.filerEntities.join(', ').replace(/\.+$/, '')}.</span>
           </div>
         ) : (
           <div className="jl-factbox">

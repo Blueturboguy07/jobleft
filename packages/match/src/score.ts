@@ -862,8 +862,8 @@ function chips(pf: ProfileFacts, jf: JobFacts, company: Company | null, sk: Skil
   const out: Array<WhyFitChip & { rank: number }> = [];
   const needsSponsor = pf.profile.workAuthorization.needsSponsorship === 'yes';
   const spons = jf.requirements.find((r) => r.kind === 'sponsorship');
-  if (spons?.detail.sponsorship === 'no') out.push({ kind: 'post_says_no_sponsorship' as WhyFitChip['kind'], label: 'Post says no visa sponsorship', positive: false, rank: needsSponsor ? 0 : 9 });
-  if (spons?.detail.sponsorship === 'yes') out.push({ kind: 'post_says_sponsors', label: 'Post says it sponsors visas', positive: true, rank: needsSponsor ? 0 : 6 });
+  if (spons?.detail.sponsorship === 'no') out.push({ kind: 'post_says_no_sponsorship' as WhyFitChip['kind'], label: 'Posting says no sponsorship', positive: false, rank: needsSponsor ? 0 : 9 });
+  if (spons?.detail.sponsorship === 'yes') out.push({ kind: 'post_says_sponsors', label: 'Posting offers visa sponsorship', positive: true, rank: needsSponsor ? 0 : 6 });
   if (company?.h1b?.status === 'likely') out.push({ kind: 'h1b_sponsor_likely', label: 'H-1B sponsor likely', positive: true, rank: needsSponsor ? 1 : 7 });
   if (sk.sub.percent !== null && sk.total >= 3 && (sk.coverage ?? 0) >= 0.7) {
     const req = sk.checks.filter((c) => c.importance !== 'preferred');

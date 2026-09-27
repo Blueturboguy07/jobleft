@@ -285,7 +285,8 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
                 </div>
                 {!payText(job.pay) && <p className="jl-small jl-muted" style={{ marginTop: 8 }}>Pay: not listed in the posting.</p>}
                 <div className="jl-row jl-wrap" style={{ marginTop: 12 }}>
-                  {sponsor && <Tooltip title={sponsorTip(h1bTag, h1bSrc)}><span className="jl-fitchip" tabIndex={0}><span className="tick" aria-hidden="true">✓</span>{sponsor.text}</span></Tooltip>}
+                  {/* A "no sponsorship" statement is a fact to know, not a plus: no green tick (JL-tracker-18). */}
+                  {sponsor && <Tooltip title={sponsorTip(h1bTag, h1bSrc)}><span className={`jl-fitchip${h1bTag === 'post_says_no' ? ' neg' : ''}`} tabIndex={0}><span className="tick" aria-hidden="true">{h1bTag === 'post_says_no' ? '•' : '✓'}</span>{sponsor.text}</span></Tooltip>}
                   {match?.whyFit.filter((c) => !(sponsor && /sponsor/i.test(chipText(c)))).map((c, i) => (
                     <span key={i} className={`jl-fitchip${c.positive ? '' : ' neg'}`}><span className="tick" aria-hidden="true">{c.positive ? '✓' : '•'}</span>{chipText(c)}</span>
                   ))}
@@ -317,7 +318,7 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
             </p>
           </section>
 
-          <SponsorSection job={job} company={company} />
+          <SponsorSection job={job} company={company} match={match} />
           <div id="sec-company-anchor" />
           <CompanySection job={job} company={company} />
           <NetworkSection job={job} networkCount={networkCount} />

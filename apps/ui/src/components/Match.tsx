@@ -28,6 +28,8 @@ export function bandOf(percent: number): MatchBand {
 export function chipText(c: WhyFitChip): string {
   if (c.kind === 'h1b_sponsor_likely') return 'H-1B sponsor likely';
   if (c.kind === 'post_says_sponsors') return 'Posting offers visa sponsorship';
+  // One wording for one fact, on the card and the detail (JL-tracker-18).
+  if (c.kind === 'post_says_no_sponsorship') return 'Posting says no sponsorship';
   return c.label;
 }
 

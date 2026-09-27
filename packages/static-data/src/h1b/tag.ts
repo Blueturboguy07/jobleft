@@ -16,10 +16,10 @@ export interface H1bTagResult {
 
 export function h1bTagFor(statements: Pick<PostingStatements, 'sponsorship' | 'clearanceRequired' | 'usCitizenOnly'> | null | undefined, summary: Pick<H1bSummary, 'status'> | null | undefined): H1bTagResult {
   const s = statements ?? { sponsorship: null, clearanceRequired: null, usCitizenOnly: null };
-  if (s.sponsorship === 'no') return { tag: 'post_says_no', reason: 'post_no_sponsorship', label: 'The post says it does not sponsor visas' };
-  if (s.usCitizenOnly === true) return { tag: 'post_says_no', reason: 'post_us_citizen_only', label: 'The post says US citizenship is required' };
-  if (s.clearanceRequired === true) return { tag: 'post_says_no', reason: 'post_clearance_required', label: 'The post says a security clearance is required' };
-  if (s.sponsorship === 'yes') return { tag: 'post_says_yes', reason: 'post_offers_sponsorship', label: 'Visa sponsorship stated in the post' };
+  if (s.sponsorship === 'no') return { tag: 'post_says_no', reason: 'post_no_sponsorship', label: 'The posting says it does not sponsor visas' };
+  if (s.usCitizenOnly === true) return { tag: 'post_says_no', reason: 'post_us_citizen_only', label: 'The posting says US citizenship is required' };
+  if (s.clearanceRequired === true) return { tag: 'post_says_no', reason: 'post_clearance_required', label: 'The posting says a security clearance is required' };
+  if (s.sponsorship === 'yes') return { tag: 'post_says_yes', reason: 'post_offers_sponsorship', label: 'The posting offers visa sponsorship' };
   if (summary?.status === 'likely') return { tag: 'likely_by_history', reason: 'filing_history', label: 'H-1B sponsor likely (past filings)' };
   return { tag: null, reason: null, label: null };
 }

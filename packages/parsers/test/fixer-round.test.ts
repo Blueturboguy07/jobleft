@@ -2,7 +2,7 @@
 // preferred-only years and board pay boilerplate.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractFacts, fromAshby, fromLever, parsePay, parseYearsRequired, payFromBoard } from '../src/index.ts';
+import { extractFacts, fromAshby, fromLever, parsePay, parseStatements, parseYearsRequired, payFromBoard } from '../src/index.ts';
 
 const US_CITIES: Array<[string, string, string]> = [
   ['Birmingham', 'Alabama', 'AL'], ['Sudbury', 'Massachusetts', 'MA'], ['Halifax', 'Massachusetts', 'MA'], ['Perth', 'New Jersey', 'NJ'],
@@ -85,4 +85,13 @@ test('board pay evidence holds the figures when the board text is boilerplate', 
   assert.match(r.evidence.text, /24/);
   const kept = payFromBoard([{ min: 20, max: 24, currency: 'USD', period: 'hour', text: '$20 - $24 an hour' }], { text: '' })!;
   assert.equal(kept.evidence.text, '$20 - $24 an hour');
+});
+
+test('statements: "work authorization that does not now or in the future require sponsorship" is no sponsorship (JL-tracker-3)', () => {
+  const said = parseStatements('Applicants for employment in the US must have work authorization that does not now or in the future require sponsorship of a visa for employment authorization in the United States.');
+  assert.equal(said.sponsorship, 'no');
+  assert.match(said.evidence.sponsorship?.text ?? '', /does not now or in the future require sponsorship/);
+  assert.equal(parseStatements('Candidates must not now or in the future require employer sponsorship.').sponsorship, 'no');
+  // An application question is not a statement.
+  assert.equal(parseStatements('Will you now or in the future require sponsorship for employment visa status?').sponsorship, null);
 });
