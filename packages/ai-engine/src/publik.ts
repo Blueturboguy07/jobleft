@@ -22,7 +22,7 @@ export const PUBLIK_DEFAULT_MODEL = 'publik-balanced';
 
 /** The disclosure, shown before connecting (version PUBLIK_DISCLOSURE_VERSION). Two sentences. */
 export const PUBLIK_DISCLOSURE = [
-  'jobleft can send its AI requests to the publik API: each request is priced per use and paid in dollars from your publik balance. publik may add a small free starting amount; it limits these, so a balance can also start at $0.00.',
+  'jobleft can send its AI requests to the publik API: each request is priced per use and paid in dollars from your publik balance. Your balance starts at $0.00; linking a publik account gives $0.05 of free use, once.',
   'Your prompts go through publik\'s servers to the AI model\'s provider, publik does not train on them, and you can change to a local model or your own key at any time.',
 ] as const;
 

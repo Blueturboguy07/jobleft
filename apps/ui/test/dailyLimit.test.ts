@@ -29,13 +29,14 @@ test('JL-network-19: after a refusal the card says so until the limit starts aga
   assert.equal(dailyLimitText(base, now), null, 'an older wallet without the field shows nothing');
 });
 
-test('JL-v2-5: a $0.00 balance right after connecting says publik added no free amount, never "credits"', async () => {
+test('JL-v2-5: a $0.00 balance on an unlinked computer says linking gives $0.05 once; a linked one says add money; never "credits"', async () => {
   const { zeroBalanceText } = await import('../src/lib/dailyLimit.ts');
-  const fresh = zeroBalanceText({ ...base, balanceMicros: 0, starterRemainingMicros: null, week: { usedMicros: 0, budgetMicros: null, resetsAt: null } })!;
-  assert.match(fresh, /did not add a free starting amount/);
+  const fresh = zeroBalanceText({ ...base, balanceMicros: 0, starterRemainingMicros: null, claimState: 'anonymous', week: { usedMicros: 0, budgetMicros: null, resetsAt: null } })!;
+  assert.match(fresh, /Link this computer to your publik account for \$0\.05 of free use, once/);
   assert.match(fresh, /\$0\.00/);
-  const spent = zeroBalanceText({ ...base, balanceMicros: 0, starterRemainingMicros: 0 })!;
-  assert.doesNotMatch(spent, /did not add/);
+  const spent = zeroBalanceText({ ...base, balanceMicros: 0, starterRemainingMicros: 0, claimState: 'claimed' })!;
+  assert.doesNotMatch(spent, /\$0\.05/);
+  assert.match(spent, /add money at publik/);
   assert.match(spent, /\$0\.00/);
   for (const t of [fresh, spent]) assert.doesNotMatch(t, /credit/i);
   assert.equal(zeroBalanceText(base), null, 'no line while money is left');

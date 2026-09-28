@@ -152,7 +152,7 @@ function AiTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Panel title="Where AI answers come from" desc="AI helps with chat, tailoring, cover letters, messages and interview practice. Pick one. jobleft uses only the one you pick; it never switches to another on its own.">
         <div className="jl-choice-grid">
-          {card('publik', <CloudOutlined />, 'publik API', 'Pay per use from a dollar balance. publik may add a small free starting amount.')}
+          {card('publik', <CloudOutlined />, 'publik API', 'Pay per use from a dollar balance. Link your publik account for $0.05 of free use, once.')}
           {card('local', <DesktopOutlined />, 'A model on this computer', 'Ollama, LM Studio, llama.cpp, MLX or similar. Nothing leaves this computer. Free, but the small models that fit on a laptop tailor and answer noticeably worse than the hosted ones.')}
           {card('custom', <LinkOutlined />, 'A custom address', 'Any OpenAI-compatible server you run or trust.')}
           {card('own_key', <KeyOutlined />, 'Your own key', 'Your account with an AI vendor. The vendor bills you.')}
@@ -208,7 +208,7 @@ const FIT_STATE: Record<string, string> = {
 };
 
 const DISCLOSURE = [
-  'jobleft can send its AI requests to the publik API: each request is priced per use and paid in dollars from your publik balance. publik may add a small free starting amount; it limits these, so a balance can also start at $0.00.',
+  'jobleft can send its AI requests to the publik API: each request is priced per use and paid in dollars from your publik balance. Your balance starts at $0.00; linking a publik account gives $0.05 of free use, once.',
   "Your prompts go through publik's servers to the AI model's provider, publik does not train on them, and you can change to a local model or your own key at any time.",
 ];
 /** publik's live price list (JL-settings-25): every price the app quotes can be checked there. */
