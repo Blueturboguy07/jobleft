@@ -29,6 +29,7 @@ Run these in the repository root.
 | `pnpm --filter @jobleft/shell pack` | Build the sidecar tree under `src-tauri/resources/` (see below) |
 | `pnpm --filter @jobleft/shell app:build` | `pack`, then `tauri build --debug --bundles app`: an unsigned `jobleft.app` at `.cache/cargo-target/debug/bundle/macos/jobleft.app` |
 | `pnpm --filter @jobleft/shell tauri dev` | Run the shell from source against the packed tree (set `CARGO_TARGET_DIR` to the shared folder first) |
+| `apps/shell/scripts/build-windows.ps1` | On Windows only: `build-macos.sh`'s counterpart, the whole build as one command (the UI, the sidecar tree, `jobleft_<version>_x64-setup.exe`, then install, start, health, stop). `--skip-smoke` stops after the installer |
 
 Cargo output goes to the shared target folder `.cache/cargo-target` (`CARGO_TARGET_DIR`), never into the package. The
 Tauri CLI (`@tauri-apps/cli`, a dev dependency) is run by its file in the pnpm store, because `pnpm exec tauri` drops the
@@ -55,6 +56,38 @@ fetched by the bootstrapper when a machine lacks it). `.github/workflows/windows
 builds the installer (`pack.ts --target win-x64`, `tauri build --bundles nsis`), installs it silently, starts the app,
 checks health, stops it through the shutdown route, and attaches `jobleft_<version>_x64-setup.exe` to a release.
 The installer is not code-signed yet (publik lists it as unsigned).
+
+`pnpm --filter @jobleft/shell app:build` does not work on Windows: it is macOS-only (`$(cd ../.. && pwd)` is POSIX
+syntax and `--bundles app` is a macOS target). `apps/shell/scripts/build-windows.ps1` is the counterpart of
+`build-macos.sh`; it runs the sequence above as one command and then smoke-tests the result the way the workflow does.
+It needs the Visual Studio Build Tools (`Microsoft.VisualStudio.Component.VC.Tools.x86.x64` is the MSVC C++ x64/x86
+build tools component); `cl.exe` does not have to be on PATH, because cargo finds it through the same Visual Studio
+detection CI relies on. The installer lands at `.cache/cargo-target/release/bundle/nsis/` (the workflow builds
+without `CARGO_TARGET_DIR`, so on CI it is `apps/shell/src-tauri/target/release/bundle/nsis/`). A first build
+compiles every Rust dependency, so it takes several minutes.
+
+### What the Windows smoke test checks
+
+The smoke test replaces the install at `%LOCALAPPDATA%\jobleft` (derived from `productName` and `installMode` in
+`src-tauri/tauri.conf.json`, checked before anything is removed), installs over it, and starts the app against a
+scratch `JOBLEFT_HOME` under `%TEMP%`. The real data folder `%APPDATA%\jobleft` is never read or written. Quit any
+running `jobleft.exe` first: a second launch is handed to the running one by the single-instance plugin, which would
+leave this launch waiting for run files that never arrive.
+
+Every assertion is there because something stale can otherwise make a broken build look green. So the script never
+searches the disk for a `jobleft.exe` to fall back on, and the run files it reads are this launch's own:
+
+| Assertion | What it catches |
+|---|---|
+| The installer exits 0 | A silent NSIS failure. The run stops there instead of testing whatever an earlier build installed |
+| `%LOCALAPPDATA%\jobleft\jobleft.exe` exists and was just written | An installer that exits 0 without installing |
+| No `jobleft.exe` is running before the install | A launch the single-instance plugin would hand to another process |
+| `run/server.json` is deleted before the launch and not older than it | A stale run file from an earlier run passing as this one's |
+| `run/shell.json` names the pid this script launched | A run file belonging to some other jobleft |
+| Both pids are gone afterwards | A smoke test that leaves the machine in a worse state than it found it |
+
+A successful run deletes its scratch folder. A failed one keeps it and prints the path, because the sidecar log in it
+is what says why.
 
 ## Test hooks (environment; the app never sets them)
 
