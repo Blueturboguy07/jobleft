@@ -31,6 +31,25 @@ To keep it somewhere tidy, move it to `~/Applications` (or `~/.local/bin`) first
 
 If it fails with a FUSE error, run it with `--appimage-extract-and-run`, or install your distro's `fuse` package.
 
+### Troubleshooting
+
+**Starting it again does nothing, or the command returns at once.** jobleft runs once per account. A second start only brings the open window forward, and the window may be hidden in the tray. To start fresh, close every copy first:
+
+```sh
+pkill -f jobleft          # the background service stops with the app
+./jobleft_*_amd64.AppImage
+```
+
+**The window is blank.** WebKitGTK, which draws the window, cannot use its newer renderer with some graphics drivers. With the NVIDIA driver, jobleft turns that renderer off by itself (since v0.1.3-linux.2). With any other driver, close every copy (see above) and start it with:
+
+```sh
+WEBKIT_DISABLE_DMABUF_RENDERER=1 ./jobleft_*_amd64.AppImage
+```
+
+If it is still blank, add `WEBKIT_DISABLE_COMPOSITING_MODE=1` as well. Setting `WEBKIT_DISABLE_DMABUF_RENDERER=0` keeps the renderer on, even with NVIDIA.
+
+**The window says jobleft could not start its local service.** The reason is in `~/.local/share/jobleft/logs/sidecar.log`.
+
 ## How it works
 
 The app has three parts. The Linux build uses all three exactly as the Mac build does; only the parts that talk to the operating system differ.

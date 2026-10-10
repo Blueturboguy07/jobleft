@@ -400,7 +400,21 @@ fn run_probe(app: &AppHandle, home: PathBuf, script_path: String) {
     });
 }
 
+/// Linux with the NVIDIA driver: WebKitGTK's DMA-BUF renderer draws a blank window (seen on an RTX 4070 under
+/// Hyprland, 2026-10-10). Turn it off before GTK starts, unless the person set WEBKIT_DISABLE_DMABUF_RENDERER
+/// themselves (`=0` keeps the renderer on).
+#[cfg(all(unix, not(target_os = "macos")))]
+fn webkit_workarounds() {
+    let nvidia = Path::new("/proc/driver/nvidia/version").exists() || Path::new("/sys/module/nvidia").exists();
+    if nvidia && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        // Still one thread here, so changing the environment is safe.
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+}
+
 pub fn run() {
+    #[cfg(all(unix, not(target_os = "macos")))]
+    webkit_workarounds();
     let home = data_home();
     let token = new_token();
     #[cfg(unix)]
