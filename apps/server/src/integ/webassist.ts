@@ -24,7 +24,8 @@ export function webSearchToolFor(app: App, d: AppData): WebSearchTool {
     async search(a, progress, signal) {
       const general = a.purpose === 'general';
       const r = await d.webSearch({ q: a.query, ...(a.place ? { place: a.place } : {}) }, [a.query, a.place ?? ''].join(' ').trim(), signal,
-        (q) => progress(`Asking your search engine: ${q}`), { deferReading: true, general });
+        // The search words as a person reads them: the left-out sites ("-site:...") are not shown.
+        (q) => progress(`Asking your search engine: ${q.replace(/\s+-site:\S+/g, '').trim()}`), { deferReading: true, general });
       if (general) {
         for (const x of r.results.slice(0, 8)) progress(`${x.host}: ${x.title}`, { title: x.title, url: x.url });
         return {

@@ -257,6 +257,10 @@ a { color: var(--jl-accent-ink); }
 .jl-serp-snippet { margin: 2px 0 0; font-size: 13px; color: var(--jl-text2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 /* the assistant's tool steps (web search, reading a job): live while they run */
 .jl-tools { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; white-space: normal; }
+/* an answer with tool steps takes the full width, so a step is never squeezed before any text arrives */
+.jl-bubble.assistant:has(.jl-tools) { width: 88%; }
+.jl-tools, .jl-tool { width: 100%; box-sizing: border-box; }
+.jl-tool-head { box-sizing: border-box; }
 .jl-tool { border-radius: 10px; background: rgba(255,255,255,0.65); border: 1px solid var(--jl-line); animation: jl-tool-in 220ms ease-out; }
 .jl-tool.failed { border-color: #E8B4B0; }
 .jl-tool-head { width: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: none; border: 0; cursor: pointer; text-align: left; font: inherit; color: inherit; }

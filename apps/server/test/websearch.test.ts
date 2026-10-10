@@ -317,7 +317,7 @@ test('the assistant searches the web: the chat stream carries the live steps, an
     assert.equal(tools[0].label, 'Searching the web for jobs: SOC analyst, Utrecht');
     const end = tools.at(-1);
     assert.equal(end.state, 'done', JSON.stringify(end));
-    assert.ok(end.steps.some((x: string) => x.startsWith('Asking your search engine: SOC analyst vacature Utrecht')), JSON.stringify(end.steps));
+    assert.ok(end.steps.includes('Asking your search engine: SOC analyst vacature Utrecht'), JSON.stringify(end.steps));
     assert.ok(end.steps.includes('werken.voorbeeld.nl: a new job'), JSON.stringify(end.steps));
     assert.equal(end.sources[0].url, 'https://werken.voorbeeld.nl/vacature/soc-trainee');
     assert.match(end.summary, /^1 job found · 1 page read/);
