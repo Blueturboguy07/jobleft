@@ -32,8 +32,13 @@ export const WebSearchRequestSchema = named(obj({
   place: str({ maxLength: 200 }),
   /** Only results the engines date within this time. Absent = any time. */
   timeRange: enm(['day', 'week', 'month', 'year']),
-  /** Which page of the engines' answers: 1 first (the default), 2 for "More results", and so on. */
+  /** Which page of results: 1 first (the default; the engines' pages 1 and 2), 2 for "More results" (3 and 4), and so on. */
   page: int({ minimum: 1, maximum: 5 }),
+  /**
+   * Ask the AI provider for titles that mean the same job (in Dutch and English for a Dutch place) and search for
+   * those too. One small AI call, remembered for a day. Without a provider the search runs with the words given.
+   */
+  widen: bool(),
 }), 'WebSearchRequest');
 
 /**
@@ -103,6 +108,12 @@ export const WebSearchResponseSchema = named(obj({
    * Google's job search). jobleft only builds the address; the person's browser opens it.
    */
   searchLinks: arr(obj({ name: str(), url: HttpUrlSchema })),
+  /** The titles the AI added when the search was widened. */
+  widenedWith: arr(str()),
+  /** Why the search was not widened, when it was asked to be (no provider, the provider failed). */
+  widenProblem: str(),
+  /** Results left out because neither their title nor their text names any word of the titles searched for. */
+  unrelatedResults: int({ minimum: 0 }),
 }), 'WebSearchResponse');
 
 /** What came of reading one result (Jobs > Web jobs shows it on the result). */
@@ -149,6 +160,9 @@ export const WebSavedSearchSchema = named(obj({
   /** New jobs the last run found (after their pages were read). null until it ran and its pages were read. */
   lastNew: nullable(int({ minimum: 0 })),
   lastError: nullable(str()),
+}, {
+  /** Widened with the AI provider's titles when it runs (as it was when saved). */
+  widen: bool(),
 }), 'WebSavedSearch');
 
 export const WebSavedSearchInputSchema = named(obj({
@@ -156,6 +170,7 @@ export const WebSavedSearchInputSchema = named(obj({
 }, {
   place: str({ maxLength: 200 }),
   everyHours: int({ minimum: 0, maximum: 24 }),
+  widen: bool(),
 }), 'WebSavedSearchInput');
 
 export type WebSavedSearch = Infer<typeof WebSavedSearchSchema>;

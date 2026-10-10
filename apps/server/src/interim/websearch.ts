@@ -22,6 +22,8 @@ const MAX_BYTES = 4 * 1024 * 1024;
 const GAP_MS = 1000;
 /** Results kept per search, after removing repeats. */
 const MAX_RESULTS = 200;
+/** A first page with this many results is followed by its second page (Yahoo answers 7 a page). */
+const SECOND_PAGE_FROM = 5;
 
 /**
  * The address to save: http(s), no user name or password, no query; a trailing "/search" or "/" is dropped. Blank
@@ -57,8 +59,10 @@ export const SITE_GROUPS: ReadonlyArray<readonly string[]> = [
 export interface PlannedQuery { q: string; sites: readonly string[] | null }
 
 /** The titles a search asks for: "SOC Analyst, Security Analyst" is either one (at most three). */
-export function alternativesOf(q: string): string[] {
-  return q.split(/\s*(?:,|;|\|| or | OF )\s*/i).map((x) => x.replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 3);
+export function alternativesOf(q: string, max = 3): string[] {
+  const seen = new Set<string>();
+  return q.split(/\s*(?:,|;|\|| or | OF )\s*/i).map((x) => x.replace(/\s+/g, ' ').trim())
+    .filter((x) => x && !seen.has(x.toLowerCase()) && seen.add(x.toLowerCase())).slice(0, max);
 }
 
 /** The countries whose job postings say "vacature": Dutch words are added to the searches. */
@@ -87,7 +91,7 @@ export function dutchTitle(title: string): string | null {
  * that asks for job postings, and the big job sites left out. Three searches: in a Dutch-speaking country
  * "vacature", "job" and "werken bij"; elsewhere "job", "hiring" and "careers".
  */
-export function planQueries(req: Pick<WebSearchRequest, 'q' | 'place'>, country: string | null = null): PlannedQuery[] {
+export function planQueries(req: Pick<WebSearchRequest, 'q' | 'place'>, country: string | null = null, extraTitles: string[] = []): PlannedQuery[] {
   const alts = alternativesOf(req.q);
   const what = alts.length > 1 ? `(${alts.map((x) => `"${x}"`).join(' OR ')})` : (alts[0] ?? req.q.trim());
   const where = (req.place ?? '').replace(/\s+/g, ' ').trim();
@@ -95,11 +99,19 @@ export function planQueries(req: Pick<WebSearchRequest, 'q' | 'place'>, country:
   const q = (w: string, title = what) => ({ q: [title, w, where, not].filter(Boolean).join(' '), sites: null });
   if (country && DUTCH.has(country)) {
     // Dutch postings often write the title the Dutch way ("analist"): one search with that spelling.
-    const nl = alts.map((a) => dutchTitle(a) ?? a);
+    const nl = [...new Set(alts.map((a) => dutchTitle(a) ?? a))];
     const nlWhat = nl.length > 1 ? `(${nl.map((x) => `"${x}"`).join(' OR ')})` : nl[0] ?? what;
-    return [q('vacature'), nlWhat !== what ? q('vacature', nlWhat) : q('werken bij'), q('job')];
+    return [q('vacature'), nlWhat !== what ? q('vacature', nlWhat) : q('werken bij'), q('job'), ...extra(q, 'vacature', extraTitles)];
   }
-  return ['job', 'hiring', 'careers'].map((w) => q(w));
+  return [...['job', 'hiring', 'careers'].map((w) => q(w)), ...extra(q, 'job', extraTitles)];
+}
+
+/**
+ * The search for the titles the AI added (Widen with AI): one more search of its own, so the person's own searches
+ * stay as they are (one long "a" OR "b" OR ... search makes the engines answer worse).
+ */
+function extra(q: (w: string, title?: string) => PlannedQuery, word: string, titles?: string[]): PlannedQuery[] {
+  return titles?.length ? [q(word, `(${titles.slice(0, 5).map((x) => `"${x}"`).join(' OR ')})`)] : [];
 }
 
 /**
@@ -361,21 +373,53 @@ export function sortResult(r: SearxResult, d: SortDeps): WebSearchResult | null 
 }
 
 /** Runs the planned searches, then sorts, de-duplicates and counts the boards. */
-export async function webSearchJobs(req: WebSearchRequest, client: SearxClient, d: SortDeps, signal?: AbortSignal, onQuery?: (q: string) => void, country: string | null = null, general = false): Promise<WebSearchResponse> {
-  // A general search (the assistant's question about pay, a company, a field) is the words as they are, once.
-  const queries = general ? [{ q: [req.q, req.place ?? ''].join(' ').replace(/\s+/g, ' ').trim(), sites: null }] : planQueries(req, country);
+export interface WebSearchOptions {
+  signal?: AbortSignal;
+  /** Told each search as it is sent (the assistant shows it). */
+  onQuery?: (q: string) => void;
+  /** The country the place names, when known. */
+  country?: string | null;
+  /** The words as they are, once (the assistant's question about pay, a company, a field). */
+  general?: boolean;
+  /** Titles the AI added: one more search of their own. */
+  extraTitles?: string[];
+  /**
+   * The words of the titles searched for: a result whose title and text name none of them is left out (engines
+   * answer long searches with pages about anything). Not for a general search.
+   */
+  words?: string[];
+}
+
+/**
+ * Runs the planned searches, then sorts, de-duplicates and counts. Page n of results is the engines' pages 2n-1
+ * and 2n: the second only for searches whose first page was full (at most six requests a page).
+ */
+export async function webSearchJobs(req: WebSearchRequest, client: SearxClient, d: SortDeps, o: WebSearchOptions = {}): Promise<WebSearchResponse> {
+  const { signal, onQuery, general = false } = o;
+  const country = o.country ?? null;
+  const queries = general ? [{ q: [req.q, req.place ?? ''].join(' ').replace(/\s+/g, ' ').trim(), sites: null }] : planQueries(req, country, o.extraTitles ?? []);
   const boardUrls = new Set<string>();
+  let unrelated = 0;
+  const related = (r: SearxResult) => {
+    if (general || !o.words?.length) return true;
+    const t = `${r.title} ${r.content}`.toLowerCase();
+    return o.words.some((w) => (w.length <= 3 ? new RegExp(`(^|[^\\p{L}\\p{N}])${w}($|[^\\p{L}\\p{N}])`, 'u').test(t) : t.includes(w.slice(0, Math.max(4, w.length - 2)))));
+  };
   const seen = new Set<string>();
   const results: WebSearchResult[] = [];
   const unresponsive = new Set<string>();
   let failed = 0;
   let firstError: SearxError | null = null;
   let fatal = false;
-  for (const pq of queries) {
+  const page = req.page ?? 1;
+  const passes: Array<{ pq: PlannedQuery; enginePage: number }> = queries.map((pq) => ({ pq, enginePage: page * 2 - 1 }));
+  for (let i = 0; i < passes.length; i++) {
+    const { pq, enginePage } = passes[i]!;
+    // After the first pages: the second page of each search whose first page was full.
     if (signal?.aborted) break;
     let a: SearxAnswer;
-    onQuery?.(pq.q);
-    try { a = await client.search(pq.q, { timeRange: req.timeRange, page: req.page, signal }); } catch (e) {
+    onQuery?.(enginePage % 2 === 0 ? `${pq.q} (more)` : pq.q);
+    try { a = await client.search(pq.q, { timeRange: req.timeRange, page: enginePage, signal }); } catch (e) {
       if (!(e instanceof SearxError)) throw e;
       failed++;
       firstError ??= e;
@@ -384,9 +428,12 @@ export async function webSearchJobs(req: WebSearchRequest, client: SearxClient, 
       continue;
     }
     for (const n of a.unresponsive) unresponsive.add(n);
+    // A full first page: its second page is asked after the first pages of all searches.
+    if (!general && enginePage % 2 === 1 && a.results.length >= SECOND_PAGE_FROM) passes.push({ pq, enginePage: enginePage + 1 });
     for (const r of a.results) {
       const s = sortResult(r, d);
       if (!s) continue;
+      if (!related(r)) { if (!seen.has(canonicalizeUrl(s.url) || s.url)) { seen.add(canonicalizeUrl(s.url) || s.url); unrelated++; } continue; }
       // Some engines ignore "site:" and answer with any page: a site search keeps only results on that site.
       if (pq.sites && !pq.sites.some((site) => onSite(new URL(s.url).hostname, site))) continue;
       // A board on a system jobleft reads is followed in Settings > Job sources, not listed here.
@@ -402,7 +449,7 @@ export async function webSearchJobs(req: WebSearchRequest, client: SearxClient, 
     }
   }
   // No search answered: say why, instead of "found nothing".
-  if (firstError && !results.length && (fatal || failed === queries.length)) {
+  if (firstError && !results.length && (fatal || failed === passes.length)) {
     throw new ApiFailure(firstError.kind === 'unreachable' || firstError.kind === 'timeout' ? 'offline' : 'unsupported_source', firstError.message);
   }
   const counts = new Map<string, WebSearchBoard>();
@@ -421,6 +468,6 @@ export async function webSearchJobs(req: WebSearchRequest, client: SearxClient, 
     ? unresponsive.size
       ? `The search found nothing, and some search engines did not answer (${[...unresponsive].sort().join(', ')}). SearXNG pauses an engine that refuses it; try again in a few minutes, or turn on other engines in SearXNG.`
       : 'The search found nothing. Try fewer or other words, or a wider place.'
-    : `${results.length} results from ${sites} ${sites === 1 ? 'site' : 'sites'}.${failed ? ` ${failed} of ${queries.length} searches failed${firstError ? ` (${firstError.message})` : ''}.` : ''}`;
-  return { results, boards, queries: queries.length, failedQueries: failed, unresponsive: [...unresponsive].sort(), message, country, boardResults: boardUrls.size, searchLinks: searchLinks(req, country) };
+    : `${results.length} results from ${sites} ${sites === 1 ? 'site' : 'sites'}.${unrelated ? ` ${unrelated} unrelated ${unrelated === 1 ? 'page' : 'pages'} left out.` : ''}${failed ? ` ${failed} of ${passes.length} searches failed${firstError ? ` (${firstError.message})` : ''}.` : ''}`;
+  return { results, boards, queries: passes.length, failedQueries: failed, unresponsive: [...unresponsive].sort(), message, country, boardResults: boardUrls.size, searchLinks: searchLinks(req, country), ...(unrelated ? { unrelatedResults: unrelated } : {}) };
 }

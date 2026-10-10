@@ -266,6 +266,19 @@
           "url"
         ]
       }
+    },
+    "widenedWith": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "widenProblem": {
+      "type": "string"
+    },
+    "unrelatedResults": {
+      "type": "integer",
+      "minimum": 0
     }
   },
   "required": [

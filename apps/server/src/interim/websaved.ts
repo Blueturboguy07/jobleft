@@ -15,13 +15,13 @@ import type { WebReader } from './webreader.ts';
 export const MAX_SAVED = 10;
 const EVERY = new Set([0, 12, 24]);
 
-interface Row { id: string; q: string; place: string | null; every_hours: number; created_at: string; last_run_at: string | null; last_new: number | null; last_error: string | null; counting: number }
+interface Row { id: string; q: string; place: string | null; every_hours: number; created_at: string; last_run_at: string | null; last_new: number | null; last_error: string | null; counting: number; widen: number | null }
 
 export interface WebSavedDeps {
   db: DatabaseSync;
   reader: WebReader;
   /** Runs one search (the route's own work: SearXNG, sorting, queueing for the reader). Throws on failure. */
-  search: (req: { q: string; place?: string; timeRange: 'week' }, tag: string) => Promise<void>;
+  search: (req: { q: string; place?: string; timeRange: 'week'; widen?: boolean }, tag: string) => Promise<void>;
   ready: () => boolean;
   alertsOn: () => boolean;
   notify: (title: string, body: string, dedupeKey: string) => void;
@@ -45,10 +45,11 @@ export class WebSavedSearches {
       last_error TEXT,
       counting INTEGER NOT NULL DEFAULT 0
     )`);
+    try { d.db.exec('ALTER TABLE srv_web_saved ADD COLUMN widen INTEGER'); } catch { /* there already */ }
   }
 
   private view(r: Row): WebSavedSearch {
-    return { id: r.id, q: r.q, place: r.place, everyHours: r.every_hours, createdAt: r.created_at, lastRunAt: r.last_run_at, lastNew: r.last_new, lastError: r.last_error };
+    return { id: r.id, q: r.q, place: r.place, everyHours: r.every_hours, createdAt: r.created_at, lastRunAt: r.last_run_at, lastNew: r.last_new, lastError: r.last_error, ...(r.widen ? { widen: true } : {}) };
   }
 
   list(): WebSavedSearch[] {
@@ -77,7 +78,7 @@ export class WebSavedSearches {
     }
     const id = randomUUID();
     const now = new Date((this.d.now ?? Date.now)()).toISOString();
-    this.d.db.prepare('INSERT INTO srv_web_saved (id, q, place, every_hours, created_at, last_run_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, q, place, every, now, now);
+    this.d.db.prepare('INSERT INTO srv_web_saved (id, q, place, every_hours, created_at, last_run_at, widen) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, q, place, every, now, now, input.widen ? 1 : 0);
     return this.view(this.row(id));
   }
 
@@ -120,7 +121,7 @@ export class WebSavedSearches {
       const at = new Date(now).toISOString();
       this.d.db.prepare('UPDATE srv_web_saved SET last_run_at = ?, last_error = NULL WHERE id = ?').run(at, due.id);
       try {
-        await this.d.search({ q: due.q, ...(due.place ? { place: due.place } : {}), timeRange: 'week' }, WebSavedSearches.tag(due.id));
+        await this.d.search({ q: due.q, ...(due.place ? { place: due.place } : {}), timeRange: 'week', ...(due.widen ? { widen: true } : {}) }, WebSavedSearches.tag(due.id));
         this.d.db.prepare('UPDATE srv_web_saved SET counting = 1 WHERE id = ?').run(due.id);
       } catch (e) {
         this.d.db.prepare('UPDATE srv_web_saved SET last_error = ? WHERE id = ?').run(e instanceof Error ? e.message.slice(0, 300) : 'The search failed.', due.id);

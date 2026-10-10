@@ -17,6 +17,9 @@
       "type": "integer",
       "minimum": 0,
       "maximum": 24
+    },
+    "widen": {
+      "type": "boolean"
     }
   },
   "required": [

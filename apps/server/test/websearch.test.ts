@@ -124,7 +124,9 @@ test('web search: the address is saved, checked, and the results are sorted with
     const r = await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Utrecht', timeRange: 'week' });
     assert.equal(r.status, 200, r.text);
     assert.equal(r.json.country, 'NL', 'Utrecht is in the Netherlands');
-    assert.equal(sx.queries.length - n, 3);
+    // Three searches, and the second page of the one whose first page was full (5 results).
+    assert.deepEqual(sx.queries.slice(n).map((p) => p.get('pageno')), ['1', '1', '1', '2']);
+    assert.ok(sx.queries.at(-1)!.get('q')!.includes(' job '));
     assert.ok(sx.queries.slice(n).every((p) => p.get('time_range') === 'week' && /-site:linkedin\.com/.test(p.get('q') ?? '')));
     const by = new Map(r.json.results.map((x: any) => [x.url, x]));
     // The same page twice (a tracking parameter) is one result, with both engines.
@@ -147,14 +149,15 @@ test('web search: the address is saved, checked, and the results are sorted with
     assert.equal(o.status, 200, o.text);
     assert.equal(o.json[1].state, 'unread');
 
-    // The same search again is answered from the last 30 minutes: every search had results, so none is asked again.
+    // The same search again is answered from the last 30 minutes: every page had results, so none is asked again.
     const n2 = sx.queries.length;
     assert.equal((await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Utrecht', timeRange: 'week' })).status, 200);
-    assert.equal(sx.queries.length - n2, 0, JSON.stringify(sx.queries.slice(n2).map((p) => p.get('q'))));
-    // "More results": the next page of the same searches.
+    assert.deepEqual(sx.queries.slice(n2).map((p) => p.get('pageno')), []);
+    // "More results": the engines' pages 3 (and 4 for a full page 3).
+    const n3 = sx.queries.length;
     const more = await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Utrecht', timeRange: 'week', page: 2 });
     assert.equal(more.status, 200, more.text);
-    assert.ok(sx.queries.slice(-3).every((p) => p.get('pageno') === '2'));
+    assert.deepEqual(sx.queries.slice(n3).map((p) => p.get('pageno')), ['3', '3', '3', '4']);
     // A Dutch name for the country counts too.
     assert.equal((await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Nederland' })).json.country, 'NL');
   } finally { await s.stop(); cleanup(s.home); await sx.close(); }
@@ -228,7 +231,7 @@ test('web search: the job pages found are read in the background into jobs of th
   const origin = `http://127.0.0.1:${(pages.address() as AddressInfo).port}`;
   const sx = await searx((p) => {
     const q = p.get('q') ?? '';
-    if (q.includes(' vacature ')) return { body: { results: [R('https://werken.voorbeeld.nl/vacature/soc-analist', 'Vacature SOC-analist'), R('https://werken.voorbeeld.nl/careers', 'Careers at Voorbeeld'), R('https://werken.voorbeeld.nl/vacature/singapore', 'SOC Analyst Singapore')] } };
+    if (q.includes(' vacature ')) return { body: { results: [R('https://werken.voorbeeld.nl/vacature/soc-analist', 'Vacature SOC-analist'), R('https://werken.voorbeeld.nl/careers', 'SOC careers at Voorbeeld'), R('https://werken.voorbeeld.nl/vacature/singapore', 'SOC Analyst Singapore'), R('https://en.wikipedia.org/wiki/History', 'History - Wikipedia')] } };
     return { body: { results: [] } };
   });
   const s = await startTest('webreader', { env: { JOBLEFT_HOST_MAP: JSON.stringify({ 'werken.voorbeeld.nl': origin }) } });
@@ -256,6 +259,8 @@ test('web search: the job pages found are read in the background into jobs of th
     assert.equal(of('https://werken.voorbeeld.nl/vacature/soc-analist').inPlace, true, JSON.stringify(of('https://werken.voorbeeld.nl/vacature/soc-analist')));
     assert.equal(of('https://werken.voorbeeld.nl/vacature/singapore').inPlace, false, 'Singapore is not in the Netherlands');
     assert.equal(of('https://werken.voorbeeld.nl/careers').state, 'not_job');
+    assert.ok(!r.json.results.some((x: any) => x.url.includes('wikipedia')), 'a page that names no searched word is left out');
+    assert.equal(r.json.unrelatedResults, 1);
     // The cards in the country asked for leave the Singapore job out.
     const nl = await s.call('POST', '/api/v1/jobs/search', { filter: { sources: ['external:web'], countries: ['NL'], includeUnknown: ['place'] }, sort: 'most_recent', limit: 20 });
     assert.deepEqual(nl.json.items.map((x: any) => x.job.title), ['SOC-analist']);
@@ -322,4 +327,37 @@ test('the assistant searches the web: the chat stream carries the live steps, an
     const web = await s.call('POST', '/api/v1/jobs/search', { filter: { sources: ['external:web'] }, sort: 'most_recent', limit: 5 });
     assert.equal(web.json.items[0].job.title, 'SOC Analyst Traineeship');
   } finally { await s.stop(); cleanup(s.home); await sx.close(); await model.close(); await new Promise((r) => pages.close(r)); }
+});
+
+test('Widen with AI: the provider\'s titles join the searches and the relevance check; without a provider it says so', async () => {
+  const { cleanTitles } = await import('../src/interim/widen.ts');
+  assert.deepEqual(cleanTitles(['security analist', '1. SOC medewerker', 'SOC analyst', 'Visit https://x.example', 'a very long title that goes on and on and on'], ['SOC analyst']), ['security analist', 'SOC medewerker']);
+  const asked: string[] = [];
+  const sx = await searx((p) => { asked.push(p.get('q') ?? ''); return { body: { results: [] } }; });
+  let modelCalls = 0;
+  const model = await startScriptedModel({ script: () => { modelCalls++; return { text: '{"titles": ["security analist", "SOC medewerker", "Utrecht"]}' }; } });
+  const s = await startTest('webwiden');
+  try {
+    const settings = (await s.call('GET', '/api/v1/settings')).json;
+    await s.call('PUT', '/api/v1/settings', { ...settings, webSearch: { url: sx.origin } });
+    // No provider yet: the search runs with the words given and says why it was not widened.
+    const plain = await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Netherlands', widen: true });
+    assert.equal(plain.status, 200, plain.text);
+    assert.match(plain.json.widenProblem, /no AI provider/);
+    assert.equal(plain.json.widenedWith, undefined);
+    assert.equal((await s.call('PUT', '/api/v1/ai/settings', { provider: 'local', localKind: 'openai_compatible', baseUrl: model.url, model: 'scripted-model' })).status, 200);
+    asked.length = 0;
+    const calls = modelCalls;
+    const r = await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Netherlands', widen: true, timeRange: 'week' });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(modelCalls - calls, 1, 'one AI call');
+    assert.deepEqual(r.json.widenedWith, ['security analist', 'SOC medewerker'], 'a place is not a title');
+    // The person's own searches stay as they are; the AI's titles get one more search of their own.
+    assert.ok(asked[0]!.startsWith('SOC analyst vacature Netherlands'), asked[0]);
+    assert.equal(asked.length, 4);
+    assert.ok(asked[3]!.startsWith('("security analist" OR "SOC medewerker") vacature Netherlands'), asked[3]);
+    // The same search again: the titles are remembered, no AI call.
+    await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Netherlands', widen: true, timeRange: 'week' });
+    assert.equal(modelCalls - calls, 1);
+  } finally { await s.stop(); cleanup(s.home); await sx.close(); await model.close(); }
 });

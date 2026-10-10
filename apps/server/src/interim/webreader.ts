@@ -24,6 +24,13 @@ type State = 'queued' | 'reading' | 'job' | 'known' | 'likely_job' | 'closed' | 
 
 /** A failed read is tried again after this long; the other outcomes are final. */
 const RETRY_FAILED_MS = 24 * 3600_000;
+/** Reads at once, each on another site. */
+const READERS = 3;
+
+function hostOf(url: string): string {
+  try { return new URL(url).hostname.toLowerCase(); } catch { return url; }
+}
+
 /** At most this many addresses wait at once; a search adds its own results to the end. */
 const MAX_QUEUE = 300;
 /**
@@ -129,16 +136,16 @@ export class WebReader {
   /** Stops reading; resolves when the read in progress has finished (at most 5 seconds), so the database can close. */
   async stop(): Promise<void> {
     this.stopped = true;
-    if (this.current) await Promise.race([this.current.catch(() => undefined), new Promise((r) => setTimeout(r, 5000))]);
+    if (this.current.size) await Promise.race([Promise.all([...this.current].map((p) => p.catch(() => undefined))), new Promise((r) => setTimeout(r, 5000))]);
   }
 
-  /** The read in progress, if any. */
-  private current: Promise<void> | null = null;
+  /** The reads in progress. */
+  private current = new Set<Promise<void>>();
 
   private async readGuarded(url: string, alts: string[][]): Promise<void> {
     const p = this.readOne(url, alts);
-    this.current = p;
-    try { await p; } catch (e) { if (!this.stopped) throw e; } finally { if (this.current === p) this.current = null; }
+    this.current.add(p);
+    try { await p; } catch (e) { if (!this.stopped) throw e; } finally { this.current.delete(p); }
   }
 
   /** Takes a queued address for one reader: false when another reader has it already. */
@@ -172,19 +179,34 @@ export class WebReader {
     return r ? { state: r.state, jobId: r.job_id, message: r.message } : null;
   }
 
+  /**
+   * Reads the queue with up to READERS reads at once, never two on one site (each site still gets at most one
+   * request a second, through the shared pacer).
+   */
   private async run(): Promise<void> {
     if (this.running || this.stopped) return;
     this.running = true;
     const sleep = this.d.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
-    try {
+    const busy = new Set<string>();
+    const worker = async () => {
       for (;;) {
-        if (this.stopped || this.d.offline()) break;
+        if (this.stopped || this.d.offline()) return;
         if (this.d.crawling()) { await sleep(2000); continue; }
-        const next = this.db.prepare("SELECT url, words FROM srv_web_results WHERE state = 'queued' ORDER BY found_at, rowid LIMIT 1").get() as { url: string; words: string | null } | undefined;
-        if (!next) break;
+        const queued = this.db.prepare("SELECT url, words FROM srv_web_results WHERE state = 'queued' ORDER BY found_at, rowid LIMIT 50").all() as Array<{ url: string; words: string | null }>;
+        if (!queued.length) return;
+        const next = queued.find((q) => !busy.has(hostOf(q.url)));
+        // Every waiting page is on a site another read is on: this reader is done; that one goes on.
+        if (!next) return;
+        const host = hostOf(next.url);
         if (!this.claim(next.url)) continue;
-        await this.readGuarded(next.url, altsOf(next.words));
+        busy.add(host);
+        try { await this.readGuarded(next.url, altsOf(next.words)); } finally { busy.delete(host); }
       }
+    };
+    try {
+      await Promise.all(Array.from({ length: READERS }, (_, i) => sleep(i * 300).then(worker)));
+      // A reader that stopped early (every page on a busy site) leaves pages: read them now.
+      if (!this.stopped && !this.d.offline() && (this.db.prepare("SELECT 1 FROM srv_web_results WHERE state = 'queued' LIMIT 1").get())) await worker();
     } finally { this.running = false; }
   }
 

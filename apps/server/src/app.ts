@@ -16,9 +16,11 @@ import { openAndMigrate } from './db/open.ts';
 import type { HomeLayout } from './home.ts';
 import { AiFacade } from './integ/engine.ts';
 import { buildAssistant } from './integ/assistant.ts';
-import { WebReader, searchAlternatives } from './interim/webreader.ts';
+import { WebReader, searchAlternatives, searchWords } from './interim/webreader.ts';
+import { AiError } from '@jobleft/ai-engine';
 import { WebSavedSearches } from './interim/websaved.ts';
-import { SearxClient, alternativesOf, dutchTitle, webSearchJobs } from './interim/websearch.ts';
+import { SearxClient, alternativesOf, dutchTitle, searchLinks, webSearchJobs } from './interim/websearch.ts';
+import { widenTitles } from './interim/widen.ts';
 import type { Assistant } from '@jobleft/assistant';
 import { ResumeBridge } from './integ/resume.ts';
 import { BoardsService, boardIdOf } from './interim/boards.ts';
@@ -264,13 +266,30 @@ export class AppData {
     try {
       const deps = { crawlStore: this.crawlStore, board: (id: string) => { const b = this.boards.get(id); return b ? { company: b.company, followed: b.followed } : null; } };
       const country = req.place ? this.countryOf(req.place) : null;
-      const found = await webSearchJobs(req, new SearxClient(url), deps, signal, onQuery, country, o.general);
+      // Widen with AI: titles that mean the same job join the person's own (one small call, kept for a day).
+      let widenedWith: string[] = [];
+      let widenProblem: string | undefined;
+      if (req.widen && !o.general) {
+        try {
+          // A suggestion that is a place ("Utrecht") is not a title.
+          widenedWith = (await widenTitles(this.ai.client(), alternativesOf(req.q), country, signal)).filter((t) => !this.placeIn(t));
+        } catch (e) {
+          widenProblem = e instanceof AiError && e.code === 'no_provider'
+            ? 'Not widened: no AI provider is set up (Settings > AI provider).'
+            : `Not widened: the AI provider did not answer (${e instanceof Error ? e.message : 'unknown error'}).`;
+        }
+      }
+      const titles = [...alternativesOf(req.q), ...widenedWith];
+      // The words of every title searched for (and their Dutch spelling): a result that names none is unrelated.
+      const titleWords = [...new Set([...titles, ...(country === 'NL' || country === 'BE' ? titles.map((t) => dutchTitle(t) ?? '') : [])].flatMap((t) => searchWords(t)))];
+      const found = await webSearchJobs(req, new SearxClient(url), deps, { signal, onQuery, country, general: o.general, extraTitles: widenedWith, words: titleWords });
+      const extra = { ...(widenedWith.length ? { widenedWith } : {}), ...(widenProblem ? { widenProblem } : {}) };
       // A general search's pages are not job pages: nothing is queued for reading.
       if (o.general) return found;
-      // A job may name the Dutch spelling of the title ("analist"), which the searches asked for too.
-      const alts = searchAlternatives(req.q);
-      if (country === 'NL' || country === 'BE') for (const a of alternativesOf(req.q)) { const nl = dutchTitle(a); if (nl) alts.push(...searchAlternatives(nl)); }
-      return { ...found, results: this.webReader.enqueue(found.results, tag, alts.slice(0, 6), !o.deferReading) };
+      // A job may name any of the titles, or the Dutch spelling of one ("analist"), which the searches asked for too.
+      const alts = titles.flatMap((t) => searchAlternatives(t));
+      if (country === 'NL' || country === 'BE') for (const t of titles) { const nl = dutchTitle(t); if (nl) alts.push(...searchAlternatives(nl)); }
+      return { ...found, ...extra, searchLinks: searchLinks(req, country), results: this.webReader.enqueue(found.results, tag, alts.slice(0, 12), !o.deferReading) };
     } finally { this.webSearchBusy = false; }
   }
 

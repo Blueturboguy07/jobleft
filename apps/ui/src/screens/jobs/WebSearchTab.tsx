@@ -7,13 +7,13 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Dropdown, Input, Segmented, Select, Switch, Tag, Tooltip } from 'antd';
-import { BellOutlined, DownOutlined, ExportOutlined, GlobalOutlined, LoadingOutlined, SearchOutlined } from '@ant-design/icons';
+import { BellOutlined, DownOutlined, ExportOutlined, GlobalOutlined, LoadingOutlined, SearchOutlined, StarOutlined } from '@ant-design/icons';
 import type { JobFilter, JobSort, WebReadStatus, WebResultOutcome, WebSavedSearch, WebSearchRequest, WebSearchResponse, WebSearchResult } from '@jobleft/contracts';
 import { call, openExternal, type UiError } from '../../app/api.ts';
 import { invalidate, load as reload, useApi } from '../../app/data.ts';
 import { ui } from '../../app/layers.ts';
 import { navigate } from '../../app/router.ts';
-import { profileIsSet, useAppSettings, useProfile } from '../../app/session.ts';
+import { profileIsSet, useAiSettings, useAppSettings, useProfile } from '../../app/session.ts';
 import { JobCard } from '../../components/JobCard.tsx';
 import { EmptyState, InlineError, Loading, SkeletonCards } from '../../components/States.tsx';
 import { VirtualList } from '../../components/VirtualList.tsx';
@@ -28,6 +28,8 @@ type Range = NonNullable<WebSearchRequest['timeRange']> | 'any';
 /** The last search, its answer and the view, kept while the app runs, so switching tabs loses nothing. */
 let last: { q: string; place: string; range: Range; answer: WebSearchResponse | null; page: number } | null = null;
 let view: { mode: 'results' | 'jobs'; onlyHere: boolean; sort: JobSort } = { mode: 'results', onlyHere: true, sort: 'recommended' };
+/** The person's choice for "Widen with AI" while the app runs (null: on when an AI provider is set up). */
+let widenChoice: boolean | null = null;
 
 /** The first of the profile's titles ("SOC Analyst, Security Analyst" -> "SOC Analyst"). */
 function firstTitle(s: string | undefined): string {
@@ -50,6 +52,10 @@ export function WebSearchTab() {
   const [mode, setMode] = useState(view.mode);
   const [onlyHere, setOnlyHere] = useState(view.onlyHere);
   const [sort, setSort] = useState(view.sort);
+  const ai = useAiSettings();
+  const aiOn = !!ai.data?.provider;
+  const [widenPick, setWidenPick] = useState<boolean | null>(widenChoice);
+  const widen = aiOn && (widenPick ?? true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!p || last) return;
@@ -106,7 +112,7 @@ export function WebSearchTab() {
     );
   }
 
-  const request = (n: number): WebSearchRequest => ({ q: q.trim(), ...(place.trim() ? { place: place.trim() } : {}), ...(range !== 'any' ? { timeRange: range } : {}), ...(n > 1 ? { page: n } : {}) });
+  const request = (n: number): WebSearchRequest => ({ q: q.trim(), ...(place.trim() ? { place: place.trim() } : {}), ...(range !== 'any' ? { timeRange: range } : {}), ...(n > 1 ? { page: n } : {}), ...(widen ? { widen: true } : {}) });
   const search = async () => {
     if (!q.trim()) return;
     setBusy('search'); setErr(null);
@@ -134,7 +140,7 @@ export function WebSearchTab() {
   };
   const saveSearch = async () => {
     try {
-      await call('addWebSaved', { body: { q: q.trim(), ...(place.trim() ? { place: place.trim() } : {}), everyHours: 24 } });
+      await call('addWebSaved', { body: { q: q.trim(), ...(place.trim() ? { place: place.trim() } : {}), everyHours: 24, ...(widen ? { widen: true } : {}) } });
       invalidate('websearch:saved');
       ui.message?.success('Saved. jobleft runs this search every day while it runs and tells you about new job postings.');
     } catch (e) { ui.message?.error((e as UiError).message); }
@@ -175,6 +181,11 @@ export function WebSearchTab() {
           <Select size="large" style={{ width: 140 }} value={range} onChange={setRange} aria-label="How recent"
             options={[{ value: 'week', label: 'Past week' }, { value: 'month', label: 'Past month' }, { value: 'year', label: 'Past year' }, { value: 'any', label: 'Any time' }]} />
           <Button size="large" type="primary" shape="round" htmlType="submit" loading={busy === 'search'} disabled={!q.trim() || !!busy}>Search the web</Button>
+          <Tooltip title={aiOn ? 'Your AI adds titles that mean the same job (in Dutch and English for a Dutch place), so postings that word it differently are found too. One small AI call per new search.' : 'Set up an AI provider in Settings to widen searches with titles that mean the same job.'}>
+            <label className="jl-row jl-small" style={{ gap: 6, opacity: aiOn ? 1 : 0.55 }}>
+              <Switch size="small" checked={widen} disabled={!aiOn} onChange={(v) => { widenChoice = v; setWidenPick(v); }} aria-label="Widen with AI" /> <StarOutlined aria-hidden="true" /> Widen with AI
+            </label>
+          </Tooltip>
           <Tooltip title="Run this search by itself every day and get an alert when it finds new job postings">
             <Button size="large" shape="round" icon={<BellOutlined />} disabled={!q.trim()} onClick={() => { void saveSearch(); }}>Save search</Button>
           </Tooltip>
@@ -186,6 +197,13 @@ export function WebSearchTab() {
           <>
             <div className="jl-row jl-wrap" style={{ gap: 6 }}>
               <span className="jl-small jl-muted">{answer.message}{answer.unresponsive.length ? ` Not answering: ${answer.unresponsive.join(', ')}.` : ''}</span>
+              {answer.widenedWith?.length ? (
+                <span className="jl-row jl-wrap" style={{ gap: 4 }} aria-label="Titles your AI added">
+                  <span className="jl-small jl-muted"><StarOutlined aria-hidden="true" /> Also searched:</span>
+                  {answer.widenedWith.map((t) => <Tag key={t} color="purple" style={{ margin: 0 }}>{t}</Tag>)}
+                </span>
+              ) : null}
+              {answer.widenProblem && <span className="jl-small jl-muted">{answer.widenProblem}</span>}
               {answer.searchLinks && answer.searchLinks.length > 0 && <span className="jl-small jl-muted">Also search on:</span>}
               {answer.searchLinks?.map((l) => (
                 <Button key={l.name} size="small" shape="round" icon={<ExportOutlined />} iconPosition="end" onClick={() => openExternal(l.url)}>{l.name}</Button>
