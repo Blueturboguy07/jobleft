@@ -4,7 +4,7 @@ jobleft also runs on Linux as an AppImage: one file that holds the app, its own 
 
 ## Install
 
-1. Download `jobleft_<version>_amd64.AppImage` from the [latest release](RELEASES_URL).
+1. Download `jobleft_<version>_amd64.AppImage` from the [latest release](https://github.com/Dayv0ps/jobleft/releases/latest).
 2. Make it executable and run it:
 
    ```sh
