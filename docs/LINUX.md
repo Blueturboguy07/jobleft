@@ -61,6 +61,23 @@ Search, filters, match scores and the tracker use no AI. For tailoring, letters 
 
 The **publik API** option (pay per use, no key) is off in this build. It needs a private app token that only the official releases carry, so "Connect to publik" says so in plain words and everything else works.
 
+## Update
+
+jobleft never checks for updates by itself. When a new version comes out, either:
+
+- **Replace the file by hand.** Download the new AppImage from the [latest release](https://github.com/Dayv0ps/jobleft/releases/latest), make it executable, delete the old one, and start the new one.
+- **Use an update tool.** The AppImage carries its own update information, so [AppImageUpdate](https://github.com/AppImageCommunity/AppImageUpdate) finds the newest release and downloads only the parts that changed:
+
+  ```sh
+  appimageupdatetool jobleft_*_amd64.AppImage
+  ```
+
+  Other AppImage managers that read update information work the same way. A tool contacts GitHub only when you run it.
+
+Quit jobleft from the tray menu before replacing the file. Your data is not in the AppImage, so an update keeps everything: profile, resumes, tracker, boards and saved keys stay in `~/.local/share/jobleft`. A newer version upgrades its database the first time it starts.
+
+To hear about new versions, open the repository on GitHub and choose **Watch → Custom → Releases**.
+
 ## Uninstall
 
 Delete the AppImage. To remove your data too, first use Settings → Data and backup → delete inside the app: it removes the data and the keys saved in your keyring. Removing `~/.local/share/jobleft` by hand leaves the keys behind; they are under services named `jobleft-…` in your keyring app (Seahorse, KWalletManager).
@@ -97,9 +114,43 @@ It also works around two problems in the AppImage tooling on current distros:
 - `NO_STRIP=true`: linuxdeploy's bundled `strip` is older than today's libraries and fails on them.
 - gdk-pixbuf 2.44 and newer has no separate loaders folder, which makes linuxdeploy's GTK plugin fail. The script patches the plugin's cached copy (`~/.cache/tauri/linuxdeploy-plugin-gtk.sh`) to skip folders that do not exist.
 
+The script also embeds update information, which tells AppImage update tools where newer versions are. By default it points at the GitHub releases of the repository your `origin` remote names, for example `gh-releases-zsync|Dayv0ps|jobleft|latest|jobleft_*_amd64.AppImage.zsync`. Set `JOBLEFT_UPDATE_INFO=<value>` to choose another, or `JOBLEFT_UPDATE_INFO=none` to leave it out. The build then writes `jobleft_<version>_amd64.AppImage.zsync` next to the AppImage; upload it with every release. Check what a build carries with `./jobleft_*_amd64.AppImage --appimage-updateinformation`.
+
 An AppImage runs on systems with the same or a newer glibc than the one it was built on. To make one that runs on older distros, build on the oldest system you want to support, for example an Ubuntu 22.04 container.
 
 To run without packaging at all, `npx pnpm@12.4.1 start` opens the app in your browser (data in `.jobleft-dev`).
+
+## Publish an update
+
+For whoever publishes the Linux builds. This fork tracks the original repository as the `upstream` remote.
+
+1. Bring in the original's changes and test them:
+
+   ```sh
+   git fetch upstream
+   git checkout linux-appimage
+   git merge upstream/main
+   npx pnpm@12.4.1 install
+   npx pnpm@12.4.1 -r test
+   ```
+
+2. Build and push:
+
+   ```sh
+   npx pnpm@12.4.1 --filter @jobleft/ui build
+   bash apps/shell/scripts/build-linux.sh
+   git push origin linux-appimage
+   ```
+
+3. Publish a release with **both** files from `.cache/cargo-target/release/bundle/appimage/`. Without the `.zsync` file, update tools cannot update:
+
+   ```sh
+   cd .cache/cargo-target/release/bundle/appimage
+   gh release create v<version>-linux.<n> jobleft_*_amd64.AppImage jobleft_*_amd64.AppImage.zsync \
+     --repo <owner>/jobleft --target linux-appimage --title "jobleft <version> for Linux (AppImage)" --notes "..."
+   ```
+
+   Name the tag after the app version: `v0.1.4-linux.1` for the first Linux build of 0.1.4, `v0.1.3-linux.2` for a Linux-only fix on 0.1.3. The update information always follows the *latest* release, so mark only finished builds as latest, never drafts or pre-releases. Put the AppImage's `sha256sum` in the release notes.
 
 ## Code changes for Linux
 
@@ -112,4 +163,4 @@ For anyone reviewing the port:
 | `packages/network/src/cli.ts` | `--copy` through `wl-copy`, `xclip` or `xsel` |
 | `apps/shell/src-tauri/src/lib.rs` | XDG data folder and `notify-send` on Linux |
 | `apps/shell/scripts/fetch-node.mjs`, `pack.ts` | `linux-x64` target |
-| `apps/shell/scripts/build-linux.sh`, `package.json` | The AppImage build (`pnpm --filter @jobleft/shell app:build:linux`) |
+| `apps/shell/scripts/build-linux.sh`, `package.json` | The AppImage build (`pnpm --filter @jobleft/shell app:build:linux`), with update information and a `.zsync` file |

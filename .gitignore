@@ -30,9 +30,10 @@ apps/shell/src-tauri/resources/
 apps/shell/src-tauri/gen/
 apps/shell/publik-app-token.local
 
-# Linux build (apps/shell/scripts/build-linux.sh writes the AppImage under .cache/cargo-target; these catch copies
-# and unpacked AppImages elsewhere in the tree)
+# Linux build (apps/shell/scripts/build-linux.sh writes the AppImage and its .zsync update file under
+# .cache/cargo-target; these catch copies and unpacked AppImages elsewhere in the tree)
 *.AppImage
+*.AppImage.zsync
 squashfs-root/
 
 # AI keys without a system keyring: the encrypted key store (secrets.enc and its master.key) inside a data folder.

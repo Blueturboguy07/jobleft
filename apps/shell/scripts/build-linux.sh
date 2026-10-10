@@ -24,8 +24,28 @@ if ! grep -q 'jobleft: skip missing' "$PLUGIN"; then
   sed -i 's|^\(\s*\)pushd "\$LD_GTK_LIBRARY_PATH"$|\1[ -e "$elem" ] \|\| continue  # jobleft: skip missing\n&|' "$PLUGIN"
 fi
 
+# Update information (AppImage spec): tells AppImageUpdate, Gear Lever and similar tools where newer versions are.
+# The app itself never checks; a tool asks only when the person tells it to. The build also writes a .zsync file next
+# to the AppImage, which goes into each GitHub release with it. Default: the releases of the GitHub repository that
+# `origin` points at. JOBLEFT_UPDATE_INFO=<value> sets it by hand; JOBLEFT_UPDATE_INFO=none leaves it out.
+UPDATE_INFO="${JOBLEFT_UPDATE_INFO:-}"
+if [ -z "$UPDATE_INFO" ]; then
+  ORIGIN="$(git -C "$ROOT" remote get-url origin 2>/dev/null || true)"
+  if [[ "$ORIGIN" =~ github\.com[:/]([^/]+)/([^/]+)$ ]]; then
+    UPDATE_INFO="gh-releases-zsync|${BASH_REMATCH[1]}|${BASH_REMATCH[2]%.git}|latest|jobleft_*_amd64.AppImage.zsync"
+  fi
+fi
+if [ -n "$UPDATE_INFO" ] && [ "$UPDATE_INFO" != "none" ]; then
+  export LDAI_UPDATE_INFORMATION="$UPDATE_INFO"
+  echo "update information: $UPDATE_INFO"
+fi
+
 # NO_STRIP: linuxdeploy's bundled strip is older than current distro libraries (.relr.dyn) and fails on them.
 export NO_STRIP=true
 export CARGO_TARGET_DIR="$ROOT/.cache/cargo-target"
+OUT="$CARGO_TARGET_DIR/release/bundle/appimage"
+rm -f "$OUT"/*.AppImage "$OUT"/*.zsync
 node "$(node -p "require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })")" build --bundles appimage
-ls -la "$CARGO_TARGET_DIR"/release/bundle/appimage/*.AppImage
+# appimagetool writes the .zsync into the folder it ran in; keep it next to the AppImage.
+for z in "$SHELL_DIR"/*.zsync "$SHELL_DIR"/src-tauri/*.zsync "$OUT"/*/*.zsync; do [ -f "$z" ] && mv "$z" "$OUT/"; done
+ls -la "$OUT"/*.AppImage "$OUT"/*.zsync 2>/dev/null || true
