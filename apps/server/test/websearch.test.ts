@@ -8,6 +8,7 @@ import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { looksLikeJobList, looksLikeJobPage, normalizeSearxUrl, planQueries } from '../src/interim/websearch.ts';
+import { startScriptedModel } from '../../../packages/assistant/src/mock/scripted-model.ts';
 import { cleanup, startTest } from './helpers.ts';
 
 interface StandIn { origin: string; queries: URLSearchParams[]; close: () => Promise<void>; answer: (q: URLSearchParams) => { status?: number; body?: unknown } }
@@ -259,4 +260,44 @@ test('web search: the job pages found are read in the background into jobs of th
     const left = await s.call('POST', '/api/v1/jobs/search', { filter: { sources: ['external:web'] }, sort: 'most_recent', limit: 20 });
     assert.deepEqual(left.json.items.map((x: any) => x.job.title), ['Junior SOC Analyst']);
   } finally { await s.stop(); cleanup(s.home); await sx.close(); await new Promise((r) => pages.close(r)); }
+});
+
+test('the assistant searches the web: the chat stream carries the live steps, and the jobs it read have ids', async () => {
+  const LD = { '@context': 'https://schema.org', '@type': 'JobPosting', title: 'SOC Analyst Traineeship', datePosted: '2026-10-01', hiringOrganization: { name: 'Gemeente Voorbeeld' },
+    jobLocation: { address: { addressLocality: 'Utrecht', addressCountry: 'NL' } }, description: '<p>Als SOC analyst trainee bewaak je de meldingen.</p>' };
+  const pages: Server = createServer((req, res) => {
+    if (req.url === '/vacature/soc-trainee') res.writeHead(200, { 'content-type': 'text/html' }).end(`<html><head><script type="application/ld+json">${JSON.stringify(LD)}</script></head><body>x</body></html>`);
+    else res.writeHead(404).end();
+  });
+  await new Promise<void>((r) => pages.listen(0, '127.0.0.1', r));
+  const origin = `http://127.0.0.1:${(pages.address() as AddressInfo).port}`;
+  const sx = await searx((p) => (p.get('q') ?? '').includes('vacature OR vacancy')
+    ? { body: { results: [R('https://werken.voorbeeld.nl/vacature/soc-trainee', 'SOC Analyst Traineeship')] } }
+    : { body: { results: [] } });
+  const model = await startScriptedModel({ script: (ctx) => {
+    if (!ctx.tools.includes('web_search')) return { text: 'No web search here.' };
+    if (ctx.afterTool) { const r = JSON.parse(ctx.lastToolResult); return { text: `Found: ${r.jobs.map((j: any) => `${j.title} (${j.id})`).join(', ')}.` }; }
+    return { toolCalls: [{ name: 'web_search', arguments: { query: 'SOC analyst', place: 'Utrecht' } }] };
+  } });
+  const s = await startTest('webassist', { env: { JOBLEFT_HOST_MAP: JSON.stringify({ 'werken.voorbeeld.nl': origin }) } });
+  try {
+    const settings = (await s.call('GET', '/api/v1/settings')).json;
+    await s.call('PUT', '/api/v1/settings', { ...settings, webSearch: { url: sx.origin } });
+    assert.equal((await s.call('PUT', '/api/v1/ai/settings', { provider: 'local', localKind: 'openai_compatible', baseUrl: model.url, model: 'scripted-model' })).status, 200);
+    const r = await s.call('POST', '/api/v1/ai/chat', { requestId: 'req-web-1', messages: [{ role: 'user', content: 'Find SOC analyst traineeships in Utrecht.' }] });
+    const ev = r.text.split('\n').filter((l) => l.startsWith('data: ')).map((l) => JSON.parse(l.slice(6)));
+    const tools = ev.filter((e: any) => e.type === 'tool');
+    assert.equal(tools[0].label, 'Searching the web: SOC analyst, Utrecht');
+    const end = tools.at(-1);
+    assert.equal(end.state, 'done', JSON.stringify(end));
+    assert.ok(end.steps.some((x: string) => x.startsWith('Asking your search engine: SOC analyst Utrecht')));
+    assert.ok(end.steps.includes('werken.voorbeeld.nl: a new job'), JSON.stringify(end.steps));
+    assert.equal(end.sources[0].url, 'https://werken.voorbeeld.nl/vacature/soc-trainee');
+    assert.match(end.summary, /^1 job found · 1 page read/);
+    const text = ev.filter((e: any) => e.type === 'delta').map((e: any) => e.text).join('');
+    assert.match(text, /SOC Analyst Traineeship \(external:web:/);
+    // The job is a web job: it is in Web jobs too.
+    const web = await s.call('POST', '/api/v1/jobs/search', { filter: { sources: ['external:web'] }, sort: 'most_recent', limit: 5 });
+    assert.equal(web.json.items[0].job.title, 'SOC Analyst Traineeship');
+  } finally { await s.stop(); cleanup(s.home); await sx.close(); await model.close(); await new Promise((r) => pages.close(r)); }
 });

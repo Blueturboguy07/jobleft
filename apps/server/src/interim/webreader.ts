@@ -91,7 +91,7 @@ export class WebReader {
    * Notes what is already known about each result (a job jobleft has, or one it found closed) and queues the job
    * pages it has not read. Returns the results with `jobId` filled in where known.
    */
-  enqueue(results: WebSearchResult[], query: string, words: string[] = []): WebSearchResult[] {
+  enqueue(results: WebSearchResult[], query: string, words: string[] = [], start = true): WebSearchResult[] {
     const now = nowIso();
     this.expire();
     const out: WebSearchResult[] = [];
@@ -115,7 +115,8 @@ export class WebReader {
       if (room-- > 0) put.run(r.url, query.slice(0, 300), now, words.join(' '));
       out.push(r);
     }
-    void this.run();
+    // The assistant reads its own first (readNow), then starts the reader.
+    if (start) void this.run();
     return out;
   }
 
@@ -133,7 +134,20 @@ export class WebReader {
     return { running: this.running, queued: n('queued') + n('reading'), ...this.stats, jobs: n('job') };
   }
 
-  stop(): void { this.stopped = true; }
+  /** Stops reading; resolves when the read in progress has finished (at most 5 seconds), so the database can close. */
+  async stop(): Promise<void> {
+    this.stopped = true;
+    if (this.current) await Promise.race([this.current.catch(() => undefined), new Promise((r) => setTimeout(r, 5000))]);
+  }
+
+  /** The read in progress, if any. */
+  private current: Promise<void> | null = null;
+
+  private async readGuarded(url: string, words: string[]): Promise<void> {
+    const p = this.readOne(url, words);
+    this.current = p;
+    try { await p; } catch (e) { if (!this.stopped) throw e; } finally { if (this.current === p) this.current = null; }
+  }
 
   /** Takes a queued address for one reader: false when another reader has it already. */
   private claim(url: string): boolean {
@@ -150,12 +164,13 @@ export class WebReader {
       if (this.stopped || this.d.offline() || this.d.crawling()) break;
       const row = this.db.prepare('SELECT words FROM srv_web_results WHERE url = ?').get(url) as { words: string | null } | undefined;
       if (!row || !this.claim(url)) continue;
-      await this.readOne(url, (row.words ?? '').split(' ').filter(Boolean));
+      await this.readGuarded(url, (row.words ?? '').split(' ').filter(Boolean));
+      if (this.stopped) break;
       read++;
       const after = this.db.prepare('SELECT state, job_id FROM srv_web_results WHERE url = ?').get(url) as { state: string; job_id: string | null };
       onEach(url, after.state, after.job_id);
     }
-    void this.run();
+    if (!this.stopped) void this.run();
     return read;
   }
 
@@ -176,7 +191,7 @@ export class WebReader {
         const next = this.db.prepare("SELECT url, words FROM srv_web_results WHERE state = 'queued' ORDER BY found_at, rowid LIMIT 1").get() as { url: string; words: string | null } | undefined;
         if (!next) break;
         if (!this.claim(next.url)) continue;
-        await this.readOne(next.url, (next.words ?? '').split(' ').filter(Boolean));
+        await this.readGuarded(next.url, (next.words ?? '').split(' ').filter(Boolean));
       }
     } finally { this.running = false; }
   }

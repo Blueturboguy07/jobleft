@@ -23,7 +23,7 @@ export function webSearchToolFor(app: App, d: AppData): WebSearchTool {
     available: () => !app.cfg.offline && !!d.settings.get().webSearch?.url,
     async search(a, progress, signal) {
       const r = await d.webSearch({ q: a.query, ...(a.place ? { place: a.place } : {}) }, [a.query, a.place ?? ''].join(' ').trim(), signal,
-        (q) => progress(`Asking your search engine: ${q}`));
+        (q) => progress(`Asking your search engine: ${q}`), { deferReading: true });
       const pages = r.results.filter((x) => x.kind === 'board_job' || x.kind === 'page');
       progress(`${r.results.length} results: ${pages.length} job pages, ${r.boards.length} boards`);
       const byUrl = new Map(r.results.map((x) => [x.url, x]));
