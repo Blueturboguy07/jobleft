@@ -221,7 +221,7 @@ Status: Built by the server lane (`scripts/app-up.ts`, `scripts/app-down.ts`). T
 
 ## 6. Local API
 
-Code: `packages/contracts/src/api.ts` (`LOCAL_API`, 100 routes). Typed client: `createLocalApiClient()` in
+Code: `packages/contracts/src/api.ts` (`LOCAL_API`, 104 routes). Typed client: `createLocalApiClient()` in
 `@jobleft/contracts` (Built).
 
 ### 6.1 Security rules (every rule is a MUST)
@@ -356,6 +356,10 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `updateBoard` | PATCH | `/api/v1/boards/:boardId` | launch | boards | — | `{ followed?, hidden?, disabled? }` | `BoardEntry` | Follow, hide or disable a board |
 | `checkWebSearch` | POST | `/api/v1/websearch/check` | launch | server | — | `{ url? }` | `WebSearchCheck` | Test a SearXNG address (the given one, else the saved one) with one search |
 | `webSearchJobs` | POST | `/api/v1/websearch/jobs` | launch | server | — | `WebSearchRequest` | `WebSearchResponse` | Search the web for jobs through the saved SearXNG; the job pages found are then read in the background (once each) and kept as jobs of the source external:web |
+| `listWebSaved` | GET | `/api/v1/websearch/saved` | launch | server | — | — | `WebSavedSearch[]` | Saved web searches (they run by themselves and alert on new jobs) |
+| `addWebSaved` | POST | `/api/v1/websearch/saved` | launch | server | — | `WebSavedSearchInput` | `WebSavedSearch` | Save a web search (at most 10; 409 when the same one is saved) |
+| `updateWebSaved` | PATCH | `/api/v1/websearch/saved/:savedId` | launch | server | — | `{ everyHours }` | `WebSavedSearch` | How often a saved web search runs |
+| `deleteWebSaved` | DELETE | `/api/v1/websearch/saved/:savedId` | launch | server | — | — | `Ok` | Delete a saved web search (its jobs stay) |
 | `webReadStatus` | GET | `/api/v1/websearch/reading` | launch | server | — | — | `WebReadStatus` | How the background reading of web search results is going |
 | `exportBoards` | GET | `/api/v1/boards/export` | launch | boards | — | — | file | Download the directory and user boards (NDJSON) |
 | `listSources` | GET | `/api/v1/sources` | launch | sources-other | — | — | `SourceInfo[]` | Every source: crawled or not, why, status |

@@ -8,12 +8,16 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 import { HttpClient, Pacer, type Store } from '@jobleft/crawler';
+import { htmlToText } from '@jobleft/parsers';
 import { nowIso, type WebReadStatus, type WebSearchResult } from '@jobleft/contracts';
 import { ApiFailure } from '../errors.ts';
 import { knownJobFor, otherBoardJobOf, readJobLink, storeExternal } from './external.ts';
 
-/** What came of one address: a job (its id), closed, refused (robots.txt, never-contact) or failed (try later). */
-type State = 'queued' | 'job' | 'closed' | 'refused' | 'failed' | 'not_job';
+/**
+ * What came of one address: a new job (its id), a job jobleft already had (known), closed, not a job page, refused
+ * (robots.txt, never-contact) or failed (tried again a day later).
+ */
+type State = 'queued' | 'job' | 'known' | 'closed' | 'refused' | 'failed' | 'not_job' | 'off_topic';
 
 /** A failed read is tried again after this long; the other outcomes are final. */
 const RETRY_FAILED_MS = 24 * 3600_000;
@@ -24,6 +28,29 @@ const MAX_QUEUE = 300;
  * leaves the list this long after it was found (a search that finds it again keeps it).
  */
 export const WEB_JOB_DAYS = 30;
+
+const STOP = new Set(['and', 'or', 'the', 'a', 'an', 'of', 'for', 'in', 'at', 'to', 'with', 'en', 'de', 'het', 'een', 'van', 'voor', 'job', 'jobs', 'vacature', 'vacatures']);
+
+/** The words a job must mention to belong to a search ("SOC analyst" -> soc, analyst). */
+export function searchWords(q: string): string[] {
+  return [...new Set(q.toLowerCase().split(/[^\p{L}\p{N}+#]+/u).filter((w) => w.length >= 2 && !STOP.has(w)))].slice(0, 8);
+}
+
+/**
+ * true when the text mentions every search word: a word of up to three letters (SOC, IT, UX) as a whole word, one of
+ * four or five letters at the start of a word ("cyber" in "cybersecurity"), a longer one anywhere or by its first
+ * four letters ("analyst" finds the Dutch "analist"). The engines often answer with jobs that only share the site;
+ * this keeps the cards to the search.
+ */
+export function mentionsAll(text: string, words: string[]): boolean {
+  const t = text.toLowerCase();
+  const esc = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return words.every((w) => {
+    if (w.length <= 3) return new RegExp(`(^|[^\\p{L}\\p{N}])${esc(w)}($|[^\\p{L}\\p{N}])`, 'u').test(t);
+    if (w.length <= 5) return new RegExp(`(^|[^\\p{L}\\p{N}])${esc(w)}`, 'u').test(t);
+    return t.includes(w) || t.includes(w.slice(0, 4));
+  });
+}
 
 export interface WebReaderDeps {
   crawlStore: Store;
@@ -52,28 +79,30 @@ export class WebReader {
       message TEXT,
       query TEXT,
       found_at TEXT NOT NULL,
-      read_at TEXT
+      read_at TEXT,
+      words TEXT
     )`);
+    try { this.db.exec('ALTER TABLE srv_web_results ADD COLUMN words TEXT'); } catch { /* there already */ }
   }
 
   /**
    * Notes what is already known about each result (a job jobleft has, or one it found closed) and queues the job
    * pages it has not read. Returns the results with `jobId` filled in where known.
    */
-  enqueue(results: WebSearchResult[], query: string): WebSearchResult[] {
+  enqueue(results: WebSearchResult[], query: string, words: string[] = []): WebSearchResult[] {
     const now = nowIso();
     this.expire();
     const out: WebSearchResult[] = [];
     const get = this.db.prepare('SELECT state, job_id, message, read_at FROM srv_web_results WHERE url = ?');
-    const put = this.db.prepare(`INSERT INTO srv_web_results (url, state, query, found_at) VALUES (?, 'queued', ?, ?)
-      ON CONFLICT(url) DO UPDATE SET state = 'queued', query = excluded.query`);
+    const put = this.db.prepare(`INSERT INTO srv_web_results (url, state, query, found_at, words) VALUES (?, 'queued', ?, ?, ?)
+      ON CONFLICT(url) DO UPDATE SET state = 'queued', query = excluded.query, words = excluded.words`);
     const queued = (this.db.prepare("SELECT count(*) AS n FROM srv_web_results WHERE state = 'queued'").get() as { n: number }).n;
     let room = MAX_QUEUE - queued;
     for (const r of results) {
       if (r.kind !== 'board_job' && r.kind !== 'page') { out.push(r); continue; }
       if (r.jobId) { out.push(r); continue; }
       const row = get.get(r.url) as { state: State; job_id: string | null; message: string | null; read_at: string | null } | undefined;
-      if (row?.state === 'job' && row.job_id) {
+      if ((row?.state === 'job' || row?.state === 'known') && row.job_id) {
         // Found again: still listed somewhere, so it stays (its time starts again).
         this.db.prepare("UPDATE jobs SET last_seen = ? WHERE ats = 'external' AND board = 'web' AND job_id = ? AND closed_at IS NULL").run(now, row.job_id.split(':').slice(2).join(':'));
         out.push({ ...r, jobId: row.job_id });
@@ -81,7 +110,7 @@ export class WebReader {
       }
       if (row && row.state !== 'failed') { out.push({ ...r, note: row.state === 'queued' ? null : row.message }); continue; }
       if (row?.state === 'failed' && row.read_at && Date.parse(row.read_at) + RETRY_FAILED_MS > Date.now()) { out.push({ ...r, note: row.message }); continue; }
-      if (room-- > 0) put.run(r.url, query.slice(0, 300), now);
+      if (room-- > 0) put.run(r.url, query.slice(0, 300), now, words.join(' '));
       out.push(r);
     }
     void this.run();
@@ -112,24 +141,28 @@ export class WebReader {
       for (;;) {
         if (this.stopped || this.d.offline()) break;
         if (this.d.crawling()) { await sleep(2000); continue; }
-        const next = this.db.prepare("SELECT url, query FROM srv_web_results WHERE state = 'queued' ORDER BY found_at, rowid LIMIT 1").get() as { url: string; query: string } | undefined;
+        const next = this.db.prepare("SELECT url, words FROM srv_web_results WHERE state = 'queued' ORDER BY found_at, rowid LIMIT 1").get() as { url: string; words: string | null } | undefined;
         if (!next) break;
-        await this.readOne(next.url);
+        await this.readOne(next.url, (next.words ?? '').split(' ').filter(Boolean));
       }
     } finally { this.running = false; }
   }
 
-  private async readOne(url: string): Promise<void> {
+  private async readOne(url: string, words: string[]): Promise<void> {
     const set = (state: State, jobId: string | null, message: string | null) => this.db.prepare('UPDATE srv_web_results SET state = ?, job_id = ?, message = ?, read_at = ? WHERE url = ?').run(state, jobId, message, nowIso(), url);
     let u: URL;
     try { u = new URL(url); } catch { set('refused', null, 'Not a web address.'); return; }
     this.stats.read++;
     const known = knownJobFor(this.d.crawlStore, u);
-    if (known) { set('job', known, null); return; }
+    if (known) { set('known', known, null); return; }
     // A paged feed (Teamtailor, Workable) can take several requests for one board.
     const http = new HttpClient({ hostMap: this.d.hostMap, pacer: this.pacer, timeoutMs: 10_000, retries: 0, maxRequests: otherBoardJobOf(u) ? 12 : 3 });
     try {
       const raw = await readJobLink(u, { crawlStore: this.d.crawlStore }, http, { needPosting: true });
+      if (words.length && !mentionsAll(`${raw.title}\n${htmlToText(raw.descriptionHtml)}`, words)) {
+        set('off_topic', null, `The job does not mention all of: ${words.join(', ')}.`);
+        return;
+      }
       const id = storeExternal(this.d.crawlStore, raw, 'web');
       this.stats.added++;
       set('job', id, null);

@@ -74,6 +74,8 @@ test('web search: the address is saved, checked, and the results are sorted with
       R('https://www.linkedin.com/jobs/view/1', 'SOC Analyst - LinkedIn'),
       R('https://acme.wd3.myworkdayjobs.com/en-US/careers/job/1', 'SOC Analyst - Workday'),
       R('https://werken.example.nl/vacature/soc-analist', 'SOC-analist'),
+      R('https://support.teamtailor.com/en/articles/1-create-a-job', 'Create a job - Teamtailor Support'),
+      R('https://www.lever.co/blog/hiring', 'Hiring tips | Lever'),
       R('http://192.168.1.10/admin', 'router'),
     ], unresponsive_engines: [['google', 'CAPTCHA']] } };
     return { body: { results: [] } };
@@ -122,6 +124,7 @@ test('web search: the address is saved, checked, and the results are sorted with
     assert.equal((by.get('https://acme.wd3.myworkdayjobs.com/en-US/careers/job/1') as any).kind, 'never');
     assert.equal((by.get('https://werken.example.nl/vacature/soc-analist') as any).kind, 'page');
     assert.ok(!r.json.results.some((x: any) => x.url.includes('192.168.')), 'a local address is dropped');
+    assert.ok(!r.json.results.some((x: any) => /support\.teamtailor|lever\.co\/blog/.test(x.url)), 'a hiring system\'s own pages are dropped');
     assert.ok(!r.json.results.some((x: any) => x.url.includes('wikipedia')), 'a result off the site a search asked for is dropped');
     assert.deepEqual(r.json.unresponsive, ['google']);
     const boards = new Map(r.json.boards.map((b: any) => [b.boardId, b]));

@@ -254,6 +254,9 @@ export function looksLikeJobList(url: string, title: string): boolean {
   try { return LIST_PATH.test(new URL(url).pathname); } catch { return false; }
 }
 
+/** The domains of the systems jobleft reads (their own sites: help, blog, product pages). */
+const VENDOR = /(^|\.)(greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|recruitee\.com|personio\.(de|com)|teamtailor\.com|gem\.com)$/i;
+
 export interface SortDeps {
   crawlStore: Store;
   /** The board in the person's list, when it is there. */
@@ -283,6 +286,8 @@ export function sortResult(r: SearxResult, d: SortDeps): WebSearchResult | null 
   const known = sameUrl ? `${sameUrl.ats.toLowerCase()}:${sameUrl.board.toLowerCase()}:${sameUrl.job_id}` : null;
   // The board list's own detector first: it knows board names that the other one refuses ("mistral.ai" on Ashby).
   const own = detectBoardFromUrl(u.href);
+  // A hiring system's own site that is not an employer's board (its help pages, blog, home page): never a job.
+  if (own.kind === 'provider_home' || (!(c.verdict === 'crawlable' && c.detection?.board) && own.kind !== 'board' && VENDOR.test(u.hostname))) return null;
   const det = own.kind === 'board'
     ? { ats: own.found.ats, board: own.found.board, region: own.found.region, jobId: own.found.jobId }
     : c.verdict === 'crawlable' && c.detection?.board ? { ats: c.detection.ats as CrawlAtsId, board: c.detection.board, region: c.detection.region, jobId: c.detection.jobId } : null;

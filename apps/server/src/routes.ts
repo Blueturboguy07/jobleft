@@ -17,7 +17,7 @@ import { tmpName } from './home.ts';
 import type { FileBody } from './http/respond.ts';
 import { bodyToFile } from './http/body.ts';
 import { addExternal } from './interim/external.ts';
-import { SearxClient, checkSearx, normalizeSearxUrl, webSearchJobs } from './interim/websearch.ts';
+import { checkSearx, normalizeSearxUrl } from './interim/websearch.ts';
 import { detailOf } from './interim/jobs.ts';
 import { createAiRouteHandlers, type AiRouteHandlers } from '@jobleft/ai-engine';
 import { apiFailureOf } from './integ/engine.ts';
@@ -52,9 +52,6 @@ export type Out =
 
 export type Handler<K extends RouteName> = (c: Ctx<K>) => Out | Promise<Out>;
 export type HandlerTable = { [K in RouteName]: Handler<K> };
-
-/** One web search at a time: each one sends about ten searches through the person's SearXNG. */
-let webSearchBusy = false;
 
 /** Routes whose raw body the handler reads itself (streamed to disk). */
 export const STREAMED_BODY = new Set<RouteName>(['restore']);
@@ -322,19 +319,11 @@ export const HANDLERS: HandlerTable = {
     if (app.cfg.offline) throw new ApiFailure('offline', 'jobleft is set to work offline, so it did not ask SearXNG.');
     return { json: await checkSearx(url) };
   },
-  webSearchJobs: async ({ app, d, body, gone }) => {
-    const url = d.settings.get().webSearch?.url ?? null;
-    if (!url) throw new ApiFailure('not_ready', 'Web search is not set up. Add your SearXNG address in Settings > Web search.');
-    if (app.cfg.offline) throw new ApiFailure('offline', 'jobleft is set to work offline, so it did not search the web.');
-    if (webSearchBusy) throw new ApiFailure('conflict', 'A web search is already running. Wait for it to finish.');
-    webSearchBusy = true;
-    try {
-      const deps = { crawlStore: d.crawlStore, board: (id: string) => { const b = d.boards.get(id); return b ? { company: b.company, followed: b.followed } : null; } };
-      const found = await webSearchJobs(body, new SearxClient(url), deps, gone);
-      // The job pages found are read in the background, once each; what is already known fills in jobId now.
-      return { json: { ...found, results: d.webReader.enqueue(found.results, [body.q, body.place ?? ''].join(' ').trim()) } };
-    } finally { webSearchBusy = false; }
-  },
+  webSearchJobs: async ({ d, body, gone }) => ({ json: await d.webSearch(body, [body.q, body.place ?? ''].join(' ').trim(), gone) }),
+  listWebSaved: ({ d }) => ({ json: d.webSaved.list() }),
+  addWebSaved: ({ d, body }) => ({ json: d.webSaved.add(body) }),
+  updateWebSaved: ({ d, params, body }) => ({ json: d.webSaved.update(params.savedId!, body.everyHours) }),
+  deleteWebSaved: ({ d, params }) => { d.webSaved.remove(params.savedId!); return { json: { ok: true } }; },
   webReadStatus: ({ d }) => ({ json: d.webReader.status() }),
   exportBoards: ({ d }) => {
     const lines = d.boards.exportLines();

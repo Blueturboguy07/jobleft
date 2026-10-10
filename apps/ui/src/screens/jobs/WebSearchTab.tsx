@@ -5,9 +5,9 @@
 // LinkedIn and the other sites jobleft never opens) are one click away, for the browser.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Collapse, Drawer, Input, Segmented, Select, Tag } from 'antd';
-import { GlobalOutlined, LinkOutlined, PlusOutlined, SearchOutlined, UnorderedListOutlined } from '@ant-design/icons';
-import type { JobFilter, JobSort, WebReadStatus, WebSearchBoard, WebSearchRequest, WebSearchResponse, WebSearchResult } from '@jobleft/contracts';
+import { Alert, Button, Collapse, Drawer, Dropdown, Input, Segmented, Select, Tag, Tooltip } from 'antd';
+import { BellOutlined, DownOutlined, GlobalOutlined, LinkOutlined, PlusOutlined, SearchOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import type { JobFilter, JobSort, WebReadStatus, WebSavedSearch, WebSearchBoard, WebSearchRequest, WebSearchResponse, WebSearchResult } from '@jobleft/contracts';
 import { call, openExternal, type UiError } from '../../app/api.ts';
 import { invalidate, load as reload, useApi } from '../../app/data.ts';
 import { ui } from '../../app/layers.ts';
@@ -65,6 +65,12 @@ export function WebSearchTab() {
   const actions = useCardActions(ops);
   const profileSet = profileIsSet(p);
 
+  // Saved searches; a click on one fills the boxes, then searches (after the boxes are drawn with its words).
+  const saved = useApi<WebSavedSearch[]>('websearch:saved', () => call('listWebSaved'));
+  const pendingRun = useRef(false);
+  const searchRef = useRef<() => void>(() => undefined);
+  useEffect(() => { if (pendingRun.current) { pendingRun.current = false; searchRef.current(); } }, [q, place, range]);
+
   // The background reading: while it runs, the progress line and the cards follow it.
   const reading = useApi<WebReadStatus>('websearch:reading', () => call('webReadStatus'));
   const active = !!reading.data && (reading.data.running || reading.data.queued > 0);
@@ -91,6 +97,14 @@ export function WebSearchTab() {
     );
   }
 
+  const saveSearch = async () => {
+    try {
+      await call('addWebSaved', { body: { q: q.trim(), ...(place.trim() ? { place: place.trim() } : {}), everyHours: 24 } });
+      invalidate('websearch:saved');
+      ui.message?.success('Saved. jobleft runs this search every day while it runs and tells you about new jobs.');
+    } catch (e) { ui.message?.error((e as UiError).message); }
+  };
+  const runSaved = (x: WebSavedSearch) => { setQ(x.q); setPlace(x.place ?? ''); setRange('week'); pendingRun.current = true; };
   const request = (n: number): WebSearchRequest => ({ q: q.trim(), ...(place.trim() ? { place: place.trim() } : {}), ...(range !== 'any' ? { timeRange: range } : {}), ...(n > 1 ? { page: n } : {}) });
   const search = async () => {
     if (!q.trim()) return;
@@ -102,6 +116,7 @@ export function WebSearchTab() {
       void reload('websearch:reading');
     } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
+  searchRef.current = () => { void search(); };
   // The next page of the same searches: its job pages join the reading, its other results join the list.
   const more = async () => {
     if (!answer) return;
@@ -142,7 +157,11 @@ export function WebSearchTab() {
           <Select size="large" style={{ width: 140 }} value={range} onChange={setRange} aria-label="How recent"
             options={[{ value: 'week', label: 'Past week' }, { value: 'month', label: 'Past month' }, { value: 'year', label: 'Past year' }, { value: 'any', label: 'Any time' }]} />
           <Button size="large" type="primary" shape="round" htmlType="submit" loading={busy === 'search'} disabled={!q.trim() || !!busy}>Search the web</Button>
+          <Tooltip title="Run this search by itself every day and get an alert when it finds new jobs">
+            <Button size="large" shape="round" icon={<BellOutlined />} disabled={!q.trim()} onClick={() => { void saveSearch(); }}>Save search</Button>
+          </Tooltip>
         </form>
+        {!!saved.data?.length && <SavedChips list={saved.data} onRun={runSaved} />}
         <InlineError error={err} />
         {answer && (
           <div className="jl-row jl-wrap" style={{ gap: 8 }}>
@@ -166,6 +185,48 @@ export function WebSearchTab() {
       <Drawer open={showAll} onClose={() => setShowAll(false)} width={720} title={`All search results (${results.length})`}>
         <AllResults results={results} onAdded={(url, jobId) => update((a) => ({ ...a, results: a.results.map((x) => (x.url === url ? { ...x, jobId } : x)) }))} />
       </Drawer>
+    </div>
+  );
+}
+
+const EVERY_LABEL: Record<number, string> = { 12: 'every 12 hours', 24: 'every day', 0: 'by hand' };
+
+/** The saved searches: a click runs one; its menu changes how often it runs, or deletes it. */
+function SavedChips({ list, onRun }: { list: WebSavedSearch[]; onRun: (x: WebSavedSearch) => void }) {
+  const change = async (x: WebSavedSearch, key: string) => {
+    try {
+      if (key === 'delete') await call('deleteWebSaved', { params: { savedId: x.id } });
+      else await call('updateWebSaved', { params: { savedId: x.id }, body: { everyHours: Number(key) } });
+      invalidate('websearch:saved');
+    } catch (e) { ui.message?.error((e as UiError).message); }
+  };
+  return (
+    <div className="jl-row jl-wrap" style={{ gap: 6 }} aria-label="Saved web searches">
+      <span className="jl-small jl-muted"><BellOutlined aria-hidden="true" /> Saved:</span>
+      {list.map((x) => {
+        const name = x.place ? `${x.q} · ${x.place}` : x.q;
+        const tip = [`Runs ${EVERY_LABEL[x.everyHours] ?? `every ${x.everyHours} hours`}.`, x.lastRunAt ? `Last run ${ago(x.lastRunAt)}${x.lastNew !== null ? `: ${x.lastNew} new` : ''}.` : '', x.lastError ? `Last run failed: ${x.lastError}` : ''].filter(Boolean).join(' ');
+        return (
+          <span key={x.id} className="jl-row" style={{ gap: 0, border: `1px solid ${x.lastError ? 'var(--jl-error, #B3261E)' : 'var(--jl-line)'}`, borderRadius: 14 }}>
+            <Tooltip title={tip}>
+              <Button size="small" type="text" shape="round" onClick={() => onRun(x)} aria-label={`Run the saved search ${name}`}>
+                {name}{x.lastNew ? <Tag color="green" style={{ margin: '0 0 0 6px' }}>{x.lastNew} new</Tag> : null}
+              </Button>
+            </Tooltip>
+            <Dropdown trigger={['click']} menu={{
+              items: [
+                ...([['24', 'Run every day'], ['12', 'Run every 12 hours'], ['0', 'Only when I click it']] as const)
+                  .map(([key, label]) => ({ key, label: key === String(x.everyHours) ? `${label} ✓` : label })),
+                { type: 'divider' as const },
+                { key: 'delete', label: 'Delete', danger: true },
+              ],
+              onClick: ({ key }) => { void change(x, key); },
+            }}>
+              <Button size="small" type="text" shape="circle" icon={<DownOutlined />} aria-label={`Options for ${name}`} />
+            </Dropdown>
+          </span>
+        );
+      })}
     </div>
   );
 }

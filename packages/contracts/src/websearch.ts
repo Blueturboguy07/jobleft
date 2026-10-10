@@ -108,6 +108,31 @@ export const WebReadStatusSchema = named(obj({
   jobs: int({ minimum: 0 }),
 }), 'WebReadStatus');
 
+/**
+ * A saved web search: it runs by itself every `everyHours` hours (12 or 24; 0 = only by hand) while jobleft runs, asks for the
+ * past week, and the job pages it finds are read like any search's. An alert names the jobs that are new.
+ */
+export const WebSavedSearchSchema = named(obj({
+  id: IdSchema,
+  q: str({ minLength: 1, maxLength: 200 }),
+  place: nullable(str({ maxLength: 200 })),
+  everyHours: int({ minimum: 0, maximum: 24 }),
+  createdAt: IsoDateTimeSchema,
+  lastRunAt: nullable(IsoDateTimeSchema),
+  /** New jobs the last run found (after their pages were read). null until it ran and its pages were read. */
+  lastNew: nullable(int({ minimum: 0 })),
+  lastError: nullable(str()),
+}), 'WebSavedSearch');
+
+export const WebSavedSearchInputSchema = named(obj({
+  q: str({ minLength: 1, maxLength: 200 }),
+}, {
+  place: str({ maxLength: 200 }),
+  everyHours: int({ minimum: 0, maximum: 24 }),
+}), 'WebSavedSearchInput');
+
+export type WebSavedSearch = Infer<typeof WebSavedSearchSchema>;
+export type WebSavedSearchInput = Infer<typeof WebSavedSearchInputSchema>;
 export type WebReadStatus = Infer<typeof WebReadStatusSchema>;
 export type WebSearchCheck = Infer<typeof WebSearchCheckSchema>;
 export type WebSearchRequest = Infer<typeof WebSearchRequestSchema>;

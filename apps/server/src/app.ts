@@ -3,7 +3,8 @@
 
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { nowIso, nowMs, type SavedFilter } from '@jobleft/contracts';
+import { nowIso, nowMs, type SavedFilter, type WebSearchRequest, type WebSearchResponse } from '@jobleft/contracts';
+import { ApiFailure } from './errors.ts';
 import { Store } from '@jobleft/crawler';
 import { createStaticDataRoutes, PoliteFetch, type StaticDataRoutes } from '@jobleft/static-data';
 import { BoardDirectory, BoardService, SqlitePacer, boardSources, createBoardHttp, loadActiveDirectory } from '@jobleft/boards';
@@ -15,7 +16,9 @@ import { openAndMigrate } from './db/open.ts';
 import type { HomeLayout } from './home.ts';
 import { AiFacade } from './integ/engine.ts';
 import { buildAssistant } from './integ/assistant.ts';
-import { WebReader } from './interim/webreader.ts';
+import { WebReader, searchWords } from './interim/webreader.ts';
+import { WebSavedSearches } from './interim/websaved.ts';
+import { SearxClient, webSearchJobs } from './interim/websearch.ts';
 import type { Assistant } from '@jobleft/assistant';
 import { ResumeBridge } from './integ/resume.ts';
 import { BoardsService, boardIdOf } from './interim/boards.ts';
@@ -71,6 +74,10 @@ export class AppData {
   readonly boards: BoardsService;
   /** Reads the job pages web searches found, in the background (Jobs > Web search). */
   readonly webReader: WebReader;
+  /** Saved web searches: they run by themselves and alert on new jobs. */
+  readonly webSaved: WebSavedSearches;
+  /** One web search at a time (a person's or a saved one's): each sends four searches through SearXNG. */
+  private webSearchBusy = false;
   readonly feed: FeedService;
   readonly migrated: { from: number; to: number; fresh: boolean };
   private timers: NodeJS.Timeout[] = [];
@@ -120,6 +127,13 @@ export class AppData {
       crawlStore: this.crawlStore, hostMap: cfg.hostMap, offline, crawling: () => this.boards.status().running,
     });
     try { this.webReader.expire(); } catch { /* the next search tries again */ }
+    this.webSaved = new WebSavedSearches({
+      db: this.db, reader: this.webReader,
+      search: async (req, tag) => { await this.webSearch(req, tag); },
+      ready: () => !cfg.offline && !!this.settings.get().webSearch?.url && !this.webSearchBusy && !this.boards.status().running,
+      alertsOn: () => this.settings.get().notifications.alerts,
+      notify: (title, body, key) => { this.notifications.add({ kind: 'saved_filter_alert', title, body, target: '/jobs/web' }, key); },
+    });
     this.feed = new FeedService({
       db: this.db, jobs: this.jobs,
       profile: () => (this.profile.exists() ? this.profile.get() : null),
@@ -227,6 +241,23 @@ export class AppData {
     return this.assistantInstance;
   }
 
+  /**
+   * One web search through the saved SearXNG; the job pages it finds are queued for the web reader under `tag`
+   * (the search words, or a saved search's tag). Results that jobleft already knows come back with their job id.
+   */
+  async webSearch(req: WebSearchRequest, tag: string, signal?: AbortSignal): Promise<WebSearchResponse> {
+    const url = this.settings.get().webSearch?.url ?? null;
+    if (!url) throw new ApiFailure('not_ready', 'Web search is not set up. Add your SearXNG address in Settings > Web search.');
+    if (this.cfg.offline) throw new ApiFailure('offline', 'jobleft is set to work offline, so it did not search the web.');
+    if (this.webSearchBusy) throw new ApiFailure('conflict', 'A web search is already running. Wait for it to finish.');
+    this.webSearchBusy = true;
+    try {
+      const deps = { crawlStore: this.crawlStore, board: (id: string) => { const b = this.boards.get(id); return b ? { company: b.company, followed: b.followed } : null; } };
+      const found = await webSearchJobs(req, new SearxClient(url), deps, signal);
+      return { ...found, results: this.webReader.enqueue(found.results, tag, searchWords(req.q)) };
+    } finally { this.webSearchBusy = false; }
+  }
+
   /** Background work: reminders, follow-ups and the crawl scheduler. Never before the server answers. */
   startBackground(log: Logger): void {
     const tick = () => {
@@ -234,8 +265,10 @@ export class AppData {
     };
     const first = setTimeout(tick, 2000);
     const every = setInterval(tick, 30_000);
-    first.unref(); every.unref();
-    this.timers.push(first, every);
+    // Saved web searches: a look every 5 minutes (a run starts only when nothing else is busy).
+    const web = setInterval(() => { this.webSaved.tick().catch((e) => log.warn('websaved.failed', { error: e instanceof Error ? e.name : 'error' })); }, 5 * 60_000);
+    first.unref(); every.unref(); web.unref();
+    this.timers.push(first, every, web);
     this.boards.start();
   }
 
