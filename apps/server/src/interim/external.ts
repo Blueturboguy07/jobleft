@@ -6,6 +6,8 @@
 import { createHash } from 'node:crypto';
 import { htmlToText } from '@jobleft/parsers';
 import { isNeverHost } from '@jobleft/extension';
+import { detectBoardFromUrl } from '@jobleft/boards';
+import { ATS_SOURCES, detectAts } from '@jobleft/sources-ats';
 import {
   DeniedHostError, HttpClient, HttpError, NotFoundError, NotJobDataError, RobotsError, arr, canonicalizeUrl, isLocalName, isPrivateAddress, mapAshby,
   mapGreenhouse, mapLever, normalizeJob, obj, str, type BoardRef, type Job as CrawledJob, type RawJob, type RawPay, type Store,
@@ -14,7 +16,7 @@ import { nowIso } from '@jobleft/contracts';
 import { ApiFailure } from '../errors.ts';
 import { NO_LINK_HOST } from './jobs.ts';
 
-const NEVER = /(^|\.)(linkedin\.com|licdn\.com|indeed\.com|glassdoor\.com|smartrecruiters\.com|myworkdayjobs\.com|myworkdaysite\.com|workday\.com|icims\.com|taleo\.net|oraclecloud\.com|ultipro\.com|ukg\.com)$/i;
+export const NEVER = /(^|\.)(linkedin\.com|licdn\.com|indeed\.com|glassdoor\.com|smartrecruiters\.com|myworkdayjobs\.com|myworkdaysite\.com|workday\.com|icims\.com|taleo\.net|oraclecloud\.com|ultipro\.com|ukg\.com)$/i;
 
 const hash16 = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 16);
 
@@ -59,6 +61,36 @@ async function readBoardJob(http: HttpClient, j: BoardJob, company: string): Pro
   const list = arr(obj(await http.getJson(`https://api.ashbyhq.com/posting-api/job-board/${b}?includeCompensation=true`)).jobs).map(obj);
   const one = list.find((x) => str(x.id) === j.id);
   return one ? mapAshby(one, ref) : null;
+}
+
+/** A job on one of the other systems jobleft reads (Workable, Recruitee, Personio, Teamtailor, Gem), named by its link. */
+export interface OtherBoardJob { ats: 'workable' | 'recruitee' | 'personio' | 'teamtailor' | 'gem'; board: string; region: string | null; jobId: string }
+
+const OTHER = new Set(['workable', 'recruitee', 'personio', 'teamtailor', 'gem']);
+
+export function otherBoardJobOf(link: URL): OtherBoardJob | null {
+  const own = detectBoardFromUrl(link.href);
+  if (own.kind === 'board' && own.found.jobId && OTHER.has(own.found.ats)) {
+    return { ats: own.found.ats as OtherBoardJob['ats'], board: own.found.board, region: own.found.region, jobId: own.found.jobId };
+  }
+  const d = detectAts(link.href);
+  if (d && d.crawlable && d.board && d.jobId && OTHER.has(d.ats)) return { ats: d.ats as OtherBoardJob['ats'], board: d.board.toLowerCase(), region: d.region, jobId: d.jobId };
+  return null;
+}
+
+/**
+ * Reads the whole board through its public feed (the one the crawler reads) and picks the job the link names: by
+ * the system's job id, else by the job's own address. Null when the board does not list it.
+ */
+async function readOtherBoardJob(http: HttpClient, j: OtherBoardJob, link: URL, company: string): Promise<RawJob | null> {
+  const ref: BoardRef = { ats: j.ats, board: j.board, company, ...(j.region ? { region: j.region } : {}) } as BoardRef;
+  const jobs = await ATS_SOURCES[j.ats]!.fetchBoard(ref, http);
+  const id = j.jobId.toLowerCase();
+  const path = (u: string) => { try { return new URL(u).pathname.replace(/\/+$/, '').toLowerCase(); } catch { return ''; } };
+  const want = path(link.href);
+  return jobs.find((r) => String(r.externalId ?? '').toLowerCase() === id)
+    ?? jobs.find((r) => r.url && (path(r.url) === want || path(r.url).endsWith(`/${id}`) || want.startsWith(`${path(r.url)}/`)))
+    ?? null;
 }
 
 /** An address on this computer or the local network (JL-feed-13): never read, whatever the person pasted. */
@@ -249,7 +281,7 @@ export interface ExternalDeps {
 }
 
 /** The contract id of a stored job, or null. */
-function storedId(store: Store, ats: string, board: string, jobId: string): string | null {
+export function storedId(store: Store, ats: string, board: string, jobId: string): string | null {
   const r = store.db.prepare('SELECT ats, board, job_id FROM jobs WHERE lower(ats) = ? AND lower(board) = ? AND job_id = ? LIMIT 1')
     .get(ats.toLowerCase(), board.toLowerCase(), jobId) as { ats: string; board: string; job_id: string } | undefined;
   return r ? `${r.ats.toLowerCase()}:${r.board.toLowerCase()}:${r.job_id}` : null;
@@ -282,8 +314,24 @@ export async function addExternal(req: { url?: string; text?: string; applyUrl?:
     const same = canonical ? d.crawlStore.db.prepare('SELECT ats, board, job_id FROM jobs WHERE canonical_url = ? ORDER BY closed_at IS NOT NULL, id LIMIT 1').get(canonical) as { ats: string; board: string; job_id: string } | undefined : undefined;
     if (same) return `${same.ats.toLowerCase()}:${same.board.toLowerCase()}:${same.job_id}`;
     if (d.offline()) throw new ApiFailure('offline', 'jobleft is set to work offline, so the link was not read. Paste the job text instead.');
-    const http = new HttpClient({ hostMap: d.hostMap, timeoutMs: 10_000, retries: 0, maxRequests: 3 });
-    if (bj) {
+    const other = bj ? null : otherBoardJobOf(u);
+    // A paged feed (Teamtailor, Workable) can take several requests for one board.
+    const http = new HttpClient({ hostMap: d.hostMap, timeoutMs: 10_000, retries: 0, maxRequests: other ? 12 : 3 });
+    let fromBoard: RawJob | null = null;
+    let boardRead = false;
+    if (other) {
+      // Workable, Recruitee, Personio, Teamtailor and Gem: the board's own feed has the job's facts, while its page
+      // may carry no JobPosting record. If the feed cannot be read, the page is read as before.
+      const row = d.crawlStore.db.prepare('SELECT company FROM boards WHERE lower(ats) = ? AND lower(board) = ?').get(other.ats, other.board) as { company: string | null } | undefined;
+      try { fromBoard = await readOtherBoardJob(http, other, u, row?.company || ''); boardRead = true; } catch (e) {
+        if (e instanceof DeniedHostError || e instanceof RobotsError) throw readFailure(e, 'job');
+      }
+      // The board answered and does not list the job: it closed (search engines show jobs for a while after that).
+      if (boardRead && !fromBoard) throw new ApiFailure('not_found', `jobleft read the ${row?.company || other.board} job board, and this job is not on it any more: it has probably closed. Search results and old links can show a job for a while after it closes.`);
+    }
+    if (fromBoard && fromBoard.title) {
+      raw = { ...fromBoard, externalId: hash16(canonical || req.url), url: req.url, company: fromBoard.company || other!.board };
+    } else if (bj) {
       // JL-feed-15: a board's job page redirects (boards.greenhouse.io -> job-boards.greenhouse.io); its public job
       // API answers directly, with the same facts the crawler reads.
       const row = d.crawlStore.db.prepare('SELECT company FROM boards WHERE lower(ats) = ? AND lower(board) = ?').get(bj.ats, bj.board.toLowerCase()) as { company: string | null } | undefined;
