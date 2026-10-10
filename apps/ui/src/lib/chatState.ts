@@ -5,11 +5,24 @@
 
 import type { ActionProposal, ChatStreamEvent, ChatThread } from '@jobleft/contracts';
 
+/** A tool the assistant used while answering (searching the web, reading a job), as the chat shows it. */
+export interface ToolActivity {
+  id: string;
+  name: string;
+  state: 'running' | 'done' | 'failed';
+  label: string;
+  steps: string[];
+  sources: Array<{ title: string; url: string }>;
+  summary: string | null;
+}
+
 export interface ChatMsg {
   role: 'user' | 'assistant';
   content: string;
   incomplete?: boolean;
   costMicros?: number | null;
+  /** The tools this answer used, in the order they started. */
+  tools?: ToolActivity[];
 }
 
 export interface ChatView {
@@ -46,14 +59,26 @@ export function onStreamEvent(v: ChatView, ev: ChatStreamEvent): ChatView {
     case 'delta': return { ...v, msgs: patchLast(v.msgs, (m) => ({ ...m, content: m.content + ev.text })) };
     case 'proposal': return v.proposals.some((p) => p.id === ev.proposal.id) ? v : { ...v, proposals: [...v.proposals, ev.proposal] };
     case 'done': return { ...v, msgs: patchLast(v.msgs, (m) => ({ ...m, incomplete: ev.incomplete, costMicros: ev.costMicros })) };
+    case 'tool': return { ...v, msgs: patchLast(v.msgs, (m) => ({ ...m, tools: upsertTool(m.tools ?? [], ev) })) };
     case 'error': return dropEmptyAnswer(v);
     default: return v;
   }
 }
 
-/** After a failure: an answer that never got text is not kept. */
+/** A tool event: a new tool joins the list; a later event of the same tool replaces what it said before. */
+function upsertTool(list: ToolActivity[], ev: Extract<ChatStreamEvent, { type: 'tool' }>): ToolActivity[] {
+  const prev = list.find((t) => t.id === ev.id);
+  const next: ToolActivity = {
+    id: ev.id, name: ev.name, state: ev.state, label: ev.label,
+    steps: ev.steps ?? prev?.steps ?? [], sources: ev.sources ?? prev?.sources ?? [], summary: ev.summary ?? prev?.summary ?? null,
+  };
+  return prev ? list.map((t) => (t.id === ev.id ? next : t)) : [...list, next];
+}
+
+/** After a failure: an answer that never got text is not kept. An answer that used tools keeps them on screen. */
 export function dropEmptyAnswer(v: ChatView): ChatView {
-  return v.msgs.at(-1)?.role === 'assistant' && v.msgs.at(-1)?.content === '' ? { ...v, msgs: v.msgs.slice(0, -1) } : v;
+  const last = v.msgs.at(-1);
+  return last?.role === 'assistant' && last.content === '' && !last.tools?.length ? { ...v, msgs: v.msgs.slice(0, -1) } : v;
 }
 
 /** The proposal is decided: it leaves the screen (the server no longer offers it either). */

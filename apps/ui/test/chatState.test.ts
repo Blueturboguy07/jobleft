@@ -52,3 +52,23 @@ test('JL-network-17: the Assistant screen keeps the same chat when a new convers
   assert.equal(fresh.key, 2, 'New conversation starts a fresh chat');
   assert.equal(chatKeyFor(fresh, null), fresh);
 });
+
+test('tool steps: a tool joins the answer when it starts, its later events replace what it said, and it stays after a failure', () => {
+  let v = startTurn(EMPTY_CHAT, 'find SOC traineeships in Utrecht');
+  v = onStreamEvent(v, { type: 'tool', id: 't1', name: 'web_search', state: 'running', label: 'Searching the web: SOC traineeship, Utrecht' });
+  v = onStreamEvent(v, { type: 'tool', id: 't1', name: 'web_search', state: 'running', label: 'Searching the web: SOC traineeship, Utrecht', steps: ['Asking your search engine: SOC traineeship Utrecht'], sources: [] });
+  v = onStreamEvent(v, { type: 'tool', id: 't1', name: 'web_search', state: 'running', label: 'Searching the web: SOC traineeship, Utrecht', steps: ['Asking your search engine: SOC traineeship Utrecht', 'acme.recruitee.com: a new job'], sources: [{ title: 'SOC trainee', url: 'https://acme.recruitee.com/o/soc-trainee' }] });
+  let t = v.msgs.at(-1)!.tools!;
+  assert.equal(t.length, 1);
+  assert.equal(t[0]!.steps.length, 2);
+  assert.equal(t[0]!.sources[0]!.url, 'https://acme.recruitee.com/o/soc-trainee');
+  v = onStreamEvent(v, { type: 'tool', id: 't1', name: 'web_search', state: 'done', label: 'Searching the web: SOC traineeship, Utrecht', steps: ['a', 'b', 'c'], sources: [], summary: '1 job found · 1 page read' });
+  v = onStreamEvent(v, { type: 'tool', id: 't2', name: 'get_job', state: 'running', label: 'Reading a job' });
+  t = v.msgs.at(-1)!.tools!;
+  assert.deepEqual(t.map((x) => [x.id, x.state]), [['t1', 'done'], ['t2', 'running']]);
+  assert.equal(t[0]!.summary, '1 job found · 1 page read');
+  // The answer failed before any text: the steps it took stay on screen.
+  v = onStreamEvent(v, { type: 'error', error: { code: 'provider_error', message: 'x' } } as never);
+  assert.equal(v.msgs.at(-1)!.role, 'assistant');
+  assert.equal(v.msgs.at(-1)!.tools!.length, 2);
+});

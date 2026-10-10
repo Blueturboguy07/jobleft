@@ -17,7 +17,7 @@ import { knownJobFor, otherBoardJobOf, readJobLink, storeExternal } from './exte
  * What came of one address: a new job (its id), a job jobleft already had (known), closed, not a job page, refused
  * (robots.txt, never-contact) or failed (tried again a day later).
  */
-type State = 'queued' | 'job' | 'known' | 'closed' | 'refused' | 'failed' | 'not_job' | 'off_topic';
+type State = 'queued' | 'reading' | 'job' | 'known' | 'closed' | 'refused' | 'failed' | 'not_job' | 'off_topic';
 
 /** A failed read is tried again after this long; the other outcomes are final. */
 const RETRY_FAILED_MS = 24 * 3600_000;
@@ -83,6 +83,8 @@ export class WebReader {
       words TEXT
     )`);
     try { this.db.exec('ALTER TABLE srv_web_results ADD COLUMN words TEXT'); } catch { /* there already */ }
+    // A read cut short by a quit is read again.
+    this.db.exec("UPDATE srv_web_results SET state = 'queued' WHERE state = 'reading'");
   }
 
   /**
@@ -128,10 +130,40 @@ export class WebReader {
 
   status(): WebReadStatus {
     const n = (s: State) => (this.db.prepare('SELECT count(*) AS n FROM srv_web_results WHERE state = ?').get(s) as { n: number }).n;
-    return { running: this.running, queued: n('queued'), ...this.stats, jobs: n('job') };
+    return { running: this.running, queued: n('queued') + n('reading'), ...this.stats, jobs: n('job') };
   }
 
   stop(): void { this.stopped = true; }
+
+  /** Takes a queued address for one reader: false when another reader has it already. */
+  private claim(url: string): boolean {
+    return Number(this.db.prepare("UPDATE srv_web_results SET state = 'reading' WHERE url = ? AND state = 'queued'").run(url).changes) === 1;
+  }
+
+  /**
+   * Reads these queued addresses now, in this order (the assistant's web search waits for them), and says what came
+   * of each. While the boards are being refreshed nothing is read: they stay queued for later.
+   */
+  async readNow(urls: string[], onEach: (url: string, state: string, jobId: string | null) => void): Promise<number> {
+    let read = 0;
+    for (const url of urls) {
+      if (this.stopped || this.d.offline() || this.d.crawling()) break;
+      const row = this.db.prepare('SELECT words FROM srv_web_results WHERE url = ?').get(url) as { words: string | null } | undefined;
+      if (!row || !this.claim(url)) continue;
+      await this.readOne(url, (row.words ?? '').split(' ').filter(Boolean));
+      read++;
+      const after = this.db.prepare('SELECT state, job_id FROM srv_web_results WHERE url = ?').get(url) as { state: string; job_id: string | null };
+      onEach(url, after.state, after.job_id);
+    }
+    void this.run();
+    return read;
+  }
+
+  /** What came of an address, if it was read. */
+  outcome(url: string): { state: string; jobId: string | null } | null {
+    const r = this.db.prepare('SELECT state, job_id FROM srv_web_results WHERE url = ?').get(url) as { state: string; job_id: string | null } | undefined;
+    return r ? { state: r.state, jobId: r.job_id } : null;
+  }
 
   private async run(): Promise<void> {
     if (this.running || this.stopped) return;
@@ -143,6 +175,7 @@ export class WebReader {
         if (this.d.crawling()) { await sleep(2000); continue; }
         const next = this.db.prepare("SELECT url, words FROM srv_web_results WHERE state = 'queued' ORDER BY found_at, rowid LIMIT 1").get() as { url: string; words: string | null } | undefined;
         if (!next) break;
+        if (!this.claim(next.url)) continue;
         await this.readOne(next.url, (next.words ?? '').split(' ').filter(Boolean));
       }
     } finally { this.running = false; }

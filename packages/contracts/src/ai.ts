@@ -194,6 +194,17 @@ export const ChatStreamEventSchema = named(union([
     reason: str(),
   }),
   obj({ type: lit('error'), error: StreamErrorSchema }),
+  /**
+   * A tool the assistant uses, as it happens (added by the web search lane): sent when it starts, with each step
+   * while it works (the whole list so far), and once more when it is done or failed. The chat shows it as a step
+   * the person can open. Data only: the model's own text never arrives this way.
+   */
+  obj({ type: lit('tool'), id: IdSchema, name: str(), state: enm(['running', 'done', 'failed']), label: str() }, {
+    steps: arr(str()),
+    sources: arr(obj({ title: str(), url: HttpUrlSchema })),
+    /** One line about the result, when done ("8 jobs found"), or what went wrong. */
+    summary: str(),
+  }),
 ]), 'ChatStreamEvent');
 
 export type AiProviderKind = Infer<typeof AiProviderKindSchema>;

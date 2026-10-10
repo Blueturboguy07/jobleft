@@ -8,6 +8,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { App, AppData } from '../app.ts';
 import { ApiFailure } from '../errors.ts';
 import { apiFailureOf } from './engine.ts';
+import { webSearchToolFor } from './webassist.ts';
 import { HANDLERS, type Ctx, type Out } from '../routes.ts';
 
 type DataApi = ConstructorParameters<typeof Assistant>[0]['api'];
@@ -55,7 +56,7 @@ export function inProcessApi(app: App, d: AppData): DataApi {
 /** Builds the assistant once for a data folder. Its tables (owner "ai-engine") live in the app database. */
 export function buildAssistant(app: App, d: AppData, db: DatabaseSync): Assistant {
   migrateAssistant(db);
-  return new Assistant({ engine: d.ai.engine, api: inProcessApi(app, d), db, env: app.cfg.env ?? process.env });
+  return new Assistant({ engine: d.ai.engine, api: inProcessApi(app, d), db, env: app.cfg.env ?? process.env, web: webSearchToolFor(app, d) });
 }
 
 /** Serves one assistant route through the assistant's own handler, turned into the server's answer. */

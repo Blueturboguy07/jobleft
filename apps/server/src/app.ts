@@ -245,7 +245,7 @@ export class AppData {
    * One web search through the saved SearXNG; the job pages it finds are queued for the web reader under `tag`
    * (the search words, or a saved search's tag). Results that jobleft already knows come back with their job id.
    */
-  async webSearch(req: WebSearchRequest, tag: string, signal?: AbortSignal): Promise<WebSearchResponse> {
+  async webSearch(req: WebSearchRequest, tag: string, signal?: AbortSignal, onQuery?: (q: string) => void): Promise<WebSearchResponse> {
     const url = this.settings.get().webSearch?.url ?? null;
     if (!url) throw new ApiFailure('not_ready', 'Web search is not set up. Add your SearXNG address in Settings > Web search.');
     if (this.cfg.offline) throw new ApiFailure('offline', 'jobleft is set to work offline, so it did not search the web.');
@@ -253,7 +253,7 @@ export class AppData {
     this.webSearchBusy = true;
     try {
       const deps = { crawlStore: this.crawlStore, board: (id: string) => { const b = this.boards.get(id); return b ? { company: b.company, followed: b.followed } : null; } };
-      const found = await webSearchJobs(req, new SearxClient(url), deps, signal);
+      const found = await webSearchJobs(req, new SearxClient(url), deps, signal, onQuery);
       return { ...found, results: this.webReader.enqueue(found.results, tag, searchWords(req.q)) };
     } finally { this.webSearchBusy = false; }
   }

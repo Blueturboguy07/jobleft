@@ -1,7 +1,7 @@
 // Test helpers: an assistant on an in-memory database, the stand-in world, an engine on memory stores, and stand-in servers.
 import { AiEngine, kvSettingsStore, memoryKvStore, memorySecretStore } from '@jobleft/ai-engine';
 import type { ChatRequest, ChatStreamEvent } from '@jobleft/contracts';
-import { Assistant, openAssistantDb } from '../src/index.ts';
+import { Assistant, openAssistantDb, type WebSearchTool } from '../src/index.ts';
 import { startScriptedModel, type Script, type ScriptedModelServer } from '../src/mock/scripted-model.ts';
 import { World } from '../src/standin/world.ts';
 import { demoData, scenarioExtras } from '../src/standin/persona.ts';
@@ -15,7 +15,7 @@ export interface Rig {
   close(): Promise<void>;
 }
 
-export async function makeRig(opts: { script?: Script; extras?: boolean; env?: Record<string, string | undefined>; publikBaseUrl?: string; fetchImpl?: typeof fetch } = {}): Promise<Rig> {
+export async function makeRig(opts: { script?: Script; extras?: boolean; env?: Record<string, string | undefined>; publikBaseUrl?: string; fetchImpl?: typeof fetch; web?: WebSearchTool | null } = {}): Promise<Rig> {
   const model = await startScriptedModel({ script: opts.script });
   const kv = memoryKvStore();
   const engine = new AiEngine({
@@ -28,7 +28,7 @@ export async function makeRig(opts: { script?: Script; extras?: boolean; env?: R
   if (opts.extras) { const x = scenarioExtras(); seed.jobs.push(...x.jobs); seed.tracker.push(...x.tracker); }
   const world = new World(seed, null);
   const db = openAssistantDb(':memory:');
-  const assistant = new Assistant({ engine, api: world.asApi(), db, env: { JOBLEFT_TZ: 'America/Chicago' }, fetchImpl: opts.fetchImpl });
+  const assistant = new Assistant({ engine, api: world.asApi(), db, env: { JOBLEFT_TZ: 'America/Chicago' }, fetchImpl: opts.fetchImpl, web: opts.web ?? null });
   return { assistant, world, engine, model, close: () => model.close() };
 }
 

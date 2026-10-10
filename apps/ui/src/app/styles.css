@@ -247,6 +247,32 @@ a { color: var(--jl-accent-ink); }
 .jl-bubble.assistant { background: var(--jl-input); align-self: flex-start; }
 .jl-bubble.user { background: #000; color: #fff; align-self: flex-end; }
 .jl-chat-input { border-top: 1px solid var(--jl-line); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+/* the assistant's tool steps (web search, reading a job): live while they run */
+.jl-tools { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; white-space: normal; }
+.jl-tool { border-radius: 10px; background: rgba(255,255,255,0.65); border: 1px solid var(--jl-line); animation: jl-tool-in 220ms ease-out; }
+.jl-tool.failed { border-color: #E8B4B0; }
+.jl-tool-head { width: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: none; border: 0; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.jl-tool-head:disabled { cursor: default; }
+.jl-tool-icon { flex: 0 0 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; font-size: 11px; }
+.jl-tool.done .jl-tool-icon { background: #0A8F5C; color: #fff; animation: jl-tool-pop 260ms ease-out; }
+.jl-tool.failed .jl-tool-icon { background: #B3261E; color: #fff; }
+.jl-tool-dot { width: 8px; height: 8px; border-radius: 4px; background: #0A8F5C; animation: jl-tool-pulse 1.1s ease-in-out infinite; }
+.jl-tool-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.jl-tool-label { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jl-tool-now { font-size: 12px; color: var(--jl-text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; animation: jl-tool-in 200ms ease-out; }
+.jl-tool-chev { font-size: 10px; color: var(--jl-text3); transition: transform 160ms ease; }
+.jl-tool-chev.open { transform: rotate(90deg); }
+.jl-tool-body { padding: 0 10px 8px 36px; display: flex; flex-direction: column; gap: 6px; }
+.jl-tool-steps { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
+.jl-tool-step { font-size: 12px; color: var(--jl-text2); animation: jl-tool-in 240ms ease-out; overflow-wrap: anywhere; }
+.jl-tool-sources { display: flex; flex-wrap: wrap; gap: 4px; }
+.jl-tool-source { font-size: 11px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 8px; border-radius: 10px; background: var(--jl-accent-tint, #E6F4EE); color: var(--jl-accent-ink, #03603F); text-decoration: none; animation: jl-tool-in 240ms ease-out; }
+.jl-shimmer { background: linear-gradient(90deg, var(--jl-text) 0%, var(--jl-text) 40%, var(--jl-text3, #8a8a8a) 50%, var(--jl-text) 60%, var(--jl-text) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: jl-shimmer 1.6s linear infinite; }
+@keyframes jl-tool-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+@keyframes jl-tool-pulse { 0%, 100% { transform: scale(0.7); opacity: 0.5; } 50% { transform: scale(1.15); opacity: 1; } }
+@keyframes jl-tool-pop { from { transform: scale(0.4); } to { transform: scale(1); } }
+@keyframes jl-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .jl-tool, .jl-tool-now, .jl-tool-step, .jl-tool-source, .jl-tool.done .jl-tool-icon { animation: none; } .jl-tool-dot { animation: none; } .jl-shimmer { animation: none; color: inherit; background: none; } }
 .jl-provider-note { font-size: 12px; color: var(--jl-text2); display: flex; align-items: center; gap: 6px; }
 
 /* resume */

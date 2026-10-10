@@ -303,7 +303,7 @@ export function sortResult(r: SearxResult, d: SortDeps): WebSearchResult | null 
 }
 
 /** Runs the planned searches, then sorts, de-duplicates and counts the boards. */
-export async function webSearchJobs(req: WebSearchRequest, client: SearxClient, d: SortDeps, signal?: AbortSignal): Promise<WebSearchResponse> {
+export async function webSearchJobs(req: WebSearchRequest, client: SearxClient, d: SortDeps, signal?: AbortSignal, onQuery?: (q: string) => void): Promise<WebSearchResponse> {
   const queries = planQueries(req);
   const seen = new Set<string>();
   const results: WebSearchResult[] = [];
@@ -314,6 +314,7 @@ export async function webSearchJobs(req: WebSearchRequest, client: SearxClient, 
   for (const pq of queries) {
     if (signal?.aborted) break;
     let a: SearxAnswer;
+    onQuery?.(pq.q);
     try { a = await client.search(pq.q, { timeRange: req.timeRange, page: req.page, signal }); } catch (e) {
       if (!(e instanceof SearxError)) throw e;
       failed++;
