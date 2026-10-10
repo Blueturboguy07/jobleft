@@ -94,6 +94,21 @@ export const WebSearchResponseSchema = named(obj({
   message: str(),
 }), 'WebSearchResponse');
 
+/** The background reading of web search results (each job page is read once and becomes a job card). */
+export const WebReadStatusSchema = named(obj({
+  running: bool(),
+  /** Addresses waiting to be read. */
+  queued: int({ minimum: 0 }),
+  /** Since jobleft started: addresses read, jobs added, jobs found closed, reads that failed. */
+  read: int({ minimum: 0 }),
+  added: int({ minimum: 0 }),
+  closed: int({ minimum: 0 }),
+  failed: int({ minimum: 0 }),
+  /** Every job web search has found and kept. */
+  jobs: int({ minimum: 0 }),
+}), 'WebReadStatus');
+
+export type WebReadStatus = Infer<typeof WebReadStatusSchema>;
 export type WebSearchCheck = Infer<typeof WebSearchCheckSchema>;
 export type WebSearchRequest = Infer<typeof WebSearchRequestSchema>;
 export type WebSearchKind = Infer<typeof WebSearchKindSchema>;

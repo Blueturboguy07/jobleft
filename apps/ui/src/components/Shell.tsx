@@ -90,11 +90,12 @@ function JobsTabs({ tab }: { tab: string | null }) {
   const c = counts.data;
   const tabs = [
     { id: 'recommended', label: 'Recommended', to: '#/jobs', n: null },
+    // Jobs found all over the web through the person's own SearXNG (Settings > Web search).
+    { id: 'web', label: 'Web jobs', to: '#/jobs/web', n: null },
     { id: 'liked', label: 'Liked', to: '#/jobs/liked', n: c?.liked ?? null },
     // Every application, whatever its stage: "Applications", so it never reads as the Tracker's "Applied" column (JL-tracker-23).
     { id: 'applied', label: 'Applications', to: '#/jobs/applied', n: c?.applied ?? null },
     { id: 'external', label: 'External', to: '#/jobs/external', n: c?.external ?? null },
-    { id: 'web', label: 'Web search', to: '#/jobs/web', n: null },
   ];
   return (
     <nav className="jl-topbar-tabs" aria-label="Job lists">

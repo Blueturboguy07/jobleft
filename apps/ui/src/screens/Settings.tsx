@@ -385,13 +385,22 @@ function WebSearchTab() {
           <li>jobleft never opens LinkedIn, Indeed, Glassdoor or Workday pages, even when a search finds them. You can open them in your browser.</li>
         </ul>
       </Panel>
-      <Panel title="Setting up SearXNG" desc="SearXNG runs on your computer, for example with Docker. It must answer in JSON:">
+      <Panel title="Setting up SearXNG" desc="SearXNG runs on your computer, for example with Docker. It must answer in JSON, and it needs search engines that keep to &quot;site:&quot;, which jobleft's searches use:">
         <pre className="jl-small" style={{ margin: 0, padding: 12, background: 'var(--jl-input)', borderRadius: 8, overflowX: 'auto' }}>{`# settings.yml
 use_default_settings: true
 server:
   limiter: false        # only you use it
 search:
-  formats: [html, json] # jobleft reads json`}</pre>
+  formats: [html, json] # jobleft reads json
+engines:                # these keep to site: (tested October 2026)
+  - name: resulthunter
+    disabled: false
+  - name: yahoo
+    disabled: false
+  - name: privacywall
+    disabled: false
+  - name: google cse
+    disabled: false`}</pre>
       </Panel>
     </div>
   );

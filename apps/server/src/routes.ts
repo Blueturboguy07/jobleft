@@ -330,9 +330,12 @@ export const HANDLERS: HandlerTable = {
     webSearchBusy = true;
     try {
       const deps = { crawlStore: d.crawlStore, board: (id: string) => { const b = d.boards.get(id); return b ? { company: b.company, followed: b.followed } : null; } };
-      return { json: await webSearchJobs(body, new SearxClient(url), deps, gone) };
+      const found = await webSearchJobs(body, new SearxClient(url), deps, gone);
+      // The job pages found are read in the background, once each; what is already known fills in jobId now.
+      return { json: { ...found, results: d.webReader.enqueue(found.results, [body.q, body.place ?? ''].join(' ').trim()) } };
     } finally { webSearchBusy = false; }
   },
+  webReadStatus: ({ d }) => ({ json: d.webReader.status() }),
   exportBoards: ({ d }) => {
     const lines = d.boards.exportLines();
     return { file: { fileName: `jobleft-boards-${today()}.ndjson`, mimeType: 'application/x-ndjson', bytes: Buffer.from(lines.join('\n') + (lines.length ? '\n' : '')) } };

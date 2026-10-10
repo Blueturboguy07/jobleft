@@ -221,7 +221,7 @@ Status: Built by the server lane (`scripts/app-up.ts`, `scripts/app-down.ts`). T
 
 ## 6. Local API
 
-Code: `packages/contracts/src/api.ts` (`LOCAL_API`, 99 routes). Typed client: `createLocalApiClient()` in
+Code: `packages/contracts/src/api.ts` (`LOCAL_API`, 100 routes). Typed client: `createLocalApiClient()` in
 `@jobleft/contracts` (Built).
 
 ### 6.1 Security rules (every rule is a MUST)
@@ -355,7 +355,8 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `addBoard` | POST | `/api/v1/boards` | launch | boards | — | `{ ats, board, region? }` | `BoardEntry` | Add a confirmed board (409 conflict when already added) |
 | `updateBoard` | PATCH | `/api/v1/boards/:boardId` | launch | boards | — | `{ followed?, hidden?, disabled? }` | `BoardEntry` | Follow, hide or disable a board |
 | `checkWebSearch` | POST | `/api/v1/websearch/check` | launch | server | — | `{ url? }` | `WebSearchCheck` | Test a SearXNG address (the given one, else the saved one) with one search |
-| `webSearchJobs` | POST | `/api/v1/websearch/jobs` | launch | server | — | `WebSearchRequest` | `WebSearchResponse` | Search the web for jobs through the saved SearXNG (adds nothing; opens no result page) |
+| `webSearchJobs` | POST | `/api/v1/websearch/jobs` | launch | server | — | `WebSearchRequest` | `WebSearchResponse` | Search the web for jobs through the saved SearXNG; the job pages found are then read in the background (once each) and kept as jobs of the source external:web |
+| `webReadStatus` | GET | `/api/v1/websearch/reading` | launch | server | — | — | `WebReadStatus` | How the background reading of web search results is going |
 | `exportBoards` | GET | `/api/v1/boards/export` | launch | boards | — | — | file | Download the directory and user boards (NDJSON) |
 | `listSources` | GET | `/api/v1/sources` | launch | sources-other | — | — | `SourceInfo[]` | Every source: crawled or not, why, status |
 | `updateSource` | PATCH | `/api/v1/sources/:sourceId` | launch | sources-other | — | `{ enabled }` | `SourceInfo` | Turn a source on or off |

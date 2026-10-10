@@ -5,24 +5,28 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { looksLikeJobList, looksLikeJobPage, normalizeSearxUrl, planQueries } from '../src/interim/websearch.ts';
 import { cleanup, startTest } from './helpers.ts';
 
-interface StandIn { origin: string; queries: URLSearchParams[]; close: () => Promise<void> }
+interface StandIn { origin: string; queries: URLSearchParams[]; close: () => Promise<void>; answer: (q: URLSearchParams) => { status?: number; body?: unknown } }
 
 /** A SearXNG stand-in. `answer` gets the query and gives the status and JSON body. */
 async function searx(answer: (q: URLSearchParams) => { status?: number; body?: unknown }): Promise<StandIn> {
   const queries: URLSearchParams[] = [];
+  const me = {} as StandIn;
+  me.answer = answer;
   const server: Server = createServer((req, res) => {
     const u = new URL(req.url ?? '/', 'http://x');
     if (u.pathname !== '/search') { res.writeHead(404).end(); return; }
     queries.push(u.searchParams);
-    const a = answer(u.searchParams);
+    const a = me.answer(u.searchParams);
     res.writeHead(a.status ?? 200, { 'content-type': 'application/json' }).end(JSON.stringify(a.body ?? { results: [] }));
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   const { port } = server.address() as AddressInfo;
-  return { origin: `http://127.0.0.1:${port}`, queries, close: () => new Promise((r) => server.close(() => r())) };
+  return Object.assign(me, { origin: `http://127.0.0.1:${port}`, queries, close: () => new Promise<void>((r) => server.close(() => r())) });
 }
 
 const R = (url: string, title: string, engines = ['duckduckgo']) => ({ url, title, content: `${title} snippet`, engines });
@@ -74,7 +78,9 @@ test('web search: the address is saved, checked, and the results are sorted with
     ], unresponsive_engines: [['google', 'CAPTCHA']] } };
     return { body: { results: [] } };
   });
-  const s = await startTest('websearch');
+  // The background reader reads the job pages found: every host goes to the stand-in, which knows none of them.
+  const map = Object.fromEntries(['tesorion.recruitee.com', 'boards-api.greenhouse.io', 'job-boards.greenhouse.io', 'werken.example.nl'].map((h) => [h, sx.origin]));
+  const s = await startTest('websearch', { env: { JOBLEFT_HOST_MAP: JSON.stringify(map) } });
   try {
     // Not set up yet: a plain answer, and nothing sent.
     const before = await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst' });
@@ -184,4 +190,70 @@ test('add by link: a Recruitee job is read from the board feed; a job the board 
     assert.equal(gone.status, 404, gone.text);
     assert.match(gone.json.error.message, /probably closed/);
   } finally { await s.stop(); cleanup(s.home); await new Promise((r) => server.close(r)); }
+});
+
+test('web search: the job pages found are read in the background into jobs of their own source, once each', async () => {
+  const LD = { '@context': 'https://schema.org', '@type': 'JobPosting', title: 'SOC-analist', datePosted: '2026-10-01', hiringOrganization: { name: 'Gemeente Voorbeeld' },
+    jobLocation: { address: { addressLocality: 'Utrecht', addressCountry: 'NL' } }, description: '<p>Je bewaakt de meldingen.</p>' };
+  const site: string[] = [];
+  const pages: Server = createServer((req, res) => {
+    site.push(req.url ?? '');
+    if (req.url === '/api/offers/') {
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ offers: [{ id: 7, slug: 'junior-soc-analyst', title: 'Junior SOC Analyst', careers_url: 'https://acme.recruitee.com/o/junior-soc-analyst', company_name: 'Acme Security', locations: [{ city: 'Utrecht', country: 'Netherlands', country_code: 'NL' }], description: '<p>Watch the alerts.</p>' }] }));
+    } else if (req.url === '/careers') {
+      // A careers home page: it reads like a job (apply, benefits, experience) but carries no JobPosting record.
+      res.writeHead(200, { 'content-type': 'text/html' }).end(`<html><head><title>Careers</title></head><body><p>${'Join us. We offer great benefits and salary. Apply today: requirements, experience, responsibilities, full-time and part-time roles. '.repeat(5)}</p></body></html>`);
+    } else if (req.url === '/vacature/soc-analist') {
+      res.writeHead(200, { 'content-type': 'text/html' }).end(`<html><head><title>SOC-analist</title><script type="application/ld+json">${JSON.stringify(LD)}</script></head><body>x</body></html>`);
+    } else res.writeHead(404).end();
+  });
+  await new Promise<void>((r) => pages.listen(0, '127.0.0.1', r));
+  const origin = `http://127.0.0.1:${(pages.address() as AddressInfo).port}`;
+  const sx = await searx((p) => {
+    const q = p.get('q') ?? '';
+    if (q.includes('site:recruitee.com')) return { body: { results: [R('https://acme.recruitee.com/o/junior-soc-analyst', 'Junior SOC Analyst')] } };
+    if (q.includes('vacature OR vacancy')) return { body: { results: [R('https://werken.voorbeeld.nl/vacature/soc-analist', 'Vacature SOC-analist'), R('https://werken.voorbeeld.nl/careers', 'Careers at Voorbeeld')] } };
+    return { body: { results: [] } };
+  });
+  const s = await startTest('webreader', { env: { JOBLEFT_HOST_MAP: JSON.stringify({ 'acme.recruitee.com': origin, 'werken.voorbeeld.nl': origin }) } });
+  const read = async () => {
+    for (let i = 0; i < 200; i++) {
+      const st = (await s.call('GET', '/api/v1/websearch/reading')).json;
+      if (!st.running && st.queued === 0) return st;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    throw new Error('the reading did not finish');
+  };
+  try {
+    const settings = (await s.call('GET', '/api/v1/settings')).json;
+    await s.call('PUT', '/api/v1/settings', { ...settings, webSearch: { url: sx.origin } });
+    const r = await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Utrecht' });
+    assert.equal(r.status, 200, r.text);
+    const st = await read();
+    assert.equal(st.jobs, 2);
+    const web = await s.call('POST', '/api/v1/jobs/search', { filter: { sources: ['external:web'] }, sort: 'most_recent', limit: 20 });
+    assert.deepEqual(web.json.items.map((x: any) => x.job.title).sort(), ['Junior SOC Analyst', 'SOC-analist']);
+    const soc = web.json.items.find((x: any) => x.job.title === 'SOC-analist');
+    assert.equal(soc.job.company, 'Gemeente Voorbeeld');
+    // Recommended (no source asked for) does not list them.
+    const rec = await s.call('POST', '/api/v1/jobs/search', { filter: {}, sort: 'most_recent', limit: 20 });
+    assert.equal(rec.json.items.filter((x: any) => /SOC/.test(x.job.title)).length, 0);
+    // The same results again: known, so nothing is read twice, and each result names its job.
+    const n = site.length;
+    const again = await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Utrecht', page: 2 });
+    assert.equal(again.status, 200, again.text);
+    await read();
+    assert.equal(site.length, n, 'no page was read again');
+
+    // 30 days without being found again: a web job leaves the list, unless the person liked, applied to or added it.
+    const liked = web.json.items.find((x: any) => x.job.title === 'Junior SOC Analyst');
+    assert.equal((await s.call('PATCH', `/api/v1/tracker/${encodeURIComponent(liked.job.id)}`, { liked: true })).status, 200);
+    const db = new DatabaseSync(join(s.home, 'data', 'jobleft.db'));
+    db.exec("PRAGMA busy_timeout = 5000; UPDATE jobs SET last_seen = '2026-01-01T00:00:00.000Z' WHERE ats = 'external' AND board = 'web'");
+    db.close();
+    sx.answer = () => ({ body: { results: [] } });
+    await s.call('POST', '/api/v1/websearch/jobs', { q: 'something else' });
+    const left = await s.call('POST', '/api/v1/jobs/search', { filter: { sources: ['external:web'] }, sort: 'most_recent', limit: 20 });
+    assert.deepEqual(left.json.items.map((x: any) => x.job.title), ['Junior SOC Analyst']);
+  } finally { await s.stop(); cleanup(s.home); await sx.close(); await new Promise((r) => pages.close(r)); }
 });

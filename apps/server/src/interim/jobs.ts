@@ -511,10 +511,13 @@ export class JobsService {
       const parts: string[] = [];
       for (const src of filter.sources) {
         if (src.startsWith('ats:')) { parts.push('x.ats = ?'); args.push(src.slice(4)); }
-        else if (src === 'external:url' || src === 'external:text') { parts.push("(x.ats = 'external' AND x.board = ?)"); args.push(src.slice(9)); }
+        else if (src === 'external:url' || src === 'external:text' || src === 'external:web') { parts.push("(x.ats = 'external' AND x.board = ?)"); args.push(src.slice(9)); }
       }
       where.push(parts.length ? `(${parts.join(' OR ')})` : '0');
     }
+    // Jobs found by web search (Jobs > Web search) are listed there, not among the recommended jobs: only a search that
+    // asks for the source "external:web" sees them. Liked, applied and added ones are in the tracker as usual.
+    if (!filter.sources?.includes('external:web')) where.push("NOT (x.ats = 'external' AND x.board = 'web')");
     // Years: the posting's stated minimum (else its maximum) is at most the filter; a posting that states none is out
     // unless unknowns are allowed.
     if (filter.maxYearsRequired !== undefined) {

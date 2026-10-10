@@ -297,6 +297,78 @@ function readFailure(e: unknown, what: 'page' | 'job'): ApiFailure {
   return new ApiFailure('offline', 'That page could not be reached. Check the link and that this computer is online, or paste the job text.');
 }
 
+/** A job jobleft already has for this link (a board job in the feed, or the same address), as its contract id. */
+export function knownJobFor(store: Store, link: URL): string | null {
+  const bj = boardJobOf(link);
+  const known = bj ? storedId(store, bj.ats, bj.board, bj.id) : null;
+  if (known) return known;
+  const canonical = canonicalizeUrl(link.href);
+  const same = canonical ? store.db.prepare('SELECT ats, board, job_id FROM jobs WHERE canonical_url = ? ORDER BY closed_at IS NOT NULL, id LIMIT 1').get(canonical) as { ats: string; board: string; job_id: string } | undefined : undefined;
+  return same ? `${same.ats.toLowerCase()}:${same.board.toLowerCase()}:${same.job_id}` : null;
+}
+
+/**
+ * Reads one job link (no store): a board job through its board's public feed or API, any other page once with the
+ * polite client (robots.txt, the never-contact list, no redirect followed). Throws ApiFailure in plain words.
+ */
+export async function readJobLink(u: URL, d: Pick<ExternalDeps, 'crawlStore'>, http: HttpClient, o: { needPosting?: boolean } = {}): Promise<RawJob> {
+  if (NEVER.test(u.hostname) || isNeverHost(u.hostname)) throw new ApiFailure('forbidden_source', `jobleft never reads ${u.hostname}, so nothing was sent to it. Paste the job text instead.`);
+  // JL-feed-13: this computer and the local network are never read (only public job pages are).
+  if (isLocalLink(u)) throw new ApiFailure('forbidden_source', 'That link points to this computer or your local network. jobleft reads only public job pages, so nothing was sent. Paste the job text instead.');
+  const bj = boardJobOf(u);
+  const canonical = canonicalizeUrl(u.href);
+  const other = bj ? null : otherBoardJobOf(u);
+  if (other) {
+    // Workable, Recruitee, Personio, Teamtailor and Gem: the board's own feed has the job's facts, while its page
+    // may carry no JobPosting record. If the feed cannot be read, the page is read as before.
+    const row = d.crawlStore.db.prepare('SELECT company FROM boards WHERE lower(ats) = ? AND lower(board) = ?').get(other.ats, other.board) as { company: string | null } | undefined;
+    let fromBoard: RawJob | null = null;
+    let boardRead = false;
+    try { fromBoard = await readOtherBoardJob(http, other, u, row?.company || ''); boardRead = true; } catch (e) {
+      if (e instanceof DeniedHostError || e instanceof RobotsError) throw readFailure(e, 'job');
+    }
+    // The board answered and does not list the job: it closed (search engines show jobs for a while after that).
+    if (boardRead && !fromBoard) throw new ApiFailure('not_found', `jobleft read the ${row?.company || other.board} job board, and this job is not on it any more: it has probably closed. Search results and old links can show a job for a while after it closes.`);
+    if (fromBoard && fromBoard.title) return { ...fromBoard, externalId: hash16(canonical || u.href), url: u.href, company: fromBoard.company || other.board };
+  }
+  if (bj) {
+    // JL-feed-15: a board's job page redirects (boards.greenhouse.io -> job-boards.greenhouse.io); its public job
+    // API answers directly, with the same facts the crawler reads.
+    const row = d.crawlStore.db.prepare('SELECT company FROM boards WHERE lower(ats) = ? AND lower(board) = ?').get(bj.ats, bj.board.toLowerCase()) as { company: string | null } | undefined;
+    let r: RawJob | null;
+    try { r = await readBoardJob(http, bj, row?.company || ''); } catch (e) { throw readFailure(e, 'job'); }
+    if (!r || !r.title) throw new ApiFailure('not_found', 'That job is not on the board (it may have closed, or the link is wrong). Check the link.');
+    return { ...r, externalId: hash16(canonical || u.href), url: u.href, company: r.company || bj.board };
+  }
+  let html: string;
+  try {
+    html = await http.getText(u.href, 'text/html,application/xhtml+xml');
+  } catch (e) { throw readFailure(e, 'page'); }
+  const page = rawFromHtml(u.href, html);
+  if (!page.title) throw new ApiFailure('unsupported_source', 'That page has no job title that jobleft can read. Paste the job text instead.');
+  // A page jobleft found by itself (web search) counts only with a JobPosting record: a careers home page also
+  // reads like a job ("apply", "benefits", "experience"), and nobody chose it.
+  if (o.needPosting && !page.fromPosting) throw new ApiFailure('unsupported_source', 'That page does not look like a job posting: it carries no job details (no JobPosting record).');
+  // JL-feed-12: a page that is not a job posting ("Example Domain") is refused in plain words.
+  if (!page.fromPosting && !looksLikePosting(htmlToText(page.descriptionHtml))) {
+    throw new ApiFailure('unsupported_source', 'That page does not look like a job posting: jobleft found no job details on it. Open the posting itself and paste its address, or paste the job text.');
+  }
+  const { fromPosting: _fp, ...rest } = page;
+  return rest;
+}
+
+/** Saves a read job in the crawler's jobs table under ats "external" and the given board. Returns the contract id. */
+export function storeExternal(store: Store, raw: RawJob, board: 'url' | 'text' | 'web'): string {
+  const job = normalizeJob({ ats: 'external' as never, board, company: raw.company || 'Company not stated' }, raw) as CrawledJob | null;
+  if (!job) throw new ApiFailure('unsupported_source', 'jobleft could not read a job from that. Paste the job text instead.');
+  const res = store.transaction(() => store.upsertJob(job, nowIso()));
+  if (res.status === 'dupUrl') {
+    const owner = store.db.prepare('SELECT ats, board, job_id FROM jobs WHERE canonical_url = ?').get(job.canonicalUrl) as { ats: string; board: string; job_id: string } | undefined;
+    if (owner) return `${owner.ats.toLowerCase()}:${owner.board.toLowerCase()}:${owner.job_id}`;
+  }
+  return `external:${board}:${job.jobId}`;
+}
+
 /** Reads the link (or the text) and saves the job in the crawler's jobs table. Returns the contract job id. */
 export async function addExternal(req: { url?: string; text?: string; applyUrl?: string }, d: ExternalDeps): Promise<string> {
   let raw: RawJob;
@@ -304,55 +376,14 @@ export async function addExternal(req: { url?: string; text?: string; applyUrl?:
   if (req.url) {
     const u = new URL(req.url);
     if (NEVER.test(u.hostname) || isNeverHost(u.hostname)) throw new ApiFailure('forbidden_source', `jobleft never reads ${u.hostname}, so nothing was sent to it. Paste the job text instead.`);
-    // JL-feed-13: this computer and the local network are never read (only public job pages are).
     if (isLocalLink(u)) throw new ApiFailure('forbidden_source', 'That link points to this computer or your local network. jobleft reads only public job pages, so nothing was sent. Paste the job text instead.');
     // JL-feed-14: a board job that is already stored (in the feed or added before) is that job, never a second copy.
-    const bj = boardJobOf(u);
-    const known = bj ? storedId(d.crawlStore, bj.ats, bj.board, bj.id) : null;
+    const known = knownJobFor(d.crawlStore, u);
     if (known) return known;
-    const canonical = canonicalizeUrl(req.url);
-    const same = canonical ? d.crawlStore.db.prepare('SELECT ats, board, job_id FROM jobs WHERE canonical_url = ? ORDER BY closed_at IS NOT NULL, id LIMIT 1').get(canonical) as { ats: string; board: string; job_id: string } | undefined : undefined;
-    if (same) return `${same.ats.toLowerCase()}:${same.board.toLowerCase()}:${same.job_id}`;
     if (d.offline()) throw new ApiFailure('offline', 'jobleft is set to work offline, so the link was not read. Paste the job text instead.');
-    const other = bj ? null : otherBoardJobOf(u);
     // A paged feed (Teamtailor, Workable) can take several requests for one board.
-    const http = new HttpClient({ hostMap: d.hostMap, timeoutMs: 10_000, retries: 0, maxRequests: other ? 12 : 3 });
-    let fromBoard: RawJob | null = null;
-    let boardRead = false;
-    if (other) {
-      // Workable, Recruitee, Personio, Teamtailor and Gem: the board's own feed has the job's facts, while its page
-      // may carry no JobPosting record. If the feed cannot be read, the page is read as before.
-      const row = d.crawlStore.db.prepare('SELECT company FROM boards WHERE lower(ats) = ? AND lower(board) = ?').get(other.ats, other.board) as { company: string | null } | undefined;
-      try { fromBoard = await readOtherBoardJob(http, other, u, row?.company || ''); boardRead = true; } catch (e) {
-        if (e instanceof DeniedHostError || e instanceof RobotsError) throw readFailure(e, 'job');
-      }
-      // The board answered and does not list the job: it closed (search engines show jobs for a while after that).
-      if (boardRead && !fromBoard) throw new ApiFailure('not_found', `jobleft read the ${row?.company || other.board} job board, and this job is not on it any more: it has probably closed. Search results and old links can show a job for a while after it closes.`);
-    }
-    if (fromBoard && fromBoard.title) {
-      raw = { ...fromBoard, externalId: hash16(canonical || req.url), url: req.url, company: fromBoard.company || other!.board };
-    } else if (bj) {
-      // JL-feed-15: a board's job page redirects (boards.greenhouse.io -> job-boards.greenhouse.io); its public job
-      // API answers directly, with the same facts the crawler reads.
-      const row = d.crawlStore.db.prepare('SELECT company FROM boards WHERE lower(ats) = ? AND lower(board) = ?').get(bj.ats, bj.board.toLowerCase()) as { company: string | null } | undefined;
-      let r: RawJob | null;
-      try { r = await readBoardJob(http, bj, row?.company || ''); } catch (e) { throw readFailure(e, 'job'); }
-      if (!r || !r.title) throw new ApiFailure('not_found', 'That job is not on the board (it may have closed, or the link is wrong). Check the link.');
-      raw = { ...r, externalId: hash16(canonical || req.url), url: req.url, company: r.company || bj.board };
-    } else {
-      let html: string;
-      try {
-        html = await http.getText(req.url, 'text/html,application/xhtml+xml');
-      } catch (e) { throw readFailure(e, 'page'); }
-      const page = rawFromHtml(req.url, html);
-      if (!page.title) throw new ApiFailure('unsupported_source', 'That page has no job title that jobleft can read. Paste the job text instead.');
-      // JL-feed-12: a page that is not a job posting ("Example Domain") is refused in plain words.
-      if (!page.fromPosting && !looksLikePosting(htmlToText(page.descriptionHtml))) {
-        throw new ApiFailure('unsupported_source', 'That page does not look like a job posting: jobleft found no job details on it. Open the posting itself and paste its address, or paste the job text.');
-      }
-      const { fromPosting: _fp, ...rest } = page;
-      raw = rest;
-    }
+    const http = new HttpClient({ hostMap: d.hostMap, timeoutMs: 10_000, retries: 0, maxRequests: otherBoardJobOf(u) ? 12 : 3 });
+    raw = await readJobLink(u, d, http);
     board = 'url';
   } else if (req.text && req.text.trim()) {
     // JL-feed-12: one short line ("hi") is not a job posting.
@@ -365,12 +396,5 @@ export async function addExternal(req: { url?: string; text?: string; applyUrl?:
   } else {
     throw new ApiFailure('bad_request', 'Give a job link (url) or the job text (text).');
   }
-  const job = normalizeJob({ ats: 'external' as never, board, company: raw.company || 'Company not stated' }, raw) as CrawledJob | null;
-  if (!job) throw new ApiFailure('unsupported_source', 'jobleft could not read a job from that. Paste the job text instead.');
-  const res = d.crawlStore.transaction(() => d.crawlStore.upsertJob(job, nowIso()));
-  if (res.status === 'dupUrl') {
-    const owner = d.crawlStore.db.prepare('SELECT ats, board, job_id FROM jobs WHERE canonical_url = ?').get(job.canonicalUrl) as { ats: string; board: string; job_id: string } | undefined;
-    if (owner) return `${owner.ats.toLowerCase()}:${owner.board.toLowerCase()}:${owner.job_id}`;
-  }
-  return `external:${board}:${job.jobId}`;
+  return storeExternal(d.crawlStore, raw, board);
 }

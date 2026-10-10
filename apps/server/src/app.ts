@@ -15,6 +15,7 @@ import { openAndMigrate } from './db/open.ts';
 import type { HomeLayout } from './home.ts';
 import { AiFacade } from './integ/engine.ts';
 import { buildAssistant } from './integ/assistant.ts';
+import { WebReader } from './interim/webreader.ts';
 import type { Assistant } from '@jobleft/assistant';
 import { ResumeBridge } from './integ/resume.ts';
 import { BoardsService, boardIdOf } from './interim/boards.ts';
@@ -68,6 +69,8 @@ export class AppData {
   readonly ai: AiFacade;
   private assistantInstance: Assistant | null = null;
   readonly boards: BoardsService;
+  /** Reads the job pages web searches found, in the background (Jobs > Web search). */
+  readonly webReader: WebReader;
   readonly feed: FeedService;
   readonly migrated: { from: number; to: number; fresh: boolean };
   private timers: NodeJS.Timeout[] = [];
@@ -113,6 +116,10 @@ export class AppData {
       seeded: () => new Set(this.kv.get<string[]>('core.seededBoards') ?? []),
       autoCrawl: () => (cfg.env ?? process.env).JOBLEFT_AUTO_CRAWL !== '0',
     });
+    this.webReader = new WebReader({
+      crawlStore: this.crawlStore, hostMap: cfg.hostMap, offline, crawling: () => this.boards.status().running,
+    });
+    try { this.webReader.expire(); } catch { /* the next search tries again */ }
     this.feed = new FeedService({
       db: this.db, jobs: this.jobs,
       profile: () => (this.profile.exists() ? this.profile.get() : null),
@@ -293,6 +300,7 @@ export class AppData {
   async close(): Promise<void> {
     for (const t of this.timers) clearTimeout(t);
     this.feed.stop();
+    this.webReader.stop();
     this.ai.cancelAll();
     await this.boards.stop();
     this.resolver?.pacer.close();
