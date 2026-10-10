@@ -17,6 +17,7 @@ import { tmpName } from './home.ts';
 import type { FileBody } from './http/respond.ts';
 import { bodyToFile } from './http/body.ts';
 import { addExternal } from './interim/external.ts';
+import { SearxClient, checkSearx, normalizeSearxUrl, webSearchJobs } from './interim/websearch.ts';
 import { detailOf } from './interim/jobs.ts';
 import { createAiRouteHandlers, type AiRouteHandlers } from '@jobleft/ai-engine';
 import { apiFailureOf } from './integ/engine.ts';
@@ -51,6 +52,9 @@ export type Out =
 
 export type Handler<K extends RouteName> = (c: Ctx<K>) => Out | Promise<Out>;
 export type HandlerTable = { [K in RouteName]: Handler<K> };
+
+/** One web search at a time: each one sends about ten searches through the person's SearXNG. */
+let webSearchBusy = false;
 
 /** Routes whose raw body the handler reads itself (streamed to disk). */
 export const STREAMED_BODY = new Set<RouteName>(['restore']);
@@ -312,6 +316,23 @@ export const HANDLERS: HandlerTable = {
   },
   addBoard: ({ d, body }) => ({ json: d.boards.add(body) }),
   updateBoard: ({ d, params, body }) => ({ json: d.boards.update(params.boardId!, body) }),
+  checkWebSearch: async ({ app, d, body }) => {
+    const url = normalizeSearxUrl(body.url ?? d.settings.get().webSearch?.url ?? null);
+    if (!url) throw new ApiFailure('bad_request', 'Type the address of your SearXNG first, for example http://127.0.0.1:8888.');
+    if (app.cfg.offline) throw new ApiFailure('offline', 'jobleft is set to work offline, so it did not ask SearXNG.');
+    return { json: await checkSearx(url) };
+  },
+  webSearchJobs: async ({ app, d, body, gone }) => {
+    const url = d.settings.get().webSearch?.url ?? null;
+    if (!url) throw new ApiFailure('not_ready', 'Web search is not set up. Add your SearXNG address in Settings > Web search.');
+    if (app.cfg.offline) throw new ApiFailure('offline', 'jobleft is set to work offline, so it did not search the web.');
+    if (webSearchBusy) throw new ApiFailure('conflict', 'A web search is already running. Wait for it to finish.');
+    webSearchBusy = true;
+    try {
+      const deps = { crawlStore: d.crawlStore, board: (id: string) => { const b = d.boards.get(id); return b ? { company: b.company, followed: b.followed } : null; } };
+      return { json: await webSearchJobs(body, new SearxClient(url), deps, gone) };
+    } finally { webSearchBusy = false; }
+  },
   exportBoards: ({ d }) => {
     const lines = d.boards.exportLines();
     return { file: { fileName: `jobleft-boards-${today()}.ndjson`, mimeType: 'application/x-ndjson', bytes: Buffer.from(lines.join('\n') + (lines.length ? '\n' : '')) } };

@@ -5,10 +5,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Checkbox, Descriptions, Input, Menu, Popconfirm, Radio, Select, Space, Switch, Table, Tag } from 'antd';
 import { Tooltip } from '../components/Tip.tsx';
-import { CloudOutlined, DesktopOutlined, KeyOutlined, LinkOutlined, ReloadOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, ApiOutlined, WalletOutlined, BellOutlined, FontSizeOutlined, DatabaseOutlined, AppstoreOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { CloudOutlined, DesktopOutlined, KeyOutlined, LinkOutlined, ReloadOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, ApiOutlined, WalletOutlined, BellOutlined, FontSizeOutlined, GlobalOutlined, DatabaseOutlined, AppstoreOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import {
   formatDollars, type AiSettings, type AppSettings, type BoardEntry, type BoardResolveResponse, type CrawlBoardReport, type CrawlRunSummary, type DatasetInfo,
-  type FitIndexStatus, type Health, type LocalServerKind, type OwnKeyVendor, type PairingCode, type PairingInfo, type ProviderCheck, type SavedFilter, type SourceInfo, type StorageInfo,
+  type FitIndexStatus, type Health, type LocalServerKind, type OwnKeyVendor, type PairingCode, type PairingInfo, type ProviderCheck, type SavedFilter, type SourceInfo, type StorageInfo, type WebSearchCheck,
 } from '@jobleft/contracts';
 import { call, download, openExternal, type UiError } from '../app/api.ts';
 import { invalidate, setCached, useApi } from '../app/data.ts';
@@ -31,6 +31,7 @@ function secureStore(): string {
 const TABS = [
   { key: 'ai', label: 'AI provider', icon: <ApiOutlined /> },
   { key: 'balance', label: 'Balance', icon: <WalletOutlined /> },
+  { key: 'websearch', label: 'Web search', icon: <GlobalOutlined /> },
   { key: 'alerts', label: 'Alerts', icon: <BellOutlined /> },
   { key: 'appearance', label: 'Appearance', icon: <FontSizeOutlined /> },
   { key: 'sources', label: 'Job sources', icon: <AppstoreOutlined /> },
@@ -329,6 +330,73 @@ function AlertsTab() {
   );
 }
 
+// ------------------------------------------------------------------ web search
+
+function WebSearchTab() {
+  const settings = useAppSettings();
+  const [url, setUrl] = useState<string | null>(null);
+  const [check, setCheck] = useState<WebSearchCheck | null>(null);
+  const [busy, setBusy] = useState<'test' | 'save' | 'off' | null>(null);
+  const [err, setErr] = useState<UiError | null>(null);
+  if (settings.error && !settings.data) return <ErrorState error={settings.error} onRetry={() => { void settings.reload(); }} />;
+  if (!settings.data) return <Loading label="Loading" />;
+  const s = settings.data;
+  const saved = s.webSearch?.url ?? null;
+  const value = url ?? saved ?? '';
+  const test = async () => {
+    setBusy('test'); setErr(null); setCheck(null);
+    try { setCheck(await call('checkWebSearch', { body: { url: value.trim() } })); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+  };
+  // Saving tests first: an address that does not answer like SearXNG is not saved.
+  const save = async () => {
+    setBusy('save'); setErr(null); setCheck(null);
+    try {
+      const c = await call('checkWebSearch', { body: { url: value.trim() } });
+      setCheck(c);
+      if (!c.ok) return;
+      const r = await call('putSettings', { body: { ...s, webSearch: { url: value.trim() } } });
+      setCached('settings', () => r); setUrl(null);
+      ui.message?.success('Web search is on. Search in Jobs > Web search.');
+    } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+  };
+  const off = async () => {
+    setBusy('off'); setErr(null); setCheck(null);
+    try { const r = await call('putSettings', { body: { ...s, webSearch: { url: null } } }); setCached('settings', () => r); setUrl(null); ui.message?.success('Web search is off.'); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <Panel title="Web search (SearXNG)" desc={<>Find jobs all over the web, not only on the boards you follow. jobleft searches through your own <a href="https://docs.searxng.org" target="_blank" rel="noopener noreferrer">SearXNG</a>, a free search engine you run yourself that asks other search engines for you. No account or key is needed.</>}>
+        <div className="jl-row jl-wrap">
+          <Input style={{ flex: '1 1 280px' }} value={value} onChange={(e) => { setUrl(e.target.value); setCheck(null); }} onPressEnter={() => { void save(); }} placeholder="http://127.0.0.1:8888" aria-label="SearXNG address" maxLength={500} />
+          <Button shape="round" loading={busy === 'test'} disabled={!value.trim() || !!busy} onClick={() => { void test(); }}>Test</Button>
+          <Button type="primary" shape="round" loading={busy === 'save'} disabled={!value.trim() || !!busy || value.trim() === saved} onClick={() => { void save(); }}>Save</Button>
+          {saved && <Button shape="round" danger loading={busy === 'off'} disabled={!!busy} onClick={() => { void off(); }}>Turn off</Button>}
+        </div>
+        {saved ? <Tag color="green" style={{ alignSelf: 'flex-start' }}>On: {saved}</Tag> : <Tag style={{ alignSelf: 'flex-start' }}>Off</Tag>}
+        {check && (check.ok
+          ? <Alert type="success" showIcon message={check.message} />
+          : <Alert type="error" showIcon message={check.message} />)}
+        <InlineError error={err} />
+      </Panel>
+      <Panel title="What is sent where">
+        <ul style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <li>Your search words go to this SearXNG address only. SearXNG passes them to the search engines it is set up for, without your name or address.</li>
+          <li>jobleft opens a result page only when you add that job, once, and only if the site allows programs (robots.txt).</li>
+          <li>jobleft never opens LinkedIn, Indeed, Glassdoor or Workday pages, even when a search finds them. You can open them in your browser.</li>
+        </ul>
+      </Panel>
+      <Panel title="Setting up SearXNG" desc="SearXNG runs on your computer, for example with Docker. It must answer in JSON:">
+        <pre className="jl-small" style={{ margin: 0, padding: 12, background: 'var(--jl-input)', borderRadius: 8, overflowX: 'auto' }}>{`# settings.yml
+use_default_settings: true
+server:
+  limiter: false        # only you use it
+search:
+  formats: [html, json] # jobleft reads json`}</pre>
+      </Panel>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ appearance
 
 function AppearanceTab() {
@@ -601,7 +669,7 @@ function AboutTab() {
 
 export function SettingsScreen({ tab }: { tab: string | null }) {
   const active = TABS.some((t) => t.key === tab) ? tab! : 'ai';
-  const body: Record<string, ReactNode> = { ai: <AiTab />, balance: <BalanceTab />, alerts: <AlertsTab />, appearance: <AppearanceTab />, sources: <SourcesTab />, data: <DataTab />, extension: <ExtensionTab />, about: <AboutTab /> };
+  const body: Record<string, ReactNode> = { ai: <AiTab />, balance: <BalanceTab />, websearch: <WebSearchTab />, alerts: <AlertsTab />, appearance: <AppearanceTab />, sources: <SourcesTab />, data: <DataTab />, extension: <ExtensionTab />, about: <AboutTab /> };
   return (
     <div className="jl-2col">
       <nav style={{ width: 220, flex: '0 0 220px', background: '#fff', borderRight: '1px solid var(--jl-line)', padding: 8, overflowY: 'auto' }} aria-label="Settings sections">

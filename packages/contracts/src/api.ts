@@ -41,6 +41,7 @@ import {
 } from './sources.ts';
 import { TrackerEntrySchema, TrackerPatchSchema, TrackerStatusSchema, TrackerViewSchema } from './tracker.ts';
 import { PublikConnectionSchema } from './wallet.ts';
+import { WebSearchCheckSchema, WebSearchRequestSchema, WebSearchResponseSchema } from './websearch.ts';
 import {
   anyValue, arr, bool, enm, int, lit, named, nullable, num, obj, rec, str, type Infer, type JsonSchema,
 } from './schema.ts';
@@ -154,6 +155,11 @@ export const AppSettingsSchema = named(obj({
    * a Mac) with +, - and 0 change it there. Added after contracts 1.1.0 (additive). Absent = 1.
    */
   display: obj({ zoom: num({ minimum: 0.8, maximum: 1.5 }) }),
+  /**
+   * The person's own SearXNG (Settings > Web search): its address, or null when web search is off. Added after
+   * contracts 1.1.0 (additive). Absent = off.
+   */
+  webSearch: obj({ url: nullable(str({ maxLength: 500 })) }),
 }), 'AppSettings');
 
 /**
@@ -277,6 +283,8 @@ export const LOCAL_API = {
   resolveBoard: route({ method: 'POST', path: '/api/v1/boards/resolve', auth: 'launch', owner: 'boards', summary: 'Find the board behind a careers or job link (adds nothing)', body: obj({ url: str({ maxLength: 4096 }) }, { acceptPaidLookup: bool() }), response: BoardResolveResponseSchema }),
   addBoard: route({ method: 'POST', path: '/api/v1/boards', auth: 'launch', owner: 'boards', summary: 'Add a confirmed board (409 conflict when already added)', body: obj({ ats: CrawlAtsIdSchema, board: str({ minLength: 1 }) }, { region: str() }), response: BoardEntrySchema }),
   updateBoard: route({ method: 'PATCH', path: '/api/v1/boards/:boardId', auth: 'launch', owner: 'boards', summary: 'Follow, hide or disable a board', body: obj({}, { followed: bool(), hidden: bool(), disabled: bool() }), response: BoardEntrySchema }),
+  checkWebSearch: route({ method: 'POST', path: '/api/v1/websearch/check', auth: 'launch', owner: 'server', summary: 'Test a SearXNG address (the given one, else the saved one) with one search', body: obj({}, { url: str({ maxLength: 500 }) }), response: WebSearchCheckSchema }),
+  webSearchJobs: route({ method: 'POST', path: '/api/v1/websearch/jobs', auth: 'launch', owner: 'server', summary: 'Search the web for jobs through the saved SearXNG (adds nothing; opens no result page)', body: WebSearchRequestSchema, response: WebSearchResponseSchema }),
   exportBoards: route({ method: 'GET', path: '/api/v1/boards/export', auth: 'launch', owner: 'boards', summary: 'Download the directory and user boards (NDJSON)', response: 'file' }),
   listSources: route({ method: 'GET', path: '/api/v1/sources', auth: 'launch', owner: 'sources-other', summary: 'Every source: crawled or not, why, status', response: arr(SourceInfoSchema) }),
   updateSource: route({ method: 'PATCH', path: '/api/v1/sources/:sourceId', auth: 'launch', owner: 'sources-other', summary: 'Turn a source on or off', body: obj({ enabled: bool() }), response: SourceInfoSchema }),

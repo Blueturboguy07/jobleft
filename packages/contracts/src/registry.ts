@@ -12,6 +12,9 @@ import {
   FillResponseSchema, FormFieldSchema, PageInfoRequestSchema, PageInfoSchema, PairingCodeSchema, PairingInfoSchema,
   PairRequestSchema, PairResponseSchema, ReviewResponseSchema, ReviewResultSchema,
 } from './extension.ts';
+import {
+  WebSearchBoardSchema, WebSearchCheckSchema, WebSearchRequestSchema, WebSearchResponseSchema, WebSearchResultSchema,
+} from './websearch.ts';
 import { JobFilterSchema, JobListItemSchema, JobSearchRequestSchema, JobSearchResponseSchema, SavedFilterSchema } from './filter.ts';
 import { JobSchema, JobSummarySchema, PaySchema, PlaceSchema, SourceAttributionSchema } from './job.ts';
 import {
@@ -58,6 +61,9 @@ export const SCHEMAS: Readonly<Record<string, JsonSchema>> = {
   CrawlProgress: CrawlProgressSchema, CrawlBoardReport: CrawlBoardReportSchema, FitIndexStatus: FitIndexStatusSchema,
   DatasetInfo: DatasetInfoSchema, H1bLookup: H1bLookupSchema, PlaceLookup: PlaceLookupSchema, StorageInfo: StorageInfoSchema,
   ExternalJobRequest: ExternalJobRequestSchema, Notification: NotificationSchema,
+  // web search
+  WebSearchCheck: WebSearchCheckSchema, WebSearchRequest: WebSearchRequestSchema, WebSearchResult: WebSearchResultSchema,
+  WebSearchBoard: WebSearchBoardSchema, WebSearchResponse: WebSearchResponseSchema,
   // AI
   AiSettings: AiSettingsSchema, AiSettingsUpdate: AiSettingsUpdateSchema, ProviderCheck: ProviderCheckSchema,
   ChatMessage: ChatMessageSchema, ChatRequest: ChatRequestSchema, ChatStreamEvent: ChatStreamEventSchema,

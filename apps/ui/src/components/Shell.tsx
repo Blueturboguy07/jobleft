@@ -94,6 +94,7 @@ function JobsTabs({ tab }: { tab: string | null }) {
     // Every application, whatever its stage: "Applications", so it never reads as the Tracker's "Applied" column (JL-tracker-23).
     { id: 'applied', label: 'Applications', to: '#/jobs/applied', n: c?.applied ?? null },
     { id: 'external', label: 'External', to: '#/jobs/external', n: c?.external ?? null },
+    { id: 'web', label: 'Web search', to: '#/jobs/web', n: null },
   ];
   return (
     <nav className="jl-topbar-tabs" aria-label="Job lists">

@@ -30,6 +30,7 @@ export * from './network.ts';
 export * from './wallet.ts';
 export * from './ai.ts';
 export * from './sources.ts';
+export * from './websearch.ts';
 export * from './extension.ts';
 export * from './api.ts';
 export * from './registry.ts';
