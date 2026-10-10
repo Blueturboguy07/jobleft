@@ -157,14 +157,47 @@ export function fileSecrets(home: string): ServerSecretStore {
   };
 }
 
+/**
+ * Linux: the keyring when it works, else the encrypted file. `secret-tool` can be installed with no keyring running or
+ * unlocked (common outside GNOME and KDE), and then every write fails; the key goes to the file instead of being lost.
+ * A read tries the keyring, then the file; a save to the keyring clears any copy in the file.
+ */
+export function linuxSecrets(home: string, keyring: ServerSecretStore | null = null): ServerSecretStore {
+  let kr = keyring;
+  if (!kr) { try { kr = secretServiceSecrets(keychainServiceFor(home)); } catch { kr = null; } }
+  const file = fileSecrets(home);
+  if (!kr) return file;
+  const ring = kr;
+  return {
+    kind: 'secret-service',
+    async get(name) {
+      try { const v = await ring.get(name); if (v !== null) return v; } catch { /* keyring unreadable: try the file */ }
+      return file.get(name);
+    },
+    async set(name, value) {
+      try {
+        await ring.set(name, value);
+      } catch (e) {
+        if (e instanceof ApiFailure && e.code === 'bad_request') throw e;
+        await file.set(name, value);
+        return;
+      }
+      await file.delete(name);
+    },
+    async delete(name) {
+      try { await ring.delete(name); } catch { /* nothing to remove there */ }
+      await file.delete(name);
+    },
+    knownNames: () => [...new Set([...ring.knownNames(), ...file.knownNames()])],
+  };
+}
+
 export function createSecretStore(kind: string | undefined, home: string): ServerSecretStore {
   if (kind === 'memory') return memorySecrets();
   if (kind === 'file') return fileSecrets(home);
   if (kind === 'keychain' || (kind === undefined && process.platform === 'darwin')) {
     try { return keychainSecrets(keychainServiceFor(home)); } catch { return memorySecrets(); }
   }
-  if (kind === 'secret-service' || (kind === undefined && process.platform === 'linux')) {
-    try { return secretServiceSecrets(keychainServiceFor(home)); } catch { return fileSecrets(home); }
-  }
+  if (kind === 'secret-service' || (kind === undefined && process.platform === 'linux')) return linuxSecrets(home);
   return memorySecrets();
 }

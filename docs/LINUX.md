@@ -24,7 +24,7 @@ To keep it somewhere tidy, move it to `~/Applications` (or `~/.local/bin`) first
 |---|---|---|
 | x86_64 (64-bit Intel or AMD) | The AppImage is built for x86_64 | Does not run (no ARM build yet) |
 | glibc 2.44 or newer | The build is made on a current Arch system | Does not start. Current rolling distros (Arch, CachyOS, EndeavourOS, Manjaro, openSUSE Tumbleweed) have it; older fixed releases (Ubuntu LTS, Debian stable) may not. Build from source on that system instead (see below). |
-| A keyring: GNOME Keyring or KWallet, plus `secret-tool` (package `libsecret`) | Stores your AI keys | Keys go to an encrypted file in the data folder instead. Everything still works. |
+| A keyring: GNOME Keyring or KWallet, plus `secret-tool` (package `libsecret`) | Stores your AI keys | Keys go to an encrypted file in the data folder instead, also when the keyring is installed but not running or locked. Everything still works. |
 | `notify-send` (package `libnotify`) | Follow-up reminders | No pop-up. Reminders still show in the app. |
 | A system tray | The tray menu (Open, Check for jobs now, Pause, Quit) | No tray icon. KDE, XFCE, Hyprland bars and most others have one; plain GNOME needs the "AppIndicator and KStatusNotifierItem Support" extension. |
 | `wl-copy` (Wayland), or `xclip`/`xsel` (X11) | `--copy` in the network command-line tool only | Use `--out <file>` instead |
@@ -65,12 +65,12 @@ Closing the window hides it; jobleft keeps checking for jobs from the tray. **Qu
 | | macOS | Linux |
 |---|---|---|
 | Data folder | `~/Library/Application Support/jobleft` | `$XDG_DATA_HOME/jobleft`, normally `~/.local/share/jobleft` |
-| AI keys | macOS Keychain | System keyring through `secret-tool` (GNOME Keyring, KWallet); without one, an AES-256-GCM encrypted file in `<data folder>/secrets` |
+| AI keys | macOS Keychain | System keyring through `secret-tool` (GNOME Keyring, KWallet); when there is none or it does not answer, an AES-256-GCM encrypted file in `<data folder>/secrets` |
 | Notifications | Notification Center | `notify-send` |
 | Copy a draft (CLI) | `pbcopy` | `wl-copy`, `xclip` or `xsel` |
 | Menu | Menu bar | System tray |
 
-The encrypted key file (used only without a keyring) stops plain-text search and accidental copies. It cannot stop a program running as your own user from reading it, so a keyring is the better choice. Backups made in Settings → Data and backup never include keys, either way.
+The encrypted key file (used only when the keyring is missing or not working) stops plain-text search and accidental copies. It cannot stop a program running as your own user from reading it, so a keyring is the better choice. Backups made in Settings → Data and backup never include keys, either way.
 
 Set `JOBLEFT_HOME=/some/folder` before starting the AppImage to use a different data folder (handy for trying it without touching your real data).
 
@@ -177,7 +177,7 @@ For anyone reviewing the port:
 
 | File | Change |
 |---|---|
-| `apps/server/src/services/secrets.ts` | `secretServiceSecrets` (libsecret `secret-tool`, the secret on stdin) and `fileSecrets` (wraps ai-engine's encrypted file store); Linux picks the keyring, else the file. `JOBLEFT_SECRET_STORE=secret-service\|file\|memory` overrides. |
+| `apps/server/src/services/secrets.ts` | `secretServiceSecrets` (libsecret `secret-tool`, the secret on stdin) and `fileSecrets` (wraps ai-engine's encrypted file store); `linuxSecrets` uses the keyring and falls back to the file when a keyring write fails. `JOBLEFT_SECRET_STORE=secret-service\|file\|memory` overrides. |
 | `packages/network/src/dev/notify.ts` | `notify-send` on Linux |
 | `packages/network/src/cli.ts` | `--copy` through `wl-copy`, `xclip` or `xsel` |
 | `apps/shell/src-tauri/src/lib.rs` | XDG data folder and `notify-send` on Linux |
