@@ -181,7 +181,7 @@ export function WebSearchTab() {
           <Select size="large" style={{ width: 140 }} value={range} onChange={setRange} aria-label="How recent"
             options={[{ value: 'week', label: 'Past week' }, { value: 'month', label: 'Past month' }, { value: 'year', label: 'Past year' }, { value: 'any', label: 'Any time' }]} />
           <Button size="large" type="primary" shape="round" htmlType="submit" loading={busy === 'search'} disabled={!q.trim() || !!busy}>Search the web</Button>
-          <Tooltip title={aiOn ? 'Your AI adds titles that mean the same job (in Dutch and English for a Dutch place), so postings that word it differently are found too. One small AI call per new search.' : 'Set up an AI provider in Settings to widen searches with titles that mean the same job.'}>
+          <Tooltip title={aiOn ? 'Job postings often name the same job differently. Your AI suggests up to five other titles for it, in the languages postings in your place use (for example German and English for Berlin), and jobleft searches those too. Only your search words and the country go to your AI: one small call per new search, remembered for a day.' : 'Set up an AI provider in Settings > AI provider to widen searches with other titles for the same job.'}>
             <label className="jl-row jl-small" style={{ gap: 6, opacity: aiOn ? 1 : 0.55 }}>
               <Switch size="small" checked={widen} disabled={!aiOn} onChange={(v) => { widenChoice = v; setWidenPick(v); }} aria-label="Widen with AI" /> <StarOutlined aria-hidden="true" /> Widen with AI
             </label>
