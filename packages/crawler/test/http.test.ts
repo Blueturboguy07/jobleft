@@ -111,6 +111,27 @@ test('redirects are not followed (a redirect could skip the pacer, robots and de
   assert.equal(calls.some((x) => x.url.includes('linkedin')), false);
 });
 
+test('robots.txt: a redirect is followed (RFC 9309) and the rules it leads to apply', async () => {
+  const { c, calls } = client({
+    'https://acme.recruitee.com/robots.txt': () => new Response('', { status: 302, headers: { location: 'https://careers.acme.example/robots.txt' } }),
+    'https://careers.acme.example/robots.txt': () => new Response('User-agent: *\nDisallow: /v/\n', { status: 200 }),
+    'https://acme.recruitee.com/api/offers/': json({ offers: [] }),
+  });
+  assert.deepEqual(await c.getJson('https://acme.recruitee.com/api/offers/'), { offers: [] });
+  await assert.rejects(c.getJson('https://acme.recruitee.com/v/x'), RobotsError);
+  assert.equal(calls.some((x) => x.url.endsWith('/v/x')), false);
+});
+
+test('robots.txt: a redirect to a never-crawl host is not followed, and a redirect loop stops after five hops', async () => {
+  const deny = client({ '/robots.txt': () => new Response('', { status: 301, headers: { location: 'https://www.linkedin.com/robots.txt' } }), '/a': json({}) });
+  await assert.rejects(deny.c.getJson('https://x.example.com/a'), RobotsError);
+  assert.equal(deny.calls.some((x) => x.url.includes('linkedin')), false);
+  const loop = client({ '/robots.txt': () => new Response('', { status: 302, headers: { location: '/robots.txt' } }), '/a': json({}) });
+  await assert.rejects(loop.c.getJson('https://y.example.com/a'), RobotsError);
+  assert.equal(loop.calls.filter((x) => x.url.endsWith('/robots.txt')).length, 6);
+  assert.equal(loop.calls.some((x) => x.url.endsWith('/a')), false);
+});
+
 test('robots parser: product token group beats *, longest match wins, Allow wins a tie, wildcards and $ work', () => {
   const r = parseRobots(`User-agent: *\nDisallow: /\nUser-agent: jobleft-build\nDisallow: /private\nAllow: /private/open$\nDisallow: /*.json$\nCrawl-delay: 2`, 'jobleft-build');
   assert.equal(r.allows('/jobs'), true);
