@@ -483,7 +483,7 @@ export function toolLabel(name: string, args: unknown): string {
   const a = (args && typeof args === 'object' ? args : {}) as Record<string, unknown>;
   const str = (k: string) => (typeof a[k] === 'string' ? (a[k] as string).trim().slice(0, 80) : '');
   switch (name) {
-    case 'web_search': return `Searching the web: ${str('query')}${str('place') ? `, ${str('place')}` : ''}`;
+    case 'web_search': return `${str('purpose') === 'general' ? 'Searching the web' : 'Searching the web for jobs'}: ${str('query')}${str('place') ? `, ${str('place')}` : ''}`;
     case 'search_jobs': return str('query') ? `Searching your jobs for "${str('query')}"` : 'Searching your jobs';
     case 'list_tracker': return 'Reading your tracker';
     case 'get_job': return 'Reading a job';
@@ -510,6 +510,8 @@ export function toolSummary(name: string, result: string): { failed: boolean; te
   if (r.ok === false && typeof r.message === 'string') return { failed: true, text: r.message.slice(0, 200) };
   const n = (k: string) => (Array.isArray(r[k]) ? (r[k] as unknown[]).length : null);
   if (name === 'web_search') {
+    const others = Array.isArray((r.untrusted as { otherResults?: unknown[] } | undefined)?.otherResults) ? (r.untrusted as { otherResults: unknown[] }).otherResults.length : 0;
+    if (!n('jobs') && others && !r.pagesRead) return { failed: false, text: `${others} ${others === 1 ? 'result' : 'results'}` };
     const jobs = n('jobs') ?? 0;
     const read = typeof r.pagesRead === 'number' ? r.pagesRead : 0;
     const later = typeof r.stillReading === 'number' && r.stillReading ? ` · ${r.stillReading} more in Web jobs soon` : '';

@@ -7,7 +7,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { looksLikeJobList, looksLikeJobPage, normalizeSearxUrl, planQueries } from '../src/interim/websearch.ts';
+import { alternativesOf, dutchTitle, looksLikeJobList, looksLikeJobPage, normalizeSearxUrl, planQueries, searchLinks } from '../src/interim/websearch.ts';
 import { startScriptedModel } from '../../../packages/assistant/src/mock/scripted-model.ts';
 import { cleanup, startTest } from './helpers.ts';
 
@@ -42,12 +42,22 @@ test('the SearXNG address: http(s) only, no password, "/search" and the trailing
   assert.throws(() => normalizeSearxUrl('http://me:secret@127.0.0.1:8888'));
 });
 
-test('the searches: two grouped site searches for the systems jobleft reads, then two without a site', () => {
-  const q = planQueries({ q: 'SOC analyst', place: ' Utrecht ' }).map((x) => x.q);
-  assert.equal(q.length, 4);
-  assert.equal(q[0], 'SOC analyst Utrecht (site:greenhouse.io OR site:lever.co OR site:jobs.ashbyhq.com OR site:apply.workable.com)');
-  assert.ok(q[1]!.includes('site:recruitee.com OR site:teamtailor.com'));
-  assert.ok(q.includes('SOC analyst Utrecht job OR careers'));
+test('the searches: the open web, the job words, Dutch words for a Dutch place, and the big job sites left out', () => {
+  const nl = planQueries({ q: 'SOC analyst', place: ' Utrecht ' }, 'NL').map((x) => x.q);
+  assert.equal(nl.length, 3);
+  assert.equal(nl[0], 'SOC analyst vacature Utrecht -site:linkedin.com -site:indeed.com -site:glassdoor.com -site:glassdoor.nl');
+  assert.equal(nl[1], 'SOC analist vacature Utrecht -site:linkedin.com -site:indeed.com -site:glassdoor.com -site:glassdoor.nl', 'the Dutch spelling');
+  assert.ok(planQueries({ q: 'SOC engineer', place: 'Utrecht' }, 'NL').some((x) => x.q.startsWith('SOC engineer werken bij Utrecht')), 'no Dutch spelling: "werken bij"');
+  assert.equal(dutchTitle('Junior Security Analyst'), 'Junior security analist');
+  assert.equal(dutchTitle('DevOps Engineer'), null);
+  assert.ok(nl.every((q) => !q.includes('site:recruitee.com')), 'no job board searches');
+  const us = planQueries({ q: 'SOC Analyst, Security Analyst', place: 'Austin' }, 'US').map((x) => x.q);
+  assert.equal(us[0], '("SOC Analyst" OR "Security Analyst") job Austin -site:linkedin.com -site:indeed.com -site:glassdoor.com -site:glassdoor.nl');
+  assert.deepEqual(alternativesOf('SOC Analyst, Security Analyst; Junior SOC Analyst, Extra'), ['SOC Analyst', 'Security Analyst', 'Junior SOC Analyst']);
+  const links = searchLinks({ q: 'SOC Analyst, Security Analyst', place: 'Utrecht' }, 'NL');
+  assert.deepEqual(links.map((l) => l.name), ['LinkedIn', 'Indeed', 'Glassdoor', 'Google job search', 'Werken voor Nederland']);
+  assert.equal(links[0]!.url, 'https://www.linkedin.com/jobs/search/?keywords=SOC%20Analyst&location=Utrecht');
+  assert.equal(links[1]!.url, 'https://nl.indeed.com/jobs?q=SOC%20Analyst&l=Utrecht');
 });
 
 test('a job site\'s search page is a list, not one job', () => {
@@ -69,20 +79,24 @@ test('a page from a search without a site is kept only when it reads like a job 
 test('web search: the address is saved, checked, and the results are sorted without opening any page', async () => {
   const sx = await searx((p) => {
     const q = p.get('q') ?? '';
-    if (q.includes('site:recruitee.com') && p.get('pageno') === '1') return { body: { results: [R('https://tesorion.recruitee.com/o/junior-soc-analyst', 'Junior SOC Analyst'), R('https://tesorion.recruitee.com/', 'Tesorion careers'), R('https://en.wikipedia.org/wiki/System_on_a_chip', 'System on a chip')] } };
-    if (q.includes('site:greenhouse.io')) return { body: { results: [R('https://job-boards.greenhouse.io/acme/jobs/123', 'Security Engineer'), R('https://job-boards.greenhouse.io/acme/jobs/123?utm_source=x', 'Security Engineer', ['brave'])] } };
-    if (q.endsWith('job OR careers')) return { body: { results: [
+    if (q.includes('site:greenhouse.io')) return { body: { results: [R('https://job-boards.greenhouse.io/acme/jobs/123', 'Security Engineer')] } };
+    if (q.includes(' vacature ') && p.get('pageno') === '1') return { body: { results: [
+      R('https://www.werkenvoornederland.nl/vacatures/soc-analist-kvk-1', 'Vacature: Cybersecurity SOC analist, KVK'),
+      R('https://www.werkenvoornederland.nl/vacatures/soc-analist-kvk-1?utm_source=x', 'Vacature: Cybersecurity SOC analist, KVK', ['brave']),
+      R('https://tesorion.recruitee.com/o/junior-soc-analyst', 'Junior SOC Analyst'),
+      R('https://www.nationalevacaturebank.nl/vacatures/functie/security-analyst', '44 security analyst vacatures'),
+    ] } };
+    if (q.includes(' job ')) return { body: { results: [
       R('https://www.linkedin.com/jobs/view/1', 'SOC Analyst - LinkedIn'),
       R('https://acme.wd3.myworkdayjobs.com/en-US/careers/job/1', 'SOC Analyst - Workday'),
       R('https://werken.example.nl/vacature/soc-analist', 'SOC-analist'),
       R('https://support.teamtailor.com/en/articles/1-create-a-job', 'Create a job - Teamtailor Support'),
-      R('https://www.lever.co/blog/hiring', 'Hiring tips | Lever'),
       R('http://192.168.1.10/admin', 'router'),
     ], unresponsive_engines: [['google', 'CAPTCHA']] } };
     return { body: { results: [] } };
   });
-  // The background reader reads the job pages found: every host goes to the stand-in, which knows none of them.
-  const map = Object.fromEntries(['tesorion.recruitee.com', 'boards-api.greenhouse.io', 'job-boards.greenhouse.io', 'werken.example.nl'].map((h) => [h, sx.origin]));
+  // The background reader reads the pages found: every host goes to the stand-in, which knows none of them.
+  const map = Object.fromEntries(['www.werkenvoornederland.nl', 'werken.example.nl', 'tesorion.recruitee.com'].map((h) => [h, sx.origin]));
   const s = await startTest('websearch', { env: { JOBLEFT_HOST_MAP: JSON.stringify(map) } });
   try {
     // Not set up yet: a plain answer, and nothing sent.
@@ -94,7 +108,6 @@ test('web search: the address is saved, checked, and the results are sorted with
     const check = await s.call('POST', '/api/v1/websearch/check', { url: `${sx.origin}/search` });
     assert.equal(check.status, 200, check.text);
     assert.equal(check.json.ok, true, 'the test search finds greenhouse jobs in this stand-in');
-    assert.deepEqual(check.json.siteEngines, ['brave', 'duckduckgo']);
     assert.equal(sx.queries.at(-1)!.get('format'), 'json');
 
     const settings = (await s.call('GET', '/api/v1/settings')).json;
@@ -110,41 +123,40 @@ test('web search: the address is saved, checked, and the results are sorted with
     const n = sx.queries.length;
     const r = await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Utrecht', timeRange: 'week' });
     assert.equal(r.status, 200, r.text);
-    assert.equal(sx.queries.length - n, 4);
-    assert.ok(sx.queries.slice(n).every((p) => p.get('time_range') === 'week' && p.get('format') === 'json'));
+    assert.equal(r.json.country, 'NL', 'Utrecht is in the Netherlands');
+    assert.equal(sx.queries.length - n, 3);
+    assert.ok(sx.queries.slice(n).every((p) => p.get('time_range') === 'week' && /-site:linkedin\.com/.test(p.get('q') ?? '')));
     const by = new Map(r.json.results.map((x: any) => [x.url, x]));
-    const job: any = by.get('https://tesorion.recruitee.com/o/junior-soc-analyst');
-    assert.equal(job.kind, 'board_job');
-    assert.equal(job.boardId, 'recruitee:tesorion');
-    assert.equal((by.get('https://tesorion.recruitee.com/') as any).kind, 'board');
-    // The same job twice (a tracking parameter) is one result, with both engines.
-    const gh = r.json.results.filter((x: any) => x.boardId === 'greenhouse:acme');
-    assert.equal(gh.length, 1);
-    assert.deepEqual(gh[0].engines.sort(), ['brave', 'duckduckgo']);
+    // The same page twice (a tracking parameter) is one result, with both engines.
+    const kvk = r.json.results.filter((x: any) => x.url.startsWith('https://www.werkenvoornederland.nl/vacatures/soc-analist-kvk-1'));
+    assert.equal(kvk.length, 1);
+    assert.deepEqual(kvk[0].engines.sort(), ['brave', 'duckduckgo']);
+    assert.equal(kvk[0].kind, 'page');
+    assert.equal((by.get('https://www.nationalevacaturebank.nl/vacatures/functie/security-analyst') as any).kind, 'list');
     assert.equal((by.get('https://www.linkedin.com/jobs/view/1') as any).kind, 'never');
     assert.equal((by.get('https://acme.wd3.myworkdayjobs.com/en-US/careers/job/1') as any).kind, 'never');
-    assert.equal((by.get('https://werken.example.nl/vacature/soc-analist') as any).kind, 'page');
+    assert.ok(!r.json.results.some((x: any) => x.url.includes('recruitee.com')), 'job boards are left out');
+    assert.equal(r.json.boardResults, 1);
     assert.ok(!r.json.results.some((x: any) => x.url.includes('192.168.')), 'a local address is dropped');
-    assert.ok(!r.json.results.some((x: any) => /support\.teamtailor|lever\.co\/blog/.test(x.url)), 'a hiring system\'s own pages are dropped');
-    assert.ok(!r.json.results.some((x: any) => x.url.includes('wikipedia')), 'a result off the site a search asked for is dropped');
+    assert.ok(!r.json.results.some((x: any) => /support\.teamtailor/.test(x.url)), 'a hiring system\'s own pages are dropped');
     assert.deepEqual(r.json.unresponsive, ['google']);
-    const boards = new Map(r.json.boards.map((b: any) => [b.boardId, b]));
-    assert.equal((boards.get('recruitee:tesorion') as any).results, 2);
-    assert.equal((boards.get('recruitee:tesorion') as any).added, false);
+    assert.equal(r.json.searchLinks[0].name, 'LinkedIn');
 
-    // The same search again is answered from the last 30 minutes: no engine is asked.
+    // The outcomes: each result's reading, in the country asked for.
+    const o = await s.call('POST', '/api/v1/websearch/outcomes', { urls: [kvk[0].url, 'https://nowhere.example/x'], country: 'NL' });
+    assert.equal(o.status, 200, o.text);
+    assert.equal(o.json[1].state, 'unread');
+
+    // The same search again is answered from the last 30 minutes: every search had results, so none is asked again.
     const n2 = sx.queries.length;
     assert.equal((await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Utrecht', timeRange: 'week' })).status, 200);
-    assert.equal(sx.queries.length - n2, 1, 'only the search that found nothing is asked again');
+    assert.equal(sx.queries.length - n2, 0, JSON.stringify(sx.queries.slice(n2).map((p) => p.get('q'))));
     // "More results": the next page of the same searches.
     const more = await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Utrecht', timeRange: 'week', page: 2 });
     assert.equal(more.status, 200, more.text);
-    assert.ok(sx.queries.slice(-4).every((p) => p.get('pageno') === '2'));
-
-    // A board in the list shows as added.
-    assert.equal((await s.call('POST', '/api/v1/boards', { ats: 'recruitee', board: 'tesorion' })).status, 200);
-    const again = await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst' });
-    assert.equal(again.json.boards.find((b: any) => b.boardId === 'recruitee:tesorion').added, true);
+    assert.ok(sx.queries.slice(-3).every((p) => p.get('pageno') === '2'));
+    // A Dutch name for the country counts too.
+    assert.equal((await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Nederland' })).json.country, 'NL');
   } finally { await s.stop(); cleanup(s.home); await sx.close(); }
 });
 
@@ -202,8 +214,9 @@ test('web search: the job pages found are read in the background into jobs of th
   const site: string[] = [];
   const pages: Server = createServer((req, res) => {
     site.push(req.url ?? '');
-    if (req.url === '/api/offers/') {
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ offers: [{ id: 7, slug: 'junior-soc-analyst', title: 'Junior SOC Analyst', careers_url: 'https://acme.recruitee.com/o/junior-soc-analyst', company_name: 'Acme Security', locations: [{ city: 'Utrecht', country: 'Netherlands', country_code: 'NL' }], description: '<p>Watch the alerts.</p>' }] }));
+    if (req.url === '/vacature/singapore') {
+      const sg = { ...LD, title: 'SOC Analyst (Singapore office)', jobLocation: { address: { addressLocality: 'Singapore', addressCountry: 'SG' } } };
+      res.writeHead(200, { 'content-type': 'text/html' }).end(`<html><head><script type="application/ld+json">${JSON.stringify(sg)}</script></head><body>x</body></html>`);
     } else if (req.url === '/careers') {
       // A careers home page: it reads like a job (apply, benefits, experience) but carries no JobPosting record.
       res.writeHead(200, { 'content-type': 'text/html' }).end(`<html><head><title>Careers</title></head><body><p>${'Join us. We offer great benefits and salary. Apply today: requirements, experience, responsibilities, full-time and part-time roles. '.repeat(5)}</p></body></html>`);
@@ -215,11 +228,10 @@ test('web search: the job pages found are read in the background into jobs of th
   const origin = `http://127.0.0.1:${(pages.address() as AddressInfo).port}`;
   const sx = await searx((p) => {
     const q = p.get('q') ?? '';
-    if (q.includes('site:recruitee.com')) return { body: { results: [R('https://acme.recruitee.com/o/junior-soc-analyst', 'Junior SOC Analyst')] } };
-    if (q.includes('vacature OR vacancy')) return { body: { results: [R('https://werken.voorbeeld.nl/vacature/soc-analist', 'Vacature SOC-analist'), R('https://werken.voorbeeld.nl/careers', 'Careers at Voorbeeld')] } };
+    if (q.includes(' vacature ')) return { body: { results: [R('https://werken.voorbeeld.nl/vacature/soc-analist', 'Vacature SOC-analist'), R('https://werken.voorbeeld.nl/careers', 'Careers at Voorbeeld'), R('https://werken.voorbeeld.nl/vacature/singapore', 'SOC Analyst Singapore')] } };
     return { body: { results: [] } };
   });
-  const s = await startTest('webreader', { env: { JOBLEFT_HOST_MAP: JSON.stringify({ 'acme.recruitee.com': origin, 'werken.voorbeeld.nl': origin }) } });
+  const s = await startTest('webreader', { env: { JOBLEFT_HOST_MAP: JSON.stringify({ 'werken.voorbeeld.nl': origin }) } });
   const read = async () => {
     for (let i = 0; i < 200; i++) {
       const st = (await s.call('GET', '/api/v1/websearch/reading')).json;
@@ -236,7 +248,17 @@ test('web search: the job pages found are read in the background into jobs of th
     const st = await read();
     assert.equal(st.jobs, 2);
     const web = await s.call('POST', '/api/v1/jobs/search', { filter: { sources: ['external:web'] }, sort: 'most_recent', limit: 20 });
-    assert.deepEqual(web.json.items.map((x: any) => x.job.title).sort(), ['Junior SOC Analyst', 'SOC-analist']);
+    assert.deepEqual(web.json.items.map((x: any) => x.job.title).sort(), ['SOC Analyst (Singapore office)', 'SOC-analist']);
+    // Each result says what came of it, and whether the job is in the country asked for.
+    const out = (await s.call('POST', '/api/v1/websearch/outcomes', { urls: r.json.results.map((x: any) => x.url), country: 'NL' })).json;
+    const of = (u: string) => out.find((x: any) => x.url === u);
+    assert.equal(of('https://werken.voorbeeld.nl/vacature/soc-analist').state, 'job');
+    assert.equal(of('https://werken.voorbeeld.nl/vacature/soc-analist').inPlace, true, JSON.stringify(of('https://werken.voorbeeld.nl/vacature/soc-analist')));
+    assert.equal(of('https://werken.voorbeeld.nl/vacature/singapore').inPlace, false, 'Singapore is not in the Netherlands');
+    assert.equal(of('https://werken.voorbeeld.nl/careers').state, 'not_job');
+    // The cards in the country asked for leave the Singapore job out.
+    const nl = await s.call('POST', '/api/v1/jobs/search', { filter: { sources: ['external:web'], countries: ['NL'], includeUnknown: ['place'] }, sort: 'most_recent', limit: 20 });
+    assert.deepEqual(nl.json.items.map((x: any) => x.job.title), ['SOC-analist']);
     const soc = web.json.items.find((x: any) => x.job.title === 'SOC-analist');
     assert.equal(soc.job.company, 'Gemeente Voorbeeld');
     // Recommended (no source asked for) does not list them.
@@ -250,7 +272,7 @@ test('web search: the job pages found are read in the background into jobs of th
     assert.equal(site.length, n, 'no page was read again');
 
     // 30 days without being found again: a web job leaves the list, unless the person liked, applied to or added it.
-    const liked = web.json.items.find((x: any) => x.job.title === 'Junior SOC Analyst');
+    const liked = web.json.items.find((x: any) => x.job.title === 'SOC-analist');
     assert.equal((await s.call('PATCH', `/api/v1/tracker/${encodeURIComponent(liked.job.id)}`, { liked: true })).status, 200);
     const db = new DatabaseSync(join(s.home, 'data', 'jobleft.db'));
     db.exec("PRAGMA busy_timeout = 5000; UPDATE jobs SET last_seen = '2026-01-01T00:00:00.000Z' WHERE ats = 'external' AND board = 'web'");
@@ -258,7 +280,7 @@ test('web search: the job pages found are read in the background into jobs of th
     sx.answer = () => ({ body: { results: [] } });
     await s.call('POST', '/api/v1/websearch/jobs', { q: 'something else' });
     const left = await s.call('POST', '/api/v1/jobs/search', { filter: { sources: ['external:web'] }, sort: 'most_recent', limit: 20 });
-    assert.deepEqual(left.json.items.map((x: any) => x.job.title), ['Junior SOC Analyst']);
+    assert.deepEqual(left.json.items.map((x: any) => x.job.title), ['SOC-analist']);
   } finally { await s.stop(); cleanup(s.home); await sx.close(); await new Promise((r) => pages.close(r)); }
 });
 
@@ -271,7 +293,7 @@ test('the assistant searches the web: the chat stream carries the live steps, an
   });
   await new Promise<void>((r) => pages.listen(0, '127.0.0.1', r));
   const origin = `http://127.0.0.1:${(pages.address() as AddressInfo).port}`;
-  const sx = await searx((p) => (p.get('q') ?? '').includes('vacature OR vacancy')
+  const sx = await searx((p) => (p.get('q') ?? '').includes(' vacature ')
     ? { body: { results: [R('https://werken.voorbeeld.nl/vacature/soc-trainee', 'SOC Analyst Traineeship')] } }
     : { body: { results: [] } });
   const model = await startScriptedModel({ script: (ctx) => {
@@ -287,10 +309,10 @@ test('the assistant searches the web: the chat stream carries the live steps, an
     const r = await s.call('POST', '/api/v1/ai/chat', { requestId: 'req-web-1', messages: [{ role: 'user', content: 'Find SOC analyst traineeships in Utrecht.' }] });
     const ev = r.text.split('\n').filter((l) => l.startsWith('data: ')).map((l) => JSON.parse(l.slice(6)));
     const tools = ev.filter((e: any) => e.type === 'tool');
-    assert.equal(tools[0].label, 'Searching the web: SOC analyst, Utrecht');
+    assert.equal(tools[0].label, 'Searching the web for jobs: SOC analyst, Utrecht');
     const end = tools.at(-1);
     assert.equal(end.state, 'done', JSON.stringify(end));
-    assert.ok(end.steps.some((x: string) => x.startsWith('Asking your search engine: SOC analyst Utrecht')));
+    assert.ok(end.steps.some((x: string) => x.startsWith('Asking your search engine: SOC analyst vacature Utrecht')), JSON.stringify(end.steps));
     assert.ok(end.steps.includes('werken.voorbeeld.nl: a new job'), JSON.stringify(end.steps));
     assert.equal(end.sources[0].url, 'https://werken.voorbeeld.nl/vacature/soc-trainee');
     assert.match(end.summary, /^1 job found · 1 page read/);

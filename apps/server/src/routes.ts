@@ -324,6 +324,7 @@ export const HANDLERS: HandlerTable = {
   addWebSaved: ({ d, body }) => ({ json: d.webSaved.add(body) }),
   updateWebSaved: ({ d, params, body }) => ({ json: d.webSaved.update(params.savedId!, body.everyHours) }),
   deleteWebSaved: ({ d, params }) => { d.webSaved.remove(params.savedId!); return { json: { ok: true } }; },
+  webSearchOutcomes: ({ d, body }) => ({ json: d.webOutcomes(body.urls, body.country ?? null) }),
   webReadStatus: ({ d }) => ({ json: d.webReader.status() }),
   exportBoards: ({ d }) => {
     const lines = d.boards.exportLines();

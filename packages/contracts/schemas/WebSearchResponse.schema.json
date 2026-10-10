@@ -230,6 +230,42 @@
     },
     "message": {
       "type": "string"
+    },
+    "country": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "boardResults": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "searchLinks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https?://",
+            "maxLength": 4096,
+            "description": "Absolute http(s) URL"
+          }
+        },
+        "required": [
+          "name",
+          "url"
+        ]
+      }
     }
   },
   "required": [

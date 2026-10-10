@@ -3,7 +3,7 @@
 
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { nowIso, nowMs, type SavedFilter, type WebSearchRequest, type WebSearchResponse } from '@jobleft/contracts';
+import { nowIso, nowMs, type SavedFilter, type WebResultOutcome, type WebSearchRequest, type WebSearchResponse } from '@jobleft/contracts';
 import { ApiFailure } from './errors.ts';
 import { Store } from '@jobleft/crawler';
 import { createStaticDataRoutes, PoliteFetch, type StaticDataRoutes } from '@jobleft/static-data';
@@ -16,9 +16,9 @@ import { openAndMigrate } from './db/open.ts';
 import type { HomeLayout } from './home.ts';
 import { AiFacade } from './integ/engine.ts';
 import { buildAssistant } from './integ/assistant.ts';
-import { WebReader, searchWords } from './interim/webreader.ts';
+import { WebReader, searchAlternatives } from './interim/webreader.ts';
 import { WebSavedSearches } from './interim/websaved.ts';
-import { SearxClient, webSearchJobs } from './interim/websearch.ts';
+import { SearxClient, alternativesOf, dutchTitle, webSearchJobs } from './interim/websearch.ts';
 import type { Assistant } from '@jobleft/assistant';
 import { ResumeBridge } from './integ/resume.ts';
 import { BoardsService, boardIdOf } from './interim/boards.ts';
@@ -53,6 +53,15 @@ export interface AppConfig {
   log: Logger;
   secrets: ServerSecretStore;
 }
+
+/** Country names the place dictionary reads as towns or does not know, in Dutch and in English. */
+const COUNTRY_NAMES: Record<string, string> = {
+  nederland: 'NL', netherlands: 'NL', 'the netherlands': 'NL', holland: 'NL', 'den haag': 'NL', "'s-gravenhage": 'NL', 'the hague': 'NL',
+  belgie: 'BE', 'belgië': 'BE', belgium: 'BE', duitsland: 'DE', deutschland: 'DE', germany: 'DE',
+};
+
+const REGION_NAMES = new Intl.DisplayNames(['en'], { type: 'region' });
+const countryDisplay = (code: string) => REGION_NAMES.of(code) ?? code;
 
 export class AppData {
   readonly db: DatabaseSync;
@@ -125,6 +134,7 @@ export class AppData {
     });
     this.webReader = new WebReader({
       crawlStore: this.crawlStore, hostMap: cfg.hostMap, offline, crawling: () => this.boards.status().running,
+      placeIn: (text) => this.placeIn(text),
     });
     try { this.webReader.expire(); } catch { /* the next search tries again */ }
     this.webSaved = new WebSavedSearches({
@@ -245,7 +255,7 @@ export class AppData {
    * One web search through the saved SearXNG; the job pages it finds are queued for the web reader under `tag`
    * (the search words, or a saved search's tag). Results that jobleft already knows come back with their job id.
    */
-  async webSearch(req: WebSearchRequest, tag: string, signal?: AbortSignal, onQuery?: (q: string) => void, o: { deferReading?: boolean } = {}): Promise<WebSearchResponse> {
+  async webSearch(req: WebSearchRequest, tag: string, signal?: AbortSignal, onQuery?: (q: string) => void, o: { deferReading?: boolean; general?: boolean } = {}): Promise<WebSearchResponse> {
     const url = this.settings.get().webSearch?.url ?? null;
     if (!url) throw new ApiFailure('not_ready', 'Web search is not set up. Add your SearXNG address in Settings > Web search.');
     if (this.cfg.offline) throw new ApiFailure('offline', 'jobleft is set to work offline, so it did not search the web.');
@@ -253,9 +263,81 @@ export class AppData {
     this.webSearchBusy = true;
     try {
       const deps = { crawlStore: this.crawlStore, board: (id: string) => { const b = this.boards.get(id); return b ? { company: b.company, followed: b.followed } : null; } };
-      const found = await webSearchJobs(req, new SearxClient(url), deps, signal, onQuery);
-      return { ...found, results: this.webReader.enqueue(found.results, tag, searchWords(req.q), !o.deferReading) };
+      const country = req.place ? this.countryOf(req.place) : null;
+      const found = await webSearchJobs(req, new SearxClient(url), deps, signal, onQuery, country, o.general);
+      // A general search's pages are not job pages: nothing is queued for reading.
+      if (o.general) return found;
+      // A job may name the Dutch spelling of the title ("analist"), which the searches asked for too.
+      const alts = searchAlternatives(req.q);
+      if (country === 'NL' || country === 'BE') for (const a of alternativesOf(req.q)) { const nl = dutchTitle(a); if (nl) alts.push(...searchAlternatives(nl)); }
+      return { ...found, results: this.webReader.enqueue(found.results, tag, alts.slice(0, 6), !o.deferReading) };
     } finally { this.webSearchBusy = false; }
+  }
+
+  /**
+   * The country a place names ("Netherlands", "Utrecht", "Den Haag" -> NL), or null. A name that is several places
+   * (Amsterdam, NL and Amsterdam, MO) is the one in a country of the person's profile, else the first.
+   */
+  countryOf(text: string): string | null {
+    const t = text.trim().toLowerCase();
+    const own = COUNTRY_NAMES[t];
+    if (own) return own;
+    try {
+      const r = this.staticData().placeLookup({ text });
+      const mine = new Set(this.profile.exists() ? this.profile.get().preferences.countries : []);
+      const all = [...(r.places ?? []), ...(r.ambiguous ?? [])].filter((p) => p.country);
+      return (all.find((p) => mine.has(p.country!)) ?? r.places?.[0] ?? null)?.country ?? null;
+    } catch { return null; }
+  }
+
+  /**
+   * A place a job's title states ("Vacature Junior SOC Analyst | Nieuwegein | Tesorion", "... bij KVK (Utrecht)"):
+   * each part of the title is looked up, and the first that is one city or a country is the place. Null when none.
+   */
+  placeIn(text: string): string | null {
+    const parts = text.split(/\s*[|·–—(),]\s*|\s+-\s+|\s+(?:in|bij|te|at)\s+/i).map((x) => x.trim()).filter((x) => x && x.length <= 40 && x.split(/\s+/).length <= 3);
+    // Also each capitalised word on its own ("Job Utrecht area", "Utrecht Netherlands"), after the parts.
+    const words = text.match(/\b\p{Lu}[\p{L}'-]{2,}\b/gu) ?? [];
+    for (const w of words) { const c = COUNTRY_NAMES[w.toLowerCase()]; if (c) { const city = words.find((x) => x !== w && this.cityIn(x, c)); return [city, countryDisplay(c)].filter(Boolean).join(', '); } }
+    for (const part of [...parts, ...words]) {
+      const c = COUNTRY_NAMES[part.toLowerCase()];
+      if (c) return countryDisplay(c);
+      try {
+        const r = this.staticData().placeLookup({ text: part });
+        const p = r.places?.[0];
+        // Only a place the dictionary is sure of: a known city or a country, never a guess among several.
+        if (p?.country && (p.city || r.notACity) && !(r.ambiguous ?? []).length) return [p.city, countryDisplay(p.country)].filter(Boolean).join(', ');
+      } catch { return null; }
+    }
+    return null;
+  }
+
+  /** true when the word is a city of that country, and no other place of that name exists. */
+  private cityIn(word: string, country: string): boolean {
+    try {
+      const r = this.staticData().placeLookup({ text: word });
+      return !!r.places?.[0]?.city && r.places[0].country === country && !(r.ambiguous ?? []).some((p) => p.country !== country);
+    } catch { return false; }
+  }
+
+  /** What came of reading web search results, with each job's places checked against the country asked for. */
+  webOutcomes(urls: string[], country: string | null): WebResultOutcome[] {
+    return urls.map((url) => {
+      const o = this.webReader.outcome(url);
+      if (!o) return { url, state: 'unread', message: null, job: null, inPlace: null };
+      const j = o.jobId ? this.jobs.get(o.jobId) : null;
+      // The countries come from the crawler's parsed places (the job record's places carry only their text).
+      const [ats, board, ...rest] = (o.jobId ?? '').split(':');
+      const row = o.jobId ? this.crawlStore.db.prepare('SELECT places_json FROM jobs WHERE lower(ats) = ? AND lower(board) = ? AND job_id = ? LIMIT 1').get(ats ?? '', board ?? '', rest.join(':')) as { places_json: string | null } | undefined : undefined;
+      let parsed: Array<{ country?: string | null }> = [];
+      try { parsed = JSON.parse(row?.places_json ?? '[]') as Array<{ country?: string | null }>; } catch { /* none */ }
+      const job = j && j.status !== 'closed' ? {
+        id: j.id, title: j.title, company: j.company, places: (j.places ?? []).map((p) => p.text).filter(Boolean).join('; '),
+        countries: [...new Set([...parsed, ...(j.places ?? [])].map((p) => p.country).filter((c): c is string => !!c))], remote: j.workModel === 'remote', postedAt: j.postedAt ?? null,
+      } : null;
+      const inPlace = !job || !country ? null : job.countries.length ? job.countries.includes(country) : null;
+      return { url, state: o.state as WebResultOutcome['state'], message: o.message, job, inPlace };
+    });
   }
 
   /** Background work: reminders, follow-ups and the crawl scheduler. Never before the server answers. */

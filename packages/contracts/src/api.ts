@@ -41,7 +41,7 @@ import {
 } from './sources.ts';
 import { TrackerEntrySchema, TrackerPatchSchema, TrackerStatusSchema, TrackerViewSchema } from './tracker.ts';
 import { PublikConnectionSchema } from './wallet.ts';
-import { WebReadStatusSchema, WebSavedSearchInputSchema, WebSavedSearchSchema, WebSearchCheckSchema, WebSearchRequestSchema, WebSearchResponseSchema } from './websearch.ts';
+import { WebReadStatusSchema, WebResultOutcomeSchema, WebSavedSearchInputSchema, WebSavedSearchSchema, WebSearchCheckSchema, WebSearchRequestSchema, WebSearchResponseSchema } from './websearch.ts';
 import {
   anyValue, arr, bool, enm, int, lit, named, nullable, num, obj, rec, str, type Infer, type JsonSchema,
 } from './schema.ts';
@@ -289,6 +289,7 @@ export const LOCAL_API = {
   addWebSaved: route({ method: 'POST', path: '/api/v1/websearch/saved', auth: 'launch', owner: 'server', summary: 'Save a web search (at most 10; 409 when the same one is saved)', body: WebSavedSearchInputSchema, response: WebSavedSearchSchema }),
   updateWebSaved: route({ method: 'PATCH', path: '/api/v1/websearch/saved/:savedId', auth: 'launch', owner: 'server', summary: 'How often a saved web search runs', body: obj({ everyHours: int({ minimum: 0, maximum: 24 }) }), response: WebSavedSearchSchema }),
   deleteWebSaved: route({ method: 'DELETE', path: '/api/v1/websearch/saved/:savedId', auth: 'launch', owner: 'server', summary: 'Delete a saved web search (its jobs stay)', response: Ok }),
+  webSearchOutcomes: route({ method: 'POST', path: '/api/v1/websearch/outcomes', auth: 'launch', owner: 'server', summary: 'What came of reading these web search results (job, list, closed, outside the country asked for)', body: obj({ urls: arr(str({ maxLength: 4096 }), { maxItems: 300 }) }, { country: str({ maxLength: 2 }) }), response: arr(WebResultOutcomeSchema) }),
   webReadStatus: route({ method: 'GET', path: '/api/v1/websearch/reading', auth: 'launch', owner: 'server', summary: 'How the background reading of web search results is going', response: WebReadStatusSchema }),
   exportBoards: route({ method: 'GET', path: '/api/v1/boards/export', auth: 'launch', owner: 'boards', summary: 'Download the directory and user boards (NDJSON)', response: 'file' }),
   listSources: route({ method: 'GET', path: '/api/v1/sources', auth: 'launch', owner: 'sources-other', summary: 'Every source: crawled or not, why, status', response: arr(SourceInfoSchema) }),

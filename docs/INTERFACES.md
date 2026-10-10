@@ -221,7 +221,7 @@ Status: Built by the server lane (`scripts/app-up.ts`, `scripts/app-down.ts`). T
 
 ## 6. Local API
 
-Code: `packages/contracts/src/api.ts` (`LOCAL_API`, 104 routes). Typed client: `createLocalApiClient()` in
+Code: `packages/contracts/src/api.ts` (`LOCAL_API`, 105 routes). Typed client: `createLocalApiClient()` in
 `@jobleft/contracts` (Built).
 
 ### 6.1 Security rules (every rule is a MUST)
@@ -360,6 +360,7 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `addWebSaved` | POST | `/api/v1/websearch/saved` | launch | server | — | `WebSavedSearchInput` | `WebSavedSearch` | Save a web search (at most 10; 409 when the same one is saved) |
 | `updateWebSaved` | PATCH | `/api/v1/websearch/saved/:savedId` | launch | server | — | `{ everyHours }` | `WebSavedSearch` | How often a saved web search runs |
 | `deleteWebSaved` | DELETE | `/api/v1/websearch/saved/:savedId` | launch | server | — | — | `Ok` | Delete a saved web search (its jobs stay) |
+| `webSearchOutcomes` | POST | `/api/v1/websearch/outcomes` | launch | server | — | `{ urls, country? }` | `WebResultOutcome[]` | What came of reading these web search results (job, list, closed, outside the country asked for) |
 | `webReadStatus` | GET | `/api/v1/websearch/reading` | launch | server | — | — | `WebReadStatus` | How the background reading of web search results is going |
 | `exportBoards` | GET | `/api/v1/boards/export` | launch | boards | — | — | file | Download the directory and user boards (NDJSON) |
 | `listSources` | GET | `/api/v1/sources` | launch | sources-other | — | — | `SourceInfo[]` | Every source: crawled or not, why, status |

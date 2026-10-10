@@ -84,6 +84,7 @@ export const WebSearchBoardSchema = named(obj({
 
 export const WebSearchResponseSchema = named(obj({
   results: arr(WebSearchResultSchema),
+  /** Boards the results named. Empty since the open-web search (boards are followed in Settings > Job sources). */
   boards: arr(WebSearchBoardSchema),
   /** Searches sent to SearXNG, and how many of them failed. */
   queries: int({ minimum: 0 }),
@@ -92,7 +93,33 @@ export const WebSearchResponseSchema = named(obj({
   unresponsive: arr(str()),
   /** One plain sentence about the search as a whole. */
   message: str(),
+}, {
+  /** The country the place names ("Netherlands", "Utrecht" -> NL), when jobleft knows it: results are checked against it. */
+  country: nullable(str()),
+  /** Results on job boards jobleft reads, left out: follow those boards instead. */
+  boardResults: int({ minimum: 0 }),
+  /**
+   * The same search on job sites jobleft never contacts, as links for the browser (LinkedIn, Indeed, Glassdoor,
+   * Google's job search). jobleft only builds the address; the person's browser opens it.
+   */
+  searchLinks: arr(obj({ name: str(), url: HttpUrlSchema })),
 }), 'WebSearchResponse');
+
+/** What came of reading one result (Jobs > Web jobs shows it on the result). */
+export const WebResultOutcomeSchema = named(obj({
+  url: str(),
+  /** likely_job: the title names the job searched for and the address reads like one job, but the page's details could not be read (a page built by script). */
+  state: enm(['unread', 'queued', 'reading', 'job', 'known', 'likely_job', 'closed', 'not_job', 'off_topic', 'refused', 'failed']),
+  message: nullable(str()),
+  /** The job the page is, when it is one. */
+  job: nullable(obj({
+    id: IdSchema, title: str(), company: str(), places: str(), countries: arr(str()), remote: bool(), postedAt: nullable(IsoDateTimeSchema),
+  })),
+  /** Whether the job is in the country asked for: null when unknown (no place stated, or not a job). */
+  inPlace: nullable(bool()),
+}), 'WebResultOutcome');
+
+export type WebResultOutcome = Infer<typeof WebResultOutcomeSchema>;
 
 /** The background reading of web search results (each job page is read once and becomes a job card). */
 export const WebReadStatusSchema = named(obj({

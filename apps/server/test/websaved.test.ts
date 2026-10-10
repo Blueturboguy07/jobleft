@@ -104,6 +104,8 @@ test('a web job belongs to a search only when it mentions every search word', as
   assert.equal(mentionsAll('Senior Data Analyst', soc), false);
   assert.equal(mentionsAll('Social media analyst', soc), false, 'a short word counts only as a whole word');
   assert.equal(mentionsAll('Junior Cybersecurity Engineer', searchWords('junior cyber security')), true);
+  assert.deepEqual(searchWords('junior security analyst'), ['security', 'analyst'], 'a level word is not required');
+  assert.deepEqual(searchWords('junior'), ['junior'], 'unless it is the only word');
   assert.equal(mentionsAll('Medewerker IT-beveiliging', searchWords('IT beveiliging')), true);
   assert.deepEqual(searchWords('vacature voor de SOC'), ['soc']);
 });

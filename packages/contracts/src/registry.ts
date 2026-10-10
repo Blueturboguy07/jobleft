@@ -13,7 +13,7 @@ import {
   PairRequestSchema, PairResponseSchema, ReviewResponseSchema, ReviewResultSchema,
 } from './extension.ts';
 import {
-  WebReadStatusSchema, WebSavedSearchInputSchema, WebSavedSearchSchema, WebSearchBoardSchema, WebSearchCheckSchema, WebSearchRequestSchema, WebSearchResponseSchema, WebSearchResultSchema,
+  WebReadStatusSchema, WebResultOutcomeSchema, WebSavedSearchInputSchema, WebSavedSearchSchema, WebSearchBoardSchema, WebSearchCheckSchema, WebSearchRequestSchema, WebSearchResponseSchema, WebSearchResultSchema,
 } from './websearch.ts';
 import { JobFilterSchema, JobListItemSchema, JobSearchRequestSchema, JobSearchResponseSchema, SavedFilterSchema } from './filter.ts';
 import { JobSchema, JobSummarySchema, PaySchema, PlaceSchema, SourceAttributionSchema } from './job.ts';
@@ -64,7 +64,7 @@ export const SCHEMAS: Readonly<Record<string, JsonSchema>> = {
   // web search
   WebSearchCheck: WebSearchCheckSchema, WebSearchRequest: WebSearchRequestSchema, WebSearchResult: WebSearchResultSchema,
   WebSearchBoard: WebSearchBoardSchema, WebSearchResponse: WebSearchResponseSchema, WebReadStatus: WebReadStatusSchema,
-  WebSavedSearch: WebSavedSearchSchema, WebSavedSearchInput: WebSavedSearchInputSchema,
+  WebSavedSearch: WebSavedSearchSchema, WebSavedSearchInput: WebSavedSearchInputSchema, WebResultOutcome: WebResultOutcomeSchema,
   // AI
   AiSettings: AiSettingsSchema, AiSettingsUpdate: AiSettingsUpdateSchema, ProviderCheck: ProviderCheckSchema,
   ChatMessage: ChatMessageSchema, ChatRequest: ChatRequestSchema, ChatStreamEvent: ChatStreamEventSchema,

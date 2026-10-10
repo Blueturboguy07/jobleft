@@ -15,8 +15,11 @@ import {
 import { nowIso } from '@jobleft/contracts';
 import { ApiFailure } from '../errors.ts';
 import { NO_LINK_HOST } from './jobs.ts';
+import { mentionsAll } from './words.ts';
 
 export const NEVER = /(^|\.)(linkedin\.com|licdn\.com|indeed\.com|glassdoor\.com|smartrecruiters\.com|myworkdayjobs\.com|myworkdaysite\.com|workday\.com|icims\.com|taleo\.net|oraclecloud\.com|ultipro\.com|ukg\.com)$/i;
+
+const COUNTRY_NAMES = new Intl.DisplayNames(['en'], { type: 'region' });
 
 const hash16 = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 16);
 
@@ -147,7 +150,16 @@ export function rawFromHtml(url: string, html: string): RawJob & { fromPosting?:
     const org = posting.hiringOrganization;
     const company = (typeof org === 'string' ? org : typeof org?.name === 'string' ? org.name : '') || attr(html, /<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)["']/i) || host;
     const locs = Array.isArray(posting.jobLocation) ? posting.jobLocation : posting.jobLocation ? [posting.jobLocation] : [];
-    const places = locs.map((l: any) => [l?.address?.addressLocality, l?.address?.addressRegion, typeof l?.address?.addressCountry === 'string' ? l.address.addressCountry : l?.address?.addressCountry?.name].filter((x) => typeof x === 'string' && x.trim()).join(', ')).filter(Boolean);
+    // A two-letter country other than US goes in as its name: "Utrecht, NL" reads as Newfoundland and Labrador
+    // (Canada), "Berlin, DE" as Delaware. "US" is never a state, so it stays as it is.
+    const countryText = (v: unknown) => (typeof v === 'string' && /^[A-Za-z]{2}$/.test(v.trim()) && v.trim().toUpperCase() !== 'US' ? COUNTRY_NAMES.of(v.trim().toUpperCase()) ?? v : v);
+    const places = locs.map((l: any) => [l?.address?.addressLocality, l?.address?.addressRegion, countryText(typeof l?.address?.addressCountry === 'string' ? l.address.addressCountry : l?.address?.addressCountry?.name)].filter((x) => typeof x === 'string' && x.trim()).join(', ')).filter(Boolean);
+    // The country as the record states it, as a two-letter code ("NL", or { "@type": "Country", "name": "NL" }).
+    const countries = [...new Set(locs.map((l: any) => {
+      const c = l?.address?.addressCountry;
+      const v = typeof c === 'string' ? c : typeof c?.name === 'string' ? c.name : typeof c?.identifier === 'string' ? c.identifier : '';
+      return /^[A-Za-z]{2}$/.test(v.trim()) ? v.trim().toUpperCase() : null;
+    }).filter((c: string | null): c is string => !!c))];
     const remote = String(posting.jobLocationType ?? '').toUpperCase() === 'TELECOMMUTE';
     const et = Array.isArray(posting.employmentType) ? posting.employmentType[0] : posting.employmentType;
     const sal = posting.baseSalary?.value ?? null;
@@ -159,7 +171,7 @@ export function rawFromHtml(url: string, html: string): RawJob & { fromPosting?:
       fromPosting: true,
       externalId: hash16(canonicalizeUrl(url) || url), url, applyUrl: '', title: htmlToText(String(posting.title ?? '')).trim(), company: htmlToText(company).trim(),
       location: places.join('; ') || (remote ? 'Remote' : ''), descriptionHtml: String(posting.description ?? ''), remote,
-      workMode: remote ? 'remote' : '', countries: [], postedAt: posted, employmentType: EMPLOYMENT[String(et ?? '').toUpperCase()] ?? '',
+      workMode: remote ? 'remote' : '', countries, postedAt: posted, employmentType: EMPLOYMENT[String(et ?? '').toUpperCase()] ?? '',
       department: '', pay: period && /^[A-Z]{3}$/.test(currency) && (min !== null || max !== null) ? { min, max, currency, period } : null,
     };
   }
@@ -311,7 +323,7 @@ export function knownJobFor(store: Store, link: URL): string | null {
  * Reads one job link (no store): a board job through its board's public feed or API, any other page once with the
  * polite client (robots.txt, the never-contact list, no redirect followed). Throws ApiFailure in plain words.
  */
-export async function readJobLink(u: URL, d: Pick<ExternalDeps, 'crawlStore'>, http: HttpClient, o: { needPosting?: boolean } = {}): Promise<RawJob> {
+export async function readJobLink(u: URL, d: Pick<ExternalDeps, 'crawlStore'>, http: HttpClient, o: { needPosting?: boolean; titleMustMention?: string[][] } = {}): Promise<RawJob> {
   if (NEVER.test(u.hostname) || isNeverHost(u.hostname)) throw new ApiFailure('forbidden_source', `jobleft never reads ${u.hostname}, so nothing was sent to it. Paste the job text instead.`);
   // JL-feed-13: this computer and the local network are never read (only public job pages are).
   if (isLocalLink(u)) throw new ApiFailure('forbidden_source', 'That link points to this computer or your local network. jobleft reads only public job pages, so nothing was sent. Paste the job text instead.');
@@ -346,9 +358,13 @@ export async function readJobLink(u: URL, d: Pick<ExternalDeps, 'crawlStore'>, h
   } catch (e) { throw readFailure(e, 'page'); }
   const page = rawFromHtml(u.href, html);
   if (!page.title) throw new ApiFailure('unsupported_source', 'That page has no job title that jobleft can read. Paste the job text instead.');
-  // A page jobleft found by itself (web search) counts only with a JobPosting record: a careers home page also
-  // reads like a job ("apply", "benefits", "experience"), and nobody chose it.
+  // A page jobleft found by itself (web search) without a JobPosting record counts only when its title names what
+  // was searched for: a careers home page also reads like a job ("apply", "benefits"), but "Careers | Shell" does
+  // not name "SOC analyst". (needPosting: only pages with the record count.)
   if (o.needPosting && !page.fromPosting) throw new ApiFailure('unsupported_source', 'That page does not look like a job posting: it carries no job details (no JobPosting record).');
+  if (o.titleMustMention && !page.fromPosting && o.titleMustMention.length && !o.titleMustMention.some((w) => mentionsAll(page.title, w))) {
+    throw new ApiFailure('unsupported_source', 'That page does not look like a job posting: it carries no job details and its title does not name the job searched for.');
+  }
   // JL-feed-12: a page that is not a job posting ("Example Domain") is refused in plain words.
   if (!page.fromPosting && !looksLikePosting(htmlToText(page.descriptionHtml))) {
     throw new ApiFailure('unsupported_source', 'That page does not look like a job posting: jobleft found no job details on it. Open the posting itself and paste its address, or paste the job text.');

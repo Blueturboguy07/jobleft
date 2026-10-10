@@ -12,12 +12,15 @@ import { htmlToText } from '@jobleft/parsers';
 import { nowIso, type WebReadStatus, type WebSearchResult } from '@jobleft/contracts';
 import { ApiFailure } from '../errors.ts';
 import { knownJobFor, otherBoardJobOf, readJobLink, storeExternal } from './external.ts';
+import { looksLikeJobList, looksLikeJobPage } from './websearch.ts';
+import { mentionsAll } from './words.ts';
+export { mentionsAll, searchAlternatives, searchWords } from './words.ts';
 
 /**
  * What came of one address: a new job (its id), a job jobleft already had (known), closed, not a job page, refused
  * (robots.txt, never-contact) or failed (tried again a day later).
  */
-type State = 'queued' | 'reading' | 'job' | 'known' | 'closed' | 'refused' | 'failed' | 'not_job' | 'off_topic';
+type State = 'queued' | 'reading' | 'job' | 'known' | 'likely_job' | 'closed' | 'refused' | 'failed' | 'not_job' | 'off_topic';
 
 /** A failed read is tried again after this long; the other outcomes are final. */
 const RETRY_FAILED_MS = 24 * 3600_000;
@@ -29,27 +32,12 @@ const MAX_QUEUE = 300;
  */
 export const WEB_JOB_DAYS = 30;
 
-const STOP = new Set(['and', 'or', 'the', 'a', 'an', 'of', 'for', 'in', 'at', 'to', 'with', 'en', 'de', 'het', 'een', 'van', 'voor', 'job', 'jobs', 'vacature', 'vacatures']);
+/** Titles of pages about a job that are not a posting of one: pay, courses, how to become one. */
+const NOT_A_POSTING = /\b(salar(y|ies|is)|gehalt|loon|pay scale|course|cursus|opleiding|training|certificat|how to become|wat doet|what does)\b/i;
 
-/** The words a job must mention to belong to a search ("SOC analyst" -> soc, analyst). */
-export function searchWords(q: string): string[] {
-  return [...new Set(q.toLowerCase().split(/[^\p{L}\p{N}+#]+/u).filter((w) => w.length >= 2 && !STOP.has(w)))].slice(0, 8);
-}
-
-/**
- * true when the text mentions every search word: a word of up to three letters (SOC, IT, UX) as a whole word, one of
- * four or five letters at the start of a word ("cyber" in "cybersecurity"), a longer one anywhere or by its first
- * four letters ("analyst" finds the Dutch "analist"). The engines often answer with jobs that only share the site;
- * this keeps the cards to the search.
- */
-export function mentionsAll(text: string, words: string[]): boolean {
-  const t = text.toLowerCase();
-  const esc = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return words.every((w) => {
-    if (w.length <= 3) return new RegExp(`(^|[^\\p{L}\\p{N}])${esc(w)}($|[^\\p{L}\\p{N}])`, 'u').test(t);
-    if (w.length <= 5) return new RegExp(`(^|[^\\p{L}\\p{N}])${esc(w)}`, 'u').test(t);
-    return t.includes(w) || t.includes(w.slice(0, 4));
-  });
+/** The word sets kept with an address ("soc analyst|security analyst"). */
+function altsOf(words: string | null): string[][] {
+  return (words ?? '').split('|').map((x) => x.split(' ').filter(Boolean)).filter((w) => w.length);
 }
 
 export interface WebReaderDeps {
@@ -58,6 +46,8 @@ export interface WebReaderDeps {
   offline: () => boolean;
   /** true while the boards are being refreshed (the reader waits). */
   crawling: () => boolean;
+  /** A place a title or a text states, for a page without a JobPosting record ("... | Nieuwegein | ..."). */
+  placeIn?: (text: string) => string | null;
   sleep?: (ms: number) => Promise<void>;
 }
 
@@ -80,9 +70,11 @@ export class WebReader {
       query TEXT,
       found_at TEXT NOT NULL,
       read_at TEXT,
-      words TEXT
+      words TEXT,
+      title TEXT
     )`);
     try { this.db.exec('ALTER TABLE srv_web_results ADD COLUMN words TEXT'); } catch { /* there already */ }
+    try { this.db.exec('ALTER TABLE srv_web_results ADD COLUMN title TEXT'); } catch { /* there already */ }
     // A read cut short by a quit is read again.
     this.db.exec("UPDATE srv_web_results SET state = 'queued' WHERE state = 'reading'");
   }
@@ -91,13 +83,13 @@ export class WebReader {
    * Notes what is already known about each result (a job jobleft has, or one it found closed) and queues the job
    * pages it has not read. Returns the results with `jobId` filled in where known.
    */
-  enqueue(results: WebSearchResult[], query: string, words: string[] = [], start = true): WebSearchResult[] {
+  enqueue(results: WebSearchResult[], query: string, alts: string[][] = [], start = true): WebSearchResult[] {
     const now = nowIso();
     this.expire();
     const out: WebSearchResult[] = [];
     const get = this.db.prepare('SELECT state, job_id, message, read_at FROM srv_web_results WHERE url = ?');
-    const put = this.db.prepare(`INSERT INTO srv_web_results (url, state, query, found_at, words) VALUES (?, 'queued', ?, ?, ?)
-      ON CONFLICT(url) DO UPDATE SET state = 'queued', query = excluded.query, words = excluded.words`);
+    const put = this.db.prepare(`INSERT INTO srv_web_results (url, state, query, found_at, words, title) VALUES (?, 'queued', ?, ?, ?, ?)
+      ON CONFLICT(url) DO UPDATE SET state = 'queued', query = excluded.query, words = excluded.words, title = excluded.title`);
     const queued = (this.db.prepare("SELECT count(*) AS n FROM srv_web_results WHERE state = 'queued'").get() as { n: number }).n;
     let room = MAX_QUEUE - queued;
     for (const r of results) {
@@ -112,7 +104,7 @@ export class WebReader {
       }
       if (row && row.state !== 'failed') { out.push({ ...r, note: row.state === 'queued' ? null : row.message }); continue; }
       if (row?.state === 'failed' && row.read_at && Date.parse(row.read_at) + RETRY_FAILED_MS > Date.now()) { out.push({ ...r, note: row.message }); continue; }
-      if (room-- > 0) put.run(r.url, query.slice(0, 300), now, words.join(' '));
+      if (room-- > 0) put.run(r.url, query.slice(0, 300), now, alts.map((w) => w.join(' ')).join('|'), r.title.slice(0, 300));
       out.push(r);
     }
     // The assistant reads its own first (readNow), then starts the reader.
@@ -143,8 +135,8 @@ export class WebReader {
   /** The read in progress, if any. */
   private current: Promise<void> | null = null;
 
-  private async readGuarded(url: string, words: string[]): Promise<void> {
-    const p = this.readOne(url, words);
+  private async readGuarded(url: string, alts: string[][]): Promise<void> {
+    const p = this.readOne(url, alts);
     this.current = p;
     try { await p; } catch (e) { if (!this.stopped) throw e; } finally { if (this.current === p) this.current = null; }
   }
@@ -164,7 +156,7 @@ export class WebReader {
       if (this.stopped || this.d.offline() || this.d.crawling()) break;
       const row = this.db.prepare('SELECT words FROM srv_web_results WHERE url = ?').get(url) as { words: string | null } | undefined;
       if (!row || !this.claim(url)) continue;
-      await this.readGuarded(url, (row.words ?? '').split(' ').filter(Boolean));
+      await this.readGuarded(url, altsOf(row.words));
       if (this.stopped) break;
       read++;
       const after = this.db.prepare('SELECT state, job_id FROM srv_web_results WHERE url = ?').get(url) as { state: string; job_id: string | null };
@@ -175,9 +167,9 @@ export class WebReader {
   }
 
   /** What came of an address, if it was read. */
-  outcome(url: string): { state: string; jobId: string | null } | null {
-    const r = this.db.prepare('SELECT state, job_id FROM srv_web_results WHERE url = ?').get(url) as { state: string; job_id: string | null } | undefined;
-    return r ? { state: r.state, jobId: r.job_id } : null;
+  outcome(url: string): { state: string; jobId: string | null; message: string | null } | null {
+    const r = this.db.prepare('SELECT state, job_id, message FROM srv_web_results WHERE url = ?').get(url) as { state: string; job_id: string | null; message: string | null } | undefined;
+    return r ? { state: r.state, jobId: r.job_id, message: r.message } : null;
   }
 
   private async run(): Promise<void> {
@@ -191,12 +183,12 @@ export class WebReader {
         const next = this.db.prepare("SELECT url, words FROM srv_web_results WHERE state = 'queued' ORDER BY found_at, rowid LIMIT 1").get() as { url: string; words: string | null } | undefined;
         if (!next) break;
         if (!this.claim(next.url)) continue;
-        await this.readGuarded(next.url, (next.words ?? '').split(' ').filter(Boolean));
+        await this.readGuarded(next.url, altsOf(next.words));
       }
     } finally { this.running = false; }
   }
 
-  private async readOne(url: string, words: string[]): Promise<void> {
+  private async readOne(url: string, alts: string[][]): Promise<void> {
     const set = (state: State, jobId: string | null, message: string | null) => this.db.prepare('UPDATE srv_web_results SET state = ?, job_id = ?, message = ?, read_at = ? WHERE url = ?').run(state, jobId, message, nowIso(), url);
     let u: URL;
     try { u = new URL(url); } catch { set('refused', null, 'Not a web address.'); return; }
@@ -206,10 +198,17 @@ export class WebReader {
     // A paged feed (Teamtailor, Workable) can take several requests for one board.
     const http = new HttpClient({ hostMap: this.d.hostMap, pacer: this.pacer, timeoutMs: 10_000, retries: 0, maxRequests: otherBoardJobOf(u) ? 12 : 3 });
     try {
-      const raw = await readJobLink(u, { crawlStore: this.d.crawlStore }, http, { needPosting: true });
-      if (words.length && !mentionsAll(`${raw.title}\n${htmlToText(raw.descriptionHtml)}`, words)) {
-        set('off_topic', null, `The job does not mention all of: ${words.join(', ')}.`);
+      const raw = await readJobLink(u, { crawlStore: this.d.crawlStore }, http, { titleMustMention: alts });
+      const text = `${raw.title}\n${htmlToText(raw.descriptionHtml)}`;
+      if (alts.length && !alts.some((w) => mentionsAll(text, w))) {
+        set('off_topic', null, `The job is not about ${alts.map((w) => w.join(' ')).join(' or ')}.`);
         return;
+      }
+      // A page without a JobPosting record: its title often names the place, and "Vacature:" is not part of the title.
+      raw.title = raw.title.replace(/^\s*(?:vacature|vacancy|job|stellenangebot)\s*[:\-–|]\s*/i, '').trim() || raw.title;
+      if (!raw.location && this.d.placeIn) {
+        const titled = this.db.prepare('SELECT title FROM srv_web_results WHERE url = ?').get(url) as { title: string | null } | undefined;
+        raw.location = this.d.placeIn(`${raw.title} | ${titled?.title ?? ''}`) ?? '';
       }
       const id = storeExternal(this.d.crawlStore, raw, 'web');
       this.stats.added++;
@@ -217,9 +216,28 @@ export class WebReader {
     } catch (e) {
       const f = e instanceof ApiFailure ? e : null;
       if (f?.code === 'not_found') { this.stats.closed++; set('closed', null, f.message); return; }
-      if (f?.code === 'forbidden_source') { set('refused', null, f.message); return; }
-      if (f?.code === 'unsupported_source' && /does not look like a job posting|no job title/.test(f.message)) { set('not_job', null, f.message); return; }
+      const likely = () => {
+        const t = this.db.prepare('SELECT title FROM srv_web_results WHERE url = ?').get(url) as { title: string | null } | undefined;
+        return !!t?.title && alts.some((w) => mentionsAll(t.title!, w)) && looksLikeJobPage(url, t.title) && !looksLikeJobList(url, t.title) && !NOT_A_POSTING.test(t.title);
+      };
+      if (f?.code === 'forbidden_source') {
+        if (likely()) { set('likely_job', null, `Most likely a job posting, but ${f.message.charAt(0).toLowerCase()}${f.message.slice(1)} Open it in your browser.`); return; }
+        set('refused', null, f.message);
+        return;
+      }
+      if (f?.code === 'unsupported_source' && /does not look like a job posting|no job title/.test(f.message)) {
+        // The title names the job searched for and the address reads like one job: most likely a posting whose
+        // page is built by script, so its details could not be read. It is not made a job from guesses.
+        const title = this.db.prepare('SELECT title FROM srv_web_results WHERE url = ?').get(url) as { title: string | null } | undefined;
+        if (title?.title && alts.some((w) => mentionsAll(title.title!, w)) && looksLikeJobPage(url, title.title) && !looksLikeJobList(url, title.title) && !NOT_A_POSTING.test(title.title)) {
+          set('likely_job', null, 'Most likely a job posting, but its details could not be read (the page is built by script). Open it in your browser.');
+          return;
+        }
+        set('not_job', null, f.message);
+        return;
+      }
       this.stats.failed++;
+      if (likely()) { set('likely_job', null, 'Most likely a job posting, but the site did not let jobleft read it. Open it in your browser.'); return; }
       set('failed', null, f?.message ?? 'The page could not be read.');
     }
   }

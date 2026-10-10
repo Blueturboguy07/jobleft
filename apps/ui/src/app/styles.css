@@ -247,6 +247,14 @@ a { color: var(--jl-accent-ink); }
 .jl-bubble.assistant { background: var(--jl-input); align-self: flex-start; }
 .jl-bubble.user { background: #000; color: #fff; align-self: flex-end; }
 .jl-chat-input { border-top: 1px solid var(--jl-line); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+/* Jobs > Web jobs: search results */
+.jl-serp { padding: 10px 4px; border-bottom: 1px solid var(--jl-line); animation: jl-tool-in 200ms ease-out; }
+.jl-serp.dim { opacity: 0.6; }
+.jl-serp-avatar { flex: 0 0 28px; height: 28px; border-radius: 14px; color: #fff; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; margin-top: 2px; }
+.jl-serp-site { font-size: 12px; color: var(--jl-text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jl-serp-title { display: block; font-size: 17px; font-weight: 600; line-height: 1.3; color: #1F5FAD; text-decoration: none; overflow-wrap: anywhere; }
+.jl-serp-title:hover { text-decoration: underline; }
+.jl-serp-snippet { margin: 2px 0 0; font-size: 13px; color: var(--jl-text2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 /* the assistant's tool steps (web search, reading a job): live while they run */
 .jl-tools { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; white-space: normal; }
 .jl-tool { border-radius: 10px; background: rgba(255,255,255,0.65); border: 1px solid var(--jl-line); animation: jl-tool-in 220ms ease-out; }

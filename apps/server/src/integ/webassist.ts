@@ -22,8 +22,16 @@ export function webSearchToolFor(app: App, d: AppData): WebSearchTool {
   return {
     available: () => !app.cfg.offline && !!d.settings.get().webSearch?.url,
     async search(a, progress, signal) {
+      const general = a.purpose === 'general';
       const r = await d.webSearch({ q: a.query, ...(a.place ? { place: a.place } : {}) }, [a.query, a.place ?? ''].join(' ').trim(), signal,
-        (q) => progress(`Asking your search engine: ${q}`), { deferReading: true });
+        (q) => progress(`Asking your search engine: ${q}`), { deferReading: true, general });
+      if (general) {
+        for (const x of r.results.slice(0, 8)) progress(`${x.host}: ${x.title}`, { title: x.title, url: x.url });
+        return {
+          message: r.message, jobs: [], boards: [], pagesRead: 0, stillReading: 0,
+          others: r.results.slice(0, 15).map((x) => ({ title: x.title, url: x.url, snippet: x.snippet.slice(0, 300), kind: x.kind })),
+        };
+      }
       const pages = r.results.filter((x) => x.kind === 'board_job' || x.kind === 'page');
       progress(`${r.results.length} results: ${pages.length} job pages, ${r.boards.length} boards`);
       const byUrl = new Map(r.results.map((x) => [x.url, x]));
@@ -48,7 +56,7 @@ export function webSearchToolFor(app: App, d: AppData): WebSearchTool {
       return {
         message: r.message,
         jobs: jobs.slice(0, 15),
-        others: r.results.filter((x) => x.kind !== 'board_job' && x.kind !== 'page').slice(0, 12).map((x) => ({ title: x.title, url: x.url, snippet: x.snippet.slice(0, 300), kind: x.kind })),
+        others: r.results.filter((x) => !jobs.some((j) => j.url === x.url)).slice(0, 15).map((x) => ({ title: x.title, url: x.url, snippet: x.snippet.slice(0, 300), kind: x.kind })),
         boards: r.boards.slice(0, 10).map((b) => ({ company: b.company, board: b.board, system: b.ats, followed: b.followed })),
         pagesRead: read,
         stillReading,

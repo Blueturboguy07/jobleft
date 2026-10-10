@@ -19,7 +19,7 @@ const searchThenAnswer: Script = (ctx) => {
 };
 
 function fakeWeb(): WebSearchTool & { calls: Array<{ query: string; place?: string }> } {
-  const calls: Array<{ query: string; place?: string }> = [];
+  const calls: Array<{ query: string; place?: string; purpose?: string }> = [];
   return {
     calls,
     available: () => true,
@@ -47,10 +47,10 @@ test('web_search: the chat sees the tool start, each step as it happens with its
   try {
     const r = await runChat(rig.assistant, chatReq('Find me SOC traineeships in Utrecht.'));
     assert.equal(r.error, null);
-    assert.deepEqual(web.calls, [{ query: 'SOC traineeship', place: 'Utrecht' }]);
+    assert.deepEqual(web.calls, [{ query: 'SOC traineeship', place: 'Utrecht', purpose: 'jobs' }]);
     const tools = r.events.filter((e): e is ToolEv => e.type === 'tool');
     assert.equal(tools[0]!.state, 'running');
-    assert.equal(tools[0]!.label, 'Searching the web: SOC traineeship, Utrecht');
+    assert.equal(tools[0]!.label, 'Searching the web for jobs: SOC traineeship, Utrecht');
     assert.ok(tools.length >= 4, 'start, two steps, done');
     assert.deepEqual(tools.at(-2)!.steps, ['Asking your search engine: SOC traineeship Utrecht (site:recruitee.com OR site:teamtailor.com)', 'acme.recruitee.com: a new job']);
     assert.equal(tools.at(-2)!.sources![0]!.url, 'https://acme.recruitee.com/o/soc-trainee');

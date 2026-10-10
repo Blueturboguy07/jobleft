@@ -41,10 +41,13 @@ export function normalizeSearxUrl(input: string | null | undefined): string | nu
 }
 
 /**
- * The hosts of the systems jobleft reads, in two searches ("site:a OR site:b ..."): the engines that keep to "site:"
- * (tested 2026-10-10: Google CSE and Yahoo through SearXNG) answer one grouped search as well as one search per
- * host, and fewer searches keep the engines from refusing (they suspend a client that asks too often).
+ * The job sites jobleft never contacts, left out of the searches ("-site:"): their result pages are lists that only
+ * open in a browser, and they crowd out the employers' own postings. Tested 2026-10-10: Yahoo through SearXNG keeps
+ * to these exclusions; Google CSE answers nothing to them (so its results come from the searches without them).
  */
+export const EXCLUDED_SITES = ['linkedin.com', 'indeed.com', 'glassdoor.com', 'glassdoor.nl'];
+
+/** Hiring systems jobleft reads (Settings > Job sources follows their boards): kept for sortResult's board check. */
 export const SITE_GROUPS: ReadonlyArray<readonly string[]> = [
   ['greenhouse.io', 'lever.co', 'jobs.ashbyhq.com', 'apply.workable.com'],
   ['recruitee.com', 'teamtailor.com', 'jobs.personio.de', 'jobs.personio.com'],
@@ -53,14 +56,69 @@ export const SITE_GROUPS: ReadonlyArray<readonly string[]> = [
 /** One search: its words, and the sites it asks for (null for a search without a site). */
 export interface PlannedQuery { q: string; sites: readonly string[] | null }
 
-/** The searches for one request: the two site groups, then two without a site, which find career pages. */
-export function planQueries(req: Pick<WebSearchRequest, 'q' | 'place'>): PlannedQuery[] {
-  const words = [req.q, req.place ?? ''].map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' ');
-  return [
-    ...SITE_GROUPS.map((g) => ({ q: `${words} (${g.map((h) => `site:${h}`).join(' OR ')})`, sites: g })),
-    { q: `${words} vacature OR vacancy`, sites: null },
-    { q: `${words} job OR careers`, sites: null },
+/** The titles a search asks for: "SOC Analyst, Security Analyst" is either one (at most three). */
+export function alternativesOf(q: string): string[] {
+  return q.split(/\s*(?:,|;|\|| or | OF )\s*/i).map((x) => x.replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 3);
+}
+
+/** The countries whose job postings say "vacature": Dutch words are added to the searches. */
+const DUTCH = new Set(['NL', 'BE']);
+
+/** English job words and how Dutch postings write them ("SOC analyst" -> "SOC analist"). */
+const TO_DUTCH: Record<string, string> = {
+  analyst: 'analist', analysts: 'analisten', developer: 'ontwikkelaar', developers: 'ontwikkelaars', consultant: 'adviseur',
+  advisor: 'adviseur', adviser: 'adviseur', internship: 'stage', intern: 'stagiair', trainee: 'trainee', engineer: 'engineer',
+  officer: 'officer', specialist: 'specialist', architect: 'architect', administrator: 'beheerder', 'system administrator': 'systeembeheerder',
+  'network engineer': 'netwerkbeheerder', tester: 'tester', 'data analyst': 'data-analist', 'security analyst': 'security analist',
+  'cyber security': 'cybersecurity', 'information security': 'informatiebeveiliging', 'project manager': 'projectleider', 'support': 'support',
+};
+
+/** The Dutch way of writing a job title, or null when it is the same ("Security Analyst" -> "Security Analist"). */
+export function dutchTitle(title: string): string | null {
+  let out = title;
+  for (const [en, nl] of Object.entries(TO_DUTCH).sort((a, b) => b[0].length - a[0].length)) {
+    out = out.replace(new RegExp(`\\b${en}\\b`, 'gi'), nl);
+  }
+  return out.toLowerCase() === title.toLowerCase() ? null : out;
+}
+
+/**
+ * The searches for one request, all on the open web: the job words (one title, or "a" OR "b"), the place, a word
+ * that asks for job postings, and the big job sites left out. Three searches: in a Dutch-speaking country
+ * "vacature", "job" and "werken bij"; elsewhere "job", "hiring" and "careers".
+ */
+export function planQueries(req: Pick<WebSearchRequest, 'q' | 'place'>, country: string | null = null): PlannedQuery[] {
+  const alts = alternativesOf(req.q);
+  const what = alts.length > 1 ? `(${alts.map((x) => `"${x}"`).join(' OR ')})` : (alts[0] ?? req.q.trim());
+  const where = (req.place ?? '').replace(/\s+/g, ' ').trim();
+  const not = EXCLUDED_SITES.map((h) => `-site:${h}`).join(' ');
+  const q = (w: string, title = what) => ({ q: [title, w, where, not].filter(Boolean).join(' '), sites: null });
+  if (country && DUTCH.has(country)) {
+    // Dutch postings often write the title the Dutch way ("analist"): one search with that spelling.
+    const nl = alts.map((a) => dutchTitle(a) ?? a);
+    const nlWhat = nl.length > 1 ? `(${nl.map((x) => `"${x}"`).join(' OR ')})` : nl[0] ?? what;
+    return [q('vacature'), nlWhat !== what ? q('vacature', nlWhat) : q('werken bij'), q('job')];
+  }
+  return ['job', 'hiring', 'careers'].map((w) => q(w));
+}
+
+/**
+ * The same search on the big job sites, as plain links for the person's browser. jobleft builds the addresses and
+ * never opens them itself.
+ */
+export function searchLinks(req: Pick<WebSearchRequest, 'q' | 'place'>, country: string | null): Array<{ name: string; url: string }> {
+  const q = alternativesOf(req.q)[0] ?? req.q.trim();
+  const place = (req.place ?? '').trim();
+  const e = encodeURIComponent;
+  const indeedHost = country === 'NL' ? 'nl.indeed.com' : country === 'BE' ? 'be.indeed.com' : country === 'DE' ? 'de.indeed.com' : country === 'GB' ? 'uk.indeed.com' : 'www.indeed.com';
+  const links = [
+    { name: 'LinkedIn', url: `https://www.linkedin.com/jobs/search/?keywords=${e(q)}${place ? `&location=${e(place)}` : ''}` },
+    { name: 'Indeed', url: `https://${indeedHost}/jobs?q=${e(q)}${place ? `&l=${e(place)}` : ''}` },
+    { name: 'Glassdoor', url: `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${e(q)}` },
+    { name: 'Google job search', url: `https://www.google.com/search?q=${e([q, place, 'jobs'].filter(Boolean).join(' '))}&ibp=htl;jobs` },
   ];
+  if (country === 'NL') links.push({ name: 'Werken voor Nederland', url: `https://www.werkenvoornederland.nl/vacatures?zoekterm=${e(q)}` });
+  return links;
 }
 
 /** true when the host is the site or one of its sub-domains. */
@@ -303,8 +361,10 @@ export function sortResult(r: SearxResult, d: SortDeps): WebSearchResult | null 
 }
 
 /** Runs the planned searches, then sorts, de-duplicates and counts the boards. */
-export async function webSearchJobs(req: WebSearchRequest, client: SearxClient, d: SortDeps, signal?: AbortSignal, onQuery?: (q: string) => void): Promise<WebSearchResponse> {
-  const queries = planQueries(req);
+export async function webSearchJobs(req: WebSearchRequest, client: SearxClient, d: SortDeps, signal?: AbortSignal, onQuery?: (q: string) => void, country: string | null = null, general = false): Promise<WebSearchResponse> {
+  // A general search (the assistant's question about pay, a company, a field) is the words as they are, once.
+  const queries = general ? [{ q: [req.q, req.place ?? ''].join(' ').replace(/\s+/g, ' ').trim(), sites: null }] : planQueries(req, country);
+  const boardUrls = new Set<string>();
   const seen = new Set<string>();
   const results: WebSearchResult[] = [];
   const unresponsive = new Set<string>();
@@ -329,11 +389,11 @@ export async function webSearchJobs(req: WebSearchRequest, client: SearxClient, 
       if (!s) continue;
       // Some engines ignore "site:" and answer with any page: a site search keeps only results on that site.
       if (pq.sites && !pq.sites.some((site) => onSite(new URL(s.url).hostname, site))) continue;
-      if (!pq.sites && s.kind === 'page' && !looksLikeJobPage(s.url, s.title)) continue;
-      // A board's page is one result, whatever filters its link carries ("?location=...").
-      const key = s.kind === 'board' && s.boardId ? `board:${s.boardId}` : canonicalizeUrl(s.url) || s.url;
+      // A board on a system jobleft reads is followed in Settings > Job sources, not listed here.
+      if (s.kind === 'board' || s.kind === 'board_job') { boardUrls.add(canonicalizeUrl(s.url) || s.url); continue; }
+      const key = canonicalizeUrl(s.url) || s.url;
       if (seen.has(key)) {
-        const prev = results.find((x) => (x.kind === 'board' && x.boardId ? `board:${x.boardId}` : canonicalizeUrl(x.url) || x.url) === key);
+        const prev = results.find((x) => (canonicalizeUrl(x.url) || x.url) === key);
         if (prev) for (const en of s.engines) if (!prev.engines.includes(en)) prev.engines.push(en);
         continue;
       }
@@ -356,12 +416,11 @@ export async function webSearchJobs(req: WebSearchRequest, client: SearxClient, 
   const order: Record<WebSearchResult['kind'], number> = { board_job: 0, page: 1, board: 2, list: 3, never: 4 };
   results.sort((a, b) => order[a.kind] - order[b.kind]);
   const boards = [...counts.values()].sort((a, b) => Number(a.added) - Number(b.added) || b.results - a.results);
-  const jobs = results.filter((r) => r.kind === 'board_job' || r.kind === 'page').length;
-  const newBoards = boards.filter((b) => !b.added).length;
+  const sites = new Set(results.map((r) => r.host)).size;
   const message = !results.length
     ? unresponsive.size
       ? `The search found nothing, and some search engines did not answer (${[...unresponsive].sort().join(', ')}). SearXNG pauses an engine that refuses it; try again in a few minutes, or turn on other engines in SearXNG.`
       : 'The search found nothing. Try fewer or other words, or a wider place.'
-    : `${results.length} results: ${jobs} job pages jobleft can add, ${boards.length} boards (${newBoards} not in your list).${failed ? ` ${failed} of ${queries.length} searches failed${firstError ? ` (${firstError.message})` : ''}.` : ''}`;
-  return { results, boards, queries: queries.length, failedQueries: failed, unresponsive: [...unresponsive].sort(), message };
+    : `${results.length} results from ${sites} ${sites === 1 ? 'site' : 'sites'}.${failed ? ` ${failed} of ${queries.length} searches failed${firstError ? ` (${firstError.message})` : ''}.` : ''}`;
+  return { results, boards, queries: queries.length, failedQueries: failed, unresponsive: [...unresponsive].sort(), message, country, boardResults: boardUrls.size, searchLinks: searchLinks(req, country) };
 }
