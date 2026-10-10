@@ -7,7 +7,7 @@
 //   src-tauri/resources/ui/      the built UI (apps/ui/dist)
 //   src-tauri/binaries/node-<target>  the Node 24 runtime (put there by hand or by scripts/fetch-node.sh; verified
 //                                against nodejs.org's SHASUMS256.txt)
-// Usage: node apps/shell/scripts/pack.ts [--target darwin-arm64|win-x64]   (run from the repository root; safe to run again)
+// Usage: node apps/shell/scripts/pack.ts [--target darwin-arm64|win-x64|linux-x64]   (run from the repository root; safe to run again)
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
@@ -24,8 +24,8 @@ const { transformSync } = (await import(pathToFileURL(esbuildMain).href)) as { t
 /** Relative specifiers and URL literals that end in .ts point at the transpiled .js next to them. */
 const relinkSpecifiers = (code: string) => code.replace(/(['"])(\.{1,2}\/[^'"\n]+?)\.ts\1/g, '$1$2.js$1');
 const argTarget = process.argv.indexOf('--target') >= 0 ? process.argv[process.argv.indexOf('--target') + 1] : null;
-const TARGET = argTarget ?? (process.platform === 'win32' ? 'win-x64' : 'darwin-arm64');
-const ONNX = { 'darwin-arm64': ['darwin', 'arm64'], 'win-x64': ['win32', 'x64'] }[TARGET] ?? ['darwin', 'arm64'];
+const TARGET = argTarget ?? (process.platform === 'win32' ? 'win-x64' : process.platform === 'linux' ? 'linux-x64' : 'darwin-arm64');
+const ONNX = { 'darwin-arm64': ['darwin', 'arm64'], 'win-x64': ['win32', 'x64'], 'linux-x64': ['linux', 'x64'] }[TARGET] ?? ['darwin', 'arm64'];
 const OUT = join(ROOT, 'apps/shell/src-tauri/resources');
 const SKIP = new Set(['node_modules', 'test', 'tests', 'testkit', 'scripts', 'docs', 'fixtures', 'jobsync', 'README.md', 'tsconfig.json', '.DS_Store', 'reports', 'dev', 'dist-placeholder', 'public', 'manifest.json', 'vite.config.ts']);
 
@@ -119,6 +119,6 @@ cpSync(ui, join(OUT, 'ui'), { recursive: true });
 const localTok = join(ROOT, 'apps/shell/publik-app-token.local');
 const tok = (process.env.JOBLEFT_PUBLIK_APP_TOKEN ?? (existsSync(localTok) ? readFileSync(localTok, 'utf8') : '')).trim();
 writeFileSync(join(OUT, 'publik-app-token.txt'), /^pat_jobleft_[A-Za-z0-9]+$/.test(tok) ? tok + '\n' : '');
-const node = join(ROOT, 'apps/shell/src-tauri/binaries', TARGET === 'win-x64' ? 'node-x86_64-pc-windows-msvc.exe' : 'node-aarch64-apple-darwin');
+const node = join(ROOT, 'apps/shell/src-tauri/binaries', TARGET === 'win-x64' ? 'node-x86_64-pc-windows-msvc.exe' : TARGET === 'linux-x64' ? 'node-x86_64-unknown-linux-gnu' : 'node-aarch64-apple-darwin');
 const size = (dir: string): number => readdirSync(dir).reduce((n, f) => { const p = join(dir, f); const s = statSync(p); return n + (s.isDirectory() ? size(p) : s.size); }, 0);
 console.log(`target ${TARGET}; third-party: ${third.join(', ')}\nserver tree: ${[...seen].sort().join(', ')}; ${transpiled} files transpiled (${(size(serverOut) / 1e6).toFixed(1)} MB); ui: ${(size(join(OUT, 'ui')) / 1e6).toFixed(1)} MB; node runtime: ${existsSync(node) ? `${(statSync(node).size / 1e6).toFixed(0)} MB` : 'MISSING (apps/shell/README.md says how to fetch it)'}; publik app token: ${tok ? 'shipped' : 'none (Connect to publik stays off)'}`);

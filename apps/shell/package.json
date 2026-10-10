@@ -17,7 +17,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "pack": "node scripts/pack.ts",
     "tauri": "node \"$(node -p \"require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })\")\"",
-    "app:build": "node scripts/pack.ts && CARGO_TARGET_DIR=\"$(cd ../.. && pwd)/.cache/cargo-target\" node \"$(node -p \"require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })\")\" build --debug --bundles app"
+    "app:build": "node scripts/pack.ts && CARGO_TARGET_DIR=\"$(cd ../.. && pwd)/.cache/cargo-target\" node \"$(node -p \"require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })\")\" build --debug --bundles app",
+    "app:build:linux": "bash scripts/build-linux.sh"
   },
   "dependencies": {
     "@jobleft/contracts": "workspace:*"

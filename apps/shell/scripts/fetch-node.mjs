@@ -1,6 +1,6 @@
 // Fetches the official Node 24 runtime the bundle ships as its sidecar, verifies it against nodejs.org's SHASUMS256.txt,
 // and puts it at src-tauri/binaries/node-<target triple>[.exe]. Safe to run again (skips when present).
-// Usage: node apps/shell/scripts/fetch-node.mjs [--target darwin-arm64|win-x64]   (default: this machine)
+// Usage: node apps/shell/scripts/fetch-node.mjs [--target darwin-arm64|win-x64|linux-x64]   (default: this machine)
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, copyFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -11,8 +11,8 @@ import { fileURLToPath } from 'node:url';
 const VERSION = 'v24.18.0';
 const ROOT = resolve(fileURLToPath(new URL('../../../', import.meta.url)));
 const argTarget = process.argv.indexOf('--target') >= 0 ? process.argv[process.argv.indexOf('--target') + 1] : null;
-const target = argTarget ?? (process.platform === 'win32' ? 'win-x64' : 'darwin-arm64');
-const spec = { 'darwin-arm64': { archive: `node-${VERSION}-darwin-arm64.tar.gz`, inner: `node-${VERSION}-darwin-arm64/bin/node`, out: 'node-aarch64-apple-darwin' }, 'win-x64': { archive: `node-${VERSION}-win-x64.zip`, inner: `node-${VERSION}-win-x64/node.exe`, out: 'node-x86_64-pc-windows-msvc.exe' } }[target];
+const target = argTarget ?? (process.platform === 'win32' ? 'win-x64' : process.platform === 'linux' ? 'linux-x64' : 'darwin-arm64');
+const spec = { 'darwin-arm64': { archive: `node-${VERSION}-darwin-arm64.tar.gz`, inner: `node-${VERSION}-darwin-arm64/bin/node`, out: 'node-aarch64-apple-darwin' }, 'win-x64': { archive: `node-${VERSION}-win-x64.zip`, inner: `node-${VERSION}-win-x64/node.exe`, out: 'node-x86_64-pc-windows-msvc.exe' }, 'linux-x64': { archive: `node-${VERSION}-linux-x64.tar.gz`, inner: `node-${VERSION}-linux-x64/bin/node`, out: 'node-x86_64-unknown-linux-gnu' } }[target];
 if (!spec) throw new Error(`unknown target ${target}`);
 const outDir = join(ROOT, 'apps/shell/src-tauri/binaries');
 const out = join(outDir, spec.out);

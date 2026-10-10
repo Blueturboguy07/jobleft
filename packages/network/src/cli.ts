@@ -516,8 +516,15 @@ async function command(ctx: Ctx, cmd: string, a: Args): Promise<number> {
       }
       if (flag(a, 'out')) writeFileSync(flag(a, 'out')!, draft.text);
       if (has(a, 'copy')) {
-        if (process.platform === 'darwin') { execFileSync('/usr/bin/pbcopy', [], { input: draft.text }); out('Copied the exact text above to the clipboard.'); }
-        else out('Copy is available on macOS only; use --out <file>.');
+        // macOS: pbcopy. Linux: wl-copy (Wayland), else xclip or xsel (X11).
+        const copiers: [string, string[]][] = process.platform === 'darwin' ? [['/usr/bin/pbcopy', []]]
+          : process.platform === 'linux' ? [...(process.env.WAYLAND_DISPLAY ? [['wl-copy', []] as [string, string[]]] : []), ['xclip', ['-selection', 'clipboard']], ['xsel', ['--clipboard', '--input']]]
+          : [];
+        let copied = false;
+        for (const [cmd, args] of copiers) {
+          try { execFileSync(cmd, args, { input: draft.text, stdio: ['pipe', 'ignore', 'ignore'], timeout: 5_000 }); copied = true; break; } catch { /* try the next one */ }
+        }
+        out(copied ? 'Copied the exact text above to the clipboard.' : 'No clipboard tool found (pbcopy, wl-copy, xclip or xsel); use --out <file>.');
       }
       return 0;
     }

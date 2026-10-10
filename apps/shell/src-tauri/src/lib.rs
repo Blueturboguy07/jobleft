@@ -1,4 +1,4 @@
-//! jobleft desktop shell (Tauri v2, macOS first). Contract: docs/INTERFACES.md section 5.2.
+//! jobleft desktop shell (Tauri v2: macOS, Windows, Linux). Contract: docs/INTERFACES.md section 5.2.
 //!
 //! - Launch: a new launch token, then the Node server as a sidecar (`node` beside this executable, the server tree
 //!   under Resources/server) with `JOBLEFT_HOME`, `JOBLEFT_LAUNCH_TOKEN`, `JOBLEFT_PARENT_PID`, `JOBLEFT_UI_DIR`.
@@ -50,7 +50,7 @@ struct Shell {
 }
 
 /// The data folder: `JOBLEFT_HOME`, else `~/Library/Application Support/jobleft` on macOS, `%APPDATA%\jobleft` on
-/// Windows (docs/INTERFACES.md section 2).
+/// Windows, `$XDG_DATA_HOME/jobleft` (or `~/.local/share/jobleft`) on Linux (docs/INTERFACES.md section 2).
 fn data_home() -> PathBuf {
     if let Ok(h) = std::env::var("JOBLEFT_HOME") {
         if !h.trim().is_empty() {
@@ -67,10 +67,20 @@ fn data_home() -> PathBuf {
         let up = std::env::var("USERPROFILE").unwrap_or_else(|_| ".".into());
         return PathBuf::from(up).join("AppData").join("Roaming").join("jobleft");
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
     {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
         PathBuf::from(home).join("Library/Application Support/jobleft")
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if let Ok(x) = std::env::var("XDG_DATA_HOME") {
+            if !x.trim().is_empty() {
+                return PathBuf::from(x).join("jobleft");
+            }
+        }
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        PathBuf::from(home).join(".local/share/jobleft")
     }
 }
 
@@ -295,11 +305,16 @@ fn quit(app: &AppHandle) {
     app.exit(0);
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
 fn notify(_app: &AppHandle, title: &str, body: &str) {
     let esc = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
     let script = format!("display notification \"{}\" with title \"{}\"", esc(body), esc(title));
     let _ = Command::new("/usr/bin/osascript").arg("-e").arg(script).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn();
+}
+/// Linux: `notify-send` (libnotify) with arguments, no shell.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn notify(_app: &AppHandle, title: &str, body: &str) {
+    let _ = Command::new("notify-send").arg("--app-name=jobleft").arg("--").arg(title).arg(body).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn();
 }
 #[cfg(windows)]
 fn notify(app: &AppHandle, title: &str, body: &str) {
