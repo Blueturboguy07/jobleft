@@ -359,3 +359,22 @@ test('JL-settings-8: a publik Assistant answer ends with its charge (the balance
     assert.equal((await s.call('GET', '/api/v1/publik')).json.wallet.balanceMicros, 250_000 - 1_374);
   } finally { await s.stop(); await pub.close(); cleanup(s.home); }
 });
+
+test('the interface size: saved, kept when a writer leaves it out, and refused out of range', async () => {
+  const s = await startTest('zoom');
+  try {
+    const first = (await s.call('GET', '/api/v1/settings')).json;
+    assert.deepEqual(first.display, { zoom: 1 });
+    const put = await s.call('PUT', '/api/v1/settings', { ...first, display: { zoom: 1.25 } });
+    assert.equal(put.status, 200, put.text);
+    assert.equal(put.json.display.zoom, 1.25);
+    // the shell's "Pause checks" and an older UI send settings without `display`
+    const { display: _d, ...rest } = put.json;
+    const paused = await s.call('PUT', '/api/v1/settings', { ...rest, crawl: { ...rest.crawl, paused: true } });
+    assert.equal(paused.status, 200, paused.text);
+    assert.equal(paused.json.display.zoom, 1.25);
+    assert.equal(paused.json.crawl.paused, true);
+    assert.equal((await s.call('PUT', '/api/v1/settings', { ...first, display: { zoom: 4 } })).status, 400);
+    assert.equal((await s.call('GET', '/api/v1/settings')).json.display.zoom, 1.25);
+  } finally { await s.stop(); cleanup(s.home); }
+});

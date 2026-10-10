@@ -29,6 +29,7 @@ export class Kv {
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   crawl: { intervalHours: 6, catchUpOnLaunch: true, runInTray: true },
   notifications: { reminders: true, alerts: true },
+  display: { zoom: 1 },
 };
 
 export class SettingsService {
@@ -41,11 +42,14 @@ export class SettingsService {
     return {
       crawl: { ...DEFAULT_APP_SETTINGS.crawl, ...(s.crawl ?? {}) },
       notifications: { ...DEFAULT_APP_SETTINGS.notifications, ...(s.notifications ?? {}) },
+      display: { ...DEFAULT_APP_SETTINGS.display!, ...(s.display ?? {}) },
     };
   }
 
   put(s: AppSettings): AppSettings {
-    this.kv.set('app_settings', prune(AppSettingsSchema, s));
+    // A writer that does not know `display` (an older UI, the shell's pause item) keeps the saved size.
+    const display = s.display ?? this.get().display;
+    this.kv.set('app_settings', prune(AppSettingsSchema, { ...s, display }));
     return this.get();
   }
 

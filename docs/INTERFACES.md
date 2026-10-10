@@ -211,6 +211,7 @@ Status: Built by the server lane (`scripts/app-up.ts`, `scripts/app-down.ts`). T
 | Launch | The shell makes a new launch token and starts the server sidecar with `sidecarEnv()` (apps/shell, Built): `JOBLEFT_HOME`, `JOBLEFT_LAUNCH_TOKEN`, `JOBLEFT_PARENT_PID`, `JOBLEFT_UI_DIR` |
 | Port | The server takes the first free port of 47821 to 47830 (`DEFAULT_PORT`, `PORT_SPAN`), or `JOBLEFT_PORT`. The shell reads the port from `run/server.json` |
 | Ready | The shell waits for `GET /api/v1/health` (up to `READY_TIMEOUT_MS`), then opens the window at `http://127.0.0.1:<port>/#token=<token>` |
+| Interface size | The shell opens the window at `display.zoom` from `GET /api/v1/settings` (0.8 to 1.5, absent = 1). After that the page zooms its own window (Settings > Appearance, Ctrl or Cmd with +, - and 0) through the one extra IPC permission `core:webview:allow-set-webview-zoom` |
 | Single instance | One server per data folder (`run/server.lock`). A second launch focuses the first window and exits |
 | Window closed | The app keeps running in the menu bar; the crawl scheduler and reminders continue |
 | Notifications | The shell polls `GET /api/v1/notifications` every `NOTIFICATION_POLL_MS` and acks each one it shows |

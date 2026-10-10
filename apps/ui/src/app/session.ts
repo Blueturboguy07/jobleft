@@ -2,10 +2,11 @@
 // notifications) and the feed state (filter, sort, words) that survives screen switches and relaunches.
 
 import { useEffect, useRef, useSyncExternalStore } from 'react';
-import type { AiSettings, CrawlProgress, DatasetInfo, JobFilter, JobSort, Notification, OnboardingState, Profile, PublikConnection, TrackerList } from '@jobleft/contracts';
+import type { AiSettings, AppSettings, CrawlProgress, DatasetInfo, JobFilter, JobSort, Notification, OnboardingState, Profile, PublikConnection, TrackerList } from '@jobleft/contracts';
 import { call } from './api.ts';
-import { invalidate, load, useApi } from './data.ts';
+import { invalidate, load, setCached, useApi } from './data.ts';
 import { cleanFilter } from '../lib/filters.ts';
+import { applyZoom, canZoomWindow, nearestStep, stepZoom, zoomKey } from '../lib/zoom.ts';
 
 export const useProfile = () => useApi<Profile>('profile', () => call('getProfile'));
 /** Where the first-run setup stands (kept by the local service). */
@@ -71,6 +72,49 @@ export function useCrawlWatcher(): void {
     // a refresh that finished while this window was closed or asleep
     if (!running && s.data?.lastRun) invalidate('tracker', 'dashboard', 'notifications');
   }, [s.data?.lastRun?.finishedAt]);
+}
+
+// ---------------------------------------------------------------- interface size
+
+export const useAppSettings = () => useApi<AppSettings>('settings', () => call('getSettings'));
+
+let zoomSave: ReturnType<typeof setTimeout> | null = null;
+
+/** Saves a new interface size: the window follows at once, the setting half a second after the last change. */
+export function setZoom(settings: AppSettings, z: number): void {
+  const next = { ...settings, display: { zoom: nearestStep(z) } };
+  setCached<AppSettings>('settings', () => next);
+  if (zoomSave) clearTimeout(zoomSave);
+  zoomSave = setTimeout(() => {
+    zoomSave = null;
+    call('putSettings', { body: next }).then((r) => setCached('settings', () => r), () => invalidate('settings'));
+  }, 500);
+}
+
+/**
+ * Called once by the app root, inside the desktop shell only: keeps the window's zoom on the saved interface size
+ * and handles Ctrl (Cmd on a Mac) with +, - and 0.
+ */
+export function useWindowZoom(): void {
+  const shell = canZoomWindow();
+  const s = useApi<AppSettings>(shell ? 'settings' : null, () => call('getSettings'));
+  const zoom = s.data?.display?.zoom ?? 1;
+  useEffect(() => { if (shell && s.data) applyZoom(zoom); }, [shell, zoom, !!s.data]);
+  const latest = useRef(s.data);
+  latest.current = s.data;
+  useEffect(() => {
+    if (!shell) return;
+    const mac = /Mac/.test(navigator.platform || navigator.userAgent);
+    const onKey = (e: KeyboardEvent) => {
+      const dir = zoomKey(e, mac);
+      const cur = latest.current;
+      if (dir === null || !cur) return;
+      e.preventDefault();
+      setZoom(cur, dir === 0 ? 1 : stepZoom(cur.display?.zoom ?? 1, dir));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [shell]);
 }
 
 // ---------------------------------------------------------------- feed state

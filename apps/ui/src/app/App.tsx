@@ -19,7 +19,7 @@ import { SettingsScreen } from '../screens/Settings.tsx';
 import { TrackerScreen } from '../screens/Tracker.tsx';
 import { call, hasToken } from './api.ts';
 import { navigate, useRoute } from './router.ts';
-import { useCrawlWatcher, useOnboarding, useProfile } from './session.ts';
+import { useCrawlWatcher, useOnboarding, useProfile, useWindowZoom } from './session.ts';
 import { setupPending } from '../lib/onboarding.ts';
 
 function NoToken() {
@@ -44,6 +44,7 @@ export function App() {
   const profile = useProfile();
   const setup = useOnboarding();
   useCrawlWatcher();
+  useWindowZoom();
   const gateChecked = useRef(false);
 
   // At launch, a setup that was never finished or skipped opens again, on the step the person was on

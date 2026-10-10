@@ -42,7 +42,7 @@ import {
 import { TrackerEntrySchema, TrackerPatchSchema, TrackerStatusSchema, TrackerViewSchema } from './tracker.ts';
 import { PublikConnectionSchema } from './wallet.ts';
 import {
-  anyValue, arr, bool, enm, int, lit, named, nullable, obj, rec, str, type Infer, type JsonSchema,
+  anyValue, arr, bool, enm, int, lit, named, nullable, num, obj, rec, str, type Infer, type JsonSchema,
 } from './schema.ts';
 
 // ---------------------------------------------------------------- constants
@@ -148,6 +148,12 @@ export const AppSettingsSchema = named(obj({
     paused: bool(),
   }),
   notifications: obj({ reminders: bool(), alerts: bool() }),
+}, {
+  /**
+   * How big the interface is drawn: 1 = normal, 0.8 to 1.5. The desktop shell zooms its window to it; Ctrl (Cmd on
+   * a Mac) with +, - and 0 change it there. Added after contracts 1.1.0 (additive). Absent = 1.
+   */
+  display: obj({ zoom: num({ minimum: 0.8, maximum: 1.5 }) }),
 }), 'AppSettings');
 
 /**

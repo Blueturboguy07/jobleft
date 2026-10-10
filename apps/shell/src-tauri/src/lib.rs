@@ -4,6 +4,8 @@
 //!   under Resources/server) with `JOBLEFT_HOME`, `JOBLEFT_LAUNCH_TOKEN`, `JOBLEFT_PARENT_PID`, `JOBLEFT_UI_DIR`.
 //! - Ready: wait for `run/server.json` and `GET /api/v1/health` (up to 15 s), then open the one window at
 //!   `http://127.0.0.1:<port>/#token=<token>`. Before that, no window at all: no blank page, no "starting" page.
+//! - Interface size: the window opens at the saved zoom (`display.zoom` in GET /api/v1/settings); the page may zoom
+//!   its own window after that (capability `core:webview:allow-set-webview-zoom`).
 //! - Closing the window hides it; the app stays in the menu bar with Open, Check for jobs now, Pause/Continue
 //!   checks, the time of the last check, and Quit. A second launch focuses the window (single instance).
 //! - Notifications: `GET /api/v1/notifications` every minute; each one shown goes through Notification Center
@@ -240,6 +242,11 @@ fn open_window(app: &AppHandle, port: u16, token: &str) -> tauri::Result<()> {
         .inner_size(1280.0, 820.0)
         .min_inner_size(1024.0, 640.0)
         .build()?;
+    // The saved interface size from the start, so the page does not first show at 100% (the UI keeps it after that).
+    let zoom = saved_zoom(port, token);
+    if zoom != 1.0 {
+        let _ = w.set_zoom(zoom);
+    }
     let handle = app.clone();
     w.on_window_event(move |e| {
         if let WindowEvent::CloseRequested { api, .. } = e {
@@ -338,6 +345,15 @@ fn paused(port: u16, token: &str) -> bool {
         .and_then(|(s, b)| if s == 200 { serde_json::from_str::<Value>(&b).ok() } else { None })
         .and_then(|j| j.pointer("/crawl/paused").and_then(|v| v.as_bool()))
         .unwrap_or(false)
+}
+
+/// AppSettings.display.zoom (Settings > Appearance), 1 when unset or out of range.
+fn saved_zoom(port: u16, token: &str) -> f64 {
+    http(port, "GET", "/api/v1/settings", token, None)
+        .and_then(|(s, b)| if s == 200 { serde_json::from_str::<Value>(&b).ok() } else { None })
+        .and_then(|j| j.pointer("/display/zoom").and_then(|v| v.as_f64()))
+        .filter(|z| (0.8..=1.5).contains(z))
+        .unwrap_or(1.0)
 }
 
 fn set_paused(port: u16, token: &str, value: bool) {

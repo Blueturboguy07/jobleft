@@ -1,13 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main window shows the local server's UI. The page gets no app commands of its own; the opener plugin's link shim (target=_blank, window.open) is the only IPC, and it is allowed from the server's loopback origin.",
+  "description": "The main window shows the local server's UI. The page gets no app commands of its own; its IPC, allowed from the server's loopback origin, is the opener plugin's link shim (target=_blank, window.open) and zooming its own window to the interface size (Settings > Appearance).",
   "windows": [
     "main"
   ],
   "permissions": [
     "core:default",
-    "opener:default"
+    "opener:default",
+    "core:webview:allow-set-webview-zoom"
   ],
   "remote": {
     "urls": [

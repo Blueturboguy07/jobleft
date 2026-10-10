@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Checkbox, Descriptions, Input, Menu, Popconfirm, Radio, Select, Space, Switch, Table, Tag } from 'antd';
 import { Tooltip } from '../components/Tip.tsx';
-import { CloudOutlined, DesktopOutlined, KeyOutlined, LinkOutlined, ReloadOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, ApiOutlined, WalletOutlined, BellOutlined, DatabaseOutlined, AppstoreOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { CloudOutlined, DesktopOutlined, KeyOutlined, LinkOutlined, ReloadOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, ApiOutlined, WalletOutlined, BellOutlined, FontSizeOutlined, DatabaseOutlined, AppstoreOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import {
   formatDollars, type AiSettings, type AppSettings, type BoardEntry, type BoardResolveResponse, type CrawlBoardReport, type CrawlRunSummary, type DatasetInfo,
   type FitIndexStatus, type Health, type LocalServerKind, type OwnKeyVendor, type PairingCode, type PairingInfo, type ProviderCheck, type SavedFilter, type SourceInfo, type StorageInfo,
@@ -14,13 +14,14 @@ import { call, download, openExternal, type UiError } from '../app/api.ts';
 import { invalidate, setCached, useApi } from '../app/data.ts';
 import { ui } from '../app/layers.ts';
 import { navigate, queryParam } from '../app/router.ts';
-import { useAiSettings, useCrawl, usePublik } from '../app/session.ts';
+import { setZoom, useAiSettings, useAppSettings, useCrawl, usePublik } from '../app/session.ts';
 import { LogoMark, Wordmark } from '../components/Art.tsx';
 import { ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { ago, dateText, fitIndexText, hostOf, plural, secondsLeft } from '../lib/format.ts';
 import { readAllPages } from '../lib/pages.ts';
 import { rememberAiCheck } from '../lib/aiHealth.ts';
 import { dailyLimitText, zeroBalanceText } from '../lib/dailyLimit.ts';
+import { canZoomWindow, nearestStep, ZOOM_STEPS, zoomText } from '../lib/zoom.ts';
 
 /** Where keys are kept on this system: the macOS Keychain, or an encrypted file in the data folder elsewhere (Windows). */
 function secureStore(): string {
@@ -31,13 +32,14 @@ const TABS = [
   { key: 'ai', label: 'AI provider', icon: <ApiOutlined /> },
   { key: 'balance', label: 'Balance', icon: <WalletOutlined /> },
   { key: 'alerts', label: 'Alerts', icon: <BellOutlined /> },
+  { key: 'appearance', label: 'Appearance', icon: <FontSizeOutlined /> },
   { key: 'sources', label: 'Job sources', icon: <AppstoreOutlined /> },
   { key: 'data', label: 'Data and backup', icon: <DatabaseOutlined /> },
   { key: 'extension', label: 'Browser extension', icon: <LinkOutlined /> },
   { key: 'about', label: 'About and privacy', icon: <InfoCircleOutlined /> },
 ];
 
-function Panel({ title, children, desc }: { title: string; children: ReactNode; desc?: ReactNode }) {
+function Panel({ title, children, desc }: { title: string; children?: ReactNode; desc?: ReactNode }) {
   return (
     <section className="jl-card-box" style={{ display: 'flex', flexDirection: 'column', gap: 12 }} aria-label={title}>
       <h2 className="jl-section-title" style={{ margin: 0, fontSize: 18 }}>{title}</h2>
@@ -327,6 +329,28 @@ function AlertsTab() {
   );
 }
 
+// ------------------------------------------------------------------ appearance
+
+function AppearanceTab() {
+  const settings = useAppSettings();
+  const mod = /Mac/.test(navigator.platform || navigator.userAgent) ? 'Cmd' : 'Ctrl';
+  if (!canZoomWindow()) {
+    return (
+      <Panel title="Interface size" desc={`In a browser, use the browser's own zoom: ${mod} and + to make everything bigger, ${mod} and - to make it smaller, ${mod} and 0 for the normal size.`} />
+    );
+  }
+  if (settings.error && !settings.data) return <ErrorState error={settings.error} onRetry={() => { void settings.reload(); }} />;
+  if (!settings.data) return <Loading label="Loading" />;
+  const s = settings.data;
+  const zoom = nearestStep(s.display?.zoom ?? 1);
+  return (
+    <Panel title="Interface size" desc={`Makes text, buttons and spacing bigger or smaller together. Shortcuts: ${mod} and + bigger, ${mod} and - smaller, ${mod} and 0 normal.`}>
+      <Radio.Group aria-label="Interface size" optionType="button" value={zoom} onChange={(e) => setZoom(s, e.target.value as number)}
+        options={ZOOM_STEPS.map((z) => ({ value: z, label: z === 1 ? `${zoomText(z)} (normal)` : zoomText(z) }))} />
+    </Panel>
+  );
+}
+
 // ------------------------------------------------------------------ sources
 
 function SourcesTab() {
@@ -577,7 +601,7 @@ function AboutTab() {
 
 export function SettingsScreen({ tab }: { tab: string | null }) {
   const active = TABS.some((t) => t.key === tab) ? tab! : 'ai';
-  const body: Record<string, ReactNode> = { ai: <AiTab />, balance: <BalanceTab />, alerts: <AlertsTab />, sources: <SourcesTab />, data: <DataTab />, extension: <ExtensionTab />, about: <AboutTab /> };
+  const body: Record<string, ReactNode> = { ai: <AiTab />, balance: <BalanceTab />, alerts: <AlertsTab />, appearance: <AppearanceTab />, sources: <SourcesTab />, data: <DataTab />, extension: <ExtensionTab />, about: <AboutTab /> };
   return (
     <div className="jl-2col">
       <nav style={{ width: 220, flex: '0 0 220px', background: '#fff', borderRight: '1px solid var(--jl-line)', padding: 8, overflowY: 'auto' }} aria-label="Settings sections">
