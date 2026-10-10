@@ -9,7 +9,7 @@ import { createStaticDataRoutes, PoliteFetch, type StaticDataRoutes } from '@job
 import { BoardDirectory, BoardService, SqlitePacer, boardSources, createBoardHttp, loadActiveDirectory } from '@jobleft/boards';
 import { allSources } from '@jobleft/sources-ats';
 import { FeedService } from './core/feed.ts';
-import { seedBoards } from './core/seed.ts';
+import { SEED_BY_COUNTRY, countriesFor, seedBoards } from './core/seed.ts';
 import { NetworkService, followUpReminderText } from '@jobleft/network';
 import { openAndMigrate } from './db/open.ts';
 import type { HomeLayout } from './home.ts';
@@ -17,7 +17,7 @@ import { AiFacade } from './integ/engine.ts';
 import { buildAssistant } from './integ/assistant.ts';
 import type { Assistant } from '@jobleft/assistant';
 import { ResumeBridge } from './integ/resume.ts';
-import { BoardsService } from './interim/boards.ts';
+import { BoardsService, boardIdOf } from './interim/boards.ts';
 import { ChatService } from './interim/chats.ts';
 import { FilterService } from './interim/filters.ts';
 import { companyKey } from './interim/company-key.ts';
@@ -166,11 +166,12 @@ export class AppData {
    * starts at once. Runs once per data folder.
    */
   afterProfileSaved(): void {
-    if (this.kv.get<boolean>('core.seedDone')) return;
+    if (this.kv.get<boolean>('core.seedDone')) { this.reseedForPlace(); return; }
     const p = this.profile.get();
     const pr = p.preferences;
     if (!(pr.jobFunctions.length || pr.targetTitles.length || pr.places.length || pr.workModels.length || pr.countries.length)) return;
     this.kv.set('core.seedDone', true);
+    if (pr.places.length || pr.countries.length) this.kv.set('core.seedPlaceDone', true);
     // JOBLEFT_AUTO_CRAWL=0 (tests): the boards are seeded, but no crawl of real employer boards starts on its own.
     const auto = (this.cfg.env ?? process.env).JOBLEFT_AUTO_CRAWL !== '0';
     if (this.boards.count() > 0) { if (auto) this.boards.runNow(undefined, 'first_run').catch(() => { /* offline: the scheduler retries */ }); return; }
@@ -180,6 +181,37 @@ export class AppData {
     this.kv.set('core.seededBoards', added);
     this.cfg.log.info('seed.added', { boards: added.length });
     if (added.length && auto) this.boards.runNow(undefined, 'first_run').catch((e) => this.cfg.log.warn('seed.crawl_not_started', { error: e instanceof Error ? e.message : 'error' }));
+  }
+
+  /**
+   * The setup saves after every step, so the first seed happens at "Looking for", before the place step. The first
+   * save that names a place looks again, once: if the place has a country list (SEED_BY_COUNTRY) and the person still
+   * follows exactly the boards jobleft seeded, the country boards are added and, when the places are only listed
+   * countries, the seeded boards outside the new set are unfollowed (never deleted; the person can follow them again).
+   */
+  private reseedForPlace(): void {
+    if (this.kv.get<boolean>('core.seedPlaceDone')) return;
+    const pr = this.profile.get().preferences;
+    if (!(pr.places.length || pr.countries.length)) return;
+    this.kv.set('core.seedPlaceDone', true);
+    const where = countriesFor(pr);
+    if (!where.codes.some((c) => SEED_BY_COUNTRY[c])) return;
+    const seeded = [...(this.kv.get<string[]>('core.seededBoards') ?? [])].sort();
+    const followed = this.boards.followedIds();
+    if (!seeded.length || followed.length !== seeded.length || followed.some((id, i) => id !== seeded[i])) {
+      this.cfg.log.info('seed.place_skipped', { reason: 'boards_changed' });
+      return;
+    }
+    let list: ReturnType<typeof seedBoards> = [];
+    try { list = seedBoards(pr); } catch (e) { this.cfg.log.warn('seed.failed', { error: e instanceof Error ? e.name : 'error' }); return; }
+    const added = this.boards.seedMore(list);
+    const keep = new Set(list.map((b) => boardIdOf(b.ats, b.board, b.region ?? null)));
+    let unfollowed = 0;
+    if (where.onlyListed) for (const id of seeded) if (!keep.has(id)) { this.boards.update(id, { followed: false }); unfollowed++; }
+    this.kv.set('core.seededBoards', [...keep]);
+    this.cfg.log.info('seed.place_added', { boards: added.length, unfollowed });
+    const auto = (this.cfg.env ?? process.env).JOBLEFT_AUTO_CRAWL !== '0';
+    if (added.length && auto) this.boards.runAfterCurrent(added);
   }
 
   /** The assistant (chat with tools, practice), built once per data folder on first use. */

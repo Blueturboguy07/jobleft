@@ -180,6 +180,33 @@ export class BoardsService {
     return added;
   }
 
+  /** Adds starting boards to a list that already has some (the place step came after the first seed). Never changes a board already listed. */
+  seedMore(boards: Array<{ ats: CrawlAtsId; board: string; company: string; region?: string }>): string[] {
+    const added: string[] = [];
+    tx(this.o.db, () => {
+      const ins = this.o.db.prepare('INSERT OR IGNORE INTO srv_boards (id, ats, board, region, company, followed, hidden, disabled, added_at) VALUES (?, ?, ?, ?, ?, 1, 0, 0, ?)');
+      for (const b of boards) {
+        if (!SOURCES[b.ats]) continue;
+        const board = b.board.trim().toLowerCase();
+        if (!/^[a-z0-9][a-z0-9._-]{0,99}$/.test(board)) continue;
+        const id = boardIdOf(b.ats, board, b.region ?? null);
+        if (Number(ins.run(id, b.ats, board, b.region ?? null, b.company || board, nowIso()).changes) > 0) added.push(id);
+      }
+    });
+    return added;
+  }
+
+  /** Refreshes these boards now, or as soon as the refresh already running ends. */
+  runAfterCurrent(boardIds: string[], reason: NonNullable<CrawlProgress['reason']> = 'first_run'): void {
+    const go = () => { this.runNow(boardIds, reason).catch(() => { /* offline: the scheduler retries */ }); };
+    if (this.runningP) this.runningP.then(go, go); else go();
+  }
+
+  /** The ids of the boards the person follows. */
+  followedIds(): string[] {
+    return (this.o.db.prepare('SELECT id FROM srv_boards WHERE followed = 1 ORDER BY id').all() as Array<{ id: string }>).map((r) => r.id);
+  }
+
   count(): number { return Number((this.o.db.prepare('SELECT count(*) AS n FROM srv_boards').get() as { n: number }).n); }
 
   // ---------------------------------------------------------------- crawl
