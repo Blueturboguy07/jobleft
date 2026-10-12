@@ -459,8 +459,8 @@ export class JobsService {
       const cur = closed ? 'upper(x.pay_currency)' : 'x.pay_currency';
       const amount = closed ? 'COALESCE(x.pay_max_annual, x.pay_min_annual)' : 'x.pay_annual';
       const none = closed ? '(x.pay_min IS NULL AND x.pay_max IS NULL)' : 'x.has_pay = 0';
-      where.push(`((${cur} = 'USD' AND ${amount} >= ?)${unknownOk.has('pay') ? ` OR ${none}` : ''})`);
-      args.push(filter.minAnnualPayUsd);
+      where.push(`((${cur} = ? AND ${amount} >= ?)${unknownOk.has('pay') ? ` OR ${none}` : ''})`);
+      args.push(filter.payCurrency ?? 'USD', filter.minAnnualPayUsd);
     }
     if (filter.countries?.length) {
       const parts: string[] = [];

@@ -8,12 +8,13 @@ import { Tooltip } from '../../components/Tip.tsx';
 import { DownOutlined, QuestionCircleOutlined, CloseOutlined, FilterOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import type { JobFilter, JobSort, PlaceQuery } from '@jobleft/contracts';
 import {
-  COMMON_COUNTRY_OPTIONS, COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, PAY_FILTER_NOTE, activeCount,
-  applySection, cleanFilter, countryLabel, functionLabel, levelLabel, modelLabel, payLabel, postedLabel, resetSection, sameFilter, toggle, typeLabel,
+  COMMON_COUNTRY_OPTIONS, COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, POSTED_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, PAY_FILTER_NOTE, PAY_CURRENCIES, activeCount,
+  applySection, cleanFilter, countryLabel, currencySymbol, payCurrencyFor, functionLabel, levelLabel, modelLabel, payLabel, postedLabel, resetSection, sameFilter, toggle, typeLabel,
   withUnknown, yearsLabel, type FilterSection,
 } from '../../lib/filters.ts';
 import { countrySort } from '../../lib/countries.ts';
 import { call } from '../../app/api.ts';
+import { useProfile } from '../../app/session.ts';
 import { placeOptions, placeText } from '../../lib/places.ts';
 
 export const INDUSTRY_SUGGESTIONS = [
@@ -37,6 +38,31 @@ export const UNKNOWN_TEXT = {
   pay: 'Include jobs with no pay listed',
   remoteRegion: 'Include remote jobs that do not say where you may work from',
 } as const;
+
+/**
+ * The minimum yearly pay, in a currency: the profile's country's first (euros for the Netherlands), so jobs paid in
+ * euros are compared, not counted as unknown pay. Shared by the filter bar and All filters.
+ */
+export function PayMinimum({ draft, set, onChange }: { draft: JobFilter; set: (p: Partial<JobFilter>) => void; onChange: (f: JobFilter) => void }) {
+  const profile = useProfile();
+  const country = profile.data?.preferences.countries[0] ?? (profile.data as unknown as { personal?: { country?: string | null } } | undefined)?.personal?.country ?? null;
+  const any = draft.minAnnualPayUsd === undefined;
+  const cur = draft.payCurrency ?? (any ? payCurrencyFor(country) : 'USD');
+  const sign = currencySymbol(cur);
+  return (<>
+    <Space><Switch checked={any} onChange={(v) => set(v ? { minAnnualPayUsd: undefined, payCurrency: undefined } : { minAnnualPayUsd: cur === 'USD' ? 80000 : 50000, payCurrency: cur })} aria-label="Any pay" /> <span>Any pay</span></Space>
+    {!any && (<>
+      <Space wrap>
+        <span>At least <strong>{sign}{Math.round(draft.minAnnualPayUsd! / 1000)}K</strong> a year, in</span>
+        <Select size="small" style={{ width: 90 }} value={cur} aria-label="Currency of the minimum pay" onChange={(c) => set({ payCurrency: c })}
+          options={PAY_CURRENCIES.map((c) => ({ value: c.code, label: c.code }))} />
+      </Space>
+      <Slider min={20000} max={300000} step={5000} value={draft.minAnnualPayUsd} onChange={(v) => set({ minAnnualPayUsd: v })} aria-label={`Minimum yearly pay in ${cur}`} tooltip={{ formatter: (v) => `${sign}${Math.round((v ?? 0) / 1000)}K` }} />
+    </>)}
+    <UnknownBox f={draft} k="pay" onChange={onChange} />
+    <p className="jl-note">{PAY_FILTER_NOTE}</p>
+  </>);
+}
 
 export function UnknownBox({ f, k, onChange }: { f: JobFilter; k: keyof typeof UNKNOWN_TEXT; onChange: (f: JobFilter) => void }) {
   const on = (f.includeUnknown ?? []).includes(k);
@@ -218,16 +244,7 @@ function FilterButton({ section, label, filter, onApply }: { section: Section; l
     }
     case 'pay': {
       title = 'Minimum yearly pay';
-      const any = draft.minAnnualPayUsd === undefined;
-      body = (<>
-        <Space><Switch checked={any} onChange={(v) => set({ minAnnualPayUsd: v ? undefined : 80000 })} aria-label="Any pay" /> <span>Any pay</span></Space>
-        {!any && (<>
-          <span>At least <strong>${Math.round(draft.minAnnualPayUsd! / 1000)}K</strong> a year</span>
-          <Slider min={20000} max={300000} step={5000} value={draft.minAnnualPayUsd} onChange={(v) => set({ minAnnualPayUsd: v })} aria-label="Minimum yearly pay in dollars" tooltip={{ formatter: (v) => `$${Math.round((v ?? 0) / 1000)}K` }} />
-        </>)}
-        <UnknownBox f={draft} k="pay" onChange={setDraft} />
-        <p className="jl-note">{PAY_FILTER_NOTE}</p>
-      </>);
+      body = <PayMinimum draft={draft} set={set} onChange={setDraft} />;
       break;
     }
   }

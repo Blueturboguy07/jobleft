@@ -122,6 +122,10 @@
       "type": "number",
       "minimum": 0
     },
+    "payCurrency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
     "h1bSponsorship": {
       "type": "boolean"
     },

@@ -55,3 +55,19 @@ test('GET /digest: the new jobs of the last hours, from the boards and from web 
     assert.deepEqual([after.alerts, after.digest, after.digestHour], [false, true, 7]);
   } finally { await s.stop(); cleanup(s.home); }
 });
+
+test('the minimum pay filter compares in the chosen currency: euros for a Dutch search', async () => {
+  const s = await startTest('paycurrency');
+  try {
+    const add = async (text: string) => { const r = await s.call('POST', '/api/v1/jobs/external', { text }); assert.equal(r.status, 200, r.text); return r.json.job; };
+    const eur = await add('SOC Analist\nCompany: Voorbeeld BV\nLocation: Utrecht, Netherlands\nSalary: €60,000 - €70,000 per year\nJe bewaakt de meldingen.');
+    const usd = await add('SOC Analyst\nCompany: Example Inc\nLocation: Austin, TX\nSalary: $90,000 - $110,000 per year\nYou watch the alerts.');
+    assert.equal(eur.pay?.currency, 'EUR', JSON.stringify(eur.pay));
+    assert.equal(usd.pay?.currency, 'USD', JSON.stringify(usd.pay));
+    const ids = async (filter: object) => (await s.call('POST', '/api/v1/jobs/search', { sort: 'most_recent', filter: { sources: ['external:text'], ...filter }, limit: 10 })).json.items.map((x: any) => x.job.id);
+    assert.deepEqual(await ids({ minAnnualPayUsd: 50000, payCurrency: 'EUR' }), [eur.id]);
+    assert.deepEqual(await ids({ minAnnualPayUsd: 80000, payCurrency: 'EUR' }), []);
+    assert.deepEqual(await ids({ minAnnualPayUsd: 50000 }), [usd.id], 'no currency: dollars, as before');
+    assert.equal((await s.call('POST', '/api/v1/jobs/search', { sort: 'most_recent', filter: { minAnnualPayUsd: 1, payCurrency: 'euro' }, limit: 1 })).status, 400);
+  } finally { await s.stop(); cleanup(s.home); }
+});

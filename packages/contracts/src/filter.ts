@@ -38,6 +38,11 @@ export const JobFilterSchema = named(obj({}, {
   postedWithin: enm(['24h', '3d', '7d', '30d', '365d']),
   /** Minimum annual pay in USD (converted pay counts). */
   minAnnualPayUsd: num({ minimum: 0 }),
+  /**
+   * The currency `minAnnualPayUsd` is in and compared in (the name is kept for saved filters): "EUR" compares the
+   * minimum with pay stated in euros. Absent = USD. Added by the web search lane (additive).
+   */
+  payCurrency: str({ pattern: '^[A-Z]{3}$' }),
   /** Jobs with a positive sponsor tag: the company history says likely, or the post says it sponsors. */
   h1bSponsorship: bool(),
   excludeClearanceRequired: bool(),

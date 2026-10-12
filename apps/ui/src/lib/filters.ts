@@ -34,7 +34,21 @@ export const JOB_FUNCTION_SUGGESTIONS = [
  * How the minimum yearly pay filter decides (JL-feed-25): the top of a stated range counts, so a range can start
  * below the amount ("$19.50-$60 an hour" passes $100K, its top being $124.8K a year).
  */
-export const PAY_FILTER_NOTE = 'A job counts when the top of its stated pay range reaches this amount, so its range can start lower. Jobs with no stated pay are left out unless you tick the box above. Hourly pay counts as its yearly amount (2,080 hours). Pay in other currencies is not compared.';
+export const PAY_FILTER_NOTE = 'A job counts when the top of its stated pay range reaches this amount, so its range can start lower. Jobs with no stated pay are left out unless you tick the box above. Hourly pay counts as its yearly amount (2,080 hours), monthly pay as 12 months. Only pay stated in the chosen currency is compared: jobs paid in another currency count as unknown pay.';
+
+/** The currencies the pay filter offers, with the sign it shows. */
+export const PAY_CURRENCIES: Array<{ code: string; sign: string }> = [
+  { code: 'USD', sign: '$' }, { code: 'EUR', sign: '€' }, { code: 'GBP', sign: '£' }, { code: 'CHF', sign: 'CHF ' }, { code: 'CAD', sign: 'CA$' }, { code: 'AUD', sign: 'A$' },
+];
+export const currencySymbol = (code: string | undefined) => PAY_CURRENCIES.find((c) => c.code === (code ?? 'USD'))?.sign ?? `${code} `;
+
+const EURO = new Set(['NL', 'BE', 'DE', 'FR', 'ES', 'IT', 'IE', 'AT', 'PT', 'FI', 'GR', 'LU', 'SK', 'SI', 'EE', 'LV', 'LT', 'HR', 'CY', 'MT']);
+/** The pay filter's first currency for a country (the profile's): euros in the euro area, pounds in the UK, else dollars. */
+export function payCurrencyFor(country: string | null | undefined): string {
+  const c = (country ?? '').toUpperCase();
+  if (EURO.has(c)) return 'EUR';
+  return ({ GB: 'GBP', UK: 'GBP', CH: 'CHF', CA: 'CAD', AU: 'AUD' } as Record<string, string>)[c] ?? 'USD';
+}
 
 /** Removes empty lists and false switches so equal filters compare equal and saved filters stay small. */
 export function cleanFilter(f: JobFilter): JobFilter {
@@ -44,6 +58,8 @@ export function cleanFilter(f: JobFilter): JobFilter {
     if (Array.isArray(v) && v.length === 0) continue;
     out[k] = v;
   }
+  // A currency means nothing without a minimum; dollars are the default.
+  if (out.minAnnualPayUsd === undefined || out.payCurrency === 'USD') delete out.payCurrency;
   return out as JobFilter;
 }
 
@@ -74,7 +90,7 @@ export const modelLabel = (f: JobFilter) => firstPlus((f.workModels ?? []).map((
 export const postedLabel = (f: JobFilter) => (f.postedWithin ? POSTED_OPTIONS.find((o) => o.value === f.postedWithin)!.label : 'Date posted');
 export const industryLabel = (f: JobFilter) => firstPlus(f.industries ?? [], 'Industry');
 export const yearsLabel = (f: JobFilter) => (f.maxYearsRequired !== undefined ? `Up to ${f.maxYearsRequired} years` : 'Years of experience');
-export const payLabel = (f: JobFilter) => (f.minAnnualPayUsd !== undefined ? `$${Math.round(f.minAnnualPayUsd / 1000)}K+ a year` : 'Pay');
+export const payLabel = (f: JobFilter) => (f.minAnnualPayUsd !== undefined ? `${currencySymbol(f.payCurrency)}${Math.round(f.minAnnualPayUsd / 1000)}K+ a year` : 'Pay');
 
 /** The read-only chip summary at the top of the All Filters drawer. */
 export function summaryChips(f: JobFilter): string[] {
@@ -224,7 +240,7 @@ const SECTION_FIELDS: Record<FilterSection, { keys: Array<keyof JobFilter>; unkn
   posted: { keys: ['postedWithin'], unknown: ['postedAt'] },
   industry: { keys: ['industries'], unknown: [] },
   years: { keys: ['maxYearsRequired'], unknown: ['years'] },
-  pay: { keys: ['minAnnualPayUsd'], unknown: ['pay'] },
+  pay: { keys: ['minAnnualPayUsd', 'payCurrency'], unknown: ['pay'] },
 };
 
 /**
