@@ -6,13 +6,14 @@ import { DatabaseSync } from 'node:sqlite';
 import { MAX_SAVED, WebSavedSearches } from '../src/interim/websaved.ts';
 import type { WebReader } from '../src/interim/webreader.ts';
 
-function setup() {
+function setup(o: { clock?: boolean } = { clock: true }) {
   const db = new DatabaseSync(':memory:');
   db.exec('CREATE TABLE srv_web_results (url TEXT PRIMARY KEY, state TEXT NOT NULL, job_id TEXT, message TEXT, query TEXT, found_at TEXT NOT NULL, read_at TEXT)');
   db.exec('CREATE TABLE jobs (ats TEXT, board TEXT, job_id TEXT, posted_at TEXT)');
   // Job 2 states a date in the past week; job 4 was posted years ago (an engine found the page again), so it is not new.
-  db.exec("INSERT INTO jobs VALUES ('external', 'web', '2', '2026-10-08T12:00:00.000Z'), ('external', 'web', '4', '2022-06-14T12:00:00.000Z')");
-  let now = Date.parse('2026-10-10T12:00:00Z');
+  // Without a clock of its own, the saved searches use the real one (as in the app).
+  let now = o.clock ? Date.parse('2026-10-10T12:00:00Z') : Date.now();
+  db.prepare("INSERT INTO jobs VALUES ('external', 'web', '2', ?), ('external', 'web', '4', '2022-06-14T12:00:00.000Z')").run(new Date(now - 2 * 86_400_000).toISOString());
   const reading = { running: false, queued: 0 };
   const searches: Array<{ q: string; place?: string; tag: string }> = [];
   const alerts: string[] = [];
@@ -34,7 +35,7 @@ function setup() {
     ready: () => true,
     alertsOn: () => alertsOn,
     notify: (title) => { alerts.push(title); },
-    now: () => now,
+    ...(o.clock ? { now: () => now } : {}),
   });
   return { db, saved, searches, alerts, reading, tick: async (ms = 0) => { now += ms; await saved.tick(); }, setAlerts: (v: boolean) => { alertsOn = v; }, setFail: (v: string | null) => { fail = v; } };
 }
@@ -112,4 +113,16 @@ test('a web job belongs to a search only when it mentions every search word', as
   assert.deepEqual(searchWords('junior'), ['junior'], 'unless it is the only word');
   assert.equal(mentionsAll('Medewerker IT-beveiliging', searchWords('IT beveiliging')), true);
   assert.deepEqual(searchWords('vacature voor de SOC'), ['soc']);
+});
+
+test('a saved web search counts its new jobs with the real clock too (the app passes none)', async () => {
+  const t = setup({ clock: false });
+  const s = t.saved.add({ q: 'SOC analyst', everyHours: 12 });
+  t.db.prepare("UPDATE srv_web_saved SET last_run_at = '2020-01-01T00:00:00.000Z' WHERE id = ?").run(s.id);
+  await t.tick();
+  assert.equal(t.searches.length, 1);
+  // The rows the run queued were read a minute after it started; count them once that minute has passed.
+  t.db.prepare("UPDATE srv_web_results SET read_at = ?").run(new Date(Date.now() + 1000).toISOString());
+  await t.tick();
+  assert.deepEqual(t.alerts, ['2 new web jobs for "SOC analyst"']);
 });
