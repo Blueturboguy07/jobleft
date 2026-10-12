@@ -182,3 +182,15 @@ export type WebSearchKind = Infer<typeof WebSearchKindSchema>;
 export type WebSearchResult = Infer<typeof WebSearchResultSchema>;
 export type WebSearchBoard = Infer<typeof WebSearchBoardSchema>;
 export type WebSearchResponse = Infer<typeof WebSearchResponseSchema>;
+
+/**
+ * The results open in tabs in Jobs > Web jobs, kept by jobleft so they are there again after a restart. Each tab
+ * keeps the result it was opened from (a search later may not find it again) and the job kept from it, if any.
+ */
+export const WebTabsSchema = named(obj({
+  tabs: arr(obj({ url: str({ minLength: 1, maxLength: 4096 }), result: WebSearchResultSchema }, { jobId: nullable(IdSchema) }), { maxItems: 12 }),
+  /** The tab in front: its url, or null for the results. */
+  active: nullable(str({ maxLength: 4096 })),
+}), 'WebTabs');
+
+export type WebTabs = Infer<typeof WebTabsSchema>;

@@ -35,9 +35,19 @@ const RANGE_POSTED: Record<Exclude<Range, 'any'>, NonNullable<JobFilter['postedW
 /** The last search, its answer and the view, kept while the app runs, so switching tabs loses nothing. */
 let last: { q: string; place: string; range: Range; answer: WebSearchResponse | null; page: number } | null = null;
 let view: { mode: 'results' | 'jobs'; onlyHere: boolean; sort: JobSort } = { mode: 'results', onlyHere: true, sort: 'recommended' };
-/** Results opened in tabs, and the tab shown (null: the results), kept while the app runs. */
+/**
+ * Results opened in tabs, and the tab shown (null: the results). jobleft keeps them (GET/PUT /websearch/tabs), so they
+ * are there again after a restart; this copy is read once a run and saved on every change.
+ */
 type PageTab = { url: string; r: WebSearchResult; jobId: string | null };
 let kept: { tabs: PageTab[]; active: string | null } = { tabs: [], active: null };
+let keptLoaded = false;
+let saving: Promise<unknown> = Promise.resolve();
+function saveTabs(tabs: PageTab[], active: string | null): void {
+  const body = { tabs: tabs.map((t) => ({ url: t.url, result: t.r, ...(t.jobId ? { jobId: t.jobId } : {}) })), active };
+  // One save after the other, so the last change is the one kept.
+  saving = saving.then(() => call('putWebTabs', { body })).catch(() => undefined);
+}
 const MAX_TABS = 12;
 /** The person's choice for "Widen with AI" while the app runs (null: on when an AI provider is set up). */
 let widenChoice: boolean | null = null;
@@ -72,7 +82,24 @@ export function WebSearchTab() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [tabs, setTabs] = useState<PageTab[]>(kept.tabs);
   const [activeTab, setActiveTab] = useState<string | null>(kept.active);
-  useEffect(() => { kept = { tabs, active: activeTab }; }, [tabs, activeTab]);
+  // The tabs kept from the last run, once; a tab opened before they arrive stays, in front.
+  useEffect(() => {
+    if (keptLoaded) return;
+    let stop = false;
+    call('getWebTabs').then((v) => {
+      if (stop) return;
+      keptLoaded = true;
+      const saved = v.tabs.map((t) => ({ url: t.url, r: t.result, jobId: t.jobId ?? null }));
+      setTabs((cur) => [...saved.filter((t) => !cur.some((c) => c.url === t.url)), ...cur].slice(-MAX_TABS));
+      setActiveTab((cur) => cur ?? v.active);
+    }).catch(() => { if (!stop) keptLoaded = true; });
+    return () => { stop = true; };
+  }, []);
+  useEffect(() => {
+    const changed = kept.tabs !== tabs || kept.active !== activeTab;
+    kept = { tabs, active: activeTab };
+    if (keptLoaded && changed) saveTabs(tabs, activeTab);
+  }, [tabs, activeTab]);
   /** Opens a result in a tab (or shows its tab); `background` keeps the current tab in front (Ctrl-click, middle click). */
   const openTab = (r: WebSearchResult, background = false) => {
     setTabs((list) => (list.some((t) => t.url === r.url) ? list : [...list, { url: r.url, r, jobId: null }].slice(-MAX_TABS)));

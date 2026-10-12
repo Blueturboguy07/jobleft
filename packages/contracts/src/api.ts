@@ -41,7 +41,7 @@ import {
 } from './sources.ts';
 import { TrackerEntrySchema, TrackerPatchSchema, TrackerStatusSchema, TrackerViewSchema } from './tracker.ts';
 import { PublikConnectionSchema } from './wallet.ts';
-import { WebReadStatusSchema, WebResultOutcomeSchema, WebSavedSearchInputSchema, WebSavedSearchSchema, WebSearchCheckSchema, WebSearchRequestSchema, WebSearchResponseSchema } from './websearch.ts';
+import { WebReadStatusSchema, WebResultOutcomeSchema, WebSavedSearchInputSchema, WebSavedSearchSchema, WebSearchCheckSchema, WebSearchRequestSchema, WebSearchResponseSchema, WebTabsSchema } from './websearch.ts';
 import {
   anyValue, arr, bool, enm, int, lit, named, nullable, num, obj, rec, str, type Infer, type JsonSchema,
 } from './schema.ts';
@@ -291,6 +291,8 @@ export const LOCAL_API = {
   deleteWebSaved: route({ method: 'DELETE', path: '/api/v1/websearch/saved/:savedId', auth: 'launch', owner: 'server', summary: 'Delete a saved web search (its jobs stay)', response: Ok }),
   webSearchOutcomes: route({ method: 'POST', path: '/api/v1/websearch/outcomes', auth: 'launch', owner: 'server', summary: 'What came of reading these web search results (job, list, closed, outside the country asked for)', body: obj({ urls: arr(str({ maxLength: 4096 }), { maxItems: 300 }) }, { country: str({ maxLength: 2 }) }), response: arr(WebResultOutcomeSchema) }),
   saveWebResult: route({ method: 'POST', path: '/api/v1/websearch/save', auth: 'launch', owner: 'server', summary: 'Keep a web search result as a job, to like or track it: the job read from it, else one made from the result itself (nothing is sent to the site)', body: obj({ url: str({ minLength: 1, maxLength: 4096 }), title: str({ maxLength: 500 }) }, { snippet: str({ maxLength: 2000 }) }), response: obj({ jobId: IdSchema }) }),
+  getWebTabs: route({ method: 'GET', path: '/api/v1/websearch/tabs', auth: 'launch', owner: 'server', summary: 'The web search results open in tabs (kept across restarts)', response: WebTabsSchema }),
+  putWebTabs: route({ method: 'PUT', path: '/api/v1/websearch/tabs', auth: 'launch', owner: 'server', summary: 'Keep the web search results open in tabs', body: WebTabsSchema, response: WebTabsSchema }),
   webReadStatus: route({ method: 'GET', path: '/api/v1/websearch/reading', auth: 'launch', owner: 'server', summary: 'How the background reading of web search results is going', response: WebReadStatusSchema }),
   exportBoards: route({ method: 'GET', path: '/api/v1/boards/export', auth: 'launch', owner: 'boards', summary: 'Download the directory and user boards (NDJSON)', response: 'file' }),
   listSources: route({ method: 'GET', path: '/api/v1/sources', auth: 'launch', owner: 'sources-other', summary: 'Every source: crawled or not, why, status', response: arr(SourceInfoSchema) }),

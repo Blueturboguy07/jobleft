@@ -397,3 +397,31 @@ test('liking or tracking a web result: it is kept as a job without opening the p
     assert.equal((await s.call('POST', '/api/v1/websearch/save', { url: 'ftp://x.example/1', title: 'x' })).status, 400);
   } finally { await s.stop(); cleanup(s.home); }
 });
+
+test('the results open in tabs are kept by jobleft, so a restart finds them', async () => {
+  const s = await startTest('webtabs');
+  const res = (url: string, title: string) => ({ url, title, snippet: '', host: new URL(url).hostname, kind: 'page', ats: null, board: null, region: null, boardId: null, publishedAt: null, engines: ['yahoo'], jobId: null, note: null });
+  let stopped = false;
+  try {
+    assert.deepEqual((await s.call('GET', '/api/v1/websearch/tabs')).json, { tabs: [], active: null });
+    const a = res('https://werken.voorbeeld.nl/vacature/1', 'SOC analist');
+    const b = res('https://jobs.example.com/2', 'Security analyst');
+    const put = await s.call('PUT', '/api/v1/websearch/tabs', { tabs: [{ url: a.url, result: a, jobId: 'external:web:abc' }, { url: b.url, result: b, jobId: null }, { url: a.url, result: a }], active: b.url });
+    assert.equal(put.status, 200, put.text);
+    assert.deepEqual(put.json.tabs.map((t: any) => t.url), [a.url, b.url], 'one tab per address');
+    const got = (await s.call('GET', '/api/v1/websearch/tabs')).json;
+    assert.equal(got.active, b.url);
+    assert.equal(got.tabs[0].jobId, 'external:web:abc');
+    assert.equal(got.tabs[1].result.title, 'Security analyst');
+    // The tab in front must be one of the tabs; more than 12 is refused.
+    assert.equal((await s.call('PUT', '/api/v1/websearch/tabs', { tabs: [{ url: a.url, result: a }], active: 'https://gone.example/' })).json.active, null);
+    const many = Array.from({ length: 13 }, (_, i) => { const r = res(`https://x.example/${i}`, `t${i}`); return { url: r.url, result: r }; });
+    assert.equal((await s.call('PUT', '/api/v1/websearch/tabs', { tabs: many, active: null })).status, 400);
+    await s.stop(); stopped = true;
+    // In the database file, for the next start.
+    const db = new DatabaseSync(join(s.home, 'data', 'jobleft.db'), { readOnly: true });
+    const row = db.prepare('SELECT json FROM srv_web_tabs').get() as { json: string };
+    db.close();
+    assert.deepEqual(JSON.parse(row.json).tabs.map((t: any) => t.url), [a.url]);
+  } finally { if (!stopped) await s.stop(); cleanup(s.home); }
+});

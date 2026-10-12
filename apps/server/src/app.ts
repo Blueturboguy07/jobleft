@@ -19,6 +19,7 @@ import { buildAssistant } from './integ/assistant.ts';
 import { WebReader, searchAlternatives, searchWords } from './interim/webreader.ts';
 import { AiError } from '@jobleft/ai-engine';
 import { WebSavedSearches } from './interim/websaved.ts';
+import { WebTabsStore } from './interim/webtabs.ts';
 import { SearxClient, alternativesOf, dutchTitle, searchLinks, webSearchJobs } from './interim/websearch.ts';
 import { widenTitles } from './interim/widen.ts';
 import type { Assistant } from '@jobleft/assistant';
@@ -87,6 +88,7 @@ export class AppData {
   readonly webReader: WebReader;
   /** Saved web searches: they run by themselves and alert on new jobs. */
   readonly webSaved: WebSavedSearches;
+  readonly webTabs: WebTabsStore;
   /** One web search at a time (a person's or a saved one's): each sends four searches through SearXNG. */
   private webSearchBusy = false;
   readonly feed: FeedService;
@@ -139,6 +141,7 @@ export class AppData {
       placeIn: (text) => this.placeIn(text),
     });
     try { this.webReader.expire(); } catch { /* the next search tries again */ }
+    this.webTabs = new WebTabsStore(this.db);
     this.webSaved = new WebSavedSearches({
       db: this.db, reader: this.webReader,
       search: async (req, tag) => { await this.webSearch(req, tag); },
