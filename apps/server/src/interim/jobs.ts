@@ -364,11 +364,12 @@ export class JobsService {
       WHERE j.closed_at IS NULL AND (l.id IS NULL OR l.hash IS NOT j.content_hash)`).all() as Array<{ id: number; title: string; description: string | null; content_hash: string | null }>;
     if (!stale.length) return 0;
     const put = this.db.prepare('INSERT INTO srv_job_lang (id, hash, needs_dutch) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET hash = excluded.hash, needs_dutch = excluded.needs_dutch');
-    this.db.exec('BEGIN');
+    // A savepoint, not BEGIN: a search may run inside a transaction of its caller.
+    this.db.exec('SAVEPOINT job_lang');
     try {
       for (const r of stale) put.run(r.id, r.content_hash, needsDutch(languageFacts(r.title, r.description ?? '')) ? 1 : 0);
-      this.db.exec('COMMIT');
-    } catch (e) { this.db.exec('ROLLBACK'); throw e; }
+      this.db.exec('RELEASE job_lang');
+    } catch (e) { this.db.exec('ROLLBACK TO job_lang'); this.db.exec('RELEASE job_lang'); throw e; }
     return stale.length;
   }
 
