@@ -139,6 +139,14 @@ export function ago(iso: string | null | undefined, now = Date.now()): string | 
   return dateText(iso);
 }
 
+/** "3 days ago", "just now", "on 12 Mar 2026": when jobleft first found a posting that states no date. */
+export function foundText(iso: string | null | undefined, now = Date.now()): string | null {
+  const a = ago(iso, now);
+  if (!a) return null;
+  if (a === 'Just now') return 'just now';
+  return /ago$/.test(a) ? a : `on ${a}`;
+}
+
 /** Whole seconds until `iso` (0 once it passed), for a countdown that reads right from its first frame. */
 export function secondsLeft(iso: string, now = Date.now()): number {
   const t = Date.parse(iso);

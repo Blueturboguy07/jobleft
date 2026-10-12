@@ -481,3 +481,15 @@ test('pages about a job are not postings of one: pay, guides, questions, compari
     'Medior SOC analyst (freelance)', 'SOC Analyst [JOB ID 20261009]', '24/7 SOC Analyst: Security Monitoring & Response', 'Cyber Security Analyst — Build the Netherlands SOC (Microsoft)',
     'Security (T1 SOC Analyst)', 'Senior SOC Analist OT']) assert.ok(!NOT_A_POSTING.test(t), t);
 });
+
+test('the date a search engine puts before its short text is the result\'s date when the engine gives none', async () => {
+  const { snippetDate } = await import('../src/interim/websearch.ts');
+  const now = Date.parse('2026-10-12T18:00:00Z');
+  assert.equal(snippetDate('Sep 30, 2026 — Als SOC Analyst bij de KNAW krijg je', now), '2026-09-30T12:00:00.000Z');
+  assert.equal(snippetDate('September 8, 2025 — Je start bij Conscia', now), '2025-09-08T12:00:00.000Z');
+  assert.equal(snippetDate('7 hours ago — But saying, "I actually completed', now), '2026-10-12T11:00:00.000Z');
+  assert.equal(snippetDate('3 days ago · Find SOC jobs', now), '2026-10-09T18:00:00.000Z');
+  assert.equal(snippetDate('Functie Cybersecurity SOC Analist Je monitort', now), null);
+  assert.equal(snippetDate('Dec 30, 2026 — a date to come', now), null, 'never in the future');
+  assert.equal(snippetDate('Foo 3, 2026 — not a month', now), null);
+});

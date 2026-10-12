@@ -306,6 +306,27 @@ function hostOf(u: URL): string {
   return u.hostname.toLowerCase().replace(/^www\./, '');
 }
 
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+/**
+ * The date a search engine puts before its short text ("Sep 30, 2026 — ...", "September 8, 2025 — ...", "7 hours ago
+ * — ...", "3 days ago · ..."): the engine's date for the page, as `publishedDate` would be. null when there is none.
+ */
+export function snippetDate(snippet: string, now = Date.now()): string | null {
+  const head = snippet.slice(0, 40);
+  const ago = /^\s*(\d{1,3})\s+(minute|hour|day|week|month)s?\s+ago\s*[—–·-]/i.exec(head);
+  if (ago) {
+    const ms = { minute: 60_000, hour: 3_600_000, day: 86_400_000, week: 7 * 86_400_000, month: 30 * 86_400_000 }[ago[2]!.toLowerCase() as 'day'];
+    return new Date(now - Number(ago[1]) * ms).toISOString();
+  }
+  const d = /^\s*([A-Za-z]{3,9})\.?\s+(\d{1,2}),\s+(\d{4})\s*[—–·-]/.exec(head);
+  if (!d) return null;
+  const m = MONTHS.indexOf(d[1]!.slice(0, 3).toLowerCase());
+  if (m < 0) return null;
+  const t = Date.UTC(Number(d[3]), m, Number(d[2]), 12);
+  // A plain date is kept at 12:00 UTC (the same day everywhere); never in the future.
+  return Number.isFinite(t) && t <= now + 86_400_000 ? new Date(t).toISOString() : null;
+}
+
 function isoOrNull(v: string | null): string | null {
   if (!v) return null;
   const t = Date.parse(v);
@@ -343,7 +364,7 @@ export function sortResult(r: SearxResult, d: SortDeps): WebSearchResult | null 
   if (c.verdict === 'invalid') return null;
   const base = {
     url: u.href, title: r.title.trim() || hostOf(u), snippet: r.content.trim().slice(0, 600), host: hostOf(u),
-    publishedAt: isoOrNull(r.publishedDate), engines: r.engines,
+    publishedAt: isoOrNull(r.publishedDate) ?? snippetDate(r.content), engines: r.engines,
   };
   const none = { ats: null, board: null, region: null, boardId: null, jobId: null, note: null };
   if (c.verdict === 'never' || c.verdict === 'not_crawled' || NEVER.test(u.hostname)) {

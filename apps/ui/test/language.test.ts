@@ -16,3 +16,12 @@ test('the language chip: Dutch required, written in Dutch, a plus, not needed; n
   assert.ok(!needsDutch({ posting: 'en', dutch: 'preferred' }));
   assert.equal(activeCount({ minAnnualPayUsd: 50000, payCurrency: 'EUR', leaveOutDutch: true }), 2, 'the currency is part of the pay filter');
 });
+
+test('a posting with no date: when jobleft found it, worded as found', async () => {
+  const { foundText } = await import('../src/lib/format.ts');
+  const now = Date.parse('2026-10-12T18:00:00Z');
+  assert.equal(foundText('2026-10-09T18:00:00Z', now), '3 days ago');
+  assert.equal(foundText('2026-10-12T17:59:50Z', now), 'just now');
+  assert.match(foundText('2026-03-01T12:00:00Z', now)!, /^on /);
+  assert.equal(foundText(null, now), null);
+});

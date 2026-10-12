@@ -11,7 +11,7 @@ import {
   IdcardOutlined, StopOutlined, TeamOutlined, ExportOutlined,
 } from '@ant-design/icons';
 import type { JobSummary, MatchResult, TrackerStatus } from '@jobleft/contracts';
-import { NOT_STATED, NO_SPONSORSHIP, ago, dateText, initials, jobLink, sponsorChip, levelsText, monoColor, payText, placesText, statusLabel, typeText, workModelText, yearsText } from '../lib/format.ts';
+import { NOT_STATED, NO_SPONSORSHIP, ago, dateText, foundText, initials, jobLink, sponsorChip, levelsText, monoColor, payText, placesText, statusLabel, typeText, workModelText, yearsText } from '../lib/format.ts';
 import { IconAssistant } from './Icons.tsx';
 import { MatchTile, PartRings, whySummary, type MatchSummaryX } from './Match.tsx';
 import { useApi } from '../app/data.ts';
@@ -74,6 +74,8 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
   const closed = j.status === 'closed';
   const places = placesText(j.places);
   const posted = ago(j.postedAt, now);
+  // No posted date stated: when jobleft first found it, worded as found, never as posted.
+  const found = posted ? null : foundText(j.firstSeenAt, now);
   const sponsor = sponsorChip(item.h1bTag, item.h1bNote);
   const lang = languageChip(j.language);
   const h1bSrc = useH1bSource();
@@ -107,6 +109,7 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
             <div className="jl-card-chips">
               {closed && <span className="jl-chip closed">Closed{j.closedAt ? ` ${dateText(j.closedAt)}` : ''}</span>}
               {!closed && posted && <span className="jl-chip time" title={`Posted ${dateText(j.postedAt)}`}>{posted}</span>}
+              {!closed && !posted && found && <span className="jl-chip" title={`The posting states no date. jobleft first found it ${dateText(j.firstSeenAt)}.`}>Found {found}</span>}
               {item.trackerStatus && <span className="jl-chip dark">{statusLabel(item.trackerStatus)}</span>}
               {item.external && <span className="jl-chip">Added by you</span>}
               {sponsor && <Tooltip title={sponsorTip(item.h1bTag, h1bSrc, item.h1bNote)}><span className="jl-chip cyan" tabIndex={0}>{sponsor.text}</span></Tooltip>}

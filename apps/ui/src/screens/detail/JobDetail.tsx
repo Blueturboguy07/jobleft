@@ -23,7 +23,7 @@ import { CompanyMark, sponsorChip, sponsorTip } from '../../components/JobCard.t
 import { BAND_WORD, bandOf, chipText, pct, type MatchResultX } from '../../components/Match.tsx';
 import { EmptyState, ErrorState, Loading } from '../../components/States.tsx';
 import {
-  ago, dateText, dateTimeText, jobLink, levelsText, payConvertedText, payExactText, payNotes, payText, statusLabel, textBlocks, typeText, workModelText, yearsText,
+  ago, dateText, dateTimeText, foundText, jobLink, levelsText, payConvertedText, payExactText, payNotes, payText, statusLabel, textBlocks, typeText, workModelText, yearsText,
 } from '../../lib/format.ts';
 import { CompanySection, NetworkSection, NotesSection, SecHead, SponsorSection } from './Panels.tsx';
 import { CoverLetterDrawer, GapsDrawer, TailorDrawer } from './Tools.tsx';
@@ -192,7 +192,7 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
   const applyUrl = jobLink(job.applyUrl) ?? link;
   const h1bNote = (d.data as { h1bNote?: string }).h1bNote ?? null;
   const sponsor = sponsorChip(h1bTag, h1bNote);
-  const posted = job.postedAt ? `Posted ${ago(job.postedAt)}` : 'Posted date not listed';
+  const posted = job.postedAt ? `Posted ${ago(job.postedAt)}` : `Posted date not listed${foundText(job.firstSeenAt) ? ` · found by jobleft ${foundText(job.firstSeenAt)}` : ''}`;
   const lang = languageChip(job.language);
   const blocks = textBlocks(job.description);
   const tools = [
