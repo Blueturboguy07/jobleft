@@ -357,6 +357,7 @@ export class AppData {
       const job = j && j.status !== 'closed' ? {
         id: j.id, title: j.title, company: j.company, places: (j.places ?? []).map((p) => p.text).filter(Boolean).join('; '),
         countries: [...new Set([...parsed, ...(j.places ?? [])].map((p) => p.country).filter((c): c is string => !!c))], remote: j.workModel === 'remote', postedAt: j.postedAt ?? null,
+        ...(j.language ? { language: j.language } : {}),
       } : null;
       const inPlace = !job || !country ? null : job.countries.length ? job.countries.includes(country) : null;
       return { url, state: o.state as WebResultOutcome['state'], message: o.message, job, inPlace };

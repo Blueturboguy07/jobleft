@@ -18,7 +18,7 @@ import { confirmDiscard, ui } from '../../app/layers.ts';
 type Group = 'basics' | 'pay' | 'interests' | 'companies';
 const GROUPS: Array<{ id: Group; t: string; s: string }> = [
   { id: 'basics', t: 'Basics', s: 'Job function, type, work model, place, level, years, date' },
-  { id: 'pay', t: 'Pay and visa', s: 'Minimum yearly pay, H-1B, limits' },
+  { id: 'pay', t: 'Pay, visa and language', s: 'Minimum yearly pay, H-1B, Dutch, limits' },
   { id: 'interests', t: 'Interests', s: 'Skill, role type' },
   { id: 'companies', t: 'Companies', s: 'Include, exclude' },
 ];
@@ -196,6 +196,9 @@ export function AllFiltersDrawer({ open, onClose, filter, sort, saved, onApply, 
     pay: (<>
       <Box title="Minimum yearly pay">
         <PayMinimum draft={draft} set={set} onChange={setDraft} />
+      </Box>
+      <Box title="Language" help="Read from the posting: a sentence that says Dutch is required (fluent Dutch, vloeiend Nederlands), or a posting written in Dutch. A posting that says Dutch is a plus stays.">
+        <Space><Switch checked={!!draft.leaveOutDutch} onChange={(v) => set({ leaveOutDutch: v || undefined })} aria-label="Leave out jobs that need Dutch" /><span>Leave out jobs that need Dutch</span></Space>
       </Box>
       <Box title="Visa sponsorship" help="Past filings are public US Department of Labor data. They show a company has sponsored H-1B workers; they do not promise sponsorship for a role.">
         <label className={`jl-choice${draft.h1bSponsorship ? ' on' : ''}`}><Checkbox checked={!!draft.h1bSponsorship} onChange={(e) => set({ h1bSponsorship: e.target.checked })} /> H-1B sponsor likely</label>

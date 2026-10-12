@@ -4,7 +4,7 @@
 // 1.1.0 (new routes; additive).
 
 import { HttpUrlSchema, IdSchema, IsoDateTimeSchema } from './common.ts';
-import { CrawlAtsIdSchema } from './job.ts';
+import { CrawlAtsIdSchema, JobLanguageSchema } from './job.ts';
 import { arr, bool, enm, int, named, nullable, obj, str, type Infer } from './schema.ts';
 
 /** The answer to "does this SearXNG work?". */
@@ -125,7 +125,7 @@ export const WebResultOutcomeSchema = named(obj({
   /** The job the page is, when it is one. */
   job: nullable(obj({
     id: IdSchema, title: str(), company: str(), places: str(), countries: arr(str()), remote: bool(), postedAt: nullable(IsoDateTimeSchema),
-  })),
+  }, { /** What the posting says about Dutch (added with the language facts, additive). */ language: JobLanguageSchema })),
   /** Whether the job is in the country asked for: null when unknown (no place stated, or not a job). */
   inPlace: nullable(bool()),
 }), 'WebResultOutcome');

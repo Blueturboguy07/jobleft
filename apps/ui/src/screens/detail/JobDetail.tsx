@@ -8,7 +8,7 @@ import { Alert, Button } from 'antd';
 import { Tooltip } from '../../components/Tip.tsx';
 import {
   CalendarOutlined, ClockCircleOutlined, CloseOutlined, CopyOutlined, DollarOutlined, EnvironmentOutlined, ExportOutlined, FileTextOutlined,
-  HeartFilled, HeartOutlined, HomeOutlined, IdcardOutlined, StopOutlined, TeamOutlined, ApartmentOutlined, AimOutlined, ProfileOutlined, BulbOutlined,
+  HeartFilled, HeartOutlined, HomeOutlined, TranslationOutlined, IdcardOutlined, StopOutlined, TeamOutlined, ApartmentOutlined, AimOutlined, ProfileOutlined, BulbOutlined,
 } from '@ant-design/icons';
 import { SUB_SCORE_LABELS, type JobDetail as JobDetailT, type TrackerEntry, type TrackerPatch } from '@jobleft/contracts';
 import { call, type UiError } from '../../app/api.ts';
@@ -27,6 +27,7 @@ import {
 } from '../../lib/format.ts';
 import { CompanySection, NetworkSection, NotesSection, SecHead, SponsorSection } from './Panels.tsx';
 import { CoverLetterDrawer, GapsDrawer, TailorDrawer } from './Tools.tsx';
+import { languageChip } from '../../lib/filters.ts';
 
 /** One fact of the posting. `unknown` (JL-feed-10): what to say when the posting does not state it; without it, an unstated fact is left out. */
 function Fact({ icon, label, children, unknown }: { icon: ReactNode; label: string; children: ReactNode; unknown?: string }) {
@@ -192,6 +193,7 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
   const h1bNote = (d.data as { h1bNote?: string }).h1bNote ?? null;
   const sponsor = sponsorChip(h1bTag, h1bNote);
   const posted = job.postedAt ? `Posted ${ago(job.postedAt)}` : 'Posted date not listed';
+  const lang = languageChip(job.language);
   const blocks = textBlocks(job.description);
   const tools = [
     { k: 'tailor' as const, icon: <IconResume size={18} />, t: 'Tailor your resume', s: 'Draft changes from your profile; you choose what to keep', hi: true },
@@ -280,6 +282,9 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
                   <Fact icon={<IdcardOutlined />} label="Level" unknown="Level not stated">{levelsText(job.levels)}</Fact>
                   <Fact icon={<CalendarOutlined />} label="Experience" unknown="Years of experience not stated">{yearsText(job.yearsRequired)}</Fact>
                   <Fact icon={<ApartmentOutlined />} label="Department">{job.department}</Fact>
+                  <Fact icon={<TranslationOutlined />} label="Language">
+                    {lang && <span>{lang.text}{lang.tip && <span className="jl-small jl-muted" style={{ display: 'block' }}>{lang.tip}</span>}</span>}
+                  </Fact>
                   <Fact icon={<DollarOutlined />} label="Pay" unknown="Pay not stated">
                     {payText(job.pay) && (
                       <span>

@@ -162,17 +162,27 @@ const JOB_FIELDS = {
 };
 
 /** A job with its full plain-text description (the detail view). */
+/**
+ * The language facts of a posting (web search lane, additive): the language it is written in, and what it says about
+ * Dutch: required, a plus, or not required, with the sentence that says so. Absent = not read.
+ */
+export const JobLanguageSchema = named(obj({
+  posting: nullable(enm(['en', 'nl', 'other'])),
+  dutch: nullable(enm(['required', 'preferred', 'not_required'])),
+}, { evidence: str({ maxLength: 300 }) }), 'JobLanguage');
+
 export const JobSchema = named(obj(
   { ...JOB_FIELDS, description: str({ description: 'Plain text. Never HTML. Rendered as text, never as markup.' }) },
-  { /** True for per-query results that a source's terms forbid storing (sources-other O13). */ ephemeral: bool() },
+  { /** True for per-query results that a source's terms forbid storing (sources-other O13). */ ephemeral: bool(), language: JobLanguageSchema },
 ), 'Job', 'One job posting');
 
 /** A job without its description, plus a short snippet (list items). */
 export const JobSummarySchema = named(obj(
   { ...JOB_FIELDS, snippet: str({ maxLength: 400 }) },
-  { ephemeral: bool() },
+  { ephemeral: bool(), language: JobLanguageSchema },
 ), 'JobSummary', 'A job without its full description');
 
+export type JobLanguage = Infer<typeof JobLanguageSchema>;
 export type CrawlAtsId = Infer<typeof CrawlAtsIdSchema>;
 export type AtsId = Infer<typeof AtsIdSchema>;
 export type Level = Infer<typeof LevelSchema>;

@@ -1,7 +1,7 @@
 // Filter helpers: what each filter control shows, whether it is active, and the chip summary of the drawer.
 // Pure functions (unit tested under Node).
 
-import { EXPERIENCE_LEVEL_LABELS, type CompanyStage, type EmploymentType, type JobFilter, type JobSort, type Profile, type WorkModel } from '@jobleft/contracts';
+import { EXPERIENCE_LEVEL_LABELS, type CompanyStage, type EmploymentType, type JobFilter, type JobLanguage, type JobSort, type Profile, type WorkModel } from '@jobleft/contracts';
 import { ALL_COUNTRIES, COMMON_COUNTRY_CODES } from './countries.ts';
 
 export const TYPE_OPTIONS: Array<{ value: EmploymentType; label: string }> = [
@@ -69,7 +69,8 @@ export function sameFilter(a: JobFilter, b: JobFilter): boolean {
 }
 
 export function activeCount(f: JobFilter): number {
-  return Object.keys(cleanFilter(f)).filter((k) => k !== 'includeUnknown' && k !== 'status').length;
+  // The pay currency belongs to the minimum pay: one filter, not two.
+  return Object.keys(cleanFilter(f)).filter((k) => k !== 'includeUnknown' && k !== 'status' && k !== 'payCurrency').length;
 }
 
 function firstPlus(labels: string[], empty: string): string {
@@ -104,6 +105,7 @@ export function summaryChips(f: JobFilter): string[] {
   if (f.postedWithin) out.push(postedLabel(f));
   if (f.maxYearsRequired !== undefined) out.push(yearsLabel(f));
   if (f.minAnnualPayUsd !== undefined) out.push(payLabel(f));
+  if (f.leaveOutDutch) out.push('No Dutch needed');
   if (f.h1bSponsorship) out.push('H-1B sponsor likely');
   if (f.excludeClearanceRequired) out.push('No clearance required');
   if (f.excludeUsCitizenOnly) out.push('Not US citizens only');
@@ -288,4 +290,23 @@ export function byTitleMatch<T extends { title: string; company: string }>(items
     return 3;
   };
   return items.map((x, i) => ({ x, i, r: rank(x) })).sort((a, b) => a.r - b.r || a.i - b.i).map((e) => e.x);
+}
+
+/**
+ * The language chip of a job (web search lane): what the posting says about Dutch, or that it is written in Dutch.
+ * `warn` marks the ones a person without Dutch cannot take. null: nothing to say (an English posting that is silent).
+ */
+export function languageChip(l: JobLanguage | undefined): { text: string; warn: boolean; tip: string } | null {
+  if (!l) return null;
+  const said = l.evidence ? `The posting says: "${l.evidence}"` : '';
+  if (l.dutch === 'required') return { text: 'Dutch required', warn: true, tip: said };
+  if (l.dutch === 'not_required') return { text: 'No Dutch needed', warn: false, tip: said };
+  if (l.posting === 'nl') return { text: l.dutch === 'preferred' ? 'In Dutch · Dutch a plus' : 'Written in Dutch', warn: l.dutch !== 'preferred', tip: l.dutch === 'preferred' ? said : 'The posting is written in Dutch, so the job most likely needs Dutch. It does not say so in a sentence jobleft could read.' };
+  if (l.dutch === 'preferred') return { text: 'Dutch a plus', warn: false, tip: said };
+  return null;
+}
+
+/** Whether a job needs Dutch, as the server's "leave out jobs that need Dutch" decides (interim/language.ts needsDutch). */
+export function needsDutch(l: JobLanguage | undefined): boolean {
+  return !!l && (l.dutch === 'required' || (l.posting === 'nl' && l.dutch !== 'not_required'));
 }

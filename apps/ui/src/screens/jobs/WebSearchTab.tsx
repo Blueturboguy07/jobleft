@@ -21,7 +21,7 @@ import { JobCard } from '../../components/JobCard.tsx';
 import { EmptyState, InlineError, Loading, SkeletonCards } from '../../components/States.tsx';
 import { VirtualList } from '../../components/VirtualList.tsx';
 import { countryName } from '../../lib/countries.ts';
-import { cleanFilter } from '../../lib/filters.ts';
+import { cleanFilter, languageChip, needsDutch } from '../../lib/filters.ts';
 import { openPage } from '../../lib/external.ts';
 import { ago } from '../../lib/format.ts';
 import { JobDetail } from '../detail/JobDetail.tsx';
@@ -38,7 +38,7 @@ const RANGE_POSTED: Record<Exclude<Range, 'any'>, NonNullable<JobFilter['postedW
  */
 let last: { q: string; place: string; range: Range; answer: WebSearchResponse | null; page: number } | null = null;
 let lastLoaded = false;
-let view: { mode: 'results' | 'jobs'; onlyHere: boolean; sort: JobSort } = { mode: 'results', onlyHere: true, sort: 'recommended' };
+let view: { mode: 'results' | 'jobs'; onlyHere: boolean; sort: JobSort; noDutch: boolean } = { mode: 'results', onlyHere: true, sort: 'recommended', noDutch: false };
 /**
  * Results opened in tabs, and the tab shown (null: the results). jobleft keeps them (GET/PUT /websearch/tabs), so they
  * are there again after a restart; this copy is read once a run and saved on every change.
@@ -79,6 +79,8 @@ export function WebSearchTab() {
   /** Show results whose job posting states a date older than the range (the engines date pages by when they saw them). */
   const [showOld, setShowOld] = useState(false);
   const [sort, setSort] = useState(view.sort);
+  /** Leave out the job postings that need Dutch (offered for a Dutch-speaking country). */
+  const [noDutchPick, setNoDutch] = useState(view.noDutch);
   const ai = useAiSettings();
   const aiOn = !!ai.data?.provider;
   const [widenPick, setWidenPick] = useState<boolean | null>(widenChoice);
@@ -135,7 +137,7 @@ export function WebSearchTab() {
     setQ((v) => v || firstTitle(p.preferences.targetTitles[0] ?? p.preferences.jobFunctions[0]));
     setPlace((v) => v || defaultPlace);
   }, [!!p]);
-  useEffect(() => { view = { mode, onlyHere, sort }; }, [mode, onlyHere, sort]);
+  useEffect(() => { view = { mode, onlyHere, sort, noDutch: noDutchPick }; }, [mode, onlyHere, sort, noDutchPick]);
 
   // Saved searches; a click on one fills the boxes, then searches.
   const saved = useApi<WebSavedSearch[]>('websearch:saved', () => call('listWebSaved'));
@@ -145,6 +147,8 @@ export function WebSearchTab() {
 
   // What came of reading each result; asked again while pages are being read.
   const here = answer?.country ?? null;
+  const dutchHere = here === 'NL' || here === 'BE';
+  const noDutch = dutchHere && noDutchPick;
   // The results', and the open tabs' (a tab from an earlier search stays up to date too).
   const urls = useMemo(() => [...new Set([...(answer?.results ?? []).map((r) => r.url), ...tabs.map((t) => t.url)])], [answer, tabs]);
   const [outcomes, setOutcomes] = useState<Map<string, WebResultOutcome>>(new Map());
@@ -170,8 +174,8 @@ export function WebSearchTab() {
   const filter: JobFilter = useMemo(() => {
     const posted = range !== 'any' && !showOld ? RANGE_POSTED[range] : undefined;
     const unknown: NonNullable<JobFilter['includeUnknown']> = [...(onlyHere && here ? ['place' as const] : []), ...(posted ? ['postedAt' as const] : [])];
-    return cleanFilter({ sources: ['external:web'], ...(onlyHere && here ? { countries: [here] } : {}), ...(posted ? { postedWithin: posted } : {}), ...(unknown.length ? { includeUnknown: unknown } : {}) });
-  }, [onlyHere, here, range, showOld]);
+    return cleanFilter({ sources: ['external:web'], ...(onlyHere && here ? { countries: [here] } : {}), ...(posted ? { postedWithin: posted } : {}), ...(unknown.length ? { includeUnknown: unknown } : {}), ...(noDutch ? { leaveOutDutch: true } : {}) });
+  }, [onlyHere, here, range, showOld, noDutch]);
   const { st, load, more: moreJobs, ops } = useJobPages(filter, sort, '');
   const actions = useCardActions(ops);
   const jobsSeen = useRef(reading.data?.jobs ?? 0);
@@ -234,10 +238,12 @@ export function WebSearchTab() {
     const at = Date.parse(outcomes.get(r.url)?.job?.postedAt ?? r.publishedAt ?? '');
     return Number.isFinite(at) && at < cutoff;
   };
+  const dutchOnly = (r: WebSearchResult) => noDutch && needsDutch(outcomes.get(r.url)?.job?.language);
   const hiddenElsewhere = results.filter((r) => elsewhere(r) && !tooOld(r)).length;
   const hiddenOld = results.filter(tooOld).length;
-  const shown = results.filter((r) => !elsewhere(r) && !tooOld(r));
-  const postings = results.filter((r) => { const s = outcomes.get(r.url)?.state; return (s === 'job' || s === 'known') && !tooOld(r); }).length;
+  const hiddenDutch = results.filter((r) => dutchOnly(r) && !elsewhere(r) && !tooOld(r)).length;
+  const shown = results.filter((r) => !elsewhere(r) && !tooOld(r) && !dutchOnly(r));
+  const postings = results.filter((r) => { const s = outcomes.get(r.url)?.state; return (s === 'job' || s === 'known') && !tooOld(r) && !dutchOnly(r); }).length;
   const rangeName = range === 'week' ? 'the past week' : range === 'month' ? 'the past month' : range === 'year' ? 'the past year' : 'the past day';
   const hereName = here ? countryName(here) : null;
 
@@ -249,6 +255,7 @@ export function WebSearchTab() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '4px 16px 16px', maxWidth: 860 }}>
         {shown.map((r) => <SerpRow key={r.url} r={r} o={outcomes.get(r.url) ?? null} hereName={hereName} onOpen={openTab} />)}
         {hiddenOld > 0 && <p className="jl-small jl-muted" style={{ margin: '8px 0' }}>{hiddenOld} {hiddenOld === 1 ? 'job posting' : 'job postings'} posted before {rangeName} hidden. <Button size="small" type="link" onClick={() => setShowOld(true)}>Show them</Button></p>}
+        {hiddenDutch > 0 && <p className="jl-small jl-muted" style={{ margin: '8px 0' }}>{hiddenDutch} {hiddenDutch === 1 ? 'job posting' : 'job postings'} that need Dutch hidden. <Button size="small" type="link" onClick={() => setNoDutch(false)}>Show them</Button></p>}
         {hiddenElsewhere > 0 && <p className="jl-small jl-muted" style={{ margin: '8px 0' }}>{hiddenElsewhere} {hiddenElsewhere === 1 ? 'job posting' : 'job postings'} outside {hereName} hidden. <Button size="small" type="link" onClick={() => setOnlyHere(false)}>Show them</Button></p>}
         {page < 5 && <Button shape="round" style={{ alignSelf: 'center', marginTop: 8 }} loading={busy === 'more'} disabled={!!busy} onClick={() => { void more(); }}>More results</Button>}
       </div>
@@ -329,6 +336,7 @@ export function WebSearchTab() {
               <div className="jl-row" style={{ gap: 10 }}>
                 {pending && <span className="jl-small jl-muted"><LoadingOutlined /> Reading the results, one page a second per site</span>}
                 {here && <label className="jl-row jl-small" style={{ gap: 6 }}><Switch size="small" checked={onlyHere} onChange={setOnlyHere} aria-label={`Only in ${hereName}`} /> Only in {hereName}</label>}
+                {dutchHere && <Tooltip title="Leaves out the job postings that say Dutch is required, and those written in Dutch. A posting that says Dutch is a plus stays."><label className="jl-row jl-small" style={{ gap: 6 }}><Switch size="small" checked={noDutchPick} onChange={setNoDutch} aria-label="No Dutch needed" /> No Dutch needed</label></Tooltip>}
                 {mode === 'jobs' && <Select size="small" style={{ width: 140 }} value={sort} onChange={setSort} aria-label="Sort"
                   options={[{ value: 'recommended', label: 'Recommended' }, { value: 'top_matched', label: 'Top matched' }, { value: 'most_recent', label: 'Most recent' }]} />}
               </div>
@@ -448,7 +456,11 @@ function Status({ r, o, hereName }: { r: WebSearchResult; o: WebResultOutcome | 
   if ((s === 'job' || s === 'known') && o?.job) {
     const where = o.job.places || (o.job.remote ? 'Remote' : 'place not stated');
     if (o.inPlace === false) return <Tag style={{ margin: 0 }}>Job posting outside {hereName}: {where}</Tag>;
-    return <Tag color="green" style={{ margin: 0 }}>{s === 'known' ? 'In your jobs' : 'Job posting'} · {where}{o.job.postedAt ? ` · posted ${ago(o.job.postedAt)}` : ''}</Tag>;
+    const lang = languageChip(o.job.language);
+    return (<>
+      <Tag color="green" style={{ margin: 0 }}>{s === 'known' ? 'In your jobs' : 'Job posting'} · {where}{o.job.postedAt ? ` · posted ${ago(o.job.postedAt)}` : ''}</Tag>
+      {lang && <Tooltip title={lang.tip || undefined}><Tag color={lang.warn ? 'orange' : undefined} style={{ margin: 0 }}>{lang.text}</Tag></Tooltip>}
+    </>);
   }
   if (s === 'likely_job') return <Tooltip title={o?.message ?? undefined}><Tag color="gold" style={{ margin: 0 }}>Probably a job posting · open to see details</Tag></Tooltip>;
   const label: Record<string, string> = { closed: 'Closed', not_job: 'Not a job posting', off_topic: 'Not about this search', refused: 'Site does not allow programs', failed: 'Could not be read' };

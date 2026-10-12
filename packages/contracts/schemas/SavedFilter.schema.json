@@ -139,6 +139,9 @@
           "type": "string",
           "pattern": "^[A-Z]{3}$"
         },
+        "leaveOutDutch": {
+          "type": "boolean"
+        },
         "h1bSponsorship": {
           "type": "boolean"
         },

@@ -43,6 +43,11 @@ export const JobFilterSchema = named(obj({}, {
    * minimum with pay stated in euros. Absent = USD. Added by the web search lane (additive).
    */
   payCurrency: str({ pattern: '^[A-Z]{3}$' }),
+  /**
+   * Leave out the jobs that need Dutch: the posting says Dutch is required, or it is written in Dutch and does not say
+   * Dutch is not required. Added by the web search lane (additive).
+   */
+  leaveOutDutch: bool(),
   /** Jobs with a positive sponsor tag: the company history says likely, or the post says it sponsors. */
   h1bSponsorship: bool(),
   excludeClearanceRequired: bool(),

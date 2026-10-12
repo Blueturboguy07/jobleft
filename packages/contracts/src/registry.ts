@@ -16,7 +16,7 @@ import {
   WebReadStatusSchema, WebResultOutcomeSchema, WebSavedSearchInputSchema, WebSavedSearchSchema, WebSearchBoardSchema, WebSearchCheckSchema, WebSearchRequestSchema, WebSearchResponseSchema, WebSearchResultSchema, WebTabsSchema, WebLastSearchSchema,
 } from './websearch.ts';
 import { JobFilterSchema, JobListItemSchema, JobSearchRequestSchema, JobSearchResponseSchema, SavedFilterSchema, DigestSchema } from './filter.ts';
-import { JobSchema, JobSummarySchema, PaySchema, PlaceSchema, SourceAttributionSchema } from './job.ts';
+import { JobLanguageSchema, JobSchema, JobSummarySchema, PaySchema, PlaceSchema, SourceAttributionSchema } from './job.ts';
 import {
   DealBreakerCheckSchema, ExperienceDetailSchema, JobFactViewSchema, MatchResultSchema, MatchSummarySchema, MustHaveSchema, SkillCheckSchema,
 } from './match.ts';
@@ -39,7 +39,7 @@ import { PublikConnectionSchema, PublikWalletSchema } from './wallet.ts';
 
 export const SCHEMAS: Readonly<Record<string, JsonSchema>> = {
   // core records
-  Job: JobSchema, JobSummary: JobSummarySchema, Pay: PaySchema, Place: PlaceSchema, SourceAttribution: SourceAttributionSchema,
+  Job: JobSchema, JobSummary: JobSummarySchema, JobLanguage: JobLanguageSchema, Pay: PaySchema, Place: PlaceSchema, SourceAttribution: SourceAttributionSchema,
   Company: CompanySchema, H1bSummary: H1bSummarySchema,
   Profile: ProfileSchema, ProfileInput: ProfileInputSchema, ExtraSection: ExtraSectionSchema,
   Resume: ResumeSchema, ResumeDocument: ResumeDocumentSchema, AtsReport: AtsReportSchema, KeywordGapReport: KeywordGapReportSchema,

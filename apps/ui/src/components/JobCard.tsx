@@ -15,6 +15,7 @@ import { NOT_STATED, NO_SPONSORSHIP, ago, dateText, initials, jobLink, sponsorCh
 import { IconAssistant } from './Icons.tsx';
 import { MatchTile, PartRings, whySummary, type MatchSummaryX } from './Match.tsx';
 import { useApi } from '../app/data.ts';
+import { languageChip } from '../lib/filters.ts';
 import { call } from '../app/api.ts';
 import { useH1bSource } from '../app/session.ts';
 
@@ -74,6 +75,7 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
   const places = placesText(j.places);
   const posted = ago(j.postedAt, now);
   const sponsor = sponsorChip(item.h1bTag, item.h1bNote);
+  const lang = languageChip(j.language);
   const h1bSrc = useH1bSource();
   // A job pasted without a link has no page to open (its placeholder address never loads).
   const link = jobLink(j.url);
@@ -108,6 +110,7 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
               {item.trackerStatus && <span className="jl-chip dark">{statusLabel(item.trackerStatus)}</span>}
               {item.external && <span className="jl-chip">Added by you</span>}
               {sponsor && <Tooltip title={sponsorTip(item.h1bTag, h1bSrc, item.h1bNote)}><span className="jl-chip cyan" tabIndex={0}>{sponsor.text}</span></Tooltip>}
+              {lang && <Tooltip title={lang.tip || undefined}><span className={`jl-chip${lang.warn ? ' warn' : ''}`} tabIndex={0}>{lang.text}</span></Tooltip>}
               <span style={{ marginLeft: 'auto' }} />
               <Dropdown menu={menu} trigger={['click']}>
                 <Button size="small" shape="circle" className="jl-icon-btn" icon={<EllipsisOutlined />} aria-label={`More actions for ${j.title}`} />

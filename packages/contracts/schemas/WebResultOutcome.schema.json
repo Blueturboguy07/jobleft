@@ -72,6 +72,50 @@
                   "type": "null"
                 }
               ]
+            },
+            "language": {
+              "type": "object",
+              "properties": {
+                "posting": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "en",
+                        "nl",
+                        "other"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "dutch": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "required",
+                        "preferred",
+                        "not_required"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "evidence": {
+                  "type": "string",
+                  "maxLength": 300
+                }
+              },
+              "required": [
+                "posting",
+                "dutch"
+              ],
+              "title": "JobLanguage"
             }
           },
           "required": [

@@ -18,6 +18,7 @@ import { canonicalizeUrl } from '@jobleft/crawler';
 import { FAMILIES, familyOfTitle } from '@jobleft/match';
 import { ApiFailure } from '../errors.ts';
 import { companyKey } from './company-key.ts';
+import { languageFacts, needsDutch } from './language.ts';
 import { placeMatches } from '../core/places.ts';
 
 export interface JobRow {
@@ -218,6 +219,7 @@ export function rowToJob(r: CrawlRow): Job {
     duplicateOf: r.duplicate_of !== null && r.d_ats && r.d_board && r.d_job_id ? makeJobId(r.d_ats, r.d_board, r.d_job_id) : null,
     contentHash: r.content_hash,
     description: r.description,
+    language: languageFacts(r.title, r.description ?? ''),
   };
 }
 
@@ -351,6 +353,25 @@ export class JobsService {
   }
 
   /** Crawler row ids of the jobs the person hid. */
+  /**
+   * Keeps srv_job_lang up to date for the open jobs: whether each one needs Dutch (interim/language.ts), keyed by the
+   * posting's content hash, so a changed posting is read again. The first run reads every open job (about 2 s for
+   * 18,000); later ones read only new and changed postings.
+   */
+  refreshLanguage(): number {
+    this.db.exec('CREATE TABLE IF NOT EXISTS srv_job_lang (id INTEGER PRIMARY KEY, hash TEXT, needs_dutch INTEGER NOT NULL)');
+    const stale = this.db.prepare(`SELECT j.id, j.title, j.description, j.content_hash FROM jobs j LEFT JOIN srv_job_lang l ON l.id = j.id
+      WHERE j.closed_at IS NULL AND (l.id IS NULL OR l.hash IS NOT j.content_hash)`).all() as Array<{ id: number; title: string; description: string | null; content_hash: string | null }>;
+    if (!stale.length) return 0;
+    const put = this.db.prepare('INSERT INTO srv_job_lang (id, hash, needs_dutch) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET hash = excluded.hash, needs_dutch = excluded.needs_dutch');
+    this.db.exec('BEGIN');
+    try {
+      for (const r of stale) put.run(r.id, r.content_hash, needsDutch(languageFacts(r.title, r.description ?? '')) ? 1 : 0);
+      this.db.exec('COMMIT');
+    } catch (e) { this.db.exec('ROLLBACK'); throw e; }
+    return stale.length;
+  }
+
   /** Row ids of the open, non-duplicate jobs first seen after `iso`: from web searches (`web`) or from everything else. */
   idsFirstSeenSince(iso: string, web: boolean): number[] {
     const where = web ? "ats = 'external' AND board = 'web'" : "NOT (ats = 'external' AND board = 'web')";
@@ -454,6 +475,10 @@ export class JobsService {
       const col = closed ? 'julianday(x.posted_at)' : 'x.sort_new';
       where.push(`(${col} >= julianday(?)${unknownOk.has('postedAt') ? ` OR ${col} IS NULL` : ''})`);
       args.push(cutoff);
+    }
+    if (filter.leaveOutDutch) {
+      this.refreshLanguage();
+      where.push('x.id NOT IN (SELECT id FROM srv_job_lang WHERE needs_dutch = 1)');
     }
     if (filter.minAnnualPayUsd !== undefined) {
       const cur = closed ? 'upper(x.pay_currency)' : 'x.pay_currency';
