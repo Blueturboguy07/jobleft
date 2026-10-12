@@ -385,3 +385,6 @@ button.jl-kpi:hover { box-shadow: inset 0 0 0 1px #9AA0A6; }
 
 /* Ant Design's own placeholder text ("no data") is lighter than the 4.5:1 contrast rule allows */
 .ant-empty-description, .ant-table-placeholder .ant-empty-description, .ant-table-placeholder { color: var(--jl-text3) !important; }
+/* Jobs > Web jobs: the results and the results opened in tabs */
+.jl-web-tabs > .ant-tabs-nav { margin: 0; padding: 6px 16px 0; background: #fff; }
+.jl-web-tab-label { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }

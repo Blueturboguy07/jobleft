@@ -4,22 +4,27 @@
 // jobs, closed, not a job). Job boards are left out: they are followed in Settings > Job sources. The big job
 // sites jobleft never contacts (LinkedIn, Indeed, Glassdoor) are offered as the same search, in the browser.
 // The job postings it read are also cards (Job postings), with the match, the details and Apply.
+// A result opens in a tab of its own next to the results: the job jobleft read (like it, track it, notes), or for a
+// page it could not read, the result with Like and Mark as applied (kept as a job from the result itself). The live
+// page opens in a jobleft window of its own, or in the browser.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Dropdown, Input, Segmented, Select, Switch, Tag, Tooltip } from 'antd';
-import { BellOutlined, DownOutlined, ExportOutlined, GlobalOutlined, LoadingOutlined, SearchOutlined, StarOutlined } from '@ant-design/icons';
+import { Button, Dropdown, Input, Segmented, Select, Switch, Tabs, Tag, Tooltip } from 'antd';
+import { BellOutlined, CheckOutlined, DownOutlined, ExportOutlined, GlobalOutlined, HeartOutlined, LoadingOutlined, SearchOutlined, StarOutlined, BlockOutlined } from '@ant-design/icons';
 import type { JobFilter, JobSort, WebReadStatus, WebResultOutcome, WebSavedSearch, WebSearchRequest, WebSearchResponse, WebSearchResult } from '@jobleft/contracts';
 import { call, openExternal, type UiError } from '../../app/api.ts';
 import { invalidate, load as reload, useApi } from '../../app/data.ts';
 import { ui } from '../../app/layers.ts';
 import { navigate } from '../../app/router.ts';
-import { profileIsSet, useAiSettings, useAppSettings, useProfile } from '../../app/session.ts';
+import { afterTrackerChange, profileIsSet, useAiSettings, useAppSettings, useProfile } from '../../app/session.ts';
 import { JobCard } from '../../components/JobCard.tsx';
 import { EmptyState, InlineError, Loading, SkeletonCards } from '../../components/States.tsx';
 import { VirtualList } from '../../components/VirtualList.tsx';
 import { countryName } from '../../lib/countries.ts';
 import { cleanFilter } from '../../lib/filters.ts';
+import { openPage } from '../../lib/external.ts';
 import { ago } from '../../lib/format.ts';
+import { JobDetail } from '../detail/JobDetail.tsx';
 import { useCardActions } from './cardActions.tsx';
 import { GAP, ROW, useJobPages } from './Feed.tsx';
 
@@ -30,6 +35,10 @@ const RANGE_POSTED: Record<Exclude<Range, 'any'>, NonNullable<JobFilter['postedW
 /** The last search, its answer and the view, kept while the app runs, so switching tabs loses nothing. */
 let last: { q: string; place: string; range: Range; answer: WebSearchResponse | null; page: number } | null = null;
 let view: { mode: 'results' | 'jobs'; onlyHere: boolean; sort: JobSort } = { mode: 'results', onlyHere: true, sort: 'recommended' };
+/** Results opened in tabs, and the tab shown (null: the results), kept while the app runs. */
+type PageTab = { url: string; r: WebSearchResult; jobId: string | null };
+let kept: { tabs: PageTab[]; active: string | null } = { tabs: [], active: null };
+const MAX_TABS = 12;
 /** The person's choice for "Widen with AI" while the app runs (null: on when an AI provider is set up). */
 let widenChoice: boolean | null = null;
 
@@ -61,6 +70,22 @@ export function WebSearchTab() {
   const [widenPick, setWidenPick] = useState<boolean | null>(widenChoice);
   const widen = aiOn && (widenPick ?? true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [tabs, setTabs] = useState<PageTab[]>(kept.tabs);
+  const [activeTab, setActiveTab] = useState<string | null>(kept.active);
+  useEffect(() => { kept = { tabs, active: activeTab }; }, [tabs, activeTab]);
+  /** Opens a result in a tab (or shows its tab); `background` keeps the current tab in front (Ctrl-click, middle click). */
+  const openTab = (r: WebSearchResult, background = false) => {
+    setTabs((list) => (list.some((t) => t.url === r.url) ? list : [...list, { url: r.url, r, jobId: null }].slice(-MAX_TABS)));
+    if (!background) setActiveTab(r.url);
+  };
+  // Closing the tab in front shows the one that takes its place, or the results after the last.
+  const closeTab = (url: string) => {
+    const i = tabs.findIndex((t) => t.url === url);
+    const next = tabs.filter((t) => t.url !== url);
+    setTabs(next);
+    if (activeTab === url) setActiveTab(next[Math.min(i, next.length - 1)]?.url ?? null);
+  };
+  const setTabJob = (url: string, jobId: string) => setTabs((list) => list.map((t) => (t.url === url ? { ...t, jobId } : t)));
   useEffect(() => {
     if (!p || last) return;
     setQ((v) => v || firstTitle(p.preferences.targetTitles[0] ?? p.preferences.jobFunctions[0]));
@@ -76,7 +101,8 @@ export function WebSearchTab() {
 
   // What came of reading each result; asked again while pages are being read.
   const here = answer?.country ?? null;
-  const urls = useMemo(() => (answer?.results ?? []).map((r) => r.url), [answer]);
+  // The results', and the open tabs' (a tab from an earlier search stays up to date too).
+  const urls = useMemo(() => [...new Set([...(answer?.results ?? []).map((r) => r.url), ...tabs.map((t) => t.url)])], [answer, tabs]);
   const [outcomes, setOutcomes] = useState<Map<string, WebResultOutcome>>(new Map());
   const reading = useApi<WebReadStatus>('websearch:reading', () => call('webReadStatus'));
   const active = !!reading.data && (reading.data.running || reading.data.queued > 0);
@@ -177,7 +203,7 @@ export function WebSearchTab() {
     else if (!results.length) body = <EmptyState art="search" title="Nothing found" text={answer.message} />;
     else body = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '4px 16px 16px', maxWidth: 860 }}>
-        {shown.map((r) => <SerpRow key={r.url} r={r} o={outcomes.get(r.url) ?? null} hereName={hereName} />)}
+        {shown.map((r) => <SerpRow key={r.url} r={r} o={outcomes.get(r.url) ?? null} hereName={hereName} onOpen={openTab} />)}
         {hiddenOld > 0 && <p className="jl-small jl-muted" style={{ margin: '8px 0' }}>{hiddenOld} {hiddenOld === 1 ? 'job posting' : 'job postings'} posted before {rangeName} hidden. <Button size="small" type="link" onClick={() => setShowOld(true)}>Show them</Button></p>}
         {hiddenElsewhere > 0 && <p className="jl-small jl-muted" style={{ margin: '8px 0' }}>{hiddenElsewhere} {hiddenElsewhere === 1 ? 'job posting' : 'job postings'} outside {hereName} hidden. <Button size="small" type="link" onClick={() => setOnlyHere(false)}>Show them</Button></p>}
         {page < 5 && <Button shape="round" style={{ alignSelf: 'center', marginTop: 8 }} loading={busy === 'more'} disabled={!!busy} onClick={() => { void more(); }}>More results</Button>}
@@ -191,8 +217,33 @@ export function WebSearchTab() {
       render={(it) => <JobCard item={it} profileSet={profileIsSet(p)} actions={actions} now={Date.now()} />} />;
   }
 
+  const tab = activeTab ? tabs.find((t) => t.url === activeTab) ?? null : null;
+  const tabJob = tab ? tab.jobId ?? outcomes.get(tab.url)?.job?.id ?? tab.r.jobId : null;
+
   return (
     <div className="jl-list-pane">
+      {tabs.length > 0 && (
+        <Tabs type="editable-card" hideAdd size="small" className="jl-web-tabs" activeKey={activeTab ?? 'results'}
+          onChange={(k) => setActiveTab(k === 'results' ? null : k)}
+          onEdit={(k, action) => { if (action === 'remove' && typeof k === 'string') closeTab(k); }}
+          items={[
+            { key: 'results', label: <span><SearchOutlined /> Results</span>, closable: false },
+            ...tabs.map((t) => {
+              const o = outcomes.get(t.url);
+              const name = o?.job ? `${o.job.title} · ${o.job.company}` : t.r.title || t.r.host;
+              return { key: t.url, label: <Tooltip title={`${name} (${t.r.host})`} mouseEnterDelay={0.6}><span className="jl-web-tab-label">{name}</span></Tooltip> };
+            }),
+          ]} />
+      )}
+      {tab && (
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <PageBar r={tab.r} />
+          {tabJob
+            ? <div style={{ display: 'flex', flex: 1, minHeight: 0 }}><JobDetail key={tabJob} id={tabJob} onClose={() => closeTab(tab.url)} /></div>
+            : <PageTab r={tab.r} o={outcomes.get(tab.url) ?? null} hereName={hereName} onSaved={(id) => setTabJob(tab.url, id)} />}
+        </div>
+      )}
+      <div style={{ display: tab ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{ padding: '12px 16px 8px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1px solid var(--jl-line)' }}>
         <form className="jl-row jl-wrap" onSubmit={(e) => { e.preventDefault(); void search(); }} style={{ gap: 8 }}>
           <Input size="large" style={{ flex: '2 1 240px' }} prefix={<SearchOutlined aria-hidden="true" />} value={q} onChange={(e) => setQ(e.target.value)} maxLength={200} placeholder="What: a job title, or several with commas" aria-label="What to search for" />
@@ -242,6 +293,76 @@ export function WebSearchTab() {
         )}
       </div>
       <div ref={scrollRef} className="jl-list-scroll" style={{ paddingTop: 8 }}>{body}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Above an open result: where it is, and the live page in a jobleft window or in the browser. */
+function PageBar({ r }: { r: WebSearchResult }) {
+  return (
+    <div className="jl-row jl-wrap" style={{ gap: 8, padding: '8px 16px', borderBottom: '1px solid var(--jl-line)', background: '#fff' }}>
+      <span className="jl-small jl-muted jl-grow" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.url}>{r.url}</span>
+      {r.kind !== 'never' && (
+        <Tooltip title="The live page, in a jobleft window of its own">
+          <Button size="small" shape="round" icon={<BlockOutlined />} onClick={() => { void openPage(r.url, r.title); }}>Open page</Button>
+        </Tooltip>
+      )}
+      <Button size="small" shape="round" icon={<ExportOutlined />} iconPosition="end" onClick={() => openExternal(r.url)}>Open in your browser</Button>
+    </div>
+  );
+}
+
+/**
+ * An open result that is not a job jobleft read: what the search engine showed, what came of reading it, and Like or
+ * Mark as applied, which keep it as a job made from the result (the page is not opened for that).
+ */
+function PageTab({ r, o, hereName, onSaved }: { r: WebSearchResult; o: WebResultOutcome | null; hereName: string | null; onSaved: (jobId: string) => void }) {
+  const [busy, setBusy] = useState<'like' | 'applied' | null>(null);
+  const s = o?.state ?? 'unread';
+  const checking = (r.kind === 'page' || r.kind === 'board_job') && (s === 'unread' || s === 'queued' || s === 'reading');
+  const save = async (how: 'like' | 'applied') => {
+    setBusy(how);
+    try {
+      const { jobId } = await call('saveWebResult', { body: { url: r.url, title: r.title, ...(r.snippet ? { snippet: r.snippet.slice(0, 2000) } : {}) } });
+      await call('updateTracker', { params: { jobId }, body: how === 'like' ? { liked: true } : { status: 'applied' } });
+      afterTrackerChange();
+      ui.message?.success(how === 'like' ? 'Added to Liked.' : 'Marked as applied. It is in Applied and the Tracker.');
+      onSaved(jobId);
+    } catch (e) { ui.message?.error((e as UiError).message); } finally { setBusy(null); }
+  };
+  // A page of many jobs is not one to keep; a never-contact site's search page is known only by its title ("116 ...
+  // jobs in Netherlands", "Soc analyst Jobs in Netherlands, March 2023 | Glassdoor").
+  const many = r.kind === 'list' || (r.kind === 'never' && /^\d[\d.,]*\+?\s|\b(jobs|vacatures|vacancies|banen)\s+(in|near|bij)\b/i.test(r.title));
+  const why = r.kind === 'never' && many
+    ? `A page of ${r.host} that lists many jobs. jobleft never opens ${r.host}: open it in your browser to pick one, then add that job in External.`
+    : r.kind === 'never'
+    ? `jobleft never opens ${r.host}, so it shows only what the search engine found. Open it in your browser to read it.`
+    : r.kind === 'list' ? 'A page that lists many jobs. Open it to pick one; each job you open there can be added by its link in External.'
+      : checking ? 'jobleft is reading this page. If it is a job posting, the job shows here.'
+        : 'jobleft could not read a job posting from this page, so it shows only what the search engine found. Open the page to read it.';
+  return (
+    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16 }}>
+      <div className="jl-detail-card" style={{ padding: 20, maxWidth: 860 }}>
+        <div className="jl-serp-site">{r.host}</div>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: '6px 0 10px', overflowWrap: 'anywhere' }}>{r.title || r.host}</h1>
+        {r.snippet && <p style={{ margin: '0 0 12px' }}>{r.snippet}</p>}
+        <div className="jl-row jl-wrap" style={{ gap: 6, marginBottom: 12 }}>
+          <Status r={r} o={o} hereName={hereName} />
+          {r.publishedAt && <span className="jl-small jl-muted">{ago(r.publishedAt)}</span>}
+        </div>
+        <p className="jl-small jl-muted" style={{ margin: '0 0 16px' }}>{why}{o?.message && !checking ? ` ${o.message}` : ''}</p>
+        {!many && (
+          <div className="jl-row jl-wrap" style={{ gap: 8 }}>
+            <Tooltip title={checking ? 'Wait until jobleft has read the page' : 'Keep it in Liked, with what the search engine showed and the link'}>
+              <Button shape="round" icon={<HeartOutlined />} loading={busy === 'like'} disabled={checking || !!busy} onClick={() => { void save('like'); }}>Like</Button>
+            </Tooltip>
+            <Tooltip title={checking ? 'Wait until jobleft has read the page' : 'Keep it in Applied and the Tracker'}>
+              <Button shape="round" icon={<CheckOutlined />} loading={busy === 'applied'} disabled={checking || !!busy} onClick={() => { void save('applied'); }}>Mark as applied</Button>
+            </Tooltip>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -249,7 +370,7 @@ export function WebSearchTab() {
 const AVATAR_COLORS = ['#0A8F5C', '#1F5FAD', '#8A4FBF', '#B5651D', '#2E7D7A', '#A23B5C', '#4E6E1E'];
 
 /** One result, as a search engine shows it, with what jobleft found when it read the page. */
-function SerpRow({ r, o, hereName }: { r: WebSearchResult; o: WebResultOutcome | null; hereName: string | null }) {
+function SerpRow({ r, o, hereName, onOpen }: { r: WebSearchResult; o: WebResultOutcome | null; hereName: string | null; onOpen: (r: WebSearchResult, background?: boolean) => void }) {
   let path = '';
   try { const u = new URL(r.url); path = decodeURIComponent(u.pathname).replace(/\/+$/, '').split('/').filter(Boolean).slice(0, 3).join(' › '); } catch { /* the host alone */ }
   const color = AVATAR_COLORS[[...r.host].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
@@ -260,12 +381,14 @@ function SerpRow({ r, o, hereName }: { r: WebSearchResult; o: WebResultOutcome |
         <span className="jl-serp-avatar" style={{ background: color }} aria-hidden="true">{r.host.charAt(0).toUpperCase()}</span>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="jl-serp-site">{r.host}{path ? <span className="jl-muted"> › {path}</span> : null}</div>
-          <a className="jl-serp-title" href={r.url} target="_blank" rel="noopener noreferrer">{r.title}</a>
+          {/* A click opens the result in a tab; Ctrl-click or a middle click opens it behind the current one. */}
+          <a className="jl-serp-title" href={r.url} onClick={(e) => { e.preventDefault(); onOpen(r, e.ctrlKey || e.metaKey); }}
+            onAuxClick={(e) => { if (e.button === 1) { e.preventDefault(); onOpen(r, true); } }}>{r.title}</a>
           {r.snippet && <p className="jl-serp-snippet">{r.snippet}</p>}
           <div className="jl-row jl-wrap" style={{ gap: 6, marginTop: 4 }}>
             <Status r={r} o={o} hereName={hereName} />
             {o?.job?.postedAt ? <span className="jl-small jl-muted">Posted {ago(o.job.postedAt)}</span> : r.publishedAt && <span className="jl-small jl-muted">{ago(r.publishedAt)}</span>}
-            {o?.job && <Button size="small" shape="round" type="primary" onClick={() => navigate(`jobs/${encodeURIComponent(o.job!.id)}`)}>View job</Button>}
+            {o?.job && <Button size="small" shape="round" type="primary" onClick={() => onOpen(r)}>View job</Button>}
           </div>
         </div>
       </div>

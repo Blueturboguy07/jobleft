@@ -274,6 +274,31 @@ export function rawFromText(text: string, applyUrl: string | null): RawJob {
   };
 }
 
+/**
+ * A RawJob from a web search result jobleft could not read (or never reads): only what the search engine returned,
+ * the title, the address and the short text. The employer is the one the title names ("SOC Analyst at Acme",
+ * "Acme hiring SOC Analyst in Utrecht | LinkedIn"), else the site: the other parts of a title ("SOC Analyst - Bureau -
+ * KNAW") may be a department, a place or the site, so they are not taken for one. Nothing is sent to the site.
+ */
+export function rawFromResult(url: string, resultTitle: string, snippet: string): RawJob {
+  const host = new URL(url).hostname.replace(/^www\./i, '');
+  const parts = resultTitle.replace(/^\s*(?:vacature|vacancy|job)\s*[:\-–|]\s*/i, '').split(/\s+[|–—]\s+|\s+-\s+/).map((x) => x.trim()).filter(Boolean);
+  let title = parts[0] ?? '';
+  let company: string | null = null;
+  let location = '';
+  const hiring = /^(.{2,80}?)\s+(?:is hiring|hiring|zoekt)\s+(?:an?\s+|een\s+)?(.{3,160}?)(?:\s+in\s+(.{2,80}))?$/i.exec(title);
+  const at = /^(.{3,160}?)\s+(?:at|bij|@)\s+(.{2,80})$/i.exec(title);
+  if (hiring) { company = hiring[1]!; title = hiring[2]!; location = hiring[3] ?? ''; }
+  else if (at) { title = at[1]!; company = at[2]!; }
+  const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const text = snippet.trim();
+  return {
+    externalId: hash16(canonicalizeUrl(url) || url), url, applyUrl: '', title: [...title].slice(0, 200).join(''), company: (company ?? host).slice(0, 120),
+    location, descriptionHtml: `${text ? `<p>${esc(text)}</p>` : ''}<p>Saved from a web search result: jobleft did not read the page, so this is only what the search engine showed. Open the original posting for the rest.</p>`,
+    remote: false, workMode: '', countries: [], postedAt: null, employmentType: '', department: '', pay: null,
+  };
+}
+
 /** The link on a line that offers it for applying ("Apply at https://...", "To apply: https://..."), or null. */
 export function statedApplyLink(lines: string[]): string | null {
   for (const l of lines) {

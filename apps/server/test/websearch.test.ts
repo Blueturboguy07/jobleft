@@ -361,3 +361,39 @@ test('Widen with AI: the provider\'s titles join the searches and the relevance 
     assert.equal(modelCalls - calls, 1);
   } finally { await s.stop(); cleanup(s.home); await sx.close(); await model.close(); }
 });
+
+test('a result kept from the search itself: the employer the title names, else the site', async () => {
+  const { rawFromResult } = await import('../src/interim/external.ts');
+  const li = rawFromResult('https://nl.linkedin.com/jobs/view/soc-analyst-at-northwave-4469447072', 'Northwave Cyber Security hiring SOC Analyst in Utrecht | LinkedIn', 'Monitor alerts.');
+  assert.deepEqual([li.title, li.company, li.location], ['SOC Analyst', 'Northwave Cyber Security', 'Utrecht']);
+  const at = rawFromResult('https://jobs.example.com/1', 'Vacature: SOC Analist bij Gemeente Voorbeeld | Werken bij', '');
+  assert.deepEqual([at.title, at.company], ['SOC Analist', 'Gemeente Voorbeeld']);
+  // The other parts of a title may be a department or a place: the site is the employer then.
+  const dash = rawFromResult('https://www.academictransfer.com/nl/jobs/364358/soc-analyst-bureau-knaw', 'SOC Analyst - Bureau - KNAW — Koninklijke Nederlandse Akademie', '');
+  assert.deepEqual([dash.title, dash.company, dash.location], ['SOC Analyst', 'academictransfer.com', '']);
+  const site = rawFromResult('https://www.magnet.me/vacature/1', 'Senior SOC Analyst | Vacatures', 'Text with <b>tags</b>');
+  assert.deepEqual([site.title, site.company], ['Senior SOC Analyst', 'magnet.me']);
+  assert.match(site.descriptionHtml, /&lt;b&gt;tags/);
+  assert.equal(site.externalId, rawFromResult('https://www.magnet.me/vacature/1', 'other', '').externalId, 'the address decides which job it is');
+});
+
+test('liking or tracking a web result: it is kept as a job without opening the page, once', async () => {
+  const s = await startTest('websave');
+  try {
+    const url = 'https://nl.linkedin.com/jobs/view/soc-analyst-at-northwave-4469447072';
+    const a = await s.call('POST', '/api/v1/websearch/save', { url, title: 'Northwave Cyber Security hiring SOC Analyst in Utrecht | LinkedIn', snippet: 'Monitor alerts.' });
+    assert.equal(a.status, 200, a.text);
+    assert.match(a.json.jobId, /^external:web:/);
+    const again = await s.call('POST', '/api/v1/websearch/save', { url, title: 'changed', snippet: '' });
+    assert.equal(again.json.jobId, a.json.jobId, 'the same result is the same job');
+    const job = (await s.call('GET', `/api/v1/jobs/${encodeURIComponent(a.json.jobId)}`)).json.job;
+    assert.deepEqual([job.title, job.company, job.url], ['SOC Analyst', 'Northwave Cyber Security', url]);
+    // The result now says it is a job, so the Web jobs tab shows the job.
+    const out = (await s.call('POST', '/api/v1/websearch/outcomes', { urls: [url] })).json;
+    assert.equal(out[0].state, 'job');
+    assert.equal(out[0].job.id, a.json.jobId);
+    // A liked one stays when web jobs expire.
+    assert.equal((await s.call('PATCH', `/api/v1/tracker/${encodeURIComponent(a.json.jobId)}`, { liked: true })).status, 200);
+    assert.equal((await s.call('POST', '/api/v1/websearch/save', { url: 'ftp://x.example/1', title: 'x' })).status, 400);
+  } finally { await s.stop(); cleanup(s.home); }
+});

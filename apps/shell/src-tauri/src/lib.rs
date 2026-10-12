@@ -8,6 +8,9 @@
 //!   its own window after that (capability `core:webview:allow-set-webview-zoom`).
 //! - Closing the window hides it; the app stays in the menu bar with Open, Check for jobs now, Pause/Continue
 //!   checks, the time of the last check, and Quit. A second launch focuses the window (single instance).
+//! - Page windows: the page may ask for a job page in a window of its own (`open_page`, Jobs > Web jobs). That window
+//!   is the person browsing: it gets no app commands (no capability names it), never opens the hosts jobleft never
+//!   contacts or a local address, keeps target=_blank links in itself and sends window.open to the default browser.
 //! - Notifications: `GET /api/v1/notifications` every minute; each one shown goes through Notification Center
 //!   (`osascript`) and is acked.
 //! - Quit (menu bar or Cmd-Q): SIGTERM to the server, wait up to 5 s, then exit. If the shell dies, the server sees
@@ -23,7 +26,7 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -31,7 +34,9 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_opener::OpenerExt;
 
 const READY_TIMEOUT: Duration = Duration::from_secs(15);
 /// Set by the SIGTERM handler (Unix); a thread turns it into the same clean quit as the menu bar item.
@@ -260,6 +265,64 @@ fn open_window(app: &AppHandle, port: u16, token: &str) -> tauri::Result<()> {
     Ok(())
 }
 
+/// The hosts jobleft never contacts (the server's never-contact list, docs/sources/never-crawled-sites.md). A page
+/// window refuses them; the page sends them to the default browser.
+const NEVER_HOSTS: &[&str] = &[
+    "linkedin.com", "licdn.com", "indeed.com", "glassdoor.com", "smartrecruiters.com", "myworkdayjobs.com", "myworkdaysite.com",
+    "workday.com", "icims.com", "taleo.net", "oraclecloud.com", "ultipro.com", "ukg.com",
+];
+static PAGES: AtomicUsize = AtomicUsize::new(1);
+/// Runs in a page window before its own scripts: a target=_blank link opens in the same window (the opener plugin's
+/// link hook, which runs in every window, would send it to the default browser through a command this window may
+/// not use, so the click would do nothing).
+const PAGE_LINKS: &str = r#"window.addEventListener('click', function (e) {
+  var a = e.composedPath().find(function (n) { return n instanceof Node && n.nodeName.toUpperCase() === 'A'; });
+  if (a && a.target === '_blank') a.target = '_self';
+}, true);"#;
+
+fn page_allowed(u: &tauri::Url) -> Result<(), String> {
+    if u.scheme() != "http" && u.scheme() != "https" {
+        return Err("not a web address".into());
+    }
+    let host = u.host_str().unwrap_or("").trim_end_matches('.').to_ascii_lowercase();
+    if NEVER_HOSTS.iter().any(|h| host == *h || host.ends_with(&format!(".{h}"))) {
+        return Err(format!("jobleft never opens {host}; open it in your browser"));
+    }
+    let local = match host.trim_start_matches('[').trim_end_matches(']').parse::<std::net::IpAddr>() {
+        Ok(std::net::IpAddr::V4(ip)) => ip.is_loopback() || ip.is_private() || ip.is_link_local() || ip.is_unspecified(),
+        Ok(std::net::IpAddr::V6(ip)) => ip.is_loopback() || ip.is_unspecified() || (ip.segments()[0] & 0xfe00) == 0xfc00,
+        Err(_) => host.is_empty() || host == "localhost" || host.ends_with(".localhost") || host.ends_with(".local"),
+    };
+    if local {
+        return Err("a page window opens public pages only".into());
+    }
+    Ok(())
+}
+
+/// Opens a job page in a window of its own (Jobs > Web jobs). See the module notes for what the window may do.
+#[tauri::command]
+async fn open_page(app: AppHandle, url: String, title: Option<String>) -> Result<(), String> {
+    let u: tauri::Url = url.parse().map_err(|_| "not a web address".to_string())?;
+    page_allowed(&u)?;
+    let label = format!("page-{}", PAGES.fetch_add(1, Ordering::SeqCst));
+    let title = title.filter(|t| !t.trim().is_empty()).unwrap_or_else(|| u.host_str().unwrap_or("jobleft").to_string());
+    let handle = app.clone();
+    WebviewWindowBuilder::new(&app, label, WebviewUrl::External(u))
+        .title(title)
+        .inner_size(1100.0, 820.0)
+        .initialization_script(PAGE_LINKS)
+        .on_navigation(|u| page_allowed(u).is_ok())
+        .on_new_window(move |u, _| {
+            if u.scheme() == "http" || u.scheme() == "https" {
+                let _ = handle.opener().open_url(u.as_str(), None::<&str>);
+            }
+            NewWindowResponse::Deny
+        })
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn error_window(app: &AppHandle, reason: &str) {
     eprintln!("jobleft: {reason}");
     let _ = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
@@ -448,6 +511,7 @@ pub fn run() {
             // A second launch: bring the one window forward and do nothing else.
             show_main(app);
         }))
+        .invoke_handler(tauri::generate_handler![open_page])
         .manage(Shell { home: home.clone(), token: token.clone(), port: Mutex::new(None), child: Mutex::new(None), quitting: Mutex::new(false) })
         .setup(move |app| {
             let handle = app.handle().clone();

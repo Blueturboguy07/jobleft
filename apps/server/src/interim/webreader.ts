@@ -11,7 +11,7 @@ import { HttpClient, Pacer, type Store } from '@jobleft/crawler';
 import { htmlToText } from '@jobleft/parsers';
 import { nowIso, type WebReadStatus, type WebSearchResult } from '@jobleft/contracts';
 import { ApiFailure } from '../errors.ts';
-import { knownJobFor, otherBoardJobOf, readJobLink, storeExternal } from './external.ts';
+import { knownJobFor, otherBoardJobOf, rawFromResult, readJobLink, storeExternal } from './external.ts';
 import { looksLikeJobList, looksLikeJobPage } from './websearch.ts';
 import { mentionsAll } from './words.ts';
 export { mentionsAll, searchAlternatives, searchWords } from './words.ts';
@@ -117,6 +117,30 @@ export class WebReader {
     // The assistant reads its own first (readNow), then starts the reader.
     if (start) void this.run();
     return out;
+  }
+
+  /**
+   * Keeps a result as a job when the person likes or tracks it: the job read from it when there is one, else a job
+   * made from the search result itself (title, address, short text; rawFromResult). Nothing is sent to the site. A
+   * page still waiting to be read is not saved from its result: the read gives the real posting.
+   */
+  saveResult(url: string, title: string, snippet: string): string {
+    let u: URL;
+    try { u = new URL(url); } catch { throw new ApiFailure('bad_request', 'That is not a web address.'); }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new ApiFailure('bad_request', 'That is not a web address.');
+    const row = this.db.prepare('SELECT state, job_id FROM srv_web_results WHERE url = ?').get(url) as { state: State; job_id: string | null } | undefined;
+    if ((row?.state === 'job' || row?.state === 'known') && row.job_id) return row.job_id;
+    if (row?.state === 'queued' || row?.state === 'reading') throw new ApiFailure('conflict', 'jobleft is still reading this page. Try again in a moment.');
+    const known = knownJobFor(this.d.crawlStore, u);
+    if (known) return known;
+    const raw = rawFromResult(url, title, snippet);
+    if (!raw.title) throw new ApiFailure('bad_request', 'The result has no title to save it by.');
+    // No place from the title's words: a part like "Bureau" reads as a town somewhere. Only "... in Utrecht" counts.
+    const id = storeExternal(this.d.crawlStore, raw, 'web');
+    this.db.prepare(`INSERT INTO srv_web_results (url, state, job_id, message, query, found_at, read_at, title) VALUES (?, 'job', ?, ?, 'saved', ?, ?, ?)
+      ON CONFLICT(url) DO UPDATE SET state = 'job', job_id = excluded.job_id, message = excluded.message`)
+      .run(url, id, 'Saved from the search result (the page was not read).', nowIso(), nowIso(), title.slice(0, 300));
+    return id;
   }
 
   /** Closes the web jobs not found again for WEB_JOB_DAYS that the person did not act on. Returns how many. */
