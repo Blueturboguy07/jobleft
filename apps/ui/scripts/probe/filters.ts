@@ -8,7 +8,7 @@ import { launch, type Page } from '../browser.ts';
 import { check, sleep, type Demo } from './lib.ts';
 
 const DAY = 86_400_000;
-const WINDOW: Record<string, number> = { '24h': DAY, '3d': 3 * DAY, '7d': 7 * DAY, '30d': 30 * DAY };
+const WINDOW: Record<string, number> = { '24h': DAY, '3d': 3 * DAY, '7d': 7 * DAY, '30d': 30 * DAY, '365d': 365 * DAY };
 
 /** Which parts of the filter a listed job breaks (empty = the job meets every active filter). */
 export function violations(it: JobListItem, f: JobFilter, now = Date.now()): string[] {

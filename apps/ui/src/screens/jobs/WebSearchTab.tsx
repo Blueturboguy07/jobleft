@@ -24,6 +24,8 @@ import { useCardActions } from './cardActions.tsx';
 import { GAP, ROW, useJobPages } from './Feed.tsx';
 
 type Range = NonNullable<WebSearchRequest['timeRange']> | 'any';
+const RANGE_DAYS: Record<Exclude<Range, 'any'>, number> = { day: 1, week: 7, month: 30, year: 365 };
+const RANGE_POSTED: Record<Exclude<Range, 'any'>, NonNullable<JobFilter['postedWithin']>> = { day: '24h', week: '7d', month: '30d', year: '365d' };
 
 /** The last search, its answer and the view, kept while the app runs, so switching tabs loses nothing. */
 let last: { q: string; place: string; range: Range; answer: WebSearchResponse | null; page: number } | null = null;
@@ -51,6 +53,8 @@ export function WebSearchTab() {
   const [err, setErr] = useState<UiError | null>(null);
   const [mode, setMode] = useState(view.mode);
   const [onlyHere, setOnlyHere] = useState(view.onlyHere);
+  /** Show results whose job posting states a date older than the range (the engines date pages by when they saw them). */
+  const [showOld, setShowOld] = useState(false);
   const [sort, setSort] = useState(view.sort);
   const ai = useAiSettings();
   const aiOn = !!ai.data?.provider;
@@ -92,9 +96,12 @@ export function WebSearchTab() {
   const pending = urls.some((u) => { const s = outcomes.get(u)?.state; return !s || s === 'queued' || s === 'reading'; });
 
   // The job postings it read, as cards: in the country asked for (postings that state no place included), or all.
-  const filter: JobFilter = useMemo(() => (onlyHere && here
-    ? cleanFilter({ sources: ['external:web'], countries: [here], includeUnknown: ['place'] })
-    : { sources: ['external:web'] }), [onlyHere, here]);
+  // The range applies to the date the posting states; postings that state none are kept.
+  const filter: JobFilter = useMemo(() => {
+    const posted = range !== 'any' && !showOld ? RANGE_POSTED[range] : undefined;
+    const unknown: NonNullable<JobFilter['includeUnknown']> = [...(onlyHere && here ? ['place' as const] : []), ...(posted ? ['postedAt' as const] : [])];
+    return cleanFilter({ sources: ['external:web'], ...(onlyHere && here ? { countries: [here] } : {}), ...(posted ? { postedWithin: posted } : {}), ...(unknown.length ? { includeUnknown: unknown } : {}) });
+  }, [onlyHere, here, range, showOld]);
   const { st, load, more: moreJobs, ops } = useJobPages(filter, sort, '');
   const actions = useCardActions(ops);
   const jobsSeen = useRef(reading.data?.jobs ?? 0);
@@ -118,7 +125,7 @@ export function WebSearchTab() {
     setBusy('search'); setErr(null);
     try {
       const r = await call('webSearchJobs', { body: request(1) });
-      setAnswer(r); setPage(1); setMode('results');
+      setAnswer(r); setPage(1); setMode('results'); setShowOld(false);
       last = { q, place, range, answer: r, page: 1 };
       void reload('websearch:reading');
       scrollRef.current?.scrollTo({ top: 0 });
@@ -148,9 +155,20 @@ export function WebSearchTab() {
   const runSaved = (x: WebSavedSearch) => { setQ(x.q); setPlace(x.place ?? ''); setRange('week'); pendingRun.current = true; };
 
   const results = answer?.results ?? [];
-  const hiddenElsewhere = onlyHere && here ? results.filter((r) => outcomes.get(r.url)?.inPlace === false).length : 0;
-  const shown = results.filter((r) => !(onlyHere && here && outcomes.get(r.url)?.inPlace === false));
-  const postings = results.filter((r) => { const s = outcomes.get(r.url)?.state; return s === 'job' || s === 'known'; }).length;
+  const elsewhere = (r: WebSearchResult) => !!(onlyHere && here && outcomes.get(r.url)?.inPlace === false);
+  // The engines' time range is when they last saw a page, so a posting from years ago can come back: the date the
+  // posting itself states decides. Results that state no date are kept.
+  const cutoff = range !== 'any' ? Date.now() - RANGE_DAYS[range] * 86_400_000 : null;
+  const tooOld = (r: WebSearchResult) => {
+    if (cutoff === null || showOld) return false;
+    const at = Date.parse(outcomes.get(r.url)?.job?.postedAt ?? r.publishedAt ?? '');
+    return Number.isFinite(at) && at < cutoff;
+  };
+  const hiddenElsewhere = results.filter((r) => elsewhere(r) && !tooOld(r)).length;
+  const hiddenOld = results.filter(tooOld).length;
+  const shown = results.filter((r) => !elsewhere(r) && !tooOld(r));
+  const postings = results.filter((r) => { const s = outcomes.get(r.url)?.state; return (s === 'job' || s === 'known') && !tooOld(r); }).length;
+  const rangeName = range === 'week' ? 'the past week' : range === 'month' ? 'the past month' : range === 'year' ? 'the past year' : 'the past day';
   const hereName = here ? countryName(here) : null;
 
   let body;
@@ -160,6 +178,7 @@ export function WebSearchTab() {
     else body = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '4px 16px 16px', maxWidth: 860 }}>
         {shown.map((r) => <SerpRow key={r.url} r={r} o={outcomes.get(r.url) ?? null} hereName={hereName} />)}
+        {hiddenOld > 0 && <p className="jl-small jl-muted" style={{ margin: '8px 0' }}>{hiddenOld} {hiddenOld === 1 ? 'job posting' : 'job postings'} posted before {rangeName} hidden. <Button size="small" type="link" onClick={() => setShowOld(true)}>Show them</Button></p>}
         {hiddenElsewhere > 0 && <p className="jl-small jl-muted" style={{ margin: '8px 0' }}>{hiddenElsewhere} {hiddenElsewhere === 1 ? 'job posting' : 'job postings'} outside {hereName} hidden. <Button size="small" type="link" onClick={() => setOnlyHere(false)}>Show them</Button></p>}
         {page < 5 && <Button shape="round" style={{ alignSelf: 'center', marginTop: 8 }} loading={busy === 'more'} disabled={!!busy} onClick={() => { void more(); }}>More results</Button>}
       </div>
@@ -178,7 +197,7 @@ export function WebSearchTab() {
         <form className="jl-row jl-wrap" onSubmit={(e) => { e.preventDefault(); void search(); }} style={{ gap: 8 }}>
           <Input size="large" style={{ flex: '2 1 240px' }} prefix={<SearchOutlined aria-hidden="true" />} value={q} onChange={(e) => setQ(e.target.value)} maxLength={200} placeholder="What: a job title, or several with commas" aria-label="What to search for" />
           <Input size="large" style={{ flex: '1 1 160px' }} prefix={<GlobalOutlined aria-hidden="true" />} value={place} onChange={(e) => setPlace(e.target.value)} maxLength={200} placeholder="Where: a city or country" aria-label="Where" />
-          <Select size="large" style={{ width: 140 }} value={range} onChange={setRange} aria-label="How recent"
+          <Select size="large" style={{ width: 140 }} value={range} onChange={(v) => { setRange(v); if (answer) pendingRun.current = true; }} aria-label="How recent"
             options={[{ value: 'week', label: 'Past week' }, { value: 'month', label: 'Past month' }, { value: 'year', label: 'Past year' }, { value: 'any', label: 'Any time' }]} />
           <Button size="large" type="primary" shape="round" htmlType="submit" loading={busy === 'search'} disabled={!q.trim() || !!busy}>Search the web</Button>
           <Tooltip title={aiOn ? 'Job postings often name the same job differently. Your AI suggests up to five other titles for it, in the languages postings in your place use (for example German and English for Berlin), and jobleft searches those too. Only your search words and the country go to your AI: one small call per new search, remembered for a day.' : 'Set up an AI provider in Settings > AI provider to widen searches with other titles for the same job.'}>
@@ -245,7 +264,7 @@ function SerpRow({ r, o, hereName }: { r: WebSearchResult; o: WebResultOutcome |
           {r.snippet && <p className="jl-serp-snippet">{r.snippet}</p>}
           <div className="jl-row jl-wrap" style={{ gap: 6, marginTop: 4 }}>
             <Status r={r} o={o} hereName={hereName} />
-            {r.publishedAt && <span className="jl-small jl-muted">{ago(r.publishedAt)}</span>}
+            {o?.job?.postedAt ? <span className="jl-small jl-muted">Posted {ago(o.job.postedAt)}</span> : r.publishedAt && <span className="jl-small jl-muted">{ago(r.publishedAt)}</span>}
             {o?.job && <Button size="small" shape="round" type="primary" onClick={() => navigate(`jobs/${encodeURIComponent(o.job!.id)}`)}>View job</Button>}
           </div>
         </div>

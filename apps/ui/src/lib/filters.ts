@@ -14,6 +14,7 @@ export const MODEL_OPTIONS: Array<{ value: WorkModel; label: string }> = [
 export const LEVEL_OPTIONS = Object.entries(EXPERIENCE_LEVEL_LABELS).map(([value, label]) => ({ value: value as keyof typeof EXPERIENCE_LEVEL_LABELS, label }));
 export const POSTED_OPTIONS: Array<{ value: NonNullable<JobFilter['postedWithin']>; label: string }> = [
   { value: '24h', label: 'Past 24 hours' }, { value: '3d', label: 'Past 3 days' }, { value: '7d', label: 'Past week' }, { value: '30d', label: 'Past month' },
+  { value: '365d', label: 'Past year' },
 ];
 export const STAGE_OPTIONS: Array<{ value: CompanyStage; label: string }> = [
   { value: 'early', label: 'Early stage' }, { value: 'growth', label: 'Growth stage' }, { value: 'late', label: 'Late stage' }, { value: 'public', label: 'Public company' },

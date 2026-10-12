@@ -131,8 +131,12 @@ export class WebSavedSearches {
 
   /** The jobs this run added (its addresses, read since it started), and the alert when there are any. */
   private count(r: Row): void {
-    const n = (this.d.db.prepare("SELECT count(*) AS n FROM srv_web_results WHERE query = ? AND state = 'job' AND read_at >= ?")
-      .get(WebSavedSearches.tag(r.id), r.last_run_at ?? '') as { n: number }).n;
+    // The engines date a page by when they last saw it, not by when the job was posted: a posting that states a date
+    // older than the week searched is not new, whatever the engine says.
+    const n = (this.d.db.prepare(`SELECT count(*) AS n FROM srv_web_results r WHERE r.query = ? AND r.state = 'job' AND r.read_at >= ?
+      AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.ats = 'external' AND j.board = 'web' AND 'external:web:' || j.job_id = r.job_id
+        AND julianday(j.posted_at) < julianday(?))`)
+      .get(WebSavedSearches.tag(r.id), r.last_run_at ?? '', new Date(this.d.now() - 7 * 86_400_000).toISOString()) as { n: number }).n;
     this.d.db.prepare('UPDATE srv_web_saved SET counting = 0, last_new = ? WHERE id = ?').run(n, r.id);
     if (n > 0 && this.d.alertsOn()) {
       const what = r.place ? `${r.q}, ${r.place}` : r.q;

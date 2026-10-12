@@ -443,7 +443,7 @@ export class JobsService {
       where.push(`(${parts.join(' OR ')})`);
     }
     if (filter.postedWithin) {
-      const ms = { '24h': 86_400_000, '3d': 3 * 86_400_000, '7d': 7 * 86_400_000, '30d': 30 * 86_400_000 }[filter.postedWithin];
+      const ms = { '24h': 86_400_000, '3d': 3 * 86_400_000, '7d': 7 * 86_400_000, '30d': 30 * 86_400_000, '365d': 365 * 86_400_000 }[filter.postedWithin];
       const cutoff = new Date(nowMs() - ms).toISOString();
       const col = closed ? 'julianday(x.posted_at)' : 'x.sort_new';
       where.push(`(${col} >= julianday(?)${unknownOk.has('postedAt') ? ` OR ${col} IS NULL` : ''})`);

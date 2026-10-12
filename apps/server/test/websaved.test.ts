@@ -9,6 +9,9 @@ import type { WebReader } from '../src/interim/webreader.ts';
 function setup() {
   const db = new DatabaseSync(':memory:');
   db.exec('CREATE TABLE srv_web_results (url TEXT PRIMARY KEY, state TEXT NOT NULL, job_id TEXT, message TEXT, query TEXT, found_at TEXT NOT NULL, read_at TEXT)');
+  db.exec('CREATE TABLE jobs (ats TEXT, board TEXT, job_id TEXT, posted_at TEXT)');
+  // Job 2 states a date in the past week; job 4 was posted years ago (an engine found the page again), so it is not new.
+  db.exec("INSERT INTO jobs VALUES ('external', 'web', '2', '2026-10-08T12:00:00.000Z'), ('external', 'web', '4', '2022-06-14T12:00:00.000Z')");
   let now = Date.parse('2026-10-10T12:00:00Z');
   const reading = { running: false, queued: 0 };
   const searches: Array<{ q: string; place?: string; tag: string }> = [];
@@ -21,11 +24,12 @@ function setup() {
     search: async (req, tag) => {
       if (fail) throw new Error(fail);
       searches.push({ q: req.q, ...(req.place ? { place: req.place } : {}), tag });
-      // The run's job pages are read later: two new jobs and one the person already had.
+      // The run's job pages are read later: two new jobs, one the person already had and one posted years ago.
       const at = new Date(now + 60_000).toISOString();
       db.prepare("INSERT INTO srv_web_results VALUES (?, 'job', 'external:web:1', NULL, ?, ?, ?)").run(`https://a.example/${searches.length}/1`, tag, at, at);
       db.prepare("INSERT INTO srv_web_results VALUES (?, 'job', 'external:web:2', NULL, ?, ?, ?)").run(`https://a.example/${searches.length}/2`, tag, at, at);
       db.prepare("INSERT INTO srv_web_results VALUES (?, 'known', 'greenhouse:acme:3', NULL, ?, ?, ?)").run(`https://a.example/${searches.length}/3`, tag, at, at);
+      db.prepare("INSERT INTO srv_web_results VALUES (?, 'job', 'external:web:4', NULL, ?, ?, ?)").run(`https://a.example/${searches.length}/4`, tag, at, at);
     },
     ready: () => true,
     alertsOn: () => alertsOn,
@@ -35,7 +39,7 @@ function setup() {
   return { db, saved, searches, alerts, reading, tick: async (ms = 0) => { now += ms; await saved.tick(); }, setAlerts: (v: boolean) => { alertsOn = v; }, setFail: (v: string | null) => { fail = v; } };
 }
 
-test('a saved web search: its first run is one interval after saving, and only new jobs are counted and alerted', async () => {
+test('a saved web search: its first run is one interval after saving, and only new jobs are counted and alerted (not old postings)', async () => {
   const t = setup();
   const s = t.saved.add({ q: '  SOC   analyst ', place: 'Utrecht', everyHours: 12 });
   assert.equal(s.q, 'SOC analyst');

@@ -35,7 +35,7 @@ export const JobFilterSchema = named(obj({}, {
   levels: arr(ExperienceLevelSchema),
   /** Required experience at most this many years. */
   maxYearsRequired: int({ minimum: 0, maximum: 50 }),
-  postedWithin: enm(['24h', '3d', '7d', '30d']),
+  postedWithin: enm(['24h', '3d', '7d', '30d', '365d']),
   /** Minimum annual pay in USD (converted pay counts). */
   minAnnualPayUsd: num({ minimum: 0 }),
   /** Jobs with a positive sponsor tag: the company history says likely, or the post says it sponsors. */
