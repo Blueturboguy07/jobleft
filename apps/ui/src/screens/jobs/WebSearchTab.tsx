@@ -32,8 +32,12 @@ type Range = NonNullable<WebSearchRequest['timeRange']> | 'any';
 const RANGE_DAYS: Record<Exclude<Range, 'any'>, number> = { day: 1, week: 7, month: 30, year: 365 };
 const RANGE_POSTED: Record<Exclude<Range, 'any'>, NonNullable<JobFilter['postedWithin']>> = { day: '24h', week: '7d', month: '30d', year: '365d' };
 
-/** The last search, its answer and the view, kept while the app runs, so switching tabs loses nothing. */
+/**
+ * The last search, its answer and the view, kept while the app runs, so switching tabs loses nothing. jobleft keeps
+ * the last search and its answer too (GET /websearch/last), so after a restart it is read from there once.
+ */
 let last: { q: string; place: string; range: Range; answer: WebSearchResponse | null; page: number } | null = null;
+let lastLoaded = false;
 let view: { mode: 'results' | 'jobs'; onlyHere: boolean; sort: JobSort } = { mode: 'results', onlyHere: true, sort: 'recommended' };
 /**
  * Results opened in tabs, and the tab shown (null: the results). jobleft keeps them (GET/PUT /websearch/tabs), so they
@@ -82,6 +86,19 @@ export function WebSearchTab() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [tabs, setTabs] = useState<PageTab[]>(kept.tabs);
   const [activeTab, setActiveTab] = useState<string | null>(kept.active);
+  // The last search kept from the last run, once; a search made before it arrives wins.
+  useEffect(() => {
+    if (last || lastLoaded) return;
+    let stop = false;
+    call('getWebLast').then(({ last: k }) => {
+      lastLoaded = true;
+      if (stop || !k || last) return;
+      const r: Range = k.request.timeRange ?? 'any';
+      last = { q: k.request.q, place: k.request.place ?? '', range: r, answer: k.answer, page: k.page };
+      setQ(last.q); setPlace(last.place); setRange(r); setAnswer(k.answer); setPage(k.page);
+    }).catch(() => { lastLoaded = true; });
+    return () => { stop = true; };
+  }, []);
   // The tabs kept from the last run, once; a tab opened before they arrive stays, in front.
   useEffect(() => {
     if (keptLoaded) return;

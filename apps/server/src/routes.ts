@@ -319,13 +319,19 @@ export const HANDLERS: HandlerTable = {
     if (app.cfg.offline) throw new ApiFailure('offline', 'jobleft is set to work offline, so it did not ask SearXNG.');
     return { json: await checkSearx(url) };
   },
-  webSearchJobs: async ({ d, body, gone }) => ({ json: await d.webSearch(body, [body.q, body.place ?? ''].join(' ').trim(), gone) }),
+  webSearchJobs: async ({ d, body, gone }) => {
+    const answer = await d.webSearch(body, [body.q, body.place ?? ''].join(' ').trim(), gone);
+    // The page's own searches only (not saved searches or the assistant's): Web jobs shows it again after a restart.
+    d.webTabs.keepSearch(body, answer);
+    return { json: answer };
+  },
   listWebSaved: ({ d }) => ({ json: d.webSaved.list() }),
   addWebSaved: ({ d, body }) => ({ json: d.webSaved.add(body) }),
   updateWebSaved: ({ d, params, body }) => ({ json: d.webSaved.update(params.savedId!, body.everyHours) }),
   deleteWebSaved: ({ d, params }) => { d.webSaved.remove(params.savedId!); return { json: { ok: true } }; },
   webSearchOutcomes: ({ d, body }) => ({ json: d.webOutcomes(body.urls, body.country ?? null) }),
   saveWebResult: ({ d, body }) => ({ json: { jobId: d.webReader.saveResult(body.url, body.title, body.snippet ?? '') } }),
+  getWebLast: ({ d }) => ({ json: { last: d.webTabs.lastSearch() } }),
   getWebTabs: ({ d }) => ({ json: d.webTabs.get() }),
   putWebTabs: ({ d, body }) => ({ json: d.webTabs.put(body) }),
   webReadStatus: ({ d }) => ({ json: d.webReader.status() }),

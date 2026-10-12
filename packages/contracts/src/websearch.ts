@@ -194,3 +194,16 @@ export const WebTabsSchema = named(obj({
 }), 'WebTabs');
 
 export type WebTabs = Infer<typeof WebTabsSchema>;
+
+/**
+ * The last search made in Jobs > Web jobs and its answer, with the pages of "More results" merged in, kept by jobleft
+ * so the results are there again after a restart (the reading of each result is kept anyway).
+ */
+export const WebLastSearchSchema = named(obj({
+  request: WebSearchRequestSchema,
+  answer: WebSearchResponseSchema,
+  /** How many pages of results the answer holds (1 = the first search only). */
+  page: int({ minimum: 1, maximum: 5 }),
+}), 'WebLastSearch');
+
+export type WebLastSearch = Infer<typeof WebLastSearchSchema>;

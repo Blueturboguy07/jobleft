@@ -362,6 +362,7 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `deleteWebSaved` | DELETE | `/api/v1/websearch/saved/:savedId` | launch | server | — | — | `Ok` | Delete a saved web search (its jobs stay) |
 | `webSearchOutcomes` | POST | `/api/v1/websearch/outcomes` | launch | server | — | `{ urls, country? }` | `WebResultOutcome[]` | What came of reading these web search results (job, list, closed, outside the country asked for) |
 | `saveWebResult` | POST | `/api/v1/websearch/save` | launch | server | — | `{ url, title, snippet? }` | `{ jobId }` | Keep a web search result as a job, to like or track it: the job read from it, else one made from the result itself (nothing is sent to the site) |
+| `getWebLast` | GET | `/api/v1/websearch/last` | launch | server | — | — | `{ last }` | The last search made in Web jobs and its answer, More results merged in (kept across restarts) |
 | `getWebTabs` | GET | `/api/v1/websearch/tabs` | launch | server | — | — | `WebTabs` | The web search results open in tabs (kept across restarts) |
 | `putWebTabs` | PUT | `/api/v1/websearch/tabs` | launch | server | — | `WebTabs` | `WebTabs` | Keep the web search results open in tabs |
 | `webReadStatus` | GET | `/api/v1/websearch/reading` | launch | server | — | — | `WebReadStatus` | How the background reading of web search results is going |

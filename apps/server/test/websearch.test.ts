@@ -433,3 +433,33 @@ test('the results open in tabs are kept by jobleft, so a restart finds them', as
     assert.deepEqual(JSON.parse(row.json).tabs.map((t: any) => t.url), [a.url]);
   } finally { if (!stopped) await s.stop(); cleanup(s.home); }
 });
+
+test('the last search in Web jobs and its answer are kept, More results merged in, so a restart shows them', async () => {
+  const sx = await searx((p) => {
+    const q = p.get('q') ?? '';
+    if (!q.includes(' vacature ')) return { body: { results: [] } };
+    const n = Number(p.get('pageno') ?? '1');
+    const words = q.startsWith('data') ? 'Data analyst' : 'SOC analyst';
+    return { body: { results: n === 1 ? [R(`https://a.example/${words}/1`, `${words} vacature 1`), R(`https://b.example/${words}/2`, `${words} vacature 2`)] : n === 3 ? [R(`https://c.example/${words}/3`, `${words} vacature 3`), R(`https://a.example/${words}/1`, `${words} vacature 1`)] : [] } };
+  });
+  const s = await startTest('weblast');
+  try {
+    const settings = (await s.call('GET', '/api/v1/settings')).json;
+    await s.call('PUT', '/api/v1/settings', { ...settings, webSearch: { url: sx.origin } });
+    assert.equal((await s.call('GET', '/api/v1/websearch/last')).json.last, null);
+    const first = await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Utrecht', timeRange: 'month' });
+    assert.equal(first.status, 200, first.text);
+    let last = (await s.call('GET', '/api/v1/websearch/last')).json.last;
+    assert.deepEqual([last.request.q, last.request.place, last.request.timeRange, last.page], ['SOC analyst', 'Utrecht', 'month', 1]);
+    assert.deepEqual(last.answer.results.map((r: any) => r.url), first.json.results.map((r: any) => r.url));
+    // More results: the new ones after the ones it had, each address once.
+    await s.call('POST', '/api/v1/websearch/jobs', { q: 'SOC analyst', place: 'Utrecht', timeRange: 'month', page: 2 });
+    last = (await s.call('GET', '/api/v1/websearch/last')).json.last;
+    assert.equal(last.page, 2);
+    assert.deepEqual(last.answer.results.map((r: any) => new URL(r.url).hostname), ['a.example', 'b.example', 'c.example']);
+    // A new search replaces it.
+    await s.call('POST', '/api/v1/websearch/jobs', { q: 'data analyst' });
+    last = (await s.call('GET', '/api/v1/websearch/last')).json.last;
+    assert.deepEqual([last.request.q, last.request.place, last.page], ['data analyst', undefined, 1]);
+  } finally { await s.stop(); cleanup(s.home); await sx.close(); }
+});

@@ -72,3 +72,15 @@ test('tool steps: a tool joins the answer when it starts, its later events repla
   assert.equal(v.msgs.at(-1)!.role, 'assistant');
   assert.equal(v.msgs.at(-1)!.tools!.length, 2);
 });
+
+test('a saved conversation shows the steps each answer took, as they were when it ended', () => {
+  const v = viewOfThread({
+    id: 'chat_1', title: 'Jobs', jobId: null, createdAt: '2026-10-12T10:00:00.000Z', updatedAt: '2026-10-12T10:00:00.000Z',
+    messages: [
+      { role: 'user', content: 'Find SOC jobs', at: '2026-10-12T10:00:00.000Z' },
+      { role: 'assistant', content: 'Found one.', at: '2026-10-12T10:00:05.000Z', tools: [{ id: 'tool_1', name: 'web_search', state: 'done', label: 'Searching the web', steps: ['Asking your search engine'], sources: [] }] },
+    ],
+  });
+  assert.equal(v.msgs[0]!.tools, undefined);
+  assert.deepEqual(v.msgs[1]!.tools, [{ id: 'tool_1', name: 'web_search', state: 'done', label: 'Searching the web', steps: ['Asking your search engine'], sources: [], summary: null }]);
+});
