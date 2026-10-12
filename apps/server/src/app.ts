@@ -3,7 +3,7 @@
 
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { nowIso, nowMs, type SavedFilter, type WebResultOutcome, type WebSearchRequest, type WebSearchResponse } from '@jobleft/contracts';
+import { nowIso, nowMs, type Digest, type SavedFilter, type WebResultOutcome, type WebSearchRequest, type WebSearchResponse } from '@jobleft/contracts';
 import { ApiFailure } from './errors.ts';
 import { Store } from '@jobleft/crawler';
 import { createStaticDataRoutes, PoliteFetch, type StaticDataRoutes } from '@jobleft/static-data';
@@ -20,6 +20,7 @@ import { WebReader, searchAlternatives, searchWords } from './interim/webreader.
 import { AiError } from '@jobleft/ai-engine';
 import { WebSavedSearches } from './interim/websaved.ts';
 import { WebTabsStore } from './interim/webtabs.ts';
+import { buildDigest, digestDue, digestText, localDay } from './interim/digest.ts';
 import { SearxClient, alternativesOf, dutchTitle, searchLinks, webSearchJobs } from './interim/websearch.ts';
 import { widenTitles } from './interim/widen.ts';
 import type { Assistant } from '@jobleft/assistant';
@@ -366,6 +367,7 @@ export class AppData {
   startBackground(log: Logger): void {
     const tick = () => {
       try { this.reminderTick(); } catch (e) { log.warn('reminders.failed', { error: e instanceof Error ? e.name : 'error' }); }
+      try { this.digestTick(); } catch (e) { log.warn('digest.failed', { error: e instanceof Error ? e.name : 'error' }); }
     };
     const first = setTimeout(tick, 2000);
     const every = setInterval(tick, 30_000);
@@ -374,6 +376,33 @@ export class AppData {
     first.unref(); every.unref(); web.unref();
     this.timers.push(first, every, web);
     this.boards.start();
+  }
+
+  /** The daily summary for jobs first seen after `since` (see interim/digest.ts). */
+  digest(since: Date, until = new Date()): Digest {
+    const end = new Date(until.getFullYear(), until.getMonth(), until.getDate(), 23, 59, 59, 999);
+    const deps = { hasProfile: () => this.profile.exists(), networkCount: (k: string) => this.network.countFor(k) };
+    return buildDigest({
+      profile: () => (this.profile.exists() ? this.profile.get() : null),
+      freshIds: (iso, web) => this.jobs.idsFirstSeenSince(iso, web),
+      rank: (filter, ids, limit) => { const r = this.feed.search({ sort: 'recommended', filter, limit }, deps, ids); return { items: r.items, total: r.total }; },
+      remindersDueBy: (iso) => this.tracker.remindersDueBy(iso),
+      followUpsDue: () => this.network.due().length,
+    }, since, until, end);
+  }
+
+  /**
+   * Once a day, at the hour in Settings > Notifications or the first look after it: one notification with the
+   * summary since the last one (at most a week back), when there is something new or due.
+   */
+  digestTick(now = new Date()): void {
+    const since = digestDue(now, this.settings.get().notifications, this.kv.get<{ date: string; at: string }>('digest_last'));
+    if (!since) return;
+    const today = localDay(now);
+    const g = this.digest(since, now);
+    this.kv.set('digest_last', { date: today, at: now.toISOString() });
+    const text = digestText(g);
+    if (text) this.notifications.add({ kind: 'new_matches', ...text, target: '/dashboard' }, `digest:${today}`);
   }
 
   reminderTick(): void {

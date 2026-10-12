@@ -23,9 +23,14 @@ import { rememberAiCheck } from '../lib/aiHealth.ts';
 import { dailyLimitText, zeroBalanceText } from '../lib/dailyLimit.ts';
 import { canZoomWindow, nearestStep, ZOOM_STEPS, zoomText } from '../lib/zoom.ts';
 
-/** Where keys are kept on this system: the macOS Keychain, or an encrypted file in the data folder elsewhere (Windows). */
+/**
+ * Where keys are kept on this system: the macOS Keychain; on Linux the system keyring (secret-tool), or an encrypted
+ * file in the data folder when no keyring answers; an encrypted file elsewhere (Windows).
+ */
 function secureStore(): string {
-  return /Mac|iPhone|iPad/.test(navigator.userAgent) ? 'the macOS Keychain' : 'an encrypted file in the data folder';
+  if (/Mac|iPhone|iPad/.test(navigator.userAgent)) return 'the macOS Keychain';
+  if (/Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent)) return 'the system keyring (or an encrypted file in the data folder when no keyring runs)';
+  return 'an encrypted file in the data folder';
 }
 
 const TABS = [
@@ -314,9 +319,16 @@ function AlertsTab() {
   const s = settings.data;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Panel title="Notifications" desc="jobleft shows these as macOS notifications and in Notifications. They are made on this computer; nothing is emailed.">
+      <Panel title="Notifications" desc="jobleft shows these as desktop notifications and in Notifications. They are made on this computer; nothing is emailed.">
         <label className="jl-row"><Switch aria-label="Tracker reminders and follow-ups" checked={s.notifications.reminders} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, reminders: v } }); }} /> Tracker reminders and follow-ups</label>
         <label className="jl-row"><Switch aria-label="New jobs after a refresh, and saved-filter alerts" checked={s.notifications.alerts} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, alerts: v } }); }} /> New jobs after a refresh, and saved-filter alerts</label>
+        <div className="jl-row jl-wrap" style={{ gap: 8 }}>
+          <label className="jl-row"><Switch aria-label="A daily summary" checked={s.notifications.digest !== false} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, digest: v } }); }} /> A daily summary: the new jobs that fit you, and what is due, at</label>
+          <Select size="small" style={{ width: 92 }} aria-label="Time of the daily summary" disabled={s.notifications.digest === false} value={s.notifications.digestHour ?? 8}
+            onChange={(h) => { void put({ ...s, notifications: { ...s.notifications, digestHour: h } }); }}
+            options={Array.from({ length: 24 }, (_, h) => ({ value: h, label: `${String(h).padStart(2, '0')}:00` }))} />
+        </div>
+        <p className="jl-small jl-muted" style={{ margin: 0 }}>If jobleft is not running then, the summary comes the first time it runs after that, the same day. It is also on the Dashboard.</p>
       </Panel>
       <Panel title="Saved-filter alerts">
         {filters.data && !filters.data.length && <p className="jl-muted">No saved filters yet. Save one from the Jobs screen.</p>}

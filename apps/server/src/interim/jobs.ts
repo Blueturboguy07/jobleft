@@ -351,6 +351,12 @@ export class JobsService {
   }
 
   /** Crawler row ids of the jobs the person hid. */
+  /** Row ids of the open, non-duplicate jobs first seen after `iso`: from web searches (`web`) or from everything else. */
+  idsFirstSeenSince(iso: string, web: boolean): number[] {
+    const where = web ? "ats = 'external' AND board = 'web'" : "NOT (ats = 'external' AND board = 'web')";
+    return (this.db.prepare(`SELECT id FROM jobs WHERE first_seen > ? AND closed_at IS NULL AND duplicate_of IS NULL AND ${where}`).all(iso) as Array<{ id: number }>).map((r) => Number(r.id));
+  }
+
   hiddenRowIds(): number[] {
     const out: number[] = [];
     for (const r of this.db.prepare('SELECT job_id FROM srv_tracker WHERE hidden = 1').all() as Array<{ job_id: string }>) {

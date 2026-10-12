@@ -1,5 +1,5 @@
 // Notifications: new jobs from refreshes, saved-filter alerts, reminders and follow-ups. The desktop app also shows
-// them as macOS notifications; dismissing one here marks it shown.
+// them as desktop notifications; dismissing one here marks it shown.
 
 import { Button } from 'antd';
 import { BellOutlined, CalendarOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons';

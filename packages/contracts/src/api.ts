@@ -23,7 +23,7 @@ import {
   PageInfoSchema, PairingCodeSchema, PairingInfoSchema, PairRequestSchema, PairResponseSchema, ReviewResponseSchema,
   ReviewResultSchema,
 } from './extension.ts';
-import { JobFilterSchema, JobSearchRequestSchema, JobSearchResponseSchema, JobSortSchema, SavedFilterSchema } from './filter.ts';
+import { JobFilterSchema, JobSearchRequestSchema, JobSearchResponseSchema, DigestSchema, JobSortSchema, SavedFilterSchema } from './filter.ts';
 import { JobSchema, JobSummarySchema, CrawlAtsIdSchema } from './job.ts';
 import { MatchResultSchema } from './match.ts';
 import {
@@ -148,7 +148,15 @@ export const AppSettingsSchema = named(obj({
     /** True while the person paused the scheduled checks (menu bar "Pause checks"); "Check for jobs now" still works. */
     paused: bool(),
   }),
-  notifications: obj({ reminders: bool(), alerts: bool() }),
+  notifications: obj({ reminders: bool(), alerts: bool() }, {
+    /**
+     * The daily summary: once a day, at `digestHour` (0 to 23, this computer's time) or the first time jobleft runs
+     * after it, one notification with the new jobs that fit and what is due. Added after contracts 1.1.0 (additive).
+     * Absent = on, at 8.
+     */
+    digest: bool(),
+    digestHour: int({ minimum: 0, maximum: 23 }),
+  }),
 }, {
   /**
    * How big the interface is drawn: 1 = normal, 0.8 to 1.5. The desktop shell zooms its window to it; Ctrl (Cmd on
@@ -236,6 +244,7 @@ export const LOCAL_API = {
   keywordGaps: route({ method: 'GET', path: '/api/v1/jobs/:jobId/keyword-gaps', auth: 'launch', owner: 'resume', summary: 'Keyword gaps of a resume for a job', query: obj({ resumeId: IdSchema }), response: KeywordGapReportSchema }),
 
   // ---- tracker and saved filters
+  getDigest: route({ method: 'GET', path: '/api/v1/digest', auth: 'launch', owner: 'server', summary: 'The new jobs that fit the profile in the last hours (24 by default, at most 168), best first, and what is due today', query: obj({}, { hours: QInt }), response: DigestSchema }),
   listTracker: route({ method: 'GET', path: '/api/v1/tracker', auth: 'launch', owner: 'store', summary: 'Liked, Applied, External, hidden, closed and tracked (everything the person did) views', query: obj({ view: TrackerViewSchema }, { status: TrackerStatusSchema }), response: TrackerListSchema }),
   updateTracker: route({ method: 'PATCH', path: '/api/v1/tracker/:jobId', auth: 'launch', owner: 'store', summary: 'Like, hide, set status, notes, reminders', body: TrackerPatchSchema, response: TrackerEntrySchema }),
   listFilters: route({ method: 'GET', path: '/api/v1/filters', auth: 'launch', owner: 'store', summary: 'Saved filters', response: arr(SavedFilterSchema) }),

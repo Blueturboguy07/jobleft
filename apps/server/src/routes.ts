@@ -331,6 +331,10 @@ export const HANDLERS: HandlerTable = {
   deleteWebSaved: ({ d, params }) => { d.webSaved.remove(params.savedId!); return { json: { ok: true } }; },
   webSearchOutcomes: ({ d, body }) => ({ json: d.webOutcomes(body.urls, body.country ?? null) }),
   saveWebResult: ({ d, body }) => ({ json: { jobId: d.webReader.saveResult(body.url, body.title, body.snippet ?? '') } }),
+  getDigest: ({ d, query }) => {
+    const hours = Math.min(168, Math.max(1, Number(query.hours ?? 24) || 24));
+    return { json: d.digest(new Date(Date.now() - hours * 3600_000)) };
+  },
   getWebLast: ({ d }) => ({ json: { last: d.webTabs.lastSearch() } }),
   getWebTabs: ({ d }) => ({ json: d.webTabs.get() }),
   putWebTabs: ({ d, body }) => ({ json: d.webTabs.put(body) }),
