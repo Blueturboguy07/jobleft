@@ -123,6 +123,8 @@ export const ChatThreadSchema = named(obj({
     incomplete: bool(),
     /** Jobs this answer relies on, so each can be opened (added by the i-ai lane). */
     jobs: arr(obj({ id: IdSchema, title: str(), company: str() })),
+    /** The tools this answer used, as the chat showed them when each ended (added by the web search lane). */
+    tools: arr(obj({ id: IdSchema, name: str(), state: enm(['running', 'done', 'failed']), label: str(), steps: arr(str()), sources: arr(obj({ title: str(), url: HttpUrlSchema })) }, { summary: str() })),
   })),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,

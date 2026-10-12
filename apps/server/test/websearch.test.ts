@@ -326,6 +326,14 @@ test('the assistant searches the web: the chat stream carries the live steps, an
     // The job is a web job: it is in Web jobs too.
     const web = await s.call('POST', '/api/v1/jobs/search', { filter: { sources: ['external:web'] }, sort: 'most_recent', limit: 5 });
     assert.equal(web.json.items[0].job.title, 'SOC Analyst Traineeship');
+    // The saved conversation keeps the steps, so reopening it shows what the assistant did.
+    const chatId = ev.find((e: any) => e.type === 'done').chatId;
+    const saved = (await s.call('GET', `/api/v1/ai/chats/${chatId}`)).json;
+    const kept = saved.messages.find((m: any) => m.role === 'assistant').tools;
+    assert.equal(kept.length, 1);
+    assert.deepEqual([kept[0].label, kept[0].state, kept[0].summary], [end.label, 'done', end.summary]);
+    assert.deepEqual(kept[0].steps, end.steps);
+    assert.equal(kept[0].sources[0].url, 'https://werken.voorbeeld.nl/vacature/soc-trainee');
   } finally { await s.stop(); cleanup(s.home); await sx.close(); await model.close(); await new Promise((r) => pages.close(r)); }
 });
 

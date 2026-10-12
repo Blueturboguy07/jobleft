@@ -36,7 +36,10 @@ export const EMPTY_CHAT: ChatView = { msgs: [], proposals: [] };
 /** A saved conversation as the chat shows it, with the proposals it still waits on. */
 export function viewOfThread(t: ChatThread): ChatView {
   return {
-    msgs: t.messages.map((m) => ({ role: m.role, content: m.content, ...(m.incomplete ? { incomplete: true } : {}) })),
+    msgs: t.messages.map((m) => ({
+      role: m.role, content: m.content, ...(m.incomplete ? { incomplete: true } : {}),
+      ...(m.tools?.length ? { tools: m.tools.map((x) => ({ ...x, summary: x.summary ?? null })) } : {}),
+    })),
     proposals: t.proposals ?? [],
   };
 }

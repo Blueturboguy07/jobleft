@@ -60,6 +60,16 @@ export function openAssistantDb(path: string): DatabaseSync {
   return db;
 }
 
+/**
+ * Columns added after a version, without a new version: each is additive, so an older jobleft still opens the file
+ * (it ignores the column) and the person can go back a version. Run on every open.
+ * - ai_chat_messages.tools_json: the tools an answer used, as the chat showed them (web search lane).
+ */
+function addColumns(db: DatabaseSync): void {
+  const has = (db.prepare('PRAGMA table_info(ai_chat_messages)').all() as Array<{ name: string }>).some((c) => c.name === 'tools_json');
+  if (!has) db.exec('ALTER TABLE ai_chat_messages ADD COLUMN tools_json TEXT');
+}
+
 /** Runs the pending steps in one transaction. A file with a newer version is refused and left untouched. */
 export function migrateAssistant(db: DatabaseSync): void {
   db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (owner TEXT NOT NULL, version INTEGER NOT NULL, applied_at TEXT NOT NULL, PRIMARY KEY (owner, version))');
@@ -67,7 +77,7 @@ export function migrateAssistant(db: DatabaseSync): void {
   const have = row.v ?? 0;
   if (have > ASSISTANT_SCHEMA_VERSION) throw new Error('This data folder was made by a newer jobleft. Update jobleft. Nothing was changed.');
   const pending = STEPS.filter((s) => s.version > have);
-  if (!pending.length) return;
+  if (!pending.length) { addColumns(db); return; }
   db.exec('BEGIN IMMEDIATE');
   try {
     for (const s of pending) {
@@ -79,6 +89,7 @@ export function migrateAssistant(db: DatabaseSync): void {
     try { db.exec('ROLLBACK'); } catch { /* ignore */ }
     throw e;
   }
+  addColumns(db);
 }
 
 /** Runs `fn` in one transaction. */

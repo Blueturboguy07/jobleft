@@ -21,7 +21,7 @@ import { PRACTICE_LABEL, PracticeStore, feedbackFor, planQuestions } from './pra
 import { systemPrompt, type Preset, PRESETS } from './prompts.ts';
 import { ProposalBook, type StoredAction } from './proposals.ts';
 import { CHANGE_INTENT, WEB_INTENT, createToolbox, toolsFor, type JobRef, type TurnState, type WebSearchTool } from './tools.ts';
-import { ChatStore } from './chats.ts';
+import { ChatStore, type ToolRecord } from './chats.ts';
 import { UsageLedger } from './usage.ts';
 import { clip, localDate, zoneOf } from './views.ts';
 
@@ -203,9 +203,11 @@ export class Assistant {
     let reason: string | undefined;
     let emittedProposals = 0;
     let sinceSave = 0;
+    // The tools this answer used, as each ended: saved with the answer, so a saved conversation shows its steps too.
+    const used: ToolRecord[] = [];
     const save = (done: boolean) => {
       if (rowid === null) return;
-      this.chats.setAssistant(rowid, finalText, { incomplete: !done, jobs: jobsNamedIn(finalText, state.seenJobs.values()) });
+      this.chats.setAssistant(rowid, finalText, { incomplete: !done, jobs: jobsNamedIn(finalText, state.seenJobs.values()), tools: used });
     };
 
     try {
@@ -269,6 +271,7 @@ export class Assistant {
           }
           state.progress = undefined;
           const end = toolSummary(call.name, result);
+          used.push({ id, name: call.name, state: end.failed ? 'failed' : 'done', label, steps, sources, ...(end.text ? { summary: end.text } : {}) });
           yield { type: 'tool', id, name: call.name, state: end.failed ? 'failed' : 'done', label, steps, sources, ...(end.text ? { summary: end.text } : {}) };
           grounder.addSource(result);
           messages.push({ role: 'tool', toolCallId: call.id, name: call.name, content: result });
