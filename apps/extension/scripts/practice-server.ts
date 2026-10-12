@@ -15,6 +15,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { createServer as createTlsServer } from 'node:https';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -72,7 +73,7 @@ const handler = (req: IncomingMessage, res: ServerResponse): void => {
 const https = args.includes('--https');
 let server;
 if (https) {
-  const dir = mkdtempSync('/private/tmp/jl-practice-tls-');
+  const dir = mkdtempSync(join(tmpdir(), 'jl-practice-tls-'));
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', join(dir, 'key.pem'), '-out', join(dir, 'cert.pem'), '-days', '2', '-subj', '/CN=jobleft-practice'], { stdio: 'ignore' });
   server = createTlsServer({ key: readFileSync(join(dir, 'key.pem')), cert: readFileSync(join(dir, 'cert.pem')) }, handler);
   rmSync(dir, { recursive: true, force: true });

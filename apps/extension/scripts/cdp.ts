@@ -5,6 +5,8 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import type { Readable, Writable } from 'node:stream';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 export const CHROME = process.env.JOBLEFT_CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
@@ -49,7 +51,7 @@ export class Browser {
    * test browser cannot reach the internet at all; or an explicit "host:port" proxy (the recorder's own filter).
    */
   static async launch(opts: { headless?: boolean; args?: string[]; proxy?: string } = {}): Promise<Browser> {
-    const profile = mkdtempSync('/private/tmp/jl-chrome-');
+    const profile = mkdtempSync(join(tmpdir(), 'jl-chrome-'));
     const proxy = opts.proxy ?? '127.0.0.1:9';
     const args = [
       '--remote-debugging-pipe', '--enable-unsafe-extension-debugging', `--user-data-dir=${profile}`, '--no-first-run',

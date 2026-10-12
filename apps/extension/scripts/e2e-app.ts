@@ -13,6 +13,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Page } from './cdp.ts';
 import { extRoot, launch, openPopup, panelText, practiceLog, startPractice, waitFor } from './harness.ts';
+import { tmpdir } from 'node:os';
 
 const args = process.argv.slice(2);
 const shots = args.includes('--shots') ? args[args.indexOf('--shots') + 1] ?? null : null;
@@ -28,7 +29,7 @@ function check(name: string, ok: boolean, detail = ''): void {
 
 // ------------------------------------------------------------------ the real app
 
-const home = '/private/tmp/jl-e2e-app-real';
+const home = join(tmpdir(), 'jl-e2e-app-real');
 const serverMain = join(extRoot, '..', 'server', 'src', 'main.ts');
 let app: ChildProcess | null = null;
 let base = '';
