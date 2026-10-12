@@ -39,8 +39,13 @@ const MAX_QUEUE = 300;
  */
 export const WEB_JOB_DAYS = 30;
 
-/** Titles of pages about a job that are not a posting of one: pay, courses, how to become one. */
-const NOT_A_POSTING = /\b(salar(y|ies|is)|gehalt|loon|pay scale|course|cursus|opleiding|training|certificat|how to become|wat doet|what does)\b/i;
+/**
+ * Titles of pages about a job that are not a posting of one: pay ("SOC Analyst Salary in India"), courses and degrees,
+ * guides ("Career Roadmap", "Roles and Responsibilities", "Job Trends"), questions ("What Is ...", "How should ...") and
+ * comparisons ("... vs ..."). Search engines rank these high for a job title; they read like a posting (apply,
+ * experience, responsibilities) and some even carry a JobPosting record.
+ */
+export const NOT_A_POSTING = /\b(salar(y|ies|is|issen)|gehalt|loon|pay scale|course|cursus|opleiding|training|certificat\w*|degree|career (guide|roadmap|path)|roadmap|roles and responsibilities|job trends|interview questions|how to become|how (to|should|do|does|can)|what (is|does|are)|wat (is|doet)|vs|versus)\b/i;
 
 /** The word sets kept with an address ("soc analyst|security analyst"). */
 function altsOf(words: string | null): string[][] {
@@ -143,13 +148,20 @@ export class WebReader {
     return id;
   }
 
-  /** Closes the web jobs not found again for WEB_JOB_DAYS that the person did not act on. Returns how many. */
+  /**
+   * Closes the web jobs not found again for WEB_JOB_DAYS that the person did not act on, and those whose title says
+   * they are a page about the job, not a posting (kept by an earlier version). Returns how many.
+   */
   expire(now = Date.now()): number {
+    const untouched = `('external:web:' || job_id) NOT IN (SELECT job_id FROM srv_tracker WHERE liked = 1 OR external = 1 OR status IS NOT NULL)`;
+    const open = this.db.prepare(`SELECT id, title, canonical_url AS url FROM jobs WHERE ats = 'external' AND board = 'web' AND closed_at IS NULL AND ${untouched}`).all() as Array<{ id: number; title: string; url: string }>;
+    const close = this.db.prepare("UPDATE jobs SET closed_at = ?, closed_reason = 'not_a_posting' WHERE id = ?");
+    let n = 0;
+    for (const j of open) if (NOT_A_POSTING.test(j.title) || looksLikeJobList(j.url ?? '', j.title)) n += Number(close.run(new Date(now).toISOString(), j.id).changes);
     const before = new Date(now - WEB_JOB_DAYS * 86_400_000).toISOString();
     const r = this.db.prepare(`UPDATE jobs SET closed_at = ?, closed_reason = 'expired'
-      WHERE ats = 'external' AND board = 'web' AND closed_at IS NULL AND last_seen < ?
-        AND ('external:web:' || job_id) NOT IN (SELECT job_id FROM srv_tracker WHERE liked = 1 OR external = 1 OR status IS NOT NULL)`).run(new Date(now).toISOString(), before);
-    return Number(r.changes);
+      WHERE ats = 'external' AND board = 'web' AND closed_at IS NULL AND last_seen < ? AND ${untouched}`).run(new Date(now).toISOString(), before);
+    return n + Number(r.changes);
   }
 
   status(): WebReadStatus {
@@ -245,6 +257,12 @@ export class WebReader {
     const http = new HttpClient({ hostMap: this.d.hostMap, pacer: this.pacer, timeoutMs: 10_000, retries: 0, maxRequests: otherBoardJobOf(u) ? 12 : 3 });
     try {
       const raw = await readJobLink(u, { crawlStore: this.d.crawlStore }, http, { titleMustMention: alts });
+      // A page about the job, or a list of jobs, is not one posting, whatever it reads like.
+      const found = (this.db.prepare('SELECT title FROM srv_web_results WHERE url = ?').get(url) as { title: string | null } | undefined)?.title ?? '';
+      if (NOT_A_POSTING.test(raw.title) || NOT_A_POSTING.test(found) || looksLikeJobList(url, raw.title) || (found && looksLikeJobList(url, found))) {
+        set('not_job', null, 'A page about the job (pay, a guide, a course) or a list of jobs, not a posting of one.');
+        return;
+      }
       const text = `${raw.title}\n${htmlToText(raw.descriptionHtml)}`;
       if (alts.length && !alts.some((w) => mentionsAll(text, w))) {
         set('off_topic', null, `The job is not about ${alts.map((w) => w.join(' ')).join(' or ')}.`);

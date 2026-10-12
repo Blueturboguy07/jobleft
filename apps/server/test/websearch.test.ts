@@ -223,6 +223,10 @@ test('web search: the job pages found are read in the background into jobs of th
     } else if (req.url === '/careers') {
       // A careers home page: it reads like a job (apply, benefits, experience) but carries no JobPosting record.
       res.writeHead(200, { 'content-type': 'text/html' }).end(`<html><head><title>Careers</title></head><body><p>${'Join us. We offer great benefits and salary. Apply today: requirements, experience, responsibilities, full-time and part-time roles. '.repeat(5)}</p></body></html>`);
+    } else if (req.url === '/blog/soc-analyst-salary') {
+      // A pay page that even carries a JobPosting record.
+      const pay = { ...LD, title: 'SOC Analyst Salary in the Netherlands 2026' };
+      res.writeHead(200, { 'content-type': 'text/html' }).end(`<html><head><script type="application/ld+json">${JSON.stringify(pay)}</script></head><body>x</body></html>`);
     } else if (req.url === '/vacature/soc-analist') {
       res.writeHead(200, { 'content-type': 'text/html' }).end(`<html><head><title>SOC-analist</title><script type="application/ld+json">${JSON.stringify(LD)}</script></head><body>x</body></html>`);
     } else res.writeHead(404).end();
@@ -231,7 +235,7 @@ test('web search: the job pages found are read in the background into jobs of th
   const origin = `http://127.0.0.1:${(pages.address() as AddressInfo).port}`;
   const sx = await searx((p) => {
     const q = p.get('q') ?? '';
-    if (q.includes(' vacature ')) return { body: { results: [R('https://werken.voorbeeld.nl/vacature/soc-analist', 'Vacature SOC-analist'), R('https://werken.voorbeeld.nl/careers', 'SOC careers at Voorbeeld'), R('https://werken.voorbeeld.nl/vacature/singapore', 'SOC Analyst Singapore'), R('https://en.wikipedia.org/wiki/History', 'History - Wikipedia')] } };
+    if (q.includes(' vacature ')) return { body: { results: [R('https://werken.voorbeeld.nl/vacature/soc-analist', 'Vacature SOC-analist'), R('https://werken.voorbeeld.nl/careers', 'SOC careers at Voorbeeld'), R('https://werken.voorbeeld.nl/vacature/singapore', 'SOC Analyst Singapore'), R('https://en.wikipedia.org/wiki/History', 'History - Wikipedia'), R('https://werken.voorbeeld.nl/blog/soc-analyst-salary', 'SOC analyst salary in the Netherlands')] } };
     return { body: { results: [] } };
   });
   const s = await startTest('webreader', { env: { JOBLEFT_HOST_MAP: JSON.stringify({ 'werken.voorbeeld.nl': origin }) } });
@@ -259,6 +263,7 @@ test('web search: the job pages found are read in the background into jobs of th
     assert.equal(of('https://werken.voorbeeld.nl/vacature/soc-analist').inPlace, true, JSON.stringify(of('https://werken.voorbeeld.nl/vacature/soc-analist')));
     assert.equal(of('https://werken.voorbeeld.nl/vacature/singapore').inPlace, false, 'Singapore is not in the Netherlands');
     assert.equal(of('https://werken.voorbeeld.nl/careers').state, 'not_job');
+    assert.equal(of('https://werken.voorbeeld.nl/blog/soc-analyst-salary').state, 'not_job', 'a pay page is not a posting');
     assert.ok(!r.json.results.some((x: any) => x.url.includes('wikipedia')), 'a page that names no searched word is left out');
     assert.equal(r.json.unrelatedResults, 1);
     // The cards in the country asked for leave the Singapore job out.
@@ -462,4 +467,17 @@ test('the last search in Web jobs and its answer are kept, More results merged i
     last = (await s.call('GET', '/api/v1/websearch/last')).json.last;
     assert.deepEqual([last.request.q, last.request.place, last.page], ['data analyst', undefined, 1]);
   } finally { await s.stop(); cleanup(s.home); await sx.close(); }
+});
+
+test('pages about a job are not postings of one: pay, guides, questions, comparisons, degrees', async () => {
+  const { NOT_A_POSTING } = await import('../src/interim/webreader.ts');
+  // Titles the reader kept as jobs on 2026-10-12 (a real search for SOC analyst in the Netherlands).
+  for (const t of ['Top SOC Analyst Salary in India: Complete Career Guide 2026 | Brolly Academy', 'SOC Analyst Job Trends, Salaries & Skill Sets | IT Jobs Watch',
+    'SOC Analyst vs Cyber Security Analyst Salary | Skill IT Education', 'SOC Analyst Career Roadmap 2026 | SOC Masters', 'What Is SOC Analyst: Roles and Responsibilities Explained',
+    'How should organisations build SOC analyst capability from entry level to leadership', 'SOC Analyst in Netherlands — 30,000-85,000 EUR | ULYDIA - Find the right degree',
+    'SOC analist salaris 2026', 'Wat doet een SOC analist?']) assert.ok(NOT_A_POSTING.test(t), t);
+  // Postings stay postings.
+  for (const t of ['SOC Analyst L1 (Cybersecurity) (i2i Traineeship Program)', 'Vacature in IJsselstein: Tier 2 SOC Analyst in IJsselstein tot €6.500', 'Senior SOC Defender: End-to-End Incident Response',
+    'Medior SOC analyst (freelance)', 'SOC Analyst [JOB ID 20261009]', '24/7 SOC Analyst: Security Monitoring & Response', 'Cyber Security Analyst — Build the Netherlands SOC (Microsoft)',
+    'Security (T1 SOC Analyst)', 'Senior SOC Analist OT']) assert.ok(!NOT_A_POSTING.test(t), t);
 });
