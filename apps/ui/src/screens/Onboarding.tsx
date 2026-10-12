@@ -15,6 +15,7 @@ import { getFeed, setFeed, useCrawl, useOnboarding, useProfile } from '../app/se
 import { Art, LogoMark, Wordmark } from '../components/Art.tsx';
 import { InlineError, Loading } from '../components/States.tsx';
 import { COMMON_COUNTRY_OPTIONS, COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, TYPE_OPTIONS, filterFromProfile, toggle } from '../lib/filters.ts';
+import { secureStore } from '../lib/platform.ts';
 import { countrySort } from '../lib/countries.ts';
 import { plural, yearMonthText } from '../lib/format.ts';
 import { PlacePicker } from './jobs/Filters.tsx';
@@ -289,7 +290,7 @@ export function Onboarding() {
         <div className="jl-choice-grid">
           <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/balance'} onClick={() => { void finish('settings/balance'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><span className="jl-row" style={{ gap: 8 }}><strong>publik API</strong><Tag color="green" style={{ margin: 0 }}>Cheapest</Tag></span><span className="jl-small">Pay per use from a dollar balance. Link your publik account for $0.05 of free use, once. You read the terms and connect on the next screen.</span></button>
           <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/ai?pick=local'} onClick={() => { void finish('settings/ai?pick=local'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>A model on this computer</strong><span className="jl-small">Ollama, LM Studio and similar. Nothing leaves this computer. Be warned: the small models that fit on a laptop tailor resumes and answer questions noticeably worse than the hosted ones. You pick the server and test it on the next screen.</span></button>
-          <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/ai?pick=own_key'} onClick={() => { void finish('settings/ai?pick=own_key'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>Your own key</strong><span className="jl-small">Your account with OpenAI, Anthropic, OpenRouter or Google. The vendor bills you. You paste the key on the next screen; it stays in the macOS Keychain.</span></button>
+          <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/ai?pick=own_key'} onClick={() => { void finish('settings/ai?pick=own_key'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>Your own key</strong><span className="jl-small">Your account with OpenAI, Anthropic, OpenRouter or Google. The vendor bills you. You paste the key on the next screen; it stays in {secureStore()}.</span></button>
         </div>
         <p className="jl-small">Want more than the $0.05 of free use? <a href="https://publikhq.com/pricing" target="_blank" rel="noopener noreferrer">See the plans and prices on publikhq.com</a>. A plan adds a weekly budget to your balance; you still pay only for what you use.</p>
         {leaving && <p className="jl-small jl-muted" role="status">Saving your answers…</p>}

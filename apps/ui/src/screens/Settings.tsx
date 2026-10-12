@@ -22,16 +22,8 @@ import { readAllPages } from '../lib/pages.ts';
 import { rememberAiCheck } from '../lib/aiHealth.ts';
 import { dailyLimitText, zeroBalanceText } from '../lib/dailyLimit.ts';
 import { canZoomWindow, nearestStep, ZOOM_STEPS, zoomText } from '../lib/zoom.ts';
+import { secureStore, trayName } from '../lib/platform.ts';
 
-/**
- * Where keys are kept on this system: the macOS Keychain; on Linux the system keyring (secret-tool), or an encrypted
- * file in the data folder when no keyring answers; an encrypted file elsewhere (Windows).
- */
-function secureStore(): string {
-  if (/Mac|iPhone|iPad/.test(navigator.userAgent)) return 'the macOS Keychain';
-  if (/Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent)) return 'the system keyring (or an encrypted file in the data folder when no keyring runs)';
-  return 'an encrypted file in the data folder';
-}
 
 const TABS = [
   { key: 'ai', label: 'AI provider', icon: <ApiOutlined /> },
@@ -472,7 +464,7 @@ function SourcesTab() {
             <label className="jl-row">Refresh every <Select style={{ width: 130 }} value={s.crawl.intervalHours} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, intervalHours: v } }); }} options={[1, 3, 6, 12, 24, 48].map((h) => ({ value: h, label: `${h} ${h === 1 ? 'hour' : 'hours'}` }))} /></label>
             <label className="jl-row"><Switch aria-label="Pause automatic refreshes" checked={s.crawl.paused} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, paused: v } }); }} /> Pause automatic refreshes{s.crawl.paused ? ' (only "Refresh now" reads the boards)' : ''}</label>
             <label className="jl-row"><Switch aria-label="Catch up when jobleft opens" checked={s.crawl.catchUpOnLaunch} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, catchUpOnLaunch: v } }); }} /> Catch up when jobleft opens</label>
-            <label className="jl-row"><Switch aria-label="Keep refreshing from the menu bar when the window is closed" checked={s.crawl.runInTray} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, runInTray: v } }); }} /> Keep refreshing from the menu bar when the window is closed</label>
+            <label className="jl-row"><Switch aria-label={`Keep refreshing from the ${trayName()} when the window is closed`} checked={s.crawl.runInTray} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, runInTray: v } }); }} /> Keep refreshing from the {trayName()} when the window is closed</label>
           </div>
         )}
       </Panel>
@@ -546,7 +538,7 @@ function DataTab() {
     try { const f = await download(name); ui.message?.success(`Saved ${f} to your Downloads.`); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   const restore = async (f: File) => {
-    const ok = await ui.modal?.confirm({ title: 'Restore this backup?', content: "Your current data is replaced by the data in the backup. This Mac's saved AI keys and publik connection stay as they are. A damaged or foreign file is refused and nothing changes.", okText: 'Restore', okButtonProps: { shape: 'round' }, cancelButtonProps: { shape: 'round' } });
+    const ok = await ui.modal?.confirm({ title: 'Restore this backup?', content: "Your current data is replaced by the data in the backup. This computer's saved AI keys and publik connection stay as they are. A damaged or foreign file is refused and nothing changes.", okText: 'Restore', okButtonProps: { shape: 'round' }, cancelButtonProps: { shape: 'round' } });
     if (!ok) return;
     setBusy('restore'); setErr(null);
     try {
