@@ -410,6 +410,32 @@ export function storeExternal(store: Store, raw: RawJob, board: 'url' | 'text' |
   return `external:${board}:${job.jobId}`;
 }
 
+/**
+ * Replaces the text of a job the person added (by link, by text, or kept from a web search result) with the posting
+ * text they pasted, and reads its facts again from that text. The job keeps its id, its link, and the facts the text
+ * does not state (title, employer, place), so its likes, notes and status stay. Returns the contract job id.
+ */
+export function replaceExternalText(store: Store, jobId: string, text: string): string {
+  const [ats, board, ...rest] = jobId.split(':');
+  const id = rest.join(':');
+  if (ats !== 'external' || !board || !id) throw new ApiFailure('bad_request', 'Only a job you added (by link, by text or from a web search) can take pasted text.');
+  const row = store.db.prepare("SELECT title, company, location, page_url, canonical_url, apply_url, posted_at FROM jobs WHERE ats = 'external' AND board = ? AND job_id = ?")
+    .get(board, id) as { title: string; company: string; location: string; page_url: string | null; canonical_url: string | null; apply_url: string | null; posted_at: string | null } | undefined;
+  if (!row) throw new ApiFailure('not_found', 'jobleft has no job with this address.');
+  if (text.split(/\r?\n/).filter((l) => l.trim()).length < 2) {
+    throw new ApiFailure('bad_request', 'That is too short to be a job posting. Paste the whole posting: the job title on the first line, then the rest of its text.');
+  }
+  const raw = rawFromText(text, null);
+  const job = normalizeJob({ ats: 'external' as never, board, company: row.company }, {
+    ...raw, externalId: id, url: row.page_url ?? row.canonical_url ?? raw.url, applyUrl: raw.applyUrl || row.apply_url || '',
+    title: raw.title || row.title, company: raw.company && raw.company !== 'Company not stated' ? raw.company : row.company,
+    location: raw.location || row.location || '', postedAt: raw.postedAt ?? row.posted_at,
+  }) as CrawledJob | null;
+  if (!job) throw new ApiFailure('unsupported_source', 'jobleft could not read a job from that text.');
+  store.transaction(() => store.upsertJob(job, nowIso()));
+  return jobId;
+}
+
 /** Reads the link (or the text) and saves the job in the crawler's jobs table. Returns the contract job id. */
 export async function addExternal(req: { url?: string; text?: string; applyUrl?: string }, d: ExternalDeps): Promise<string> {
   let raw: RawJob;

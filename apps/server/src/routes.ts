@@ -16,7 +16,7 @@ import { ApiFailure, notFound, notReady } from './errors.ts';
 import { tmpName } from './home.ts';
 import type { FileBody } from './http/respond.ts';
 import { bodyToFile } from './http/body.ts';
-import { addExternal } from './interim/external.ts';
+import { addExternal, replaceExternalText } from './interim/external.ts';
 import { checkSearx, normalizeSearxUrl } from './interim/websearch.ts';
 import { detailOf } from './interim/jobs.ts';
 import { createAiRouteHandlers, type AiRouteHandlers } from '@jobleft/ai-engine';
@@ -236,6 +236,11 @@ export const HANDLERS: HandlerTable = {
     const id = await addExternal(body, { crawlStore: d.crawlStore, hostMap: app.cfg.hostMap, offline: () => app.cfg.offline });
     const tracker = d.tracker.patch(id, {}, { external: true });
     return { json: { job: jobOr404(d, id), tracker } };
+  },
+  replaceJobText: ({ d, params, body }) => {
+    jobOr404(d, params.jobId!);
+    const id = replaceExternalText(d.crawlStore, params.jobId!, body.text);
+    return { json: { job: jobOr404(d, id) } };
   },
   keywordGaps: async ({ d, params, query }) => ({ json: await step(() => d.resumes.svc.keywordGaps(params.jobId!, query.resumeId)) }),
 

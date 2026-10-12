@@ -4,7 +4,7 @@
 // your notes and reminders, and the tools. The apply button opens the employer's own posting in your browser.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button } from 'antd';
+import { Alert, Button, Input, Modal } from 'antd';
 import { Tooltip } from '../../components/Tip.tsx';
 import {
   CalendarOutlined, ClockCircleOutlined, CloseOutlined, CopyOutlined, DollarOutlined, EnvironmentOutlined, ExportOutlined, FileTextOutlined,
@@ -133,6 +133,19 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
   const h1bSrc = useH1bSource();
   const [tab, setTab] = useState<'overview' | 'company'>('overview');
   const [tool, setTool] = useState<'tailor' | 'letter' | 'gaps' | null>(null);
+  const [pasting, setPasting] = useState(false);
+  const [pasted, setPasted] = useState('');
+  const [savingText, setSavingText] = useState(false);
+  const saveText = async () => {
+    setSavingText(true);
+    try {
+      const r = await call('replaceJobText', { params: { jobId: id }, body: { text: pasted } });
+      setCached<JobDetailT>(`job:${id}`, (old) => (old ? { ...old, job: r.job } : old!));
+      void d.reload();
+      setPasting(false); setPasted('');
+      ui.message?.success('The posting is saved. Its facts and your match were read again.');
+    } catch (e) { ui.message?.error((e as UiError).message); } finally { setSavingText(false); }
+  };
   const [hint, setHint] = useState(() => { try { return sessionStorage.getItem('jobleft.eschint') !== '1'; } catch { return true; } });
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -194,6 +207,8 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
   const sponsor = sponsorChip(h1bTag, h1bNote);
   const posted = job.postedAt ? `Posted ${ago(job.postedAt)}` : `Posted date not listed${foundText(job.firstSeenAt) ? ` · found by jobleft ${foundText(job.firstSeenAt)}` : ''}`;
   const lang = languageChip(job.language);
+  // A job kept from a web search result jobleft could not read: only the engine's short text (rawFromResult).
+  const snippetOnly = job.id.startsWith('external:web:') && /Saved from a web search result: jobleft did not read the page/.test(job.description);
   const blocks = textBlocks(job.description);
   const tools = [
     { k: 'tailor' as const, icon: <IconResume size={18} />, t: 'Tailor your resume', s: 'Draft changes from your profile; you choose what to keep', hi: true },
@@ -322,7 +337,12 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
           {match && <Why m={match} />}
 
           <section className="jl-detail-sec jl-desc" aria-labelledby="sec-desc-h">
-            <SecHead icon={<BulbOutlined />} title="The posting" id="sec-desc-h" />
+            <SecHead icon={<BulbOutlined />} title="The posting" id="sec-desc-h"
+              right={job.id.startsWith('external:') ? <Button size="small" shape="round" onClick={() => setPasting(true)}>Paste the full posting</Button> : undefined} />
+            {snippetOnly && (
+              <Alert type="info" showIcon style={{ marginBottom: 12 }} message="This is only what the search engine showed"
+                description={<span>jobleft could not read the page, so the match, keyword gaps and tailoring have little to go on. Open the original posting, copy its text, and paste it here.{' '}<Button size="small" type="link" style={{ padding: 0 }} onClick={() => setPasting(true)}>Paste the full posting</Button></span>} />
+            )}
             {blocks.length ? blocks.map((b, i) => b.kind === 'h' ? <h3 key={i}>{b.text}</h3> : b.kind === 'p' ? <p key={i}>{b.text}</p> : <ul key={i}>{b.items.map((x, j) => <li key={j}>{x}</li>)}</ul>)
               : <p className="jl-muted">The posting has no description text.</p>}
             <p className="jl-source" style={{ marginTop: 12 }}>
@@ -344,6 +364,11 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
       <TailorDrawer job={job} open={tool === 'tailor'} onClose={() => setTool(null)} />
       <CoverLetterDrawer job={job} open={tool === 'letter'} onClose={() => setTool(null)} />
       <GapsDrawer job={job} open={tool === 'gaps'} onClose={() => setTool(null)} />
+      <Modal open={pasting} title="Paste the full posting" okText="Save" onOk={() => { void saveText(); }} okButtonProps={{ disabled: pasted.trim().split(/\n/).filter((l) => l.trim()).length < 2, loading: savingText, shape: 'round' }}
+        cancelButtonProps={{ shape: 'round' }} onCancel={() => setPasting(false)} width={720} destroyOnClose>
+        <p className="jl-small jl-muted" style={{ marginTop: 0 }}>Copy the whole posting from its page and paste it here: the job title on the first line, then the rest. Lines like "Company:", "Location:" and "Employment type:" fill those facts. The job keeps its link, your like, status and notes.</p>
+        <Input.TextArea value={pasted} onChange={(e) => setPasted(e.target.value)} autoSize={{ minRows: 10, maxRows: 22 }} maxLength={200_000} aria-label="The posting text" autoFocus />
+      </Modal>
     </div>
   );
 }

@@ -319,6 +319,7 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `listJobs` | GET | `/api/v1/jobs` | launch | store | `{ q?, sort?, cursor?, limit?, status? }` | — | `JobSearchResponse` | Simple search with the saved default filter |
 | `searchJobs` | POST | `/api/v1/jobs/search` | launch | store | — | `JobSearchRequest` | `JobSearchResponse` | Search with the full filter set |
 | `getJob` | GET | `/api/v1/jobs/:jobId` | launch | store | — | — | `JobDetail` | One job with company, match, tracker and network count |
+| `replaceJobText` | PUT | `/api/v1/jobs/:jobId/text` | launch | sources-other | — | `{ text }` | `{ job }` | Replace the text of a job the person added (or kept from a web search) with the pasted posting; its facts are read again, its likes, notes and status stay |
 | `addExternalJob` | POST | `/api/v1/jobs/external` | launch | sources-other | — | `ExternalJobRequest` | `{ job, tracker }` | Add a job from a URL or pasted text (External tab) |
 | `keywordGaps` | GET | `/api/v1/jobs/:jobId/keyword-gaps` | launch | resume | `{ resumeId }` | — | `KeywordGapReport` | Keyword gaps of a resume for a job |
 | `getDigest` | GET | `/api/v1/digest` | launch | server | `{ hours? }` | — | `Digest` | The new jobs that fit the profile in the last hours (24 by default, at most 168), best first, and what is due today |

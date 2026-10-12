@@ -240,6 +240,7 @@ export const LOCAL_API = {
   }),
   searchJobs: route({ method: 'POST', path: '/api/v1/jobs/search', auth: 'launch', owner: 'store', summary: 'Search with the full filter set', body: JobSearchRequestSchema, response: JobSearchResponseSchema }),
   getJob: route({ method: 'GET', path: '/api/v1/jobs/:jobId', auth: 'launch', owner: 'store', summary: 'One job with company, match, tracker and network count', response: JobDetailSchema }),
+  replaceJobText: route({ method: 'PUT', path: '/api/v1/jobs/:jobId/text', auth: 'launch', owner: 'sources-other', summary: 'Replace the text of a job the person added (or kept from a web search) with the pasted posting; its facts are read again, its likes, notes and status stay', body: obj({ text: str({ minLength: 1, maxLength: 200_000 }) }), response: obj({ job: JobSchema }) }),
   addExternalJob: route({ method: 'POST', path: '/api/v1/jobs/external', auth: 'launch', owner: 'sources-other', summary: 'Add a job from a URL or pasted text (External tab)', body: ExternalJobRequestSchema, response: obj({ job: JobSchema, tracker: TrackerEntrySchema }) }),
   keywordGaps: route({ method: 'GET', path: '/api/v1/jobs/:jobId/keyword-gaps', auth: 'launch', owner: 'resume', summary: 'Keyword gaps of a resume for a job', query: obj({ resumeId: IdSchema }), response: KeywordGapReportSchema }),
 

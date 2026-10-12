@@ -62,3 +62,26 @@ test('jobs carry their language facts, and "leave out jobs that need Dutch" leav
     assert.equal((await s.call('GET', `/api/v1/jobs/${encodeURIComponent(req.id)}`)).json.job.language.evidence, 'Fluency in Dutch and English.');
   } finally { await s.stop(); cleanup(s.home); }
 });
+
+test('a job kept from a web search takes the pasted posting: its facts are read again, its like and link stay', async () => {
+  const { cleanup, startTest } = await import('./helpers.ts');
+  const s = await startTest('pastetext');
+  try {
+    const url = 'https://www.academictransfer.com/nl/jobs/364358/soc-analyst-bureau-knaw';
+    const saved = await s.call('POST', '/api/v1/websearch/save', { url, title: 'SOC Analyst - Bureau - KNAW', snippet: 'Als SOC Analyst bij de KNAW krijg je de kans.' });
+    const id = saved.json.jobId;
+    await s.call('PATCH', `/api/v1/tracker/${encodeURIComponent(id)}`, { liked: true });
+    const text = 'SOC Analyst\nCompany: KNAW\nLocation: Amsterdam, Netherlands\nEmployment type: Full-time\nYou monitor alerts and investigate incidents for the institutes of the academy.\n- Fluency in Dutch and English.';
+    const r = await s.call('PUT', `/api/v1/jobs/${encodeURIComponent(id)}/text`, { text });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.job.id, id, 'the same job');
+    assert.deepEqual([r.json.job.title, r.json.job.company, r.json.job.url], ['SOC Analyst', 'KNAW', url]);
+    assert.match(r.json.job.description, /institutes of the academy/);
+    assert.equal(r.json.job.language.dutch, 'required');
+    assert.equal(r.json.job.employmentType, 'full_time');
+    const detail = (await s.call('GET', `/api/v1/jobs/${encodeURIComponent(id)}`)).json;
+    assert.equal(detail.tracker.liked, true, 'the like stays');
+    // Only jobs the person added; too short is refused.
+    assert.equal((await s.call('PUT', `/api/v1/jobs/${encodeURIComponent(id)}/text`, { text: 'hi' })).status, 400);
+  } finally { await s.stop(); cleanup(s.home); }
+});
