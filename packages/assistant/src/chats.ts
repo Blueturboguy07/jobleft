@@ -7,6 +7,8 @@ import { nowIso, type ChatThread } from '@jobleft/contracts';
 import { newId, scrub, tx } from './db.ts';
 
 export interface JobRef { id: string; title: string; company: string }
+/** A tool an answer used, as the chat showed it when it ended. */
+export interface ToolRecord { id: string; name: string; state: 'running' | 'done' | 'failed'; label: string; steps: string[]; sources: Array<{ title: string; url: string }>; summary?: string }
 export interface ChatRow { id: string; title: string; jobId: string | null; updatedAt: string }
 
 export class ChatStore {
@@ -25,12 +27,14 @@ export class ChatStore {
   get(id: string): ChatThread | null {
     const c = this.db.prepare('SELECT * FROM ai_chats WHERE id = ?').get(id) as { id: string; title: string; job_id: string | null; created_at: string; updated_at: string } | undefined;
     if (!c) return null;
-    const msgs = this.db.prepare('SELECT role, content, at, incomplete, refs_json FROM ai_chat_messages WHERE chat_id = ? ORDER BY id').all(id) as Array<{ role: string; content: string; at: string; incomplete: number; refs_json: string | null }>;
+    const msgs = this.db.prepare('SELECT role, content, at, incomplete, refs_json, tools_json FROM ai_chat_messages WHERE chat_id = ? ORDER BY id').all(id) as Array<{ role: string; content: string; at: string; incomplete: number; refs_json: string | null; tools_json: string | null }>;
     return {
       id: c.id, title: c.title, jobId: c.job_id,
       messages: msgs.map((m) => {
         const jobs = m.refs_json ? (JSON.parse(m.refs_json) as JobRef[]) : [];
-        return { role: m.role === 'assistant' ? 'assistant' as const : 'user' as const, content: m.content, at: m.at, ...(m.incomplete ? { incomplete: true } : {}), ...(jobs.length ? { jobs } : {}) };
+        let tools: ToolRecord[] = [];
+        try { tools = m.tools_json ? (JSON.parse(m.tools_json) as ToolRecord[]) : []; } catch { /* shown without its steps */ }
+        return { role: m.role === 'assistant' ? 'assistant' as const : 'user' as const, content: m.content, at: m.at, ...(m.incomplete ? { incomplete: true } : {}), ...(jobs.length ? { jobs } : {}), ...(tools.length ? { tools } : {}) };
       }),
       createdAt: c.created_at, updatedAt: c.updated_at,
     };
@@ -59,9 +63,9 @@ export class ChatStore {
     return Number(r.lastInsertRowid);
   }
 
-  setAssistant(rowid: number, content: string, meta: { incomplete: boolean; jobs?: JobRef[] }): void {
-    this.db.prepare('UPDATE ai_chat_messages SET content = ?, incomplete = ?, refs_json = ?, at = ? WHERE id = ?')
-      .run(content, meta.incomplete ? 1 : 0, meta.jobs?.length ? JSON.stringify(meta.jobs) : null, nowIso(), rowid);
+  setAssistant(rowid: number, content: string, meta: { incomplete: boolean; jobs?: JobRef[]; tools?: ToolRecord[] }): void {
+    this.db.prepare('UPDATE ai_chat_messages SET content = ?, incomplete = ?, refs_json = ?, tools_json = ?, at = ? WHERE id = ?')
+      .run(content, meta.incomplete ? 1 : 0, meta.jobs?.length ? JSON.stringify(meta.jobs) : null, meta.tools?.length ? JSON.stringify(meta.tools) : null, nowIso(), rowid);
   }
 
   removeMessage(rowid: number): void {

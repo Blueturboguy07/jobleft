@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:WebSearchCheck",
+  "title": "WebSearchCheck",
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "message": {
+      "type": "string"
+    },
+    "engines": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unresponsive": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "results": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "siteEngines": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "ok",
+    "message",
+    "engines",
+    "unresponsive",
+    "results",
+    "siteEngines"
+  ]
+}

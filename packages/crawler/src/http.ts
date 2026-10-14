@@ -571,9 +571,34 @@ export class HttpClient implements HttpGetter {
         this.state?.putRobots(origin, full);
         return fromRecord(full);
       };
-      let r: RawReply;
+      let r!: RawReply;
       try {
-        r = await this.rawRequest(`${origin}/robots.txt`, headers, host, host, this.robotsTimeoutMs, signal);
+        // RFC 9309 section 2.3.1.2: follow at least five redirects for robots.txt (hosted career sites such as
+        // <company>.recruitee.com send it to the company's own careers domain). Each hop gets the same checks as any
+        // request: http(s) only, never a never-crawl or held-back host, never a local address, and paced per host.
+        let url = `${origin}/robots.txt`;
+        let reqHost = host;
+        for (let hop = 0; ; hop++) {
+          r = await this.rawRequest(url, headers, reqHost, reqHost, this.robotsTimeoutMs, signal);
+          if (r.status < 300 || r.status >= 400 || r.status === 304 || hop >= 5) break;
+          const loc = r.headers.get('location');
+          if (!loc) break;
+          const next = new URL(loc, url);
+          if (next.protocol !== 'http:' && next.protocol !== 'https:') break;
+          const forbidden = forbiddenHostOf(next.hostname, this.allowHeldBack);
+          if (forbidden) {
+            return store({ status: r.status, body: null, etag: null, lastModified: null, expiresAtMs: now + ROBOTS_RETRY_MS, problem: `robots.txt redirects to ${next.hostname}, which jobleft never contacts` });
+          }
+          if (next.host !== new URL(url).host) {
+            await this.checkAddress(next.hostname);
+            await this.pacer.wait(next.host, 0);
+          }
+          // The validators belong to the first address; a redirected read is a fresh one.
+          delete headers['if-none-match'];
+          delete headers['if-modified-since'];
+          url = next.href;
+          reqHost = next.host;
+        }
       } catch (e) {
         if (e instanceof BudgetError || e instanceof AbortedError) { this.robots.delete(origin); throw e; }
         const why = e instanceof RequestTimeoutError ? 'robots.txt did not answer in time'
@@ -586,7 +611,7 @@ export class HttpClient implements HttpGetter {
       if (r.status === 304 && kept) return store({ ...kept, expiresAtMs: now + ROBOTS_TTL_MS });
       if (r.status >= 200 && r.status < 300) return store({ status: r.status, body: r.body.slice(0, 500_000), etag, lastModified, expiresAtMs: now + ROBOTS_TTL_MS, problem: null });
       if (r.status >= 300 && r.status < 400) {
-        return store({ status: r.status, body: null, etag: null, lastModified: null, expiresAtMs: now + ROBOTS_RETRY_MS, problem: `robots.txt answered with a redirect (HTTP ${r.status}), which jobleft does not follow` });
+        return store({ status: r.status, body: null, etag: null, lastModified: null, expiresAtMs: now + ROBOTS_RETRY_MS, problem: `robots.txt still answered with a redirect (HTTP ${r.status}) after five redirects, or pointed somewhere jobleft does not read` });
       }
       if (r.status >= 500) {
         // RFC 9309: an unreachable robots.txt means "assume the whole host is disallowed".

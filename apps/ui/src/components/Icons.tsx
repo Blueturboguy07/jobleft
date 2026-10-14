@@ -37,6 +37,9 @@ export const IconAssistant = (p: { size?: number }) => (
 export const IconBell = (p: { size?: number }) => (
   <Svg {...p}><path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 0 0 4 0" /></Svg>
 );
+export const IconHistory = (p: { size?: number }) => (
+  <Svg {...p}><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" /><path d="M3.5 4v4h4" /><path d="M12 7.5V12l3 2" /></Svg>
+);
 export const IconSettings = (p: { size?: number }) => (
   <Svg {...p}><path d="M4 6.5h9M18 6.5h2M4 12h3M11 12h9M4 17.5h11M19 17.5h1" /><circle cx="15.5" cy="6.5" r="2" /><circle cx="9" cy="12" r="2" /><circle cx="17" cy="17.5" r="2" /></Svg>
 );

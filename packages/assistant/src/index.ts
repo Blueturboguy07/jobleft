@@ -12,7 +12,7 @@ export { UsageLedger, type UsageLine } from './usage.ts';
 export { PracticeStore, planQuestions, rulesFeedback, verifySample, stripEmployerClaims, PRACTICE_LABEL } from './practice.ts';
 export { Grounder, jobsNamedIn } from './grounding.ts';
 export { ProposalBook, buildAction, type StoredAction } from './proposals.ts';
-export { createToolbox, toolsFor, READ_TOOLS, WRITE_TOOL, PAID_TOOL, CHANGE_INTENT, WEB_INTENT, type TurnState, type ToolDeps } from './tools.ts';
+export { createToolbox, toolsFor, READ_TOOLS, WRITE_TOOL, PAID_TOOL, WEB_SEARCH_TOOL, CHANGE_INTENT, WEB_INTENT, type TurnState, type ToolDeps, type WebSearchTool, type WebFoundJob } from './tools.ts';
 export { createMeteredClient, MeteredError, METERED_PRICES, checkQuery, priceText, quote, type MeteredClient, type MeteredDeps } from './metered.ts';
 export { createFreeReader, robotsAllows, htmlToText, hostMapFromEnv, USER_AGENT, type FreeReader } from './fetchfree.ts';
 export { checkUrl, isPrivateAddress, blockedReason, looksLikeIp, type UrlCheck } from './urlsafe.ts';

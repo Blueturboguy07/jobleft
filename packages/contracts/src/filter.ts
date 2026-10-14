@@ -35,9 +35,19 @@ export const JobFilterSchema = named(obj({}, {
   levels: arr(ExperienceLevelSchema),
   /** Required experience at most this many years. */
   maxYearsRequired: int({ minimum: 0, maximum: 50 }),
-  postedWithin: enm(['24h', '3d', '7d', '30d']),
+  postedWithin: enm(['24h', '3d', '7d', '30d', '365d']),
   /** Minimum annual pay in USD (converted pay counts). */
   minAnnualPayUsd: num({ minimum: 0 }),
+  /**
+   * The currency `minAnnualPayUsd` is in and compared in (the name is kept for saved filters): "EUR" compares the
+   * minimum with pay stated in euros. Absent = USD. Added by the web search lane (additive).
+   */
+  payCurrency: str({ pattern: '^[A-Z]{3}$' }),
+  /**
+   * Leave out the jobs that need Dutch: the posting says Dutch is required, or it is written in Dutch and does not say
+   * Dutch is not required. Added by the web search lane (additive).
+   */
+  leaveOutDutch: bool(),
   /** Jobs with a positive sponsor tag: the company history says likely, or the post says it sponsors. */
   h1bSponsorship: bool(),
   excludeClearanceRequired: bool(),
@@ -131,3 +141,23 @@ export type FitState = Infer<typeof FitStateSchema>;
 export type JobListItem = Infer<typeof JobListItemSchema>;
 export type JobSearchResponse = Infer<typeof JobSearchResponseSchema>;
 export type SavedFilter = Infer<typeof SavedFilterSchema>;
+
+/**
+ * The daily summary (GET /api/v1/digest; once a day as a notification, and on the dashboard): the jobs jobleft found
+ * since `since` that fit the profile, best first, from the boards and from web searches, and what is due today.
+ * Added by the web search lane (additive).
+ */
+export const DigestSchema = named(obj({
+  since: IsoDateTimeSchema,
+  until: IsoDateTimeSchema,
+  /** New jobs from the boards that fit the profile's places, levels and kinds of work, the best few first. */
+  boards: obj({ total: int({ minimum: 0 }), top: arr(JobListItemSchema, { maxItems: 10 }) }),
+  /** New jobs read from web searches, in the profile's countries when it names any. */
+  web: obj({ total: int({ minimum: 0 }), top: arr(JobListItemSchema, { maxItems: 10 }) }),
+  /** Tracker reminders not done whose time is today or past. */
+  remindersDue: int({ minimum: 0 }),
+  /** Network follow-ups due today or earlier. */
+  followUpsDue: int({ minimum: 0 }),
+}), 'Digest');
+
+export type Digest = Infer<typeof DigestSchema>;

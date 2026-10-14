@@ -2,7 +2,7 @@
 // fixed numbers), and each one opens the screen that lists it.
 
 import { Button, Progress } from 'antd';
-import { TRACKER_STATUSES, TRACKER_STATUS_LABELS, type CrawlBoardReport, type CrawlRunSummary, type NetworkContact, type SavedFilter, type StorageInfo } from '@jobleft/contracts';
+import { TRACKER_STATUSES, TRACKER_STATUS_LABELS, type CrawlBoardReport, type Digest, type JobListItem, type CrawlRunSummary, type NetworkContact, type SavedFilter, type StorageInfo } from '@jobleft/contracts';
 import { call } from '../app/api.ts';
 import { useApi } from '../app/data.ts';
 import { navigate } from '../app/router.ts';
@@ -11,6 +11,45 @@ import { ErrorState, Loading } from '../components/States.tsx';
 import { ago, dateText, dateTimeText, plural } from '../lib/format.ts';
 import { applicationsPerWeek, openReminders } from '../lib/trackerView.ts';
 import { useTrackerView } from './jobs/TrackerTabs.tsx';
+
+/** One new job in the summary: title, company and place, with its match; a click opens it. */
+function NewJob({ it }: { it: JobListItem }) {
+  const place = it.job.places.map((p) => p.text).filter(Boolean).join('; ');
+  return (
+    <a href={`#/jobs/${encodeURIComponent(it.job.id)}`} className="jl-row" style={{ gap: 8, padding: '6px 0', color: 'inherit', textDecoration: 'none', borderTop: '1px solid var(--jl-line)' }}>
+      <span className="jl-grow" style={{ minWidth: 0 }}>
+        <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.job.title}</strong>
+        <span className="jl-small jl-muted">{it.job.company}{place ? ` · ${place}` : ''}</span>
+      </span>
+      {it.match && <span className="jl-chip" style={{ flex: '0 0 auto' }}>{it.match.percent}%</span>}
+    </a>
+  );
+}
+
+/** The daily summary (Settings > Notifications): the new jobs of the last 24 hours that fit, best first. */
+function NewToday({ d }: { d: Digest }) {
+  const n = d.boards.total + d.web.total;
+  return (
+    <section className="jl-card-box" aria-labelledby="new-h">
+      <h2 id="new-h" className="jl-section-title" style={{ fontSize: 17 }}>New in the last 24 hours</h2>
+      {!n && <p className="jl-muted">No new jobs that fit you since {dateTimeText(d.since)}.</p>}
+      {d.boards.total > 0 && (
+        <>
+          <p style={{ margin: '4px 0' }}>{plural(d.boards.total, 'new job')} from your boards that {d.boards.total === 1 ? 'fits' : 'fit'} you{d.boards.top.length < d.boards.total ? ', the best first' : ''}:</p>
+          {d.boards.top.map((it) => <NewJob key={it.job.id} it={it} />)}
+          <Button type="link" style={{ padding: 0 }} onClick={() => navigate('jobs')}>Open Recommended</Button>
+        </>
+      )}
+      {d.web.total > 0 && (
+        <>
+          <p style={{ margin: '8px 0 4px' }}>{plural(d.web.total, 'new job')} from web searches:</p>
+          {d.web.top.map((it) => <NewJob key={it.job.id} it={it} />)}
+          <Button type="link" style={{ padding: 0 }} onClick={() => navigate('jobs/web')}>Open Web jobs</Button>
+        </>
+      )}
+    </section>
+  );
+}
 
 function Kpi({ n, label, to }: { n: number | null | undefined; label: string; to: string }) {
   return (
@@ -30,6 +69,7 @@ export function Dashboard() {
   const filters = useApi<SavedFilter[]>('filters', () => call('listFilters'));
   const report = useApi<{ run: CrawlRunSummary | null; boards: CrawlBoardReport[] }>('dashboard:report', () => call('crawlReport'));
   const notes = useNotifications();
+  const digest = useApi<Digest>('dashboard:digest', () => call('getDigest', { query: {} }));
   const { progress } = useCrawl();
 
   if (applied.error && !applied.data) return <div className="jl-page"><ErrorState error={applied.error} onRetry={() => { void applied.reload(); }} /></div>;
@@ -62,6 +102,7 @@ export function Dashboard() {
           <Kpi n={contacts.data ? due : null} label="Follow-ups due" to="network/followups" />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
+          {digest.data && <NewToday d={digest.data} />}
           <section className="jl-card-box" aria-labelledby="pipe-h">
             <h2 id="pipe-h" className="jl-section-title" style={{ fontSize: 17 }}>Your applications by stage</h2>
             <div className="jl-bars">

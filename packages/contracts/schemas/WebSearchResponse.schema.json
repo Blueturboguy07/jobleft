@@ -1,0 +1,292 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:WebSearchResponse",
+  "title": "WebSearchResponse",
+  "type": "object",
+  "properties": {
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https?://",
+            "maxLength": 4096,
+            "description": "Absolute http(s) URL"
+          },
+          "title": {
+            "type": "string"
+          },
+          "snippet": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "board_job",
+              "board",
+              "page",
+              "list",
+              "never"
+            ]
+          },
+          "ats": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "greenhouse",
+                  "lever",
+                  "ashby",
+                  "workable",
+                  "recruitee",
+                  "personio",
+                  "teamtailor",
+                  "gem"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "board": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "boardId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publishedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "RFC 3339 date-time, UTC (\"Z\")"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "engines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "url",
+          "title",
+          "snippet",
+          "host",
+          "kind",
+          "ats",
+          "board",
+          "region",
+          "boardId",
+          "publishedAt",
+          "engines",
+          "jobId",
+          "note"
+        ],
+        "title": "WebSearchResult"
+      }
+    },
+    "boards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "boardId": {
+            "type": "string",
+            "minLength": 3
+          },
+          "ats": {
+            "type": "string",
+            "enum": [
+              "greenhouse",
+              "lever",
+              "ashby",
+              "workable",
+              "recruitee",
+              "personio",
+              "teamtailor",
+              "gem"
+            ]
+          },
+          "board": {
+            "type": "string",
+            "minLength": 1
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "results": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "added": {
+            "type": "boolean"
+          },
+          "followed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "boardId",
+          "ats",
+          "board",
+          "region",
+          "company",
+          "results",
+          "added",
+          "followed"
+        ],
+        "title": "WebSearchBoard"
+      }
+    },
+    "queries": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failedQueries": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unresponsive": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "message": {
+      "type": "string"
+    },
+    "country": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "boardResults": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "searchLinks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https?://",
+            "maxLength": 4096,
+            "description": "Absolute http(s) URL"
+          }
+        },
+        "required": [
+          "name",
+          "url"
+        ]
+      }
+    },
+    "widenedWith": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "widenProblem": {
+      "type": "string"
+    },
+    "unrelatedResults": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "results",
+    "boards",
+    "queries",
+    "failedQueries",
+    "unresponsive",
+    "message"
+  ]
+}

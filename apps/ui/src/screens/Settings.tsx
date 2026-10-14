@@ -5,39 +5,39 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Checkbox, Descriptions, Input, Menu, Popconfirm, Radio, Select, Space, Switch, Table, Tag } from 'antd';
 import { Tooltip } from '../components/Tip.tsx';
-import { CloudOutlined, DesktopOutlined, KeyOutlined, LinkOutlined, ReloadOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, ApiOutlined, WalletOutlined, BellOutlined, DatabaseOutlined, AppstoreOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { CloudOutlined, DesktopOutlined, KeyOutlined, LinkOutlined, ReloadOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, ApiOutlined, WalletOutlined, BellOutlined, FontSizeOutlined, GlobalOutlined, DatabaseOutlined, AppstoreOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import {
   formatDollars, type AiSettings, type AppSettings, type BoardEntry, type BoardResolveResponse, type CrawlBoardReport, type CrawlRunSummary, type DatasetInfo,
-  type FitIndexStatus, type Health, type LocalServerKind, type OwnKeyVendor, type PairingCode, type PairingInfo, type ProviderCheck, type SavedFilter, type SourceInfo, type StorageInfo,
+  type FitIndexStatus, type Health, type LocalServerKind, type OwnKeyVendor, type PairingCode, type PairingInfo, type ProviderCheck, type SavedFilter, type SourceInfo, type StorageInfo, type WebSearchCheck,
 } from '@jobleft/contracts';
 import { call, download, openExternal, type UiError } from '../app/api.ts';
 import { invalidate, setCached, useApi } from '../app/data.ts';
 import { ui } from '../app/layers.ts';
 import { navigate, queryParam } from '../app/router.ts';
-import { useAiSettings, useCrawl, usePublik } from '../app/session.ts';
+import { setZoom, useAiSettings, useAppSettings, useCrawl, usePublik } from '../app/session.ts';
 import { LogoMark, Wordmark } from '../components/Art.tsx';
 import { ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { ago, dateText, fitIndexText, hostOf, plural, secondsLeft } from '../lib/format.ts';
 import { readAllPages } from '../lib/pages.ts';
 import { rememberAiCheck } from '../lib/aiHealth.ts';
 import { dailyLimitText, zeroBalanceText } from '../lib/dailyLimit.ts';
+import { canZoomWindow, nearestStep, ZOOM_STEPS, zoomText } from '../lib/zoom.ts';
+import { secureStore, trayName } from '../lib/platform.ts';
 
-/** Where keys are kept on this system: the macOS Keychain, or an encrypted file in the data folder elsewhere (Windows). */
-function secureStore(): string {
-  return /Mac|iPhone|iPad/.test(navigator.userAgent) ? 'the macOS Keychain' : 'an encrypted file in the data folder';
-}
 
 const TABS = [
   { key: 'ai', label: 'AI provider', icon: <ApiOutlined /> },
   { key: 'balance', label: 'Balance', icon: <WalletOutlined /> },
+  { key: 'websearch', label: 'Web search', icon: <GlobalOutlined /> },
   { key: 'alerts', label: 'Alerts', icon: <BellOutlined /> },
+  { key: 'appearance', label: 'Appearance', icon: <FontSizeOutlined /> },
   { key: 'sources', label: 'Job sources', icon: <AppstoreOutlined /> },
   { key: 'data', label: 'Data and backup', icon: <DatabaseOutlined /> },
   { key: 'extension', label: 'Browser extension', icon: <LinkOutlined /> },
   { key: 'about', label: 'About and privacy', icon: <InfoCircleOutlined /> },
 ];
 
-function Panel({ title, children, desc }: { title: string; children: ReactNode; desc?: ReactNode }) {
+function Panel({ title, children, desc }: { title: string; children?: ReactNode; desc?: ReactNode }) {
   return (
     <section className="jl-card-box" style={{ display: 'flex', flexDirection: 'column', gap: 12 }} aria-label={title}>
       <h2 className="jl-section-title" style={{ margin: 0, fontSize: 18 }}>{title}</h2>
@@ -311,9 +311,16 @@ function AlertsTab() {
   const s = settings.data;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Panel title="Notifications" desc="jobleft shows these as macOS notifications and in Notifications. They are made on this computer; nothing is emailed.">
+      <Panel title="Notifications" desc="jobleft shows these as desktop notifications and in Notifications. They are made on this computer; nothing is emailed.">
         <label className="jl-row"><Switch aria-label="Tracker reminders and follow-ups" checked={s.notifications.reminders} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, reminders: v } }); }} /> Tracker reminders and follow-ups</label>
         <label className="jl-row"><Switch aria-label="New jobs after a refresh, and saved-filter alerts" checked={s.notifications.alerts} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, alerts: v } }); }} /> New jobs after a refresh, and saved-filter alerts</label>
+        <div className="jl-row jl-wrap" style={{ gap: 8 }}>
+          <label className="jl-row"><Switch aria-label="A daily summary" checked={s.notifications.digest !== false} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, digest: v } }); }} /> A daily summary: the new jobs that fit you, and what is due, at</label>
+          <Select size="small" style={{ width: 92 }} aria-label="Time of the daily summary" disabled={s.notifications.digest === false} value={s.notifications.digestHour ?? 8}
+            onChange={(h) => { void put({ ...s, notifications: { ...s.notifications, digestHour: h } }); }}
+            options={Array.from({ length: 24 }, (_, h) => ({ value: h, label: `${String(h).padStart(2, '0')}:00` }))} />
+        </div>
+        <p className="jl-small jl-muted" style={{ margin: 0 }}>If jobleft is not running then, the summary comes the first time it runs after that, the same day. It is also on the Dashboard.</p>
       </Panel>
       <Panel title="Saved-filter alerts">
         {filters.data && !filters.data.length && <p className="jl-muted">No saved filters yet. Save one from the Jobs screen.</p>}
@@ -324,6 +331,104 @@ function AlertsTab() {
         ))}
       </Panel>
     </div>
+  );
+}
+
+// ------------------------------------------------------------------ web search
+
+function WebSearchTab() {
+  const settings = useAppSettings();
+  const [url, setUrl] = useState<string | null>(null);
+  const [check, setCheck] = useState<WebSearchCheck | null>(null);
+  const [busy, setBusy] = useState<'test' | 'save' | 'off' | null>(null);
+  const [err, setErr] = useState<UiError | null>(null);
+  if (settings.error && !settings.data) return <ErrorState error={settings.error} onRetry={() => { void settings.reload(); }} />;
+  if (!settings.data) return <Loading label="Loading" />;
+  const s = settings.data;
+  const saved = s.webSearch?.url ?? null;
+  const value = url ?? saved ?? '';
+  const test = async () => {
+    setBusy('test'); setErr(null); setCheck(null);
+    try { setCheck(await call('checkWebSearch', { body: { url: value.trim() } })); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+  };
+  // Saving tests first: an address that does not answer like SearXNG is not saved.
+  const save = async () => {
+    setBusy('save'); setErr(null); setCheck(null);
+    try {
+      const c = await call('checkWebSearch', { body: { url: value.trim() } });
+      setCheck(c);
+      if (!c.ok) return;
+      const r = await call('putSettings', { body: { ...s, webSearch: { url: value.trim() } } });
+      setCached('settings', () => r); setUrl(null);
+      ui.message?.success('Web search is on. Search in Jobs > Web search.');
+    } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+  };
+  const off = async () => {
+    setBusy('off'); setErr(null); setCheck(null);
+    try { const r = await call('putSettings', { body: { ...s, webSearch: { url: null } } }); setCached('settings', () => r); setUrl(null); ui.message?.success('Web search is off.'); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <Panel title="Web search (SearXNG)" desc={<>Find jobs all over the web, not only on the boards you follow. jobleft searches through your own <a href="https://docs.searxng.org" target="_blank" rel="noopener noreferrer">SearXNG</a>, a free search engine you run yourself that asks other search engines for you. No account or key is needed.</>}>
+        <div className="jl-row jl-wrap">
+          <Input style={{ flex: '1 1 280px' }} value={value} onChange={(e) => { setUrl(e.target.value); setCheck(null); }} onPressEnter={() => { void save(); }} placeholder="http://127.0.0.1:8888" aria-label="SearXNG address" maxLength={500} />
+          <Button shape="round" loading={busy === 'test'} disabled={!value.trim() || !!busy} onClick={() => { void test(); }}>Test</Button>
+          <Button type="primary" shape="round" loading={busy === 'save'} disabled={!value.trim() || !!busy || value.trim() === saved} onClick={() => { void save(); }}>Save</Button>
+          {saved && <Button shape="round" danger loading={busy === 'off'} disabled={!!busy} onClick={() => { void off(); }}>Turn off</Button>}
+        </div>
+        {saved ? <Tag color="green" style={{ alignSelf: 'flex-start' }}>On: {saved}</Tag> : <Tag style={{ alignSelf: 'flex-start' }}>Off</Tag>}
+        {check && (check.ok
+          ? <Alert type="success" showIcon message={check.message} />
+          : <Alert type="error" showIcon message={check.message} />)}
+        <InlineError error={err} />
+      </Panel>
+      <Panel title="What is sent where">
+        <ul style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <li>Your search words go to this SearXNG address only. SearXNG passes them to the search engines it is set up for, without your name or address.</li>
+          <li>jobleft opens a result page only when you add that job, once, and only if the site allows programs (robots.txt).</li>
+          <li>jobleft never opens LinkedIn, Indeed, Glassdoor or Workday pages, even when a search finds them. You can open them in your browser.</li>
+        </ul>
+      </Panel>
+      <Panel title="Setting up SearXNG" desc={<>SearXNG runs on your computer, for example with Docker (step by step: <a href="https://github.com/Dayv0ps/jobleft/blob/searxng/docs/WEBSEARCH.md" target="_blank" rel="noopener noreferrer">docs/WEBSEARCH.md</a>). It must answer in JSON, and these engines give the best job results:</>}>
+        <pre className="jl-small" style={{ margin: 0, padding: 12, background: 'var(--jl-input)', borderRadius: 8, overflowX: 'auto' }}>{`# settings.yml
+use_default_settings: true
+server:
+  limiter: false        # only you use it
+search:
+  formats: [html, json] # jobleft reads json
+engines:                # these keep to site: (tested October 2026)
+  - name: resulthunter
+    disabled: false
+  - name: yahoo
+    disabled: false
+  - name: privacywall
+    disabled: false
+  - name: google cse
+    disabled: false`}</pre>
+      </Panel>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ appearance
+
+function AppearanceTab() {
+  const settings = useAppSettings();
+  const mod = /Mac/.test(navigator.platform || navigator.userAgent) ? 'Cmd' : 'Ctrl';
+  if (!canZoomWindow()) {
+    return (
+      <Panel title="Interface size" desc={`In a browser, use the browser's own zoom: ${mod} and + to make everything bigger, ${mod} and - to make it smaller, ${mod} and 0 for the normal size.`} />
+    );
+  }
+  if (settings.error && !settings.data) return <ErrorState error={settings.error} onRetry={() => { void settings.reload(); }} />;
+  if (!settings.data) return <Loading label="Loading" />;
+  const s = settings.data;
+  const zoom = nearestStep(s.display?.zoom ?? 1);
+  return (
+    <Panel title="Interface size" desc={`Makes text, buttons and spacing bigger or smaller together. Shortcuts: ${mod} and + bigger, ${mod} and - smaller, ${mod} and 0 normal.`}>
+      <Radio.Group aria-label="Interface size" optionType="button" value={zoom} onChange={(e) => setZoom(s, e.target.value as number)}
+        options={ZOOM_STEPS.map((z) => ({ value: z, label: z === 1 ? `${zoomText(z)} (normal)` : zoomText(z) }))} />
+    </Panel>
   );
 }
 
@@ -359,7 +464,7 @@ function SourcesTab() {
             <label className="jl-row">Refresh every <Select style={{ width: 130 }} value={s.crawl.intervalHours} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, intervalHours: v } }); }} options={[1, 3, 6, 12, 24, 48].map((h) => ({ value: h, label: `${h} ${h === 1 ? 'hour' : 'hours'}` }))} /></label>
             <label className="jl-row"><Switch aria-label="Pause automatic refreshes" checked={s.crawl.paused} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, paused: v } }); }} /> Pause automatic refreshes{s.crawl.paused ? ' (only "Refresh now" reads the boards)' : ''}</label>
             <label className="jl-row"><Switch aria-label="Catch up when jobleft opens" checked={s.crawl.catchUpOnLaunch} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, catchUpOnLaunch: v } }); }} /> Catch up when jobleft opens</label>
-            <label className="jl-row"><Switch aria-label="Keep refreshing from the menu bar when the window is closed" checked={s.crawl.runInTray} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, runInTray: v } }); }} /> Keep refreshing from the menu bar when the window is closed</label>
+            <label className="jl-row"><Switch aria-label={`Keep refreshing from the ${trayName()} when the window is closed`} checked={s.crawl.runInTray} onChange={(v) => { void put({ ...s, crawl: { ...s.crawl, runInTray: v } }); }} /> Keep refreshing from the {trayName()} when the window is closed</label>
           </div>
         )}
       </Panel>
@@ -433,7 +538,7 @@ function DataTab() {
     try { const f = await download(name); ui.message?.success(`Saved ${f} to your Downloads.`); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   const restore = async (f: File) => {
-    const ok = await ui.modal?.confirm({ title: 'Restore this backup?', content: "Your current data is replaced by the data in the backup. This Mac's saved AI keys and publik connection stay as they are. A damaged or foreign file is refused and nothing changes.", okText: 'Restore', okButtonProps: { shape: 'round' }, cancelButtonProps: { shape: 'round' } });
+    const ok = await ui.modal?.confirm({ title: 'Restore this backup?', content: "Your current data is replaced by the data in the backup. This computer's saved AI keys and publik connection stay as they are. A damaged or foreign file is refused and nothing changes.", okText: 'Restore', okButtonProps: { shape: 'round' }, cancelButtonProps: { shape: 'round' } });
     if (!ok) return;
     setBusy('restore'); setErr(null);
     try {
@@ -577,7 +682,7 @@ function AboutTab() {
 
 export function SettingsScreen({ tab }: { tab: string | null }) {
   const active = TABS.some((t) => t.key === tab) ? tab! : 'ai';
-  const body: Record<string, ReactNode> = { ai: <AiTab />, balance: <BalanceTab />, alerts: <AlertsTab />, sources: <SourcesTab />, data: <DataTab />, extension: <ExtensionTab />, about: <AboutTab /> };
+  const body: Record<string, ReactNode> = { ai: <AiTab />, balance: <BalanceTab />, websearch: <WebSearchTab />, alerts: <AlertsTab />, appearance: <AppearanceTab />, sources: <SourcesTab />, data: <DataTab />, extension: <ExtensionTab />, about: <AboutTab /> };
   return (
     <div className="jl-2col">
       <nav style={{ width: 220, flex: '0 0 220px', background: '#fff', borderRight: '1px solid var(--jl-line)', padding: 8, overflowY: 'auto' }} aria-label="Settings sections">

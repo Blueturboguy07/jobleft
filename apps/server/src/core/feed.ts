@@ -438,18 +438,21 @@ export class FeedService {
     try { return scoreMatch({ profile, job, company: null, now: nowMs(), ...(places ? { distanceMiles: places } : {}) }) as MatchResult; } catch { return null; }
   }
 
-  search(req: JobSearchRequest, deps: SearchDeps): JobSearchResponse {
+  /** `only` (the daily summary): crawler row ids the answer must be among, ranked as the feed ranks them. */
+  search(req: JobSearchRequest, deps: SearchDeps, only?: number[] | null): JobSearchResponse {
     // Text with no letter or digit (a lone "*", quotes, dashes) is no search at all: the plain feed answers, instead
     // of an every-row scan that a wildcard would start (sys-perf O1, gate 9).
     if (req.q !== undefined && !/[\p{L}\p{N}]/u.test(req.q)) req = { ...req, q: undefined };
     const t0 = performance.now();
-    const restrict = req.filter?.h1bSponsorship ? this.h1bIds() : null;
+    let restrict = req.filter?.h1bSponsorship ? this.h1bIds() : null;
+    if (only) { const set = new Set(only); restrict = restrict ? restrict.filter((id) => set.has(id)) : only; }
+    const onlyKey = only ? createHash('sha256').update([...only].sort((a, b) => a - b).join(',')).digest('hex').slice(0, 16) : '';
     const profile = deps.hasProfile() ? this.d.profile() : null;
     const personal = profile !== null && req.sort !== 'most_recent' && req.filter?.status !== 'closed';
     let res: JobSearchResponse;
     let ranked: Ranked | null = null;
     if (personal) {
-      const out = this.personal(req, deps, profile!, restrict);
+      const out = this.personal(req, deps, profile!, restrict, onlyKey);
       res = out.res; ranked = out.ranked;
     } else {
       res = this.d.jobs.search(req, deps, restrict);
@@ -463,10 +466,10 @@ export class FeedService {
     return res;
   }
 
-  private personal(req: JobSearchRequest, deps: SearchDeps, profile: Profile, restrict: number[] | null): { res: JobSearchResponse; ranked: Ranked } {
+  private personal(req: JobSearchRequest, deps: SearchDeps, profile: Profile, restrict: number[] | null, onlyKey = ''): { res: JobSearchResponse; ranked: Ranked } {
     const m = prefModel(profile, profile.preferences.places.some((q) => q.placeId) ? this.placeData() : null);
     const { cursor, limit: _l, ...rest } = req;
-    const key = createHash('sha256').update(JSON.stringify([rest, profile.version, m.version])).digest('hex').slice(0, 20);
+    const key = createHash('sha256').update(JSON.stringify([rest, profile.version, m.version, onlyKey])).digest('hex').slice(0, 20);
     let offset = 0;
     let h = key;
     if (cursor) {
@@ -500,7 +503,7 @@ export class FeedService {
         this.ranked.set(full, ranked);
         // The plain Recommended feed (no words, no filters) is the order every visit comes back to; a burst of
         // searches must not push it out (a re-rank of 100,000 jobs costs about 0.2 s; gate 9).
-        const isBase = !rest.q && Object.keys(rest.filter ?? {}).length === 0 && (rest.sort ?? 'recommended') === 'recommended';
+        const isBase = !onlyKey && !rest.q && Object.keys(rest.filter ?? {}).length === 0 && (rest.sort ?? 'recommended') === 'recommended';
         if (isBase) this.baseKey = full;
         if (this.ranked.size > 24) { for (const k of this.ranked.keys()) { if (k !== this.baseKey) { this.ranked.delete(k); break; } } }
       }

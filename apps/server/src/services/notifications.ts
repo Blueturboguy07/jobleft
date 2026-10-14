@@ -14,7 +14,11 @@ function clip(s: string, n: number): string {
 
 export class NotificationService {
   private readonly db: DatabaseSync;
-  constructor(db: DatabaseSync) { this.db = db; }
+  constructor(db: DatabaseSync) {
+    this.db = db;
+    // added without a schema version bump, so an older jobleft still opens the data folder
+    try { db.exec('ALTER TABLE srv_notifications ADD COLUMN cleared_at TEXT'); } catch { /* there already */ }
+  }
 
   /** Adds a notification unless one with the same dedupe key exists. Returns it, or null when it was a repeat. */
   add(n: Omit<Notification, 'id' | 'createdAt'>, dedupeKey: string | null): Notification | null {
@@ -31,7 +35,22 @@ export class NotificationService {
   }
 
   pending(): Notification[] {
-    const rows = this.db.prepare('SELECT id, kind, title, body, target, created_at FROM srv_notifications WHERE acked_at IS NULL ORDER BY created_at, id').all() as unknown as Row[];
+    return this.list('WHERE acked_at IS NULL ORDER BY created_at, id');
+  }
+
+  /** Every notification, shown or not, newest first, until the person clears them. */
+  history(limit = 200): Notification[] {
+    return this.list(`WHERE cleared_at IS NULL ORDER BY created_at DESC, id DESC LIMIT ${Math.trunc(limit)}`);
+  }
+
+  /** Clears the history and marks every notification shown. Rows stay so a dedupe key never notifies twice. */
+  clear(): number {
+    const at = nowIso();
+    return tx(this.db, () => Number(this.db.prepare('UPDATE srv_notifications SET acked_at = COALESCE(acked_at, ?), cleared_at = ? WHERE cleared_at IS NULL').run(at, at).changes));
+  }
+
+  private list(rest: string): Notification[] {
+    const rows = this.db.prepare(`SELECT id, kind, title, body, target, created_at FROM srv_notifications ${rest}`).all() as unknown as Row[];
     return rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, target: r.target, createdAt: r.created_at }));
   }
 

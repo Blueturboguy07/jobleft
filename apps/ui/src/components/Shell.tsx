@@ -15,9 +15,9 @@ import { aiCheckFailed, lastAiCheck, subscribeAiCheck } from '../lib/aiHealth.ts
 import { LogoMark } from './Art.tsx';
 import { Chat } from './Chat.tsx';
 import { closeChat, openChat, useChatTarget } from './chatStore.ts';
-import { IconAssistant, IconBell, IconDashboard, IconInterview, IconJobs, IconNetwork, IconProfile, IconResume, IconSettings, IconTracker, IconSparkle } from './Icons.tsx';
+import { IconAssistant, IconBell, IconDashboard, IconHistory, IconInterview, IconJobs, IconNetwork, IconProfile, IconResume, IconSettings, IconTracker, IconSparkle } from './Icons.tsx';
 
-export type ScreenId = 'jobs' | 'tracker' | 'dashboard' | 'resume' | 'profile' | 'network' | 'interview' | 'assistant' | 'settings' | 'notifications';
+export type ScreenId = 'jobs' | 'tracker' | 'dashboard' | 'resume' | 'profile' | 'network' | 'interview' | 'assistant' | 'settings' | 'notifications' | 'history';
 
 const NAV: Array<{ id: ScreenId; label: string; icon: ReactNode; to: string }> = [
   { id: 'jobs', label: 'Jobs', icon: <IconJobs />, to: '#/jobs' },
@@ -47,6 +47,9 @@ export function Rail({ active }: { active: ScreenId }) {
         <a href="#/notifications" className="jl-rail-item" aria-current={active === 'notifications' ? 'page' : undefined} aria-label={`Alerts${n ? `, ${n} new` : ''}`}>
           <IconBell /><span>Alerts</span>
           {n > 0 && <span className="jl-rail-badge" aria-hidden="true">{n > 99 ? '99+' : n}</span>}
+        </a>
+        <a href="#/history" className="jl-rail-item" aria-current={active === 'history' ? 'page' : undefined}>
+          <IconHistory /><span>Notifications</span>
         </a>
         <a href="#/settings" className="jl-rail-item" aria-current={active === 'settings' ? 'page' : undefined}>
           <IconSettings /><span>Settings</span>
@@ -90,6 +93,8 @@ function JobsTabs({ tab }: { tab: string | null }) {
   const c = counts.data;
   const tabs = [
     { id: 'recommended', label: 'Recommended', to: '#/jobs', n: null },
+    // Jobs found all over the web through the person's own SearXNG (Settings > Web search).
+    { id: 'web', label: 'Web jobs', to: '#/jobs/web', n: null },
     { id: 'liked', label: 'Liked', to: '#/jobs/liked', n: c?.liked ?? null },
     // Every application, whatever its stage: "Applications", so it never reads as the Tracker's "Applied" column (JL-tracker-23).
     { id: 'applied', label: 'Applications', to: '#/jobs/applied', n: c?.applied ?? null },
@@ -131,7 +136,7 @@ function JobSearch({ onRecommended }: { onRecommended: boolean }) {
 
 const TITLES: Record<ScreenId, string> = {
   jobs: 'Jobs', tracker: 'Tracker', dashboard: 'Dashboard', resume: 'Resume', profile: 'Profile', network: 'Network', interview: 'Interview',
-  assistant: 'Assistant', settings: 'Settings', notifications: 'Alerts',
+  assistant: 'Assistant', settings: 'Settings', notifications: 'Alerts', history: 'Notifications',
 };
 
 /** The assistant button in the top bar: opens or closes the assistant panel (the panel stays over the page, closes with Esc). */
@@ -186,7 +191,7 @@ export function ConnectionBanner() {
     return () => { alive = false; clearInterval(t); window.removeEventListener('online', on); window.removeEventListener('offline', off); window.removeEventListener('jl-unreachable', soon); };
   }, [local]);
   if (!local) return <Alert className="jl-banner" type="error" banner showIcon message="jobleft's local service is not answering. Your data is safe on this computer; jobleft keeps trying to reconnect." />;
-  if (!online) return <Alert className="jl-banner" type="warning" banner showIcon message="This Mac reports no internet connection. Your saved jobs, tracker, resumes and profile still work. Steps that need the internet can fail until it is back." />;
+  if (!online) return <Alert className="jl-banner" type="warning" banner showIcon message="This computer reports no internet connection. Your saved jobs, tracker, resumes and profile still work. Steps that need the internet can fail until it is back." />;
   return null;
 }
 

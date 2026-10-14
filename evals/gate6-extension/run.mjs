@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const OUT = fileURLToPath(new URL('./', import.meta.url));
-const HOME = '/private/tmp/jl-gate6';
+const HOME = join(tmpdir(), 'jl-gate6');
 const APP_PORT = 47821;
 const P = 'http://127.0.0.1:47900/practice';
 const TOKEN = 'gate6-' + Math.random().toString(36).slice(2);
@@ -59,6 +59,7 @@ let call = api(srv.port);
 const practice = await H.startPractice(47900);
 const practiceTls = await H.startPractice(47943, true);
 import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 const spawnSyncText = (c, a) => String(spawnSync(c, a).stdout ?? '');
 let browser = null, extId = null;
 try {

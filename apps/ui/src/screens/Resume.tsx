@@ -192,10 +192,11 @@ export function ResumeScreen() {
           <EmptyState art="doc" title="No resumes yet" text="Upload a PDF or Word file, or build one from your profile." action={<Button type="primary" shape="round" icon={<UploadOutlined />} onClick={() => setAdding(true)}>Add a resume</Button>} />
         ) : (
           <div className="jl-card-box" style={{ padding: 8 }}>
-            <Table rowKey="id" dataSource={rows} pagination={false}
+            {/* The name column keeps its width: a long file name with no spaces ("Made from") once squeezed it to one letter a line. */}
+            <Table rowKey="id" dataSource={rows} pagination={false} scroll={{ x: 960 }}
               columns={[
                 {
-                  title: 'Resume', key: 'name', render: (_, r) => (
+                  title: 'Resume', key: 'name', width: 300, render: (_, r) => (
                     <div className="jl-row" style={{ gap: 10 }}>
                       {r.atsReport ? <Tooltip title={`Readability grade ${r.atsReport.grade} (${r.atsReport.score} of 100)`}><span className={`jl-grade ${r.atsReport.grade}`} aria-label={`Grade ${r.atsReport.grade}`}>{r.atsReport.grade}</span></Tooltip> : <span className="jl-grade" style={{ background: 'var(--jl-chip)' }} aria-label="Not graded yet">–</span>}
                       <a href={`#/resume/${encodeURIComponent(r.id)}`} style={{ fontWeight: 600, color: '#000', overflowWrap: 'anywhere' }}>{r.name}</a>
@@ -211,7 +212,7 @@ export function ResumeScreen() {
                     : <span className="jl-muted">Base resume</span>,
                 },
                 {
-                  title: 'Made from', key: 'b', render: (_, r) => {
+                  title: 'Made from', key: 'b', width: 220, onCell: () => ({ style: { overflowWrap: 'anywhere' } }), render: (_, r) => {
                     const base = r.baseResumeId ? list.data?.find((x) => x.id === r.baseResumeId) : null;
                     return r.kind === 'tailored' ? (base ? <a href={`#/resume/${encodeURIComponent(base.id)}`}>{base.name}</a> : <span className="jl-muted">Its base was deleted</span>) : <span className="jl-muted">{r.file ? r.file.fileName : 'Your profile'}</span>;
                   },

@@ -326,7 +326,7 @@ export class PublikClient {
     }
     await this.secrets.delete(SECRET_NAMES.publikKey);
     if (await this.secrets.get(SECRET_NAMES.publikKey)) {
-      throw new AiError('not_ready', 'jobleft could not delete the publik key from this computer. Unlock the Keychain and try again.');
+      throw new AiError('not_ready', 'jobleft could not delete the publik key from this computer. Check that the key store of your system (Keychain or keyring) is unlocked and try again.');
     }
     // The key is gone; the install is kept, so a later connect returns to the same balance (JL-settings-9).
     this.save({ ...EMPTY, installId: s.installId });

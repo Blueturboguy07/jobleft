@@ -4,6 +4,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { AppSettingsSchema, OnboardingStateSchema, nowIso, type AppSettings, type OnboardingState } from '@jobleft/contracts';
 import { parseJson, prune, tx } from '../db/util.ts';
+import { normalizeSearxUrl } from '../interim/websearch.ts';
 
 export class Kv {
   private readonly db: DatabaseSync;
@@ -28,7 +29,9 @@ export class Kv {
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   crawl: { intervalHours: 6, catchUpOnLaunch: true, runInTray: true },
-  notifications: { reminders: true, alerts: true },
+  notifications: { reminders: true, alerts: true, digest: true, digestHour: 8 },
+  display: { zoom: 1 },
+  webSearch: { url: null },
 };
 
 export class SettingsService {
@@ -41,11 +44,19 @@ export class SettingsService {
     return {
       crawl: { ...DEFAULT_APP_SETTINGS.crawl, ...(s.crawl ?? {}) },
       notifications: { ...DEFAULT_APP_SETTINGS.notifications, ...(s.notifications ?? {}) },
+      display: { ...DEFAULT_APP_SETTINGS.display!, ...(s.display ?? {}) },
+      webSearch: { ...DEFAULT_APP_SETTINGS.webSearch!, ...(s.webSearch ?? {}) },
     };
   }
 
   put(s: AppSettings): AppSettings {
-    this.kv.set('app_settings', prune(AppSettingsSchema, s));
+    // A writer that does not know `display` or `webSearch` (an older UI, the shell's pause item) keeps what is saved.
+    const saved = this.get();
+    const display = s.display ?? saved.display;
+    // The same for the daily summary's fields within notifications.
+    const notifications = { ...saved.notifications, ...s.notifications };
+    const webSearch = s.webSearch ? { url: normalizeSearxUrl(s.webSearch.url) } : saved.webSearch;
+    this.kv.set('app_settings', prune(AppSettingsSchema, { ...s, notifications, display, webSearch }));
     return this.get();
   }
 

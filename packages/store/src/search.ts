@@ -26,7 +26,7 @@ import { foldPlace, ftsString, indexText, parsePlaceQuery, parseQuery, plainToke
 import type { VectorIndex } from './vectors.ts';
 
 export const DEFAULT_LIMIT = 20;
-const POSTED_WINDOW_MS: Record<string, number> = { '24h': 86_400_000, '3d': 3 * 86_400_000, '7d': 7 * 86_400_000, '30d': 30 * 86_400_000 };
+const POSTED_WINDOW_MS: Record<string, number> = { '24h': 86_400_000, '3d': 3 * 86_400_000, '7d': 7 * 86_400_000, '30d': 30 * 86_400_000, '365d': 365 * 86_400_000 };
 const EPOCH_2000_MS = Date.UTC(2000, 0, 1);
 
 export interface SearchDeps {

@@ -18,6 +18,7 @@ import { canonicalizeUrl } from '@jobleft/crawler';
 import { FAMILIES, familyOfTitle } from '@jobleft/match';
 import { ApiFailure } from '../errors.ts';
 import { companyKey } from './company-key.ts';
+import { languageFacts, needsDutch } from './language.ts';
 import { placeMatches } from '../core/places.ts';
 
 export interface JobRow {
@@ -218,6 +219,7 @@ export function rowToJob(r: CrawlRow): Job {
     duplicateOf: r.duplicate_of !== null && r.d_ats && r.d_board && r.d_job_id ? makeJobId(r.d_ats, r.d_board, r.d_job_id) : null,
     contentHash: r.content_hash,
     description: r.description,
+    language: languageFacts(r.title, r.description ?? ''),
   };
 }
 
@@ -351,6 +353,32 @@ export class JobsService {
   }
 
   /** Crawler row ids of the jobs the person hid. */
+  /**
+   * Keeps srv_job_lang up to date for the open jobs: whether each one needs Dutch (interim/language.ts), keyed by the
+   * posting's content hash, so a changed posting is read again. The first run reads every open job (about 2 s for
+   * 18,000); later ones read only new and changed postings.
+   */
+  refreshLanguage(): number {
+    this.db.exec('CREATE TABLE IF NOT EXISTS srv_job_lang (id INTEGER PRIMARY KEY, hash TEXT, needs_dutch INTEGER NOT NULL)');
+    const stale = this.db.prepare(`SELECT j.id, j.title, j.description, j.content_hash FROM jobs j LEFT JOIN srv_job_lang l ON l.id = j.id
+      WHERE j.closed_at IS NULL AND (l.id IS NULL OR l.hash IS NOT j.content_hash)`).all() as Array<{ id: number; title: string; description: string | null; content_hash: string | null }>;
+    if (!stale.length) return 0;
+    const put = this.db.prepare('INSERT INTO srv_job_lang (id, hash, needs_dutch) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET hash = excluded.hash, needs_dutch = excluded.needs_dutch');
+    // A savepoint, not BEGIN: a search may run inside a transaction of its caller.
+    this.db.exec('SAVEPOINT job_lang');
+    try {
+      for (const r of stale) put.run(r.id, r.content_hash, needsDutch(languageFacts(r.title, r.description ?? '')) ? 1 : 0);
+      this.db.exec('RELEASE job_lang');
+    } catch (e) { this.db.exec('ROLLBACK TO job_lang'); this.db.exec('RELEASE job_lang'); throw e; }
+    return stale.length;
+  }
+
+  /** Row ids of the open, non-duplicate jobs first seen after `iso`: from web searches (`web`) or from everything else. */
+  idsFirstSeenSince(iso: string, web: boolean): number[] {
+    const where = web ? "ats = 'external' AND board = 'web'" : "NOT (ats = 'external' AND board = 'web')";
+    return (this.db.prepare(`SELECT id FROM jobs WHERE first_seen > ? AND closed_at IS NULL AND duplicate_of IS NULL AND ${where}`).all(iso) as Array<{ id: number }>).map((r) => Number(r.id));
+  }
+
   hiddenRowIds(): number[] {
     const out: number[] = [];
     for (const r of this.db.prepare('SELECT job_id FROM srv_tracker WHERE hidden = 1').all() as Array<{ job_id: string }>) {
@@ -443,18 +471,22 @@ export class JobsService {
       where.push(`(${parts.join(' OR ')})`);
     }
     if (filter.postedWithin) {
-      const ms = { '24h': 86_400_000, '3d': 3 * 86_400_000, '7d': 7 * 86_400_000, '30d': 30 * 86_400_000 }[filter.postedWithin];
+      const ms = { '24h': 86_400_000, '3d': 3 * 86_400_000, '7d': 7 * 86_400_000, '30d': 30 * 86_400_000, '365d': 365 * 86_400_000 }[filter.postedWithin];
       const cutoff = new Date(nowMs() - ms).toISOString();
       const col = closed ? 'julianday(x.posted_at)' : 'x.sort_new';
       where.push(`(${col} >= julianday(?)${unknownOk.has('postedAt') ? ` OR ${col} IS NULL` : ''})`);
       args.push(cutoff);
     }
+    if (filter.leaveOutDutch) {
+      this.refreshLanguage();
+      where.push('x.id NOT IN (SELECT id FROM srv_job_lang WHERE needs_dutch = 1)');
+    }
     if (filter.minAnnualPayUsd !== undefined) {
       const cur = closed ? 'upper(x.pay_currency)' : 'x.pay_currency';
       const amount = closed ? 'COALESCE(x.pay_max_annual, x.pay_min_annual)' : 'x.pay_annual';
       const none = closed ? '(x.pay_min IS NULL AND x.pay_max IS NULL)' : 'x.has_pay = 0';
-      where.push(`((${cur} = 'USD' AND ${amount} >= ?)${unknownOk.has('pay') ? ` OR ${none}` : ''})`);
-      args.push(filter.minAnnualPayUsd);
+      where.push(`((${cur} = ? AND ${amount} >= ?)${unknownOk.has('pay') ? ` OR ${none}` : ''})`);
+      args.push(filter.payCurrency ?? 'USD', filter.minAnnualPayUsd);
     }
     if (filter.countries?.length) {
       const parts: string[] = [];
@@ -511,10 +543,13 @@ export class JobsService {
       const parts: string[] = [];
       for (const src of filter.sources) {
         if (src.startsWith('ats:')) { parts.push('x.ats = ?'); args.push(src.slice(4)); }
-        else if (src === 'external:url' || src === 'external:text') { parts.push("(x.ats = 'external' AND x.board = ?)"); args.push(src.slice(9)); }
+        else if (src === 'external:url' || src === 'external:text' || src === 'external:web') { parts.push("(x.ats = 'external' AND x.board = ?)"); args.push(src.slice(9)); }
       }
       where.push(parts.length ? `(${parts.join(' OR ')})` : '0');
     }
+    // Jobs found by web search (Jobs > Web search) are listed there, not among the recommended jobs: only a search that
+    // asks for the source "external:web" sees them. Liked, applied and added ones are in the tracker as usual.
+    if (!filter.sources?.includes('external:web')) where.push("NOT (x.ats = 'external' AND x.board = 'web')");
     // Years: the posting's stated minimum (else its maximum) is at most the filter; a posting that states none is out
     // unless unknowns are allowed.
     if (filter.maxYearsRequired !== undefined) {

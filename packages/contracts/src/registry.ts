@@ -12,8 +12,11 @@ import {
   FillResponseSchema, FormFieldSchema, PageInfoRequestSchema, PageInfoSchema, PairingCodeSchema, PairingInfoSchema,
   PairRequestSchema, PairResponseSchema, ReviewResponseSchema, ReviewResultSchema,
 } from './extension.ts';
-import { JobFilterSchema, JobListItemSchema, JobSearchRequestSchema, JobSearchResponseSchema, SavedFilterSchema } from './filter.ts';
-import { JobSchema, JobSummarySchema, PaySchema, PlaceSchema, SourceAttributionSchema } from './job.ts';
+import {
+  WebReadStatusSchema, WebResultOutcomeSchema, WebSavedSearchInputSchema, WebSavedSearchSchema, WebSearchBoardSchema, WebSearchCheckSchema, WebSearchRequestSchema, WebSearchResponseSchema, WebSearchResultSchema, WebTabsSchema, WebLastSearchSchema,
+} from './websearch.ts';
+import { JobFilterSchema, JobListItemSchema, JobSearchRequestSchema, JobSearchResponseSchema, SavedFilterSchema, DigestSchema } from './filter.ts';
+import { JobLanguageSchema, JobSchema, JobSummarySchema, PaySchema, PlaceSchema, SourceAttributionSchema } from './job.ts';
 import {
   DealBreakerCheckSchema, ExperienceDetailSchema, JobFactViewSchema, MatchResultSchema, MatchSummarySchema, MustHaveSchema, SkillCheckSchema,
 } from './match.ts';
@@ -36,7 +39,7 @@ import { PublikConnectionSchema, PublikWalletSchema } from './wallet.ts';
 
 export const SCHEMAS: Readonly<Record<string, JsonSchema>> = {
   // core records
-  Job: JobSchema, JobSummary: JobSummarySchema, Pay: PaySchema, Place: PlaceSchema, SourceAttribution: SourceAttributionSchema,
+  Job: JobSchema, JobSummary: JobSummarySchema, JobLanguage: JobLanguageSchema, Pay: PaySchema, Place: PlaceSchema, SourceAttribution: SourceAttributionSchema,
   Company: CompanySchema, H1bSummary: H1bSummarySchema,
   Profile: ProfileSchema, ProfileInput: ProfileInputSchema, ExtraSection: ExtraSectionSchema,
   Resume: ResumeSchema, ResumeDocument: ResumeDocumentSchema, AtsReport: AtsReportSchema, KeywordGapReport: KeywordGapReportSchema,
@@ -58,6 +61,11 @@ export const SCHEMAS: Readonly<Record<string, JsonSchema>> = {
   CrawlProgress: CrawlProgressSchema, CrawlBoardReport: CrawlBoardReportSchema, FitIndexStatus: FitIndexStatusSchema,
   DatasetInfo: DatasetInfoSchema, H1bLookup: H1bLookupSchema, PlaceLookup: PlaceLookupSchema, StorageInfo: StorageInfoSchema,
   ExternalJobRequest: ExternalJobRequestSchema, Notification: NotificationSchema,
+  // web search
+  WebSearchCheck: WebSearchCheckSchema, WebSearchRequest: WebSearchRequestSchema, WebSearchResult: WebSearchResultSchema,
+  WebSearchBoard: WebSearchBoardSchema, WebSearchResponse: WebSearchResponseSchema, WebReadStatus: WebReadStatusSchema,
+  WebSavedSearch: WebSavedSearchSchema, WebSavedSearchInput: WebSavedSearchInputSchema, WebResultOutcome: WebResultOutcomeSchema,
+  WebTabs: WebTabsSchema, WebLastSearch: WebLastSearchSchema, Digest: DigestSchema,
   // AI
   AiSettings: AiSettingsSchema, AiSettingsUpdate: AiSettingsUpdateSchema, ProviderCheck: ProviderCheckSchema,
   ChatMessage: ChatMessageSchema, ChatRequest: ChatRequestSchema, ChatStreamEvent: ChatStreamEventSchema,

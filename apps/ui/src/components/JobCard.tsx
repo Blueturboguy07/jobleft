@@ -11,10 +11,11 @@ import {
   IdcardOutlined, StopOutlined, TeamOutlined, ExportOutlined,
 } from '@ant-design/icons';
 import type { JobSummary, MatchResult, TrackerStatus } from '@jobleft/contracts';
-import { NOT_STATED, NO_SPONSORSHIP, ago, dateText, initials, jobLink, sponsorChip, levelsText, monoColor, payText, placesText, statusLabel, typeText, workModelText, yearsText } from '../lib/format.ts';
+import { NOT_STATED, NO_SPONSORSHIP, ago, dateText, foundText, initials, jobLink, sponsorChip, levelsText, monoColor, payText, placesText, statusLabel, typeText, workModelText, yearsText } from '../lib/format.ts';
 import { IconAssistant } from './Icons.tsx';
 import { MatchTile, PartRings, whySummary, type MatchSummaryX } from './Match.tsx';
 import { useApi } from '../app/data.ts';
+import { languageChip } from '../lib/filters.ts';
 import { call } from '../app/api.ts';
 import { useH1bSource } from '../app/session.ts';
 
@@ -73,7 +74,10 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
   const closed = j.status === 'closed';
   const places = placesText(j.places);
   const posted = ago(j.postedAt, now);
+  // No posted date stated: when jobleft first found it, worded as found, never as posted.
+  const found = posted ? null : foundText(j.firstSeenAt, now);
   const sponsor = sponsorChip(item.h1bTag, item.h1bNote);
+  const lang = languageChip(j.language);
   const h1bSrc = useH1bSource();
   // A job pasted without a link has no page to open (its placeholder address never loads).
   const link = jobLink(j.url);
@@ -105,9 +109,11 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
             <div className="jl-card-chips">
               {closed && <span className="jl-chip closed">Closed{j.closedAt ? ` ${dateText(j.closedAt)}` : ''}</span>}
               {!closed && posted && <span className="jl-chip time" title={`Posted ${dateText(j.postedAt)}`}>{posted}</span>}
+              {!closed && !posted && found && <span className="jl-chip" title={`The posting states no date. jobleft first found it ${dateText(j.firstSeenAt)}.`}>Found {found}</span>}
               {item.trackerStatus && <span className="jl-chip dark">{statusLabel(item.trackerStatus)}</span>}
               {item.external && <span className="jl-chip">Added by you</span>}
               {sponsor && <Tooltip title={sponsorTip(item.h1bTag, h1bSrc, item.h1bNote)}><span className="jl-chip cyan" tabIndex={0}>{sponsor.text}</span></Tooltip>}
+              {lang && <Tooltip title={lang.tip || undefined}><span className={`jl-chip${lang.warn ? ' warn' : ''}`} tabIndex={0}>{lang.text}</span></Tooltip>}
               <span style={{ marginLeft: 'auto' }} />
               <Dropdown menu={menu} trigger={['click']}>
                 <Button size="small" shape="circle" className="jl-icon-btn" icon={<EllipsisOutlined />} aria-label={`More actions for ${j.title}`} />

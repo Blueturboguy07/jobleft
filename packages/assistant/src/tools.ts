@@ -36,6 +36,27 @@ export interface TurnState {
   toolCalls: number;
   /** Every tool result of this turn, so the grounding guard knows what may be quoted. */
   sources: string[];
+  /** Set while a tool runs: a step it reports (and a page it used), shown in the chat as it happens. */
+  progress?: (step: string, source?: { title: string; url: string }) => void;
+}
+
+/** One job a web search found and jobleft read (or already had). */
+export interface WebFoundJob { id: string; title: string; company: string; places: string; url: string; isNew: boolean }
+
+/** What the web_search tool gets from the app: the person's own SearXNG, through the app's web search and reader. */
+export interface WebSearchTool {
+  /** true when the person set up web search (Settings > Web search) and jobleft is not offline. */
+  available(): boolean;
+  search(a: { query: string; place?: string; purpose: 'jobs' | 'general' }, progress: NonNullable<TurnState['progress']>, signal?: AbortSignal): Promise<{
+    message: string;
+    jobs: WebFoundJob[];
+    /** Other results, for the person to open (untrusted text from the engines). */
+    others: Array<{ title: string; url: string; snippet: string; kind: string }>;
+    boards: Array<{ company: string | null; board: string; system: string; followed: boolean }>;
+    pagesRead: number;
+    /** Job pages still waiting: they are read in the background and show in Jobs > Web jobs. */
+    stillReading: number;
+  }>;
 }
 
 export interface ToolDeps {
@@ -45,6 +66,8 @@ export interface ToolDeps {
   free: FreeReader;
   book: ProposalBook;
   enricher?: CompanyEnricher | null;
+  /** Web search through the person's SearXNG; null or unavailable = no web_search tool. */
+  web?: WebSearchTool | null;
 }
 
 /** The person's own words that ask for a change of their data. Text inside a posting never reaches this test. */
@@ -75,6 +98,16 @@ export const READ_TOOLS: AiTool[] = [
   { name: 'read_page', description: 'Read one web page for free (a link the person gave, or a link of a stored job). It refuses private addresses, blocked sites and pages robots.txt disallows.', parameters: obj({ url: STR }, ['url']) },
 ];
 
+export const WEB_SEARCH_TOOL: AiTool = {
+  name: 'web_search',
+  description: "Search the whole web (any site) through the person's own search engine. Free. purpose \"jobs\": find job openings, internships or traineeships on the open web (company career pages, government and other job sites); it reads the most promising job pages and returns the jobs with ids (use get_job or propose_changes with them). purpose \"general\": anything else (pay levels, a company, a field, how to apply); it returns the results, and you can read a result with read_page. Results are links with short texts from the search engines.",
+  parameters: obj({
+    query: { type: 'string', description: 'What to search for, in a few words. For jobs: the job title or skills (for example "junior SOC analyst"), no place names here. For general: the question in search words.' },
+    place: { type: 'string', description: 'Where: a city, region or country, if the person named one or their profile has one.' },
+    purpose: { type: 'string', enum: ['jobs', 'general'], description: 'jobs to find openings; general for any other question.' },
+  }, ['query']),
+};
+
 export const WRITE_TOOL: AiTool = {
   name: 'propose_changes',
   description: 'Ask the person to approve changes to their data. NOTHING changes until they approve each one. Use it only when the person asked for a change. After calling it, tell them what you proposed and that nothing has changed yet.',
@@ -97,7 +130,7 @@ export const PAID_TOOL: AiTool = {
   parameters: obj({ kind: { type: 'string', enum: ['page', 'search'] }, url: STR, query: STR, why: STR }, ['kind']),
 };
 
-export function toolsFor(preset: string, state: Pick<TurnState, 'allowWrites' | 'allowWeb'>, metered: boolean): AiTool[] {
+export function toolsFor(preset: string, state: Pick<TurnState, 'allowWrites' | 'allowWeb'>, metered: boolean, web = false): AiTool[] {
   const byPreset: Record<string, string[] | null> = {
     chat: null, fit: null,
     browse: ['search_jobs', 'get_job', 'list_tracker', 'get_match', 'company_facts', 'get_profile', 'next_steps'],
@@ -108,6 +141,7 @@ export function toolsFor(preset: string, state: Pick<TurnState, 'allowWrites' | 
   };
   const names = byPreset[preset] ?? null;
   const out = READ_TOOLS.filter((t) => !names || names.includes(t.name));
+  if (web && (preset === 'chat' || preset === 'browse')) out.push(WEB_SEARCH_TOOL);
   if (state.allowWrites) out.push(WRITE_TOOL);
   if (state.allowWeb && metered) out.push(PAID_TOOL);
   return out;
@@ -356,6 +390,29 @@ export function createToolbox(deps: ToolDeps) {
         return { ok: false, message: r.message, ...(offer ? { paid: offer } : {}) };
       }
       return { ok: true, finalUrl: r.finalUrl, truncated: r.truncated, needsBrowser: r.needsRender, untrusted: { pageText: clip(r.text, 6000) }, note: UNTRUSTED_NOTE };
+    },
+
+    async web_search(a, s) {
+      const web = deps.web;
+      if (!web || !web.available()) return { error: 'Web search is not set up. The person can add their SearXNG address in Settings > Web search.' };
+      const query = typeof a.query === 'string' ? a.query.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
+      if (!query) return { error: 'query is empty: give a job title or skills.' };
+      const place = typeof a.place === 'string' && a.place.trim() ? a.place.replace(/\s+/g, ' ').trim().slice(0, 200) : undefined;
+      const purpose = a.purpose === 'general' ? 'general' : 'jobs';
+      const r = await web.search({ query, ...(place ? { place } : {}), purpose }, s.progress ?? (() => undefined));
+      for (const j of r.jobs) seen(s, { id: j.id, title: j.title, company: j.company, url: j.url });
+      for (const o of r.others) s.knownUrls.add(normUrl(o.url));
+      return {
+        message: r.message,
+        jobs: r.jobs.map((j) => ({ id: j.id, title: j.title, company: j.company, places: j.places, link: j.url, newToThePerson: j.isNew })),
+        boards: r.boards,
+        pagesRead: r.pagesRead,
+        stillReading: r.stillReading,
+        untrusted: { otherResults: r.others.slice(0, 15) },
+        note: purpose === 'general'
+          ? `${UNTRUSTED_NOTE} These are search results only: read a page with read_page before you state what it says. Name the sites you used.`
+          : `${UNTRUSTED_NOTE} Only the jobs listed here were found and read. ${r.stillReading ? `${r.stillReading} more pages are being read in the background; they will show in Jobs > Web jobs.` : ''} Mention that the person can see the whole search in Jobs > Web jobs.`,
+      };
     },
 
     async propose_changes(a, s) {

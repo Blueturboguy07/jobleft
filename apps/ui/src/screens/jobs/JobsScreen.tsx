@@ -1,4 +1,4 @@
-// The Jobs screen: the four tabs (Recommended, Liked, Applied, External) plus Hidden, and the job detail opened
+// The Jobs screen: the five tabs (Recommended, Web jobs, Liked, Applied, External) plus Hidden, and the job detail opened
 // over them. The tab below stays mounted (inert while the detail is open), so closing the detail returns to the
 // same list, filters and scroll position, and focus goes back to the card that opened it.
 
@@ -8,9 +8,10 @@ import { ErrorBoundary } from '../../components/States.tsx';
 import { JobDetail } from '../detail/JobDetail.tsx';
 import { Feed } from './Feed.tsx';
 import { AppliedTab, ExternalTab, HiddenTab, LikedTab } from './TrackerTabs.tsx';
+import { WebSearchTab } from './WebSearchTab.tsx';
 
-export type JobsTab = 'recommended' | 'liked' | 'applied' | 'external' | 'hidden';
-export const JOB_TABS: JobsTab[] = ['recommended', 'liked', 'applied', 'external', 'hidden'];
+export type JobsTab = 'recommended' | 'liked' | 'applied' | 'external' | 'web' | 'hidden';
+export const JOB_TABS: JobsTab[] = ['recommended', 'web', 'liked', 'applied', 'external', 'hidden'];
 
 let lastTab: JobsTab = 'recommended';
 export function backgroundTab(): JobsTab {
@@ -73,6 +74,7 @@ export function JobsScreen({ tab, detailId }: { tab: JobsTab | null; detailId: s
           {current === 'liked' && <LikedTab />}
           {current === 'applied' && <AppliedTab />}
           {current === 'external' && <ExternalTab />}
+          {current === 'web' && <WebSearchTab />}
           {current === 'hidden' && <HiddenTab />}
         </ErrorBoundary>
       </div>

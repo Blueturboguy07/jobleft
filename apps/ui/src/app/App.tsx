@@ -10,7 +10,7 @@ import { Dashboard } from '../screens/Dashboard.tsx';
 import { InterviewScreen } from '../screens/Interview.tsx';
 import { JOB_TABS, JobsScreen, backgroundTab, type JobsTab } from '../screens/jobs/JobsScreen.tsx';
 import { NetworkScreen } from '../screens/Network.tsx';
-import { Notifications } from '../screens/Notifications.tsx';
+import { NotificationHistory, Notifications } from '../screens/Notifications.tsx';
 import { Onboarding, onboardingSkipped } from '../screens/Onboarding.tsx';
 import { ProfileScreen } from '../screens/Profile.tsx';
 import { ResumeEditor } from '../screens/ResumeEditor.tsx';
@@ -19,7 +19,7 @@ import { SettingsScreen } from '../screens/Settings.tsx';
 import { TrackerScreen } from '../screens/Tracker.tsx';
 import { call, hasToken } from './api.ts';
 import { navigate, useRoute } from './router.ts';
-import { useCrawlWatcher, useOnboarding, useProfile } from './session.ts';
+import { useCrawlWatcher, useOnboarding, useProfile, useWindowZoom } from './session.ts';
 import { setupPending } from '../lib/onboarding.ts';
 
 function NoToken() {
@@ -36,7 +36,7 @@ function NoToken() {
 
 const WINDOW_TITLES: Record<ScreenId, string> = {
   jobs: 'Jobs', tracker: 'Tracker', dashboard: 'Dashboard', resume: 'Resume', profile: 'Profile', network: 'Network', interview: 'Interview',
-  assistant: 'Assistant', settings: 'Settings', notifications: 'Alerts',
+  assistant: 'Assistant', settings: 'Settings', notifications: 'Alerts', history: 'Notifications',
 };
 
 export function App() {
@@ -44,6 +44,7 @@ export function App() {
   const profile = useProfile();
   const setup = useOnboarding();
   useCrawlWatcher();
+  useWindowZoom();
   const gateChecked = useRef(false);
 
   // At launch, a setup that was never finished or skipped opens again, on the step the person was on
@@ -87,6 +88,7 @@ export function App() {
     case 'assistant': screen = 'assistant'; body = <AssistantScreen chatId={route[1] ?? null} />; break;
     case 'settings': case 'boards': screen = 'settings'; body = <SettingsScreen tab={head === 'boards' ? 'sources' : route[1] ?? null} />; break;
     case 'notifications': screen = 'notifications'; body = <Notifications />; break;
+    case 'history': screen = 'history'; body = <NotificationHistory />; break;
     default:
       body = (
         <section className="jl-state" style={{ marginTop: 48 }}>
@@ -96,7 +98,7 @@ export function App() {
         </section>
       );
   }
-  if (head === 'jobs' || !['tracker', 'dashboard', 'resume', 'profile', 'network', 'interview', 'assistant', 'settings', 'boards', 'notifications'].includes(head)) screen = 'jobs';
+  if (head === 'jobs' || !['tracker', 'dashboard', 'resume', 'profile', 'network', 'interview', 'assistant', 'settings', 'boards', 'notifications', 'history'].includes(head)) screen = 'jobs';
   document.title = `${WINDOW_TITLES[screen]} · jobleft`;
 
   return (

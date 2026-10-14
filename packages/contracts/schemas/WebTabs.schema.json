@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:WebTabs",
+  "title": "WebTabs",
+  "type": "object",
+  "properties": {
+    "tabs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https?://",
+                "maxLength": 4096,
+                "description": "Absolute http(s) URL"
+              },
+              "title": {
+                "type": "string"
+              },
+              "snippet": {
+                "type": "string"
+              },
+              "host": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "board_job",
+                  "board",
+                  "page",
+                  "list",
+                  "never"
+                ]
+              },
+              "ats": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "greenhouse",
+                      "lever",
+                      "ashby",
+                      "workable",
+                      "recruitee",
+                      "personio",
+                      "teamtailor",
+                      "gem"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "board": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "region": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "boardId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "publishedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "RFC 3339 date-time, UTC (\"Z\")"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "engines": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "jobId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "note": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "url",
+              "title",
+              "snippet",
+              "host",
+              "kind",
+              "ats",
+              "board",
+              "region",
+              "boardId",
+              "publishedAt",
+              "engines",
+              "jobId",
+              "note"
+            ],
+            "title": "WebSearchResult"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "url",
+          "result"
+        ]
+      },
+      "maxItems": 12
+    },
+    "active": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 4096
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "tabs",
+    "active"
+  ]
+}

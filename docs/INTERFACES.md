@@ -211,6 +211,7 @@ Status: Built by the server lane (`scripts/app-up.ts`, `scripts/app-down.ts`). T
 | Launch | The shell makes a new launch token and starts the server sidecar with `sidecarEnv()` (apps/shell, Built): `JOBLEFT_HOME`, `JOBLEFT_LAUNCH_TOKEN`, `JOBLEFT_PARENT_PID`, `JOBLEFT_UI_DIR` |
 | Port | The server takes the first free port of 47821 to 47830 (`DEFAULT_PORT`, `PORT_SPAN`), or `JOBLEFT_PORT`. The shell reads the port from `run/server.json` |
 | Ready | The shell waits for `GET /api/v1/health` (up to `READY_TIMEOUT_MS`), then opens the window at `http://127.0.0.1:<port>/#token=<token>` |
+| Interface size | The shell opens the window at `display.zoom` from `GET /api/v1/settings` (0.8 to 1.5, absent = 1). After that the page zooms its own window (Settings > Appearance, Ctrl or Cmd with +, - and 0) through the one extra IPC permission `core:webview:allow-set-webview-zoom` |
 | Single instance | One server per data folder (`run/server.lock`). A second launch focuses the first window and exits |
 | Window closed | The app keeps running in the menu bar; the crawl scheduler and reminders continue |
 | Notifications | The shell polls `GET /api/v1/notifications` every `NOTIFICATION_POLL_MS` and acks each one it shows |
@@ -220,7 +221,7 @@ Status: Built by the server lane (`scripts/app-up.ts`, `scripts/app-down.ts`). T
 
 ## 6. Local API
 
-Code: `packages/contracts/src/api.ts` (`LOCAL_API`, 97 routes). Typed client: `createLocalApiClient()` in
+Code: `packages/contracts/src/api.ts` (`LOCAL_API`, 105 routes). Typed client: `createLocalApiClient()` in
 `@jobleft/contracts` (Built).
 
 ### 6.1 Security rules (every rule is a MUST)
@@ -312,14 +313,18 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `deleteAllData` | POST | `/api/v1/data/delete` | launch | server | — | `{ confirm }` | `Ok` | Delete every personal record and file in the data folder |
 | `listNotifications` | GET | `/api/v1/notifications` | launch | server | — | — | `Notification[]` | Notifications waiting for the shell to show |
 | `ackNotification` | POST | `/api/v1/notifications/:notificationId/ack` | launch | server | — | — | `Ok` | Mark a notification shown (it is never shown again) |
+| `listNotificationHistory` | GET | `/api/v1/notifications/history` | launch | server | — | — | `Notification[]` | Every notification, shown or not, newest first (at most 200), until cleared |
+| `clearNotifications` | POST | `/api/v1/notifications/clear` | launch | server | — | — | `Ok` | Clear the notification history and mark every notification shown |
 | `exportJobs` | GET | `/api/v1/export/jobs` | launch | store | — | — | file | Download saved jobs with their source credits (NDJSON) |
 | `shutdown` | POST | `/api/v1/shutdown` | launch | server | — | `{}` | `Ok` | Stop the server cleanly (the desktop shell uses it to quit; Windows has no SIGTERM) |
 | `devClock` | POST | `/api/v1/dev/clock` | launch | server | — | `{ offset?, now? }` | `{ now }` | Time-skip for tests (JOBLEFT_DEV=1 only) |
 | `listJobs` | GET | `/api/v1/jobs` | launch | store | `{ q?, sort?, cursor?, limit?, status? }` | — | `JobSearchResponse` | Simple search with the saved default filter |
 | `searchJobs` | POST | `/api/v1/jobs/search` | launch | store | — | `JobSearchRequest` | `JobSearchResponse` | Search with the full filter set |
 | `getJob` | GET | `/api/v1/jobs/:jobId` | launch | store | — | — | `JobDetail` | One job with company, match, tracker and network count |
+| `replaceJobText` | PUT | `/api/v1/jobs/:jobId/text` | launch | sources-other | — | `{ text }` | `{ job }` | Replace the text of a job the person added (or kept from a web search) with the pasted posting; its facts are read again, its likes, notes and status stay |
 | `addExternalJob` | POST | `/api/v1/jobs/external` | launch | sources-other | — | `ExternalJobRequest` | `{ job, tracker }` | Add a job from a URL or pasted text (External tab) |
 | `keywordGaps` | GET | `/api/v1/jobs/:jobId/keyword-gaps` | launch | resume | `{ resumeId }` | — | `KeywordGapReport` | Keyword gaps of a resume for a job |
+| `getDigest` | GET | `/api/v1/digest` | launch | server | `{ hours? }` | — | `Digest` | The new jobs that fit the profile in the last hours (24 by default, at most 168), best first, and what is due today |
 | `listTracker` | GET | `/api/v1/tracker` | launch | store | `{ view, status? }` | — | `TrackerList` | Liked, Applied, External, hidden, closed and tracked (everything the person did) views |
 | `updateTracker` | PATCH | `/api/v1/tracker/:jobId` | launch | store | — | `TrackerPatch` | `TrackerEntry` | Like, hide, set status, notes, reminders |
 | `listFilters` | GET | `/api/v1/filters` | launch | store | — | — | `SavedFilter[]` | Saved filters |
@@ -353,6 +358,18 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `resolveBoard` | POST | `/api/v1/boards/resolve` | launch | boards | — | `{ url, acceptPaidLookup? }` | `BoardResolveResponse` | Find the board behind a careers or job link (adds nothing) |
 | `addBoard` | POST | `/api/v1/boards` | launch | boards | — | `{ ats, board, region? }` | `BoardEntry` | Add a confirmed board (409 conflict when already added) |
 | `updateBoard` | PATCH | `/api/v1/boards/:boardId` | launch | boards | — | `{ followed?, hidden?, disabled? }` | `BoardEntry` | Follow, hide or disable a board |
+| `checkWebSearch` | POST | `/api/v1/websearch/check` | launch | server | — | `{ url? }` | `WebSearchCheck` | Test a SearXNG address (the given one, else the saved one) with one search |
+| `webSearchJobs` | POST | `/api/v1/websearch/jobs` | launch | server | — | `WebSearchRequest` | `WebSearchResponse` | Search the web for jobs through the saved SearXNG; the job pages found are then read in the background (once each) and kept as jobs of the source external:web |
+| `listWebSaved` | GET | `/api/v1/websearch/saved` | launch | server | — | — | `WebSavedSearch[]` | Saved web searches (they run by themselves and alert on new jobs) |
+| `addWebSaved` | POST | `/api/v1/websearch/saved` | launch | server | — | `WebSavedSearchInput` | `WebSavedSearch` | Save a web search (at most 10; 409 when the same one is saved) |
+| `updateWebSaved` | PATCH | `/api/v1/websearch/saved/:savedId` | launch | server | — | `{ everyHours }` | `WebSavedSearch` | How often a saved web search runs |
+| `deleteWebSaved` | DELETE | `/api/v1/websearch/saved/:savedId` | launch | server | — | — | `Ok` | Delete a saved web search (its jobs stay) |
+| `webSearchOutcomes` | POST | `/api/v1/websearch/outcomes` | launch | server | — | `{ urls, country? }` | `WebResultOutcome[]` | What came of reading these web search results (job, list, closed, outside the country asked for) |
+| `saveWebResult` | POST | `/api/v1/websearch/save` | launch | server | — | `{ url, title, snippet? }` | `{ jobId }` | Keep a web search result as a job, to like or track it: the job read from it, else one made from the result itself (nothing is sent to the site) |
+| `getWebLast` | GET | `/api/v1/websearch/last` | launch | server | — | — | `{ last }` | The last search made in Web jobs and its answer, More results merged in (kept across restarts) |
+| `getWebTabs` | GET | `/api/v1/websearch/tabs` | launch | server | — | — | `WebTabs` | The web search results open in tabs (kept across restarts) |
+| `putWebTabs` | PUT | `/api/v1/websearch/tabs` | launch | server | — | `WebTabs` | `WebTabs` | Keep the web search results open in tabs |
+| `webReadStatus` | GET | `/api/v1/websearch/reading` | launch | server | — | — | `WebReadStatus` | How the background reading of web search results is going |
 | `exportBoards` | GET | `/api/v1/boards/export` | launch | boards | — | — | file | Download the directory and user boards (NDJSON) |
 | `listSources` | GET | `/api/v1/sources` | launch | sources-other | — | — | `SourceInfo[]` | Every source: crawled or not, why, status |
 | `updateSource` | PATCH | `/api/v1/sources/:sourceId` | launch | sources-other | — | `{ enabled }` | `SourceInfo` | Turn a source on or off |
@@ -1393,7 +1410,7 @@ carries only one contact's name, title and company, one job and a short profile 
 Status: **Built** (server lane). Purpose: the local HTTP server that enforces section 6.1 and wires every package.
 Owns: tables `pairings`, `srv_kv`, `srv_notifications` and the interim `srv_*` tables (section 3); routes `health`,
 `getSettings`, `putSettings`, `backup`, `restore`, `exportAll`, `deleteAllData`, `listNotifications`,
-`ackNotification`, `devClock`, `pairingCode`, `pair`, `listPairings`, `deletePairing`, `unpair`, `extensionStatus`,
+`ackNotification`, `listNotificationHistory`, `clearNotifications`, `devClock`, `pairingCode`, `pair`, `listPairings`, `deletePairing`, `unpair`, `extensionStatus`,
 `fill`, `review`; the scripts `pnpm app:up` and `pnpm app:down`. How to run it: `apps/server/README.md`.
 
 | Export (`apps/server/src/index.ts`) | What |

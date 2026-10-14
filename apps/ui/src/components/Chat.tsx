@@ -7,10 +7,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Checkbox, Input } from 'antd';
 import { Tooltip } from './Tip.tsx';
-import { CloseOutlined, SendOutlined, StopOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CheckOutlined, CloseOutlined, ExclamationOutlined, RightOutlined, SendOutlined, StopOutlined, ReloadOutlined } from '@ant-design/icons';
 import { formatDollars, type ActionProposal, type ChatThread } from '@jobleft/contracts';
 import { parseMarkdown, type Span } from '../lib/markdown.ts';
-import { EMPTY_CHAT, afterDecision, dropEmptyAnswer, onStreamEvent, proposalMode, startTurn, viewOfThread, type ChatView } from '../lib/chatState.ts';
+import { EMPTY_CHAT, afterDecision, dropEmptyAnswer, onStreamEvent, proposalMode, startTurn, viewOfThread, type ChatView, type ToolActivity } from '../lib/chatState.ts';
 import { call, streamChat, type UiError } from '../app/api.ts';
 import { invalidate } from '../app/data.ts';
 import { ui } from '../app/layers.ts';
@@ -176,7 +176,8 @@ export function Chat({ jobId, jobTitle, chatId: initialChatId, draft, onThread, 
         {msgs.map((m, i) => (
           <div key={i} className={`jl-bubble ${m.role}`}>
             <span className="jl-sr">{m.role === 'user' ? 'You said: ' : 'Assistant: '}</span>
-            {m.content ? (m.role === 'assistant' ? <AnswerText text={m.content} /> : m.content) : (busy && i === msgs.length - 1 ? '…' : '')}
+            {m.tools?.length ? <ToolSteps tools={m.tools} /> : null}
+            {m.content ? (m.role === 'assistant' ? <AnswerText text={m.content} /> : m.content) : (busy && i === msgs.length - 1 && !m.tools?.some((t) => t.state === 'running') ? '…' : '')}
             {m.incomplete && <div className="jl-small" style={{ marginTop: 6, opacity: 0.8 }}>The answer stopped early. What arrived is kept.</div>}
             {m.costMicros ? <div className="jl-small" style={{ marginTop: 6, opacity: 0.8 }}>Cost: {formatDollars(m.costMicros)} from your balance</div> : null}
           </div>
@@ -211,6 +212,59 @@ export function Chat({ jobId, jobTitle, chatId: initialChatId, draft, onThread, 
             : <Button type="primary" shape="circle" icon={<SendOutlined />} disabled={!text.trim()} onClick={() => { void send(text); }} aria-label="Send" />}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The tools an answer used, as steps: a running one pulses and shows what it does now; a click opens its steps and
+ * the pages it used, live while it runs. A finished one closes to one line with its result.
+ */
+function ToolSteps({ tools }: { tools: ToolActivity[] }) {
+  return (
+    <div className="jl-tools" aria-label="What the assistant did">
+      {tools.map((t) => <ToolStep key={t.id} t={t} />)}
+    </div>
+  );
+}
+
+function ToolStep({ t }: { t: ToolActivity }) {
+  const [open, setOpen] = useState(false);
+  const running = t.state === 'running';
+  const now = running ? t.steps.at(-1) : null;
+  const canOpen = t.steps.length > 0 || t.sources.length > 0;
+  return (
+    <div className={`jl-tool ${t.state}`}>
+      <button type="button" className="jl-tool-head" aria-expanded={open} disabled={!canOpen} onClick={() => setOpen((o) => !o)}>
+        <span className="jl-tool-icon" aria-hidden="true">
+          {running ? <span className="jl-tool-dot" /> : t.state === 'done' ? <CheckOutlined /> : <ExclamationOutlined />}
+        </span>
+        <span className="jl-tool-text">
+          <span className={running ? 'jl-tool-label jl-shimmer' : 'jl-tool-label'}>{t.label}</span>
+          {running && now ? <span className="jl-tool-now">{now}</span> : null}
+          {!running && t.summary ? <span className="jl-tool-now">{t.summary}</span> : null}
+        </span>
+        {canOpen && <RightOutlined className={`jl-tool-chev${open ? ' open' : ''}`} aria-hidden="true" />}
+        <span className="jl-sr">{running ? ' (working)' : t.state === 'done' ? ' (done)' : ' (failed)'}</span>
+      </button>
+      {open && (
+        <div className="jl-tool-body">
+          {t.steps.length > 0 && (
+            <ol className="jl-tool-steps">
+              {t.steps.map((s, i) => <li key={i} className="jl-tool-step">{s}</li>)}
+            </ol>
+          )}
+          {t.sources.length > 0 && (
+            <div className="jl-tool-sources">
+              {t.sources.map((s) => (
+                <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer" className="jl-tool-source" title={s.url}>
+                  {s.title || s.url}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

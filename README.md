@@ -10,6 +10,8 @@ A job-search app that runs on your Mac. It reads employers' public job boards st
 2. Open the disk image and drag **jobleft** to Applications.
 3. Open jobleft. It is signed and notarized, so there is no warning to click through.
 
+**Linux:** download `jobleft_<version>_amd64.AppImage`, run `chmod +x` on it and start it. See [docs/LINUX.md](docs/LINUX.md) for requirements and building it yourself.
+
 The first run asks for your job function, job type, place, pay and work authorization, takes a resume (PDF or Word), and then reads about 40 employer boards. Jobs appear within a minute and keep arriving while you look.
 
 ## What it does

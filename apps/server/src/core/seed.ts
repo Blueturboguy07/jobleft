@@ -10,6 +10,11 @@
 // After the curated lists, the set is filled from the board directory's "live" rows (checked against the provider),
 // spread evenly across providers, in a fixed order, so the first feed draws on more employers than a few large ones
 // (the founder's review on 2026-09-27 found 39 employers and one of them with 1,799 of 11,893 jobs).
+//
+// Country lists (SEED_BY_COUNTRY): the curated lists and the directory are almost all US employers. A person whose
+// places are only countries with a list of their own gets just that list (US boards would bury the local jobs). A
+// person who also names other places gets the country list first, then the same set as before. Anyone else, the same
+// set as before.
 
 import { readFileSync } from 'node:fs';
 import type { CrawlAtsId, JobPreferences } from '@jobleft/contracts';
@@ -21,6 +26,44 @@ export interface SeedBoard { ats: CrawlAtsId; board: string; company: string; re
 const g = (board: string, company: string): SeedBoard => ({ ats: 'greenhouse', board, company });
 const l = (board: string, company: string): SeedBoard => ({ ats: 'lever', board, company });
 const a = (board: string, company: string): SeedBoard => ({ ats: 'ashby', board, company });
+const r = (board: string, company: string): SeedBoard => ({ ats: 'recruitee', board, company });
+const p = (board: string, company: string): SeedBoard => ({ ats: 'personio', board, company });
+
+/**
+ * Employer boards with open jobs in the country, checked against each provider's public API on 2026-10-10 (every
+ * board listed jobs located in the country that day). Security companies first, then tech and finance.
+ */
+export const SEED_BY_COUNTRY: Record<string, SeedBoard[]> = {
+  NL: [
+    a('eye-security', 'Eye Security'), r('northwave', 'Northwave'), r('on2it', 'ON2IT'), r('nomios', 'Nomios'), r('tesorion', 'Tesorion'),
+    g('sentinellabs', 'SentinelOne'), g('wizinc', 'Wiz'), g('netskope', 'Netskope'), r('intigriti', 'Intigriti'), g('elastic', 'Elastic'),
+    a('snyk', 'Snyk'), g('kaseya', 'Kaseya'),
+    g('nebius', 'Nebius'), g('adyen', 'Adyen'), g('imc', 'IMC Trading'), g('catawiki', 'Catawiki'), g('bolcom', 'bol'), a('mollie', 'Mollie'),
+    g('flowtraders', 'Flow Traders'), r('cmcom', 'CM.com'), r('bunq', 'bunq'), { ats: 'lever', board: 'tomtom', company: 'TomTom', region: 'eu' },
+    g('celonis', 'Celonis'), r('effectory', 'Effectory'), r('nmbrs', 'Nmbrs'), r('channable', 'Channable'), l('bloomon', 'Bloomon'),
+    p('ohpen', 'Ohpen'), a('polarsteps', 'Polarsteps'), g('ebury', 'Ebury'), g('grafanalabs', 'Grafana Labs'), a('miro', 'Miro'),
+    g('mongodb', 'MongoDB'), a('sentry', 'Sentry'), g('workato', 'Workato'),
+    // US companies with large Dutch offices (they also list jobs in the Netherlands).
+    g('databricks', 'Databricks'), g('datadog', 'Datadog'), g('flexport', 'Flexport'), g('gitlab', 'GitLab'),
+  ],
+};
+
+/** A place named in words: the country it is in, when it has a list (cities and the country's own names). */
+const PLACE_COUNTRY: Array<[string, RegExp]> = [
+  ['NL', /netherlands|nederland|holland|amsterdam|rotterdam|utrecht|den haag|the hague|eindhoven|groningen|leiden|delft|haarlem|nijmegen|arnhem|breda|tilburg|zwolle|amersfoort/i],
+];
+
+/** The countries a person's places point at: the country codes, and the countries of places named in words. */
+export function countriesFor(prefs: Pick<JobPreferences, 'countries' | 'places'>): { codes: string[]; onlyListed: boolean } {
+  const codes = new Set(prefs.countries.map((c) => c.toUpperCase()));
+  let unknownPlace = false;
+  for (const pl of prefs.places) {
+    const hit = PLACE_COUNTRY.find(([, re]) => re.test(pl.text));
+    if (hit) codes.add(hit[0]); else unknownPlace = true;
+  }
+  const list = [...codes];
+  return { codes: list, onlyListed: list.length > 0 && !unknownPlace && list.every((c) => SEED_BY_COUNTRY[c]) };
+}
 
 export const SEED: Record<Field, SeedBoard[]> = {
   health: [
@@ -84,7 +127,7 @@ export function fieldsFor(prefs: Pick<JobPreferences, 'jobFunctions' | 'targetTi
  * The starting boards: every board of the person's fields first (at most 60% of the limit), then the other fields in
  * turn, so the set always spans several fields and at least 25 employers.
  */
-export function seedBoards(prefs: Pick<JobPreferences, 'jobFunctions' | 'targetTitles'>, env: NodeJS.ProcessEnv = process.env): SeedBoard[] {
+export function seedBoards(prefs: Pick<JobPreferences, 'jobFunctions' | 'targetTitles'> & Partial<Pick<JobPreferences, 'countries' | 'places'>>, env: NodeJS.ProcessEnv = process.env): SeedBoard[] {
   const spec = (env.JOBLEFT_SEED_BOARDS ?? '').trim();
   if (spec === 'none') return [];
   if (spec) {
@@ -97,7 +140,12 @@ export function seedBoards(prefs: Pick<JobPreferences, 'jobFunctions' | 'targetT
   const out: SeedBoard[] = [];
   const seen = new Set<string>();
   const push = (b: SeedBoard) => { const k = `${b.ats}:${b.board}`; if (!seen.has(k) && out.length < limit) { seen.add(k); out.push(b); } };
-  const firstShare = Math.floor(limit * 0.6);
+  // The person's countries with a list of their own come first.
+  const where = countriesFor({ countries: prefs.countries ?? [], places: prefs.places ?? [] });
+  for (const c of where.codes) for (const b of SEED_BY_COUNTRY[c] ?? []) push(b);
+  // Only listed countries: nothing more (the field lists and the directory are US employers).
+  if (where.onlyListed) return out;
+  const firstShare = Math.max(out.length, Math.floor(limit * 0.6));
   // Preferred fields, interleaved, up to 60% of the set.
   const prefLists = preferred.map((f) => [...SEED[f]]);
   while (out.length < firstShare && prefLists.some((x) => x.length)) for (const x of prefLists) { const b = x.shift(); if (b && out.length < firstShare) push(b); }

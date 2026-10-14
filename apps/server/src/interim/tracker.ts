@@ -164,6 +164,11 @@ export class TrackerService {
     return rows.filter((r) => Date.parse(r.at) <= nowMsValue).map((r) => ({ id: r.id, jobId: r.job_id, at: r.at, text: r.text }));
   }
 
+  /** How many reminders not done are due by `iso` (the daily summary: by the end of today). */
+  remindersDueBy(iso: string): number {
+    return (this.db.prepare('SELECT at FROM srv_tracker_reminders WHERE done = 0').all() as Array<{ at: string }>).filter((r) => Date.parse(r.at) <= Date.parse(iso)).length;
+  }
+
   markReminderNotified(id: string): void {
     tx(this.db, () => { this.db.prepare('UPDATE srv_tracker_reminders SET notified_at = ? WHERE id = ?').run(nowIso(), id); });
   }

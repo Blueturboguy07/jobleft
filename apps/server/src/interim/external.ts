@@ -6,6 +6,8 @@
 import { createHash } from 'node:crypto';
 import { htmlToText } from '@jobleft/parsers';
 import { isNeverHost } from '@jobleft/extension';
+import { detectBoardFromUrl } from '@jobleft/boards';
+import { ATS_SOURCES, detectAts } from '@jobleft/sources-ats';
 import {
   DeniedHostError, HttpClient, HttpError, NotFoundError, NotJobDataError, RobotsError, arr, canonicalizeUrl, isLocalName, isPrivateAddress, mapAshby,
   mapGreenhouse, mapLever, normalizeJob, obj, str, type BoardRef, type Job as CrawledJob, type RawJob, type RawPay, type Store,
@@ -13,8 +15,11 @@ import {
 import { nowIso } from '@jobleft/contracts';
 import { ApiFailure } from '../errors.ts';
 import { NO_LINK_HOST } from './jobs.ts';
+import { mentionsAll } from './words.ts';
 
-const NEVER = /(^|\.)(linkedin\.com|licdn\.com|indeed\.com|glassdoor\.com|smartrecruiters\.com|myworkdayjobs\.com|myworkdaysite\.com|workday\.com|icims\.com|taleo\.net|oraclecloud\.com|ultipro\.com|ukg\.com)$/i;
+export const NEVER = /(^|\.)(linkedin\.com|licdn\.com|indeed\.com|glassdoor\.com|smartrecruiters\.com|myworkdayjobs\.com|myworkdaysite\.com|workday\.com|icims\.com|taleo\.net|oraclecloud\.com|ultipro\.com|ukg\.com)$/i;
+
+const COUNTRY_NAMES = new Intl.DisplayNames(['en'], { type: 'region' });
 
 const hash16 = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 16);
 
@@ -59,6 +64,36 @@ async function readBoardJob(http: HttpClient, j: BoardJob, company: string): Pro
   const list = arr(obj(await http.getJson(`https://api.ashbyhq.com/posting-api/job-board/${b}?includeCompensation=true`)).jobs).map(obj);
   const one = list.find((x) => str(x.id) === j.id);
   return one ? mapAshby(one, ref) : null;
+}
+
+/** A job on one of the other systems jobleft reads (Workable, Recruitee, Personio, Teamtailor, Gem), named by its link. */
+export interface OtherBoardJob { ats: 'workable' | 'recruitee' | 'personio' | 'teamtailor' | 'gem'; board: string; region: string | null; jobId: string }
+
+const OTHER = new Set(['workable', 'recruitee', 'personio', 'teamtailor', 'gem']);
+
+export function otherBoardJobOf(link: URL): OtherBoardJob | null {
+  const own = detectBoardFromUrl(link.href);
+  if (own.kind === 'board' && own.found.jobId && OTHER.has(own.found.ats)) {
+    return { ats: own.found.ats as OtherBoardJob['ats'], board: own.found.board, region: own.found.region, jobId: own.found.jobId };
+  }
+  const d = detectAts(link.href);
+  if (d && d.crawlable && d.board && d.jobId && OTHER.has(d.ats)) return { ats: d.ats as OtherBoardJob['ats'], board: d.board.toLowerCase(), region: d.region, jobId: d.jobId };
+  return null;
+}
+
+/**
+ * Reads the whole board through its public feed (the one the crawler reads) and picks the job the link names: by
+ * the system's job id, else by the job's own address. Null when the board does not list it.
+ */
+async function readOtherBoardJob(http: HttpClient, j: OtherBoardJob, link: URL, company: string): Promise<RawJob | null> {
+  const ref: BoardRef = { ats: j.ats, board: j.board, company, ...(j.region ? { region: j.region } : {}) } as BoardRef;
+  const jobs = await ATS_SOURCES[j.ats]!.fetchBoard(ref, http);
+  const id = j.jobId.toLowerCase();
+  const path = (u: string) => { try { return new URL(u).pathname.replace(/\/+$/, '').toLowerCase(); } catch { return ''; } };
+  const want = path(link.href);
+  return jobs.find((r) => String(r.externalId ?? '').toLowerCase() === id)
+    ?? jobs.find((r) => r.url && (path(r.url) === want || path(r.url).endsWith(`/${id}`) || want.startsWith(`${path(r.url)}/`)))
+    ?? null;
 }
 
 /** An address on this computer or the local network (JL-feed-13): never read, whatever the person pasted. */
@@ -115,7 +150,16 @@ export function rawFromHtml(url: string, html: string): RawJob & { fromPosting?:
     const org = posting.hiringOrganization;
     const company = (typeof org === 'string' ? org : typeof org?.name === 'string' ? org.name : '') || attr(html, /<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)["']/i) || host;
     const locs = Array.isArray(posting.jobLocation) ? posting.jobLocation : posting.jobLocation ? [posting.jobLocation] : [];
-    const places = locs.map((l: any) => [l?.address?.addressLocality, l?.address?.addressRegion, typeof l?.address?.addressCountry === 'string' ? l.address.addressCountry : l?.address?.addressCountry?.name].filter((x) => typeof x === 'string' && x.trim()).join(', ')).filter(Boolean);
+    // A two-letter country other than US goes in as its name: "Utrecht, NL" reads as Newfoundland and Labrador
+    // (Canada), "Berlin, DE" as Delaware. "US" is never a state, so it stays as it is.
+    const countryText = (v: unknown) => (typeof v === 'string' && /^[A-Za-z]{2}$/.test(v.trim()) && v.trim().toUpperCase() !== 'US' ? COUNTRY_NAMES.of(v.trim().toUpperCase()) ?? v : v);
+    const places = locs.map((l: any) => [l?.address?.addressLocality, l?.address?.addressRegion, countryText(typeof l?.address?.addressCountry === 'string' ? l.address.addressCountry : l?.address?.addressCountry?.name)].filter((x) => typeof x === 'string' && x.trim()).join(', ')).filter(Boolean);
+    // The country as the record states it, as a two-letter code ("NL", or { "@type": "Country", "name": "NL" }).
+    const countries = [...new Set(locs.map((l: any) => {
+      const c = l?.address?.addressCountry;
+      const v = typeof c === 'string' ? c : typeof c?.name === 'string' ? c.name : typeof c?.identifier === 'string' ? c.identifier : '';
+      return /^[A-Za-z]{2}$/.test(v.trim()) ? v.trim().toUpperCase() : null;
+    }).filter((c: string | null): c is string => !!c))];
     const remote = String(posting.jobLocationType ?? '').toUpperCase() === 'TELECOMMUTE';
     const et = Array.isArray(posting.employmentType) ? posting.employmentType[0] : posting.employmentType;
     const sal = posting.baseSalary?.value ?? null;
@@ -127,7 +171,7 @@ export function rawFromHtml(url: string, html: string): RawJob & { fromPosting?:
       fromPosting: true,
       externalId: hash16(canonicalizeUrl(url) || url), url, applyUrl: '', title: htmlToText(String(posting.title ?? '')).trim(), company: htmlToText(company).trim(),
       location: places.join('; ') || (remote ? 'Remote' : ''), descriptionHtml: String(posting.description ?? ''), remote,
-      workMode: remote ? 'remote' : '', countries: [], postedAt: posted, employmentType: EMPLOYMENT[String(et ?? '').toUpperCase()] ?? '',
+      workMode: remote ? 'remote' : '', countries, postedAt: posted, employmentType: EMPLOYMENT[String(et ?? '').toUpperCase()] ?? '',
       department: '', pay: period && /^[A-Z]{3}$/.test(currency) && (min !== null || max !== null) ? { min, max, currency, period } : null,
     };
   }
@@ -230,6 +274,31 @@ export function rawFromText(text: string, applyUrl: string | null): RawJob {
   };
 }
 
+/**
+ * A RawJob from a web search result jobleft could not read (or never reads): only what the search engine returned,
+ * the title, the address and the short text. The employer is the one the title names ("SOC Analyst at Acme",
+ * "Acme hiring SOC Analyst in Utrecht | LinkedIn"), else the site: the other parts of a title ("SOC Analyst - Bureau -
+ * KNAW") may be a department, a place or the site, so they are not taken for one. Nothing is sent to the site.
+ */
+export function rawFromResult(url: string, resultTitle: string, snippet: string): RawJob {
+  const host = new URL(url).hostname.replace(/^www\./i, '');
+  const parts = resultTitle.replace(/^\s*(?:vacature|vacancy|job)\s*[:\-–|]\s*/i, '').split(/\s+[|–—]\s+|\s+-\s+/).map((x) => x.trim()).filter(Boolean);
+  let title = parts[0] ?? '';
+  let company: string | null = null;
+  let location = '';
+  const hiring = /^(.{2,80}?)\s+(?:is hiring|hiring|zoekt)\s+(?:an?\s+|een\s+)?(.{3,160}?)(?:\s+in\s+(.{2,80}))?$/i.exec(title);
+  const at = /^(.{3,160}?)\s+(?:at|bij|@)\s+(.{2,80})$/i.exec(title);
+  if (hiring) { company = hiring[1]!; title = hiring[2]!; location = hiring[3] ?? ''; }
+  else if (at) { title = at[1]!; company = at[2]!; }
+  const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const text = snippet.trim();
+  return {
+    externalId: hash16(canonicalizeUrl(url) || url), url, applyUrl: '', title: [...title].slice(0, 200).join(''), company: (company ?? host).slice(0, 120),
+    location, descriptionHtml: `${text ? `<p>${esc(text)}</p>` : ''}<p>Saved from a web search result: jobleft did not read the page, so this is only what the search engine showed. Open the original posting for the rest.</p>`,
+    remote: false, workMode: '', countries: [], postedAt: null, employmentType: '', department: '', pay: null,
+  };
+}
+
 /** The link on a line that offers it for applying ("Apply at https://...", "To apply: https://..."), or null. */
 export function statedApplyLink(lines: string[]): string | null {
   for (const l of lines) {
@@ -249,7 +318,7 @@ export interface ExternalDeps {
 }
 
 /** The contract id of a stored job, or null. */
-function storedId(store: Store, ats: string, board: string, jobId: string): string | null {
+export function storedId(store: Store, ats: string, board: string, jobId: string): string | null {
   const r = store.db.prepare('SELECT ats, board, job_id FROM jobs WHERE lower(ats) = ? AND lower(board) = ? AND job_id = ? LIMIT 1')
     .get(ats.toLowerCase(), board.toLowerCase(), jobId) as { ats: string; board: string; job_id: string } | undefined;
   return r ? `${r.ats.toLowerCase()}:${r.board.toLowerCase()}:${r.job_id}` : null;
@@ -265,6 +334,108 @@ function readFailure(e: unknown, what: 'page' | 'job'): ApiFailure {
   return new ApiFailure('offline', 'That page could not be reached. Check the link and that this computer is online, or paste the job text.');
 }
 
+/** A job jobleft already has for this link (a board job in the feed, or the same address), as its contract id. */
+export function knownJobFor(store: Store, link: URL): string | null {
+  const bj = boardJobOf(link);
+  const known = bj ? storedId(store, bj.ats, bj.board, bj.id) : null;
+  if (known) return known;
+  const canonical = canonicalizeUrl(link.href);
+  const same = canonical ? store.db.prepare('SELECT ats, board, job_id FROM jobs WHERE canonical_url = ? ORDER BY closed_at IS NOT NULL, id LIMIT 1').get(canonical) as { ats: string; board: string; job_id: string } | undefined : undefined;
+  return same ? `${same.ats.toLowerCase()}:${same.board.toLowerCase()}:${same.job_id}` : null;
+}
+
+/**
+ * Reads one job link (no store): a board job through its board's public feed or API, any other page once with the
+ * polite client (robots.txt, the never-contact list, no redirect followed). Throws ApiFailure in plain words.
+ */
+export async function readJobLink(u: URL, d: Pick<ExternalDeps, 'crawlStore'>, http: HttpClient, o: { needPosting?: boolean; titleMustMention?: string[][] } = {}): Promise<RawJob> {
+  if (NEVER.test(u.hostname) || isNeverHost(u.hostname)) throw new ApiFailure('forbidden_source', `jobleft never reads ${u.hostname}, so nothing was sent to it. Paste the job text instead.`);
+  // JL-feed-13: this computer and the local network are never read (only public job pages are).
+  if (isLocalLink(u)) throw new ApiFailure('forbidden_source', 'That link points to this computer or your local network. jobleft reads only public job pages, so nothing was sent. Paste the job text instead.');
+  const bj = boardJobOf(u);
+  const canonical = canonicalizeUrl(u.href);
+  const other = bj ? null : otherBoardJobOf(u);
+  if (other) {
+    // Workable, Recruitee, Personio, Teamtailor and Gem: the board's own feed has the job's facts, while its page
+    // may carry no JobPosting record. If the feed cannot be read, the page is read as before.
+    const row = d.crawlStore.db.prepare('SELECT company FROM boards WHERE lower(ats) = ? AND lower(board) = ?').get(other.ats, other.board) as { company: string | null } | undefined;
+    let fromBoard: RawJob | null = null;
+    let boardRead = false;
+    try { fromBoard = await readOtherBoardJob(http, other, u, row?.company || ''); boardRead = true; } catch (e) {
+      if (e instanceof DeniedHostError || e instanceof RobotsError) throw readFailure(e, 'job');
+    }
+    // The board answered and does not list the job: it closed (search engines show jobs for a while after that).
+    if (boardRead && !fromBoard) throw new ApiFailure('not_found', `jobleft read the ${row?.company || other.board} job board, and this job is not on it any more: it has probably closed. Search results and old links can show a job for a while after it closes.`);
+    if (fromBoard && fromBoard.title) return { ...fromBoard, externalId: hash16(canonical || u.href), url: u.href, company: fromBoard.company || other.board };
+  }
+  if (bj) {
+    // JL-feed-15: a board's job page redirects (boards.greenhouse.io -> job-boards.greenhouse.io); its public job
+    // API answers directly, with the same facts the crawler reads.
+    const row = d.crawlStore.db.prepare('SELECT company FROM boards WHERE lower(ats) = ? AND lower(board) = ?').get(bj.ats, bj.board.toLowerCase()) as { company: string | null } | undefined;
+    let r: RawJob | null;
+    try { r = await readBoardJob(http, bj, row?.company || ''); } catch (e) { throw readFailure(e, 'job'); }
+    if (!r || !r.title) throw new ApiFailure('not_found', 'That job is not on the board (it may have closed, or the link is wrong). Check the link.');
+    return { ...r, externalId: hash16(canonical || u.href), url: u.href, company: r.company || bj.board };
+  }
+  let html: string;
+  try {
+    html = await http.getText(u.href, 'text/html,application/xhtml+xml');
+  } catch (e) { throw readFailure(e, 'page'); }
+  const page = rawFromHtml(u.href, html);
+  if (!page.title) throw new ApiFailure('unsupported_source', 'That page has no job title that jobleft can read. Paste the job text instead.');
+  // A page jobleft found by itself (web search) without a JobPosting record counts only when its title names what
+  // was searched for: a careers home page also reads like a job ("apply", "benefits"), but "Careers | Shell" does
+  // not name "SOC analyst". (needPosting: only pages with the record count.)
+  if (o.needPosting && !page.fromPosting) throw new ApiFailure('unsupported_source', 'That page does not look like a job posting: it carries no job details (no JobPosting record).');
+  if (o.titleMustMention && !page.fromPosting && o.titleMustMention.length && !o.titleMustMention.some((w) => mentionsAll(page.title, w))) {
+    throw new ApiFailure('unsupported_source', 'That page does not look like a job posting: it carries no job details and its title does not name the job searched for.');
+  }
+  // JL-feed-12: a page that is not a job posting ("Example Domain") is refused in plain words.
+  if (!page.fromPosting && !looksLikePosting(htmlToText(page.descriptionHtml))) {
+    throw new ApiFailure('unsupported_source', 'That page does not look like a job posting: jobleft found no job details on it. Open the posting itself and paste its address, or paste the job text.');
+  }
+  const { fromPosting: _fp, ...rest } = page;
+  return rest;
+}
+
+/** Saves a read job in the crawler's jobs table under ats "external" and the given board. Returns the contract id. */
+export function storeExternal(store: Store, raw: RawJob, board: 'url' | 'text' | 'web'): string {
+  const job = normalizeJob({ ats: 'external' as never, board, company: raw.company || 'Company not stated' }, raw) as CrawledJob | null;
+  if (!job) throw new ApiFailure('unsupported_source', 'jobleft could not read a job from that. Paste the job text instead.');
+  const res = store.transaction(() => store.upsertJob(job, nowIso()));
+  if (res.status === 'dupUrl') {
+    const owner = store.db.prepare('SELECT ats, board, job_id FROM jobs WHERE canonical_url = ?').get(job.canonicalUrl) as { ats: string; board: string; job_id: string } | undefined;
+    if (owner) return `${owner.ats.toLowerCase()}:${owner.board.toLowerCase()}:${owner.job_id}`;
+  }
+  return `external:${board}:${job.jobId}`;
+}
+
+/**
+ * Replaces the text of a job the person added (by link, by text, or kept from a web search result) with the posting
+ * text they pasted, and reads its facts again from that text. The job keeps its id, its link, and the facts the text
+ * does not state (title, employer, place), so its likes, notes and status stay. Returns the contract job id.
+ */
+export function replaceExternalText(store: Store, jobId: string, text: string): string {
+  const [ats, board, ...rest] = jobId.split(':');
+  const id = rest.join(':');
+  if (ats !== 'external' || !board || !id) throw new ApiFailure('bad_request', 'Only a job you added (by link, by text or from a web search) can take pasted text.');
+  const row = store.db.prepare("SELECT title, company, location, page_url, canonical_url, apply_url, posted_at FROM jobs WHERE ats = 'external' AND board = ? AND job_id = ?")
+    .get(board, id) as { title: string; company: string; location: string; page_url: string | null; canonical_url: string | null; apply_url: string | null; posted_at: string | null } | undefined;
+  if (!row) throw new ApiFailure('not_found', 'jobleft has no job with this address.');
+  if (text.split(/\r?\n/).filter((l) => l.trim()).length < 2) {
+    throw new ApiFailure('bad_request', 'That is too short to be a job posting. Paste the whole posting: the job title on the first line, then the rest of its text.');
+  }
+  const raw = rawFromText(text, null);
+  const job = normalizeJob({ ats: 'external' as never, board, company: row.company }, {
+    ...raw, externalId: id, url: row.page_url ?? row.canonical_url ?? raw.url, applyUrl: raw.applyUrl || row.apply_url || '',
+    title: raw.title || row.title, company: raw.company && raw.company !== 'Company not stated' ? raw.company : row.company,
+    location: raw.location || row.location || '', postedAt: raw.postedAt ?? row.posted_at,
+  }) as CrawledJob | null;
+  if (!job) throw new ApiFailure('unsupported_source', 'jobleft could not read a job from that text.');
+  store.transaction(() => store.upsertJob(job, nowIso()));
+  return jobId;
+}
+
 /** Reads the link (or the text) and saves the job in the crawler's jobs table. Returns the contract job id. */
 export async function addExternal(req: { url?: string; text?: string; applyUrl?: string }, d: ExternalDeps): Promise<string> {
   let raw: RawJob;
@@ -272,39 +443,14 @@ export async function addExternal(req: { url?: string; text?: string; applyUrl?:
   if (req.url) {
     const u = new URL(req.url);
     if (NEVER.test(u.hostname) || isNeverHost(u.hostname)) throw new ApiFailure('forbidden_source', `jobleft never reads ${u.hostname}, so nothing was sent to it. Paste the job text instead.`);
-    // JL-feed-13: this computer and the local network are never read (only public job pages are).
     if (isLocalLink(u)) throw new ApiFailure('forbidden_source', 'That link points to this computer or your local network. jobleft reads only public job pages, so nothing was sent. Paste the job text instead.');
     // JL-feed-14: a board job that is already stored (in the feed or added before) is that job, never a second copy.
-    const bj = boardJobOf(u);
-    const known = bj ? storedId(d.crawlStore, bj.ats, bj.board, bj.id) : null;
+    const known = knownJobFor(d.crawlStore, u);
     if (known) return known;
-    const canonical = canonicalizeUrl(req.url);
-    const same = canonical ? d.crawlStore.db.prepare('SELECT ats, board, job_id FROM jobs WHERE canonical_url = ? ORDER BY closed_at IS NOT NULL, id LIMIT 1').get(canonical) as { ats: string; board: string; job_id: string } | undefined : undefined;
-    if (same) return `${same.ats.toLowerCase()}:${same.board.toLowerCase()}:${same.job_id}`;
     if (d.offline()) throw new ApiFailure('offline', 'jobleft is set to work offline, so the link was not read. Paste the job text instead.');
-    const http = new HttpClient({ hostMap: d.hostMap, timeoutMs: 10_000, retries: 0, maxRequests: 3 });
-    if (bj) {
-      // JL-feed-15: a board's job page redirects (boards.greenhouse.io -> job-boards.greenhouse.io); its public job
-      // API answers directly, with the same facts the crawler reads.
-      const row = d.crawlStore.db.prepare('SELECT company FROM boards WHERE lower(ats) = ? AND lower(board) = ?').get(bj.ats, bj.board.toLowerCase()) as { company: string | null } | undefined;
-      let r: RawJob | null;
-      try { r = await readBoardJob(http, bj, row?.company || ''); } catch (e) { throw readFailure(e, 'job'); }
-      if (!r || !r.title) throw new ApiFailure('not_found', 'That job is not on the board (it may have closed, or the link is wrong). Check the link.');
-      raw = { ...r, externalId: hash16(canonical || req.url), url: req.url, company: r.company || bj.board };
-    } else {
-      let html: string;
-      try {
-        html = await http.getText(req.url, 'text/html,application/xhtml+xml');
-      } catch (e) { throw readFailure(e, 'page'); }
-      const page = rawFromHtml(req.url, html);
-      if (!page.title) throw new ApiFailure('unsupported_source', 'That page has no job title that jobleft can read. Paste the job text instead.');
-      // JL-feed-12: a page that is not a job posting ("Example Domain") is refused in plain words.
-      if (!page.fromPosting && !looksLikePosting(htmlToText(page.descriptionHtml))) {
-        throw new ApiFailure('unsupported_source', 'That page does not look like a job posting: jobleft found no job details on it. Open the posting itself and paste its address, or paste the job text.');
-      }
-      const { fromPosting: _fp, ...rest } = page;
-      raw = rest;
-    }
+    // A paged feed (Teamtailor, Workable) can take several requests for one board.
+    const http = new HttpClient({ hostMap: d.hostMap, timeoutMs: 10_000, retries: 0, maxRequests: otherBoardJobOf(u) ? 12 : 3 });
+    raw = await readJobLink(u, d, http);
     board = 'url';
   } else if (req.text && req.text.trim()) {
     // JL-feed-12: one short line ("hi") is not a job posting.
@@ -317,12 +463,5 @@ export async function addExternal(req: { url?: string; text?: string; applyUrl?:
   } else {
     throw new ApiFailure('bad_request', 'Give a job link (url) or the job text (text).');
   }
-  const job = normalizeJob({ ats: 'external' as never, board, company: raw.company || 'Company not stated' }, raw) as CrawledJob | null;
-  if (!job) throw new ApiFailure('unsupported_source', 'jobleft could not read a job from that. Paste the job text instead.');
-  const res = d.crawlStore.transaction(() => d.crawlStore.upsertJob(job, nowIso()));
-  if (res.status === 'dupUrl') {
-    const owner = d.crawlStore.db.prepare('SELECT ats, board, job_id FROM jobs WHERE canonical_url = ?').get(job.canonicalUrl) as { ats: string; board: string; job_id: string } | undefined;
-    if (owner) return `${owner.ats.toLowerCase()}:${owner.board.toLowerCase()}:${owner.job_id}`;
-  }
-  return `external:${board}:${job.jobId}`;
+  return storeExternal(d.crawlStore, raw, board);
 }

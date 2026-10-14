@@ -1,7 +1,7 @@
 // Filter helpers: what each filter control shows, whether it is active, and the chip summary of the drawer.
 // Pure functions (unit tested under Node).
 
-import { EXPERIENCE_LEVEL_LABELS, type CompanyStage, type EmploymentType, type JobFilter, type JobSort, type Profile, type WorkModel } from '@jobleft/contracts';
+import { EXPERIENCE_LEVEL_LABELS, type CompanyStage, type EmploymentType, type JobFilter, type JobLanguage, type JobSort, type Profile, type WorkModel } from '@jobleft/contracts';
 import { ALL_COUNTRIES, COMMON_COUNTRY_CODES } from './countries.ts';
 
 export const TYPE_OPTIONS: Array<{ value: EmploymentType; label: string }> = [
@@ -14,6 +14,7 @@ export const MODEL_OPTIONS: Array<{ value: WorkModel; label: string }> = [
 export const LEVEL_OPTIONS = Object.entries(EXPERIENCE_LEVEL_LABELS).map(([value, label]) => ({ value: value as keyof typeof EXPERIENCE_LEVEL_LABELS, label }));
 export const POSTED_OPTIONS: Array<{ value: NonNullable<JobFilter['postedWithin']>; label: string }> = [
   { value: '24h', label: 'Past 24 hours' }, { value: '3d', label: 'Past 3 days' }, { value: '7d', label: 'Past week' }, { value: '30d', label: 'Past month' },
+  { value: '365d', label: 'Past year' },
 ];
 export const STAGE_OPTIONS: Array<{ value: CompanyStage; label: string }> = [
   { value: 'early', label: 'Early stage' }, { value: 'growth', label: 'Growth stage' }, { value: 'late', label: 'Late stage' }, { value: 'public', label: 'Public company' },
@@ -33,7 +34,21 @@ export const JOB_FUNCTION_SUGGESTIONS = [
  * How the minimum yearly pay filter decides (JL-feed-25): the top of a stated range counts, so a range can start
  * below the amount ("$19.50-$60 an hour" passes $100K, its top being $124.8K a year).
  */
-export const PAY_FILTER_NOTE = 'A job counts when the top of its stated pay range reaches this amount, so its range can start lower. Jobs with no stated pay are left out unless you tick the box above. Hourly pay counts as its yearly amount (2,080 hours). Pay in other currencies is not compared.';
+export const PAY_FILTER_NOTE = 'A job counts when the top of its stated pay range reaches this amount, so its range can start lower. Jobs with no stated pay are left out unless you tick the box above. Hourly pay counts as its yearly amount (2,080 hours), monthly pay as 12 months. Only pay stated in the chosen currency is compared: jobs paid in another currency count as unknown pay.';
+
+/** The currencies the pay filter offers, with the sign it shows. */
+export const PAY_CURRENCIES: Array<{ code: string; sign: string }> = [
+  { code: 'USD', sign: '$' }, { code: 'EUR', sign: '€' }, { code: 'GBP', sign: '£' }, { code: 'CHF', sign: 'CHF ' }, { code: 'CAD', sign: 'CA$' }, { code: 'AUD', sign: 'A$' },
+];
+export const currencySymbol = (code: string | undefined) => PAY_CURRENCIES.find((c) => c.code === (code ?? 'USD'))?.sign ?? `${code} `;
+
+const EURO = new Set(['NL', 'BE', 'DE', 'FR', 'ES', 'IT', 'IE', 'AT', 'PT', 'FI', 'GR', 'LU', 'SK', 'SI', 'EE', 'LV', 'LT', 'HR', 'CY', 'MT']);
+/** The pay filter's first currency for a country (the profile's): euros in the euro area, pounds in the UK, else dollars. */
+export function payCurrencyFor(country: string | null | undefined): string {
+  const c = (country ?? '').toUpperCase();
+  if (EURO.has(c)) return 'EUR';
+  return ({ GB: 'GBP', UK: 'GBP', CH: 'CHF', CA: 'CAD', AU: 'AUD' } as Record<string, string>)[c] ?? 'USD';
+}
 
 /** Removes empty lists and false switches so equal filters compare equal and saved filters stay small. */
 export function cleanFilter(f: JobFilter): JobFilter {
@@ -43,6 +58,8 @@ export function cleanFilter(f: JobFilter): JobFilter {
     if (Array.isArray(v) && v.length === 0) continue;
     out[k] = v;
   }
+  // A currency means nothing without a minimum; dollars are the default.
+  if (out.minAnnualPayUsd === undefined || out.payCurrency === 'USD') delete out.payCurrency;
   return out as JobFilter;
 }
 
@@ -52,7 +69,8 @@ export function sameFilter(a: JobFilter, b: JobFilter): boolean {
 }
 
 export function activeCount(f: JobFilter): number {
-  return Object.keys(cleanFilter(f)).filter((k) => k !== 'includeUnknown' && k !== 'status').length;
+  // The pay currency belongs to the minimum pay: one filter, not two.
+  return Object.keys(cleanFilter(f)).filter((k) => k !== 'includeUnknown' && k !== 'status' && k !== 'payCurrency').length;
 }
 
 function firstPlus(labels: string[], empty: string): string {
@@ -73,7 +91,7 @@ export const modelLabel = (f: JobFilter) => firstPlus((f.workModels ?? []).map((
 export const postedLabel = (f: JobFilter) => (f.postedWithin ? POSTED_OPTIONS.find((o) => o.value === f.postedWithin)!.label : 'Date posted');
 export const industryLabel = (f: JobFilter) => firstPlus(f.industries ?? [], 'Industry');
 export const yearsLabel = (f: JobFilter) => (f.maxYearsRequired !== undefined ? `Up to ${f.maxYearsRequired} years` : 'Years of experience');
-export const payLabel = (f: JobFilter) => (f.minAnnualPayUsd !== undefined ? `$${Math.round(f.minAnnualPayUsd / 1000)}K+ a year` : 'Pay');
+export const payLabel = (f: JobFilter) => (f.minAnnualPayUsd !== undefined ? `${currencySymbol(f.payCurrency)}${Math.round(f.minAnnualPayUsd / 1000)}K+ a year` : 'Pay');
 
 /** The read-only chip summary at the top of the All Filters drawer. */
 export function summaryChips(f: JobFilter): string[] {
@@ -87,6 +105,7 @@ export function summaryChips(f: JobFilter): string[] {
   if (f.postedWithin) out.push(postedLabel(f));
   if (f.maxYearsRequired !== undefined) out.push(yearsLabel(f));
   if (f.minAnnualPayUsd !== undefined) out.push(payLabel(f));
+  if (f.leaveOutDutch) out.push('No Dutch needed');
   if (f.h1bSponsorship) out.push('H-1B sponsor likely');
   if (f.excludeClearanceRequired) out.push('No clearance required');
   if (f.excludeUsCitizenOnly) out.push('Not US citizens only');
@@ -223,7 +242,7 @@ const SECTION_FIELDS: Record<FilterSection, { keys: Array<keyof JobFilter>; unkn
   posted: { keys: ['postedWithin'], unknown: ['postedAt'] },
   industry: { keys: ['industries'], unknown: [] },
   years: { keys: ['maxYearsRequired'], unknown: ['years'] },
-  pay: { keys: ['minAnnualPayUsd'], unknown: ['pay'] },
+  pay: { keys: ['minAnnualPayUsd', 'payCurrency'], unknown: ['pay'] },
 };
 
 /**
@@ -271,4 +290,23 @@ export function byTitleMatch<T extends { title: string; company: string }>(items
     return 3;
   };
   return items.map((x, i) => ({ x, i, r: rank(x) })).sort((a, b) => a.r - b.r || a.i - b.i).map((e) => e.x);
+}
+
+/**
+ * The language chip of a job (web search lane): what the posting says about Dutch, or that it is written in Dutch.
+ * `warn` marks the ones a person without Dutch cannot take. null: nothing to say (an English posting that is silent).
+ */
+export function languageChip(l: JobLanguage | undefined): { text: string; warn: boolean; tip: string } | null {
+  if (!l) return null;
+  const said = l.evidence ? `The posting says: "${l.evidence}"` : '';
+  if (l.dutch === 'required') return { text: 'Dutch required', warn: true, tip: said };
+  if (l.dutch === 'not_required') return { text: 'No Dutch needed', warn: false, tip: said };
+  if (l.posting === 'nl') return { text: l.dutch === 'preferred' ? 'In Dutch · Dutch a plus' : 'Written in Dutch', warn: l.dutch !== 'preferred', tip: l.dutch === 'preferred' ? said : 'The posting is written in Dutch, so the job most likely needs Dutch. It does not say so in a sentence jobleft could read.' };
+  if (l.dutch === 'preferred') return { text: 'Dutch a plus', warn: false, tip: said };
+  return null;
+}
+
+/** Whether a job needs Dutch, as the server's "leave out jobs that need Dutch" decides (interim/language.ts needsDutch). */
+export function needsDutch(l: JobLanguage | undefined): boolean {
+  return !!l && (l.dutch === 'required' || (l.posting === 'nl' && l.dutch !== 'not_required'));
 }

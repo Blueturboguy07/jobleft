@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:WebResultOutcome",
+  "title": "WebResultOutcome",
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "unread",
+        "queued",
+        "reading",
+        "job",
+        "known",
+        "likely_job",
+        "closed",
+        "not_job",
+        "off_topic",
+        "refused",
+        "failed"
+      ]
+    },
+    "message": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "job": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "title": {
+              "type": "string"
+            },
+            "company": {
+              "type": "string"
+            },
+            "places": {
+              "type": "string"
+            },
+            "countries": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "remote": {
+              "type": "boolean"
+            },
+            "postedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "RFC 3339 date-time, UTC (\"Z\")"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "language": {
+              "type": "object",
+              "properties": {
+                "posting": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "en",
+                        "nl",
+                        "other"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "dutch": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "required",
+                        "preferred",
+                        "not_required"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "evidence": {
+                  "type": "string",
+                  "maxLength": 300
+                }
+              },
+              "required": [
+                "posting",
+                "dutch"
+              ],
+              "title": "JobLanguage"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "company",
+            "places",
+            "countries",
+            "remote",
+            "postedAt"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "inPlace": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "url",
+    "state",
+    "message",
+    "job",
+    "inPlace"
+  ]
+}

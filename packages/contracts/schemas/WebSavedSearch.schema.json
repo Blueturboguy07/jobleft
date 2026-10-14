@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:WebSavedSearch",
+  "title": "WebSavedSearch",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "q": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "place": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 200
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "everyHours": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 24
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 date-time, UTC (\"Z\")"
+    },
+    "lastRunAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 date-time, UTC (\"Z\")"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lastNew": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lastError": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "widen": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "id",
+    "q",
+    "place",
+    "everyHours",
+    "createdAt",
+    "lastRunAt",
+    "lastNew",
+    "lastError"
+  ]
+}

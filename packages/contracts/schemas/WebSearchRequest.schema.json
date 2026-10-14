@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jobleft:contracts:WebSearchRequest",
+  "title": "WebSearchRequest",
+  "type": "object",
+  "properties": {
+    "q": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "place": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "timeRange": {
+      "type": "string",
+      "enum": [
+        "day",
+        "week",
+        "month",
+        "year"
+      ]
+    },
+    "page": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "widen": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "q"
+  ]
+}

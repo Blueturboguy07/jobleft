@@ -14,7 +14,7 @@ import { DAY_MS } from './util.ts';
 
 type Unknown = NonNullable<JobFilter['includeUnknown']>[number];
 
-const WINDOW_MS: Record<NonNullable<JobFilter['postedWithin']>, number> = { '24h': DAY_MS, '3d': 3 * DAY_MS, '7d': 7 * DAY_MS, '30d': 30 * DAY_MS };
+const WINDOW_MS: Record<NonNullable<JobFilter['postedWithin']>, number> = { '24h': DAY_MS, '3d': 3 * DAY_MS, '7d': 7 * DAY_MS, '30d': 30 * DAY_MS, '365d': 365 * DAY_MS };
 
 export function h1bTagOf(rec: JobRec, company: Company | null): JobListItem['h1bTag'] {
   const s = rec.job.statements.sponsorship;

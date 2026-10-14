@@ -70,6 +70,72 @@
                 "company"
               ]
             }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "name": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "running",
+                    "done",
+                    "failed"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https?://",
+                        "maxLength": 4096,
+                        "description": "Absolute http(s) URL"
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "url"
+                    ]
+                  }
+                },
+                "summary": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "state",
+                "label",
+                "steps",
+                "sources"
+              ]
+            }
           }
         },
         "required": [

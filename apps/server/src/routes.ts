@@ -16,7 +16,8 @@ import { ApiFailure, notFound, notReady } from './errors.ts';
 import { tmpName } from './home.ts';
 import type { FileBody } from './http/respond.ts';
 import { bodyToFile } from './http/body.ts';
-import { addExternal } from './interim/external.ts';
+import { addExternal, replaceExternalText } from './interim/external.ts';
+import { checkSearx, normalizeSearxUrl } from './interim/websearch.ts';
 import { detailOf } from './interim/jobs.ts';
 import { createAiRouteHandlers, type AiRouteHandlers } from '@jobleft/ai-engine';
 import { apiFailureOf } from './integ/engine.ts';
@@ -185,6 +186,8 @@ export const HANDLERS: HandlerTable = {
     if (!d.notifications.ack(params.notificationId!)) notFound('That notification');
     return ok;
   },
+  listNotificationHistory: ({ d }) => ({ json: d.notifications.history() }),
+  clearNotifications: ({ d }) => { d.notifications.clear(); return ok; },
   exportJobs: ({ d }) => {
     const ids = new Set<string>();
     for (const v of ['liked', 'applied', 'external', 'closed'] as const) for (const it of d.tracker.list(v).items) ids.add(it.entry.jobId);
@@ -235,6 +238,11 @@ export const HANDLERS: HandlerTable = {
     const id = await addExternal(body, { crawlStore: d.crawlStore, hostMap: app.cfg.hostMap, offline: () => app.cfg.offline });
     const tracker = d.tracker.patch(id, {}, { external: true });
     return { json: { job: jobOr404(d, id), tracker } };
+  },
+  replaceJobText: ({ d, params, body }) => {
+    jobOr404(d, params.jobId!);
+    const id = replaceExternalText(d.crawlStore, params.jobId!, body.text);
+    return { json: { job: jobOr404(d, id) } };
   },
   keywordGaps: async ({ d, params, query }) => ({ json: await step(() => d.resumes.svc.keywordGaps(params.jobId!, query.resumeId)) }),
 
@@ -312,6 +320,32 @@ export const HANDLERS: HandlerTable = {
   },
   addBoard: ({ d, body }) => ({ json: d.boards.add(body) }),
   updateBoard: ({ d, params, body }) => ({ json: d.boards.update(params.boardId!, body) }),
+  checkWebSearch: async ({ app, d, body }) => {
+    const url = normalizeSearxUrl(body.url ?? d.settings.get().webSearch?.url ?? null);
+    if (!url) throw new ApiFailure('bad_request', 'Type the address of your SearXNG first, for example http://127.0.0.1:8888.');
+    if (app.cfg.offline) throw new ApiFailure('offline', 'jobleft is set to work offline, so it did not ask SearXNG.');
+    return { json: await checkSearx(url) };
+  },
+  webSearchJobs: async ({ d, body, gone }) => {
+    const answer = await d.webSearch(body, [body.q, body.place ?? ''].join(' ').trim(), gone);
+    // The page's own searches only (not saved searches or the assistant's): Web jobs shows it again after a restart.
+    d.webTabs.keepSearch(body, answer);
+    return { json: answer };
+  },
+  listWebSaved: ({ d }) => ({ json: d.webSaved.list() }),
+  addWebSaved: ({ d, body }) => ({ json: d.webSaved.add(body) }),
+  updateWebSaved: ({ d, params, body }) => ({ json: d.webSaved.update(params.savedId!, body.everyHours) }),
+  deleteWebSaved: ({ d, params }) => { d.webSaved.remove(params.savedId!); return { json: { ok: true } }; },
+  webSearchOutcomes: ({ d, body }) => ({ json: d.webOutcomes(body.urls, body.country ?? null) }),
+  saveWebResult: ({ d, body }) => ({ json: { jobId: d.webReader.saveResult(body.url, body.title, body.snippet ?? '') } }),
+  getDigest: ({ d, query }) => {
+    const hours = Math.min(168, Math.max(1, Number(query.hours ?? 24) || 24));
+    return { json: d.digest(new Date(Date.now() - hours * 3600_000)) };
+  },
+  getWebLast: ({ d }) => ({ json: { last: d.webTabs.lastSearch() } }),
+  getWebTabs: ({ d }) => ({ json: d.webTabs.get() }),
+  putWebTabs: ({ d, body }) => ({ json: d.webTabs.put(body) }),
+  webReadStatus: ({ d }) => ({ json: d.webReader.status() }),
   exportBoards: ({ d }) => {
     const lines = d.boards.exportLines();
     return { file: { fileName: `jobleft-boards-${today()}.ndjson`, mimeType: 'application/x-ndjson', bytes: Buffer.from(lines.join('\n') + (lines.length ? '\n' : '')) } };

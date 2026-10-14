@@ -1,11 +1,16 @@
-//! jobleft desktop shell (Tauri v2, macOS first). Contract: docs/INTERFACES.md section 5.2.
+//! jobleft desktop shell (Tauri v2: macOS, Windows, Linux). Contract: docs/INTERFACES.md section 5.2.
 //!
 //! - Launch: a new launch token, then the Node server as a sidecar (`node` beside this executable, the server tree
 //!   under Resources/server) with `JOBLEFT_HOME`, `JOBLEFT_LAUNCH_TOKEN`, `JOBLEFT_PARENT_PID`, `JOBLEFT_UI_DIR`.
 //! - Ready: wait for `run/server.json` and `GET /api/v1/health` (up to 15 s), then open the one window at
 //!   `http://127.0.0.1:<port>/#token=<token>`. Before that, no window at all: no blank page, no "starting" page.
+//! - Interface size: the window opens at the saved zoom (`display.zoom` in GET /api/v1/settings); the page may zoom
+//!   its own window after that (capability `core:webview:allow-set-webview-zoom`).
 //! - Closing the window hides it; the app stays in the menu bar with Open, Check for jobs now, Pause/Continue
 //!   checks, the time of the last check, and Quit. A second launch focuses the window (single instance).
+//! - Page windows: the page may ask for a job page in a window of its own (`open_page`, Jobs > Web jobs). That window
+//!   is the person browsing: it gets no app commands (no capability names it), never opens the hosts jobleft never
+//!   contacts or a local address, keeps target=_blank links in itself and sends window.open to the default browser.
 //! - Notifications: `GET /api/v1/notifications` every minute; each one shown goes through Notification Center
 //!   (`osascript`) and is acked.
 //! - Quit (menu bar or Cmd-Q): SIGTERM to the server, wait up to 5 s, then exit. If the shell dies, the server sees
@@ -21,7 +26,7 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -29,7 +34,9 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_opener::OpenerExt;
 
 const READY_TIMEOUT: Duration = Duration::from_secs(15);
 /// Set by the SIGTERM handler (Unix); a thread turns it into the same clean quit as the menu bar item.
@@ -50,7 +57,7 @@ struct Shell {
 }
 
 /// The data folder: `JOBLEFT_HOME`, else `~/Library/Application Support/jobleft` on macOS, `%APPDATA%\jobleft` on
-/// Windows (docs/INTERFACES.md section 2).
+/// Windows, `$XDG_DATA_HOME/jobleft` (or `~/.local/share/jobleft`) on Linux (docs/INTERFACES.md section 2).
 fn data_home() -> PathBuf {
     if let Ok(h) = std::env::var("JOBLEFT_HOME") {
         if !h.trim().is_empty() {
@@ -67,10 +74,20 @@ fn data_home() -> PathBuf {
         let up = std::env::var("USERPROFILE").unwrap_or_else(|_| ".".into());
         return PathBuf::from(up).join("AppData").join("Roaming").join("jobleft");
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
     {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
         PathBuf::from(home).join("Library/Application Support/jobleft")
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if let Ok(x) = std::env::var("XDG_DATA_HOME") {
+            if !x.trim().is_empty() {
+                return PathBuf::from(x).join("jobleft");
+            }
+        }
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        PathBuf::from(home).join(".local/share/jobleft")
     }
 }
 
@@ -230,6 +247,11 @@ fn open_window(app: &AppHandle, port: u16, token: &str) -> tauri::Result<()> {
         .inner_size(1280.0, 820.0)
         .min_inner_size(1024.0, 640.0)
         .build()?;
+    // The saved interface size from the start, so the page does not first show at 100% (the UI keeps it after that).
+    let zoom = saved_zoom(port, token);
+    if zoom != 1.0 {
+        let _ = w.set_zoom(zoom);
+    }
     let handle = app.clone();
     w.on_window_event(move |e| {
         if let WindowEvent::CloseRequested { api, .. } = e {
@@ -240,6 +262,64 @@ fn open_window(app: &AppHandle, port: u16, token: &str) -> tauri::Result<()> {
             }
         }
     });
+    Ok(())
+}
+
+/// The hosts jobleft never contacts (the server's never-contact list, docs/sources/never-crawled-sites.md). A page
+/// window refuses them; the page sends them to the default browser.
+const NEVER_HOSTS: &[&str] = &[
+    "linkedin.com", "licdn.com", "indeed.com", "glassdoor.com", "smartrecruiters.com", "myworkdayjobs.com", "myworkdaysite.com",
+    "workday.com", "icims.com", "taleo.net", "oraclecloud.com", "ultipro.com", "ukg.com",
+];
+static PAGES: AtomicUsize = AtomicUsize::new(1);
+/// Runs in a page window before its own scripts: a target=_blank link opens in the same window (the opener plugin's
+/// link hook, which runs in every window, would send it to the default browser through a command this window may
+/// not use, so the click would do nothing).
+const PAGE_LINKS: &str = r#"window.addEventListener('click', function (e) {
+  var a = e.composedPath().find(function (n) { return n instanceof Node && n.nodeName.toUpperCase() === 'A'; });
+  if (a && a.target === '_blank') a.target = '_self';
+}, true);"#;
+
+fn page_allowed(u: &tauri::Url) -> Result<(), String> {
+    if u.scheme() != "http" && u.scheme() != "https" {
+        return Err("not a web address".into());
+    }
+    let host = u.host_str().unwrap_or("").trim_end_matches('.').to_ascii_lowercase();
+    if NEVER_HOSTS.iter().any(|h| host == *h || host.ends_with(&format!(".{h}"))) {
+        return Err(format!("jobleft never opens {host}; open it in your browser"));
+    }
+    let local = match host.trim_start_matches('[').trim_end_matches(']').parse::<std::net::IpAddr>() {
+        Ok(std::net::IpAddr::V4(ip)) => ip.is_loopback() || ip.is_private() || ip.is_link_local() || ip.is_unspecified(),
+        Ok(std::net::IpAddr::V6(ip)) => ip.is_loopback() || ip.is_unspecified() || (ip.segments()[0] & 0xfe00) == 0xfc00,
+        Err(_) => host.is_empty() || host == "localhost" || host.ends_with(".localhost") || host.ends_with(".local"),
+    };
+    if local {
+        return Err("a page window opens public pages only".into());
+    }
+    Ok(())
+}
+
+/// Opens a job page in a window of its own (Jobs > Web jobs). See the module notes for what the window may do.
+#[tauri::command]
+async fn open_page(app: AppHandle, url: String, title: Option<String>) -> Result<(), String> {
+    let u: tauri::Url = url.parse().map_err(|_| "not a web address".to_string())?;
+    page_allowed(&u)?;
+    let label = format!("page-{}", PAGES.fetch_add(1, Ordering::SeqCst));
+    let title = title.filter(|t| !t.trim().is_empty()).unwrap_or_else(|| u.host_str().unwrap_or("jobleft").to_string());
+    let handle = app.clone();
+    WebviewWindowBuilder::new(&app, label, WebviewUrl::External(u))
+        .title(title)
+        .inner_size(1100.0, 820.0)
+        .initialization_script(PAGE_LINKS)
+        .on_navigation(|u| page_allowed(u).is_ok())
+        .on_new_window(move |u, _| {
+            if u.scheme() == "http" || u.scheme() == "https" {
+                let _ = handle.opener().open_url(u.as_str(), None::<&str>);
+            }
+            NewWindowResponse::Deny
+        })
+        .build()
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -295,11 +375,16 @@ fn quit(app: &AppHandle) {
     app.exit(0);
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
 fn notify(_app: &AppHandle, title: &str, body: &str) {
     let esc = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
     let script = format!("display notification \"{}\" with title \"{}\"", esc(body), esc(title));
     let _ = Command::new("/usr/bin/osascript").arg("-e").arg(script).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn();
+}
+/// Linux: `notify-send` (libnotify) with arguments, no shell.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn notify(_app: &AppHandle, title: &str, body: &str) {
+    let _ = Command::new("notify-send").arg("--app-name=jobleft").arg("--").arg(title).arg(body).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn();
 }
 #[cfg(windows)]
 fn notify(app: &AppHandle, title: &str, body: &str) {
@@ -323,6 +408,15 @@ fn paused(port: u16, token: &str) -> bool {
         .and_then(|(s, b)| if s == 200 { serde_json::from_str::<Value>(&b).ok() } else { None })
         .and_then(|j| j.pointer("/crawl/paused").and_then(|v| v.as_bool()))
         .unwrap_or(false)
+}
+
+/// AppSettings.display.zoom (Settings > Appearance), 1 when unset or out of range.
+fn saved_zoom(port: u16, token: &str) -> f64 {
+    http(port, "GET", "/api/v1/settings", token, None)
+        .and_then(|(s, b)| if s == 200 { serde_json::from_str::<Value>(&b).ok() } else { None })
+        .and_then(|j| j.pointer("/display/zoom").and_then(|v| v.as_f64()))
+        .filter(|z| (0.8..=1.5).contains(z))
+        .unwrap_or(1.0)
 }
 
 fn set_paused(port: u16, token: &str, value: bool) {
@@ -385,7 +479,21 @@ fn run_probe(app: &AppHandle, home: PathBuf, script_path: String) {
     });
 }
 
+/// Linux with the NVIDIA driver: WebKitGTK's DMA-BUF renderer draws a blank window (seen on an RTX 4070 under
+/// Hyprland, 2026-10-10). Turn it off before GTK starts, unless the person set WEBKIT_DISABLE_DMABUF_RENDERER
+/// themselves (`=0` keeps the renderer on).
+#[cfg(all(unix, not(target_os = "macos")))]
+fn webkit_workarounds() {
+    let nvidia = Path::new("/proc/driver/nvidia/version").exists() || Path::new("/sys/module/nvidia").exists();
+    if nvidia && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        // Still one thread here, so changing the environment is safe.
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+}
+
 pub fn run() {
+    #[cfg(all(unix, not(target_os = "macos")))]
+    webkit_workarounds();
     let home = data_home();
     let token = new_token();
     #[cfg(unix)]
@@ -403,6 +511,7 @@ pub fn run() {
             // A second launch: bring the one window forward and do nothing else.
             show_main(app);
         }))
+        .invoke_handler(tauri::generate_handler![open_page])
         .manage(Shell { home: home.clone(), token: token.clone(), port: Mutex::new(None), child: Mutex::new(None), quitting: Mutex::new(false) })
         .setup(move |app| {
             let handle = app.handle().clone();

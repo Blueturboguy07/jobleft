@@ -23,7 +23,7 @@ import {
   PageInfoSchema, PairingCodeSchema, PairingInfoSchema, PairRequestSchema, PairResponseSchema, ReviewResponseSchema,
   ReviewResultSchema,
 } from './extension.ts';
-import { JobFilterSchema, JobSearchRequestSchema, JobSearchResponseSchema, JobSortSchema, SavedFilterSchema } from './filter.ts';
+import { JobFilterSchema, JobSearchRequestSchema, JobSearchResponseSchema, DigestSchema, JobSortSchema, SavedFilterSchema } from './filter.ts';
 import { JobSchema, JobSummarySchema, CrawlAtsIdSchema } from './job.ts';
 import { MatchResultSchema } from './match.ts';
 import {
@@ -41,8 +41,9 @@ import {
 } from './sources.ts';
 import { TrackerEntrySchema, TrackerPatchSchema, TrackerStatusSchema, TrackerViewSchema } from './tracker.ts';
 import { PublikConnectionSchema } from './wallet.ts';
+import { WebReadStatusSchema, WebResultOutcomeSchema, WebSavedSearchInputSchema, WebSavedSearchSchema, WebSearchCheckSchema, WebSearchRequestSchema, WebSearchResponseSchema, WebTabsSchema, WebLastSearchSchema } from './websearch.ts';
 import {
-  anyValue, arr, bool, enm, int, lit, named, nullable, obj, rec, str, type Infer, type JsonSchema,
+  anyValue, arr, bool, enm, int, lit, named, nullable, num, obj, rec, str, type Infer, type JsonSchema,
 } from './schema.ts';
 
 // ---------------------------------------------------------------- constants
@@ -147,7 +148,26 @@ export const AppSettingsSchema = named(obj({
     /** True while the person paused the scheduled checks (menu bar "Pause checks"); "Check for jobs now" still works. */
     paused: bool(),
   }),
-  notifications: obj({ reminders: bool(), alerts: bool() }),
+  notifications: obj({ reminders: bool(), alerts: bool() }, {
+    /**
+     * The daily summary: once a day, at `digestHour` (0 to 23, this computer's time) or the first time jobleft runs
+     * after it, one notification with the new jobs that fit and what is due. Added after contracts 1.1.0 (additive).
+     * Absent = on, at 8.
+     */
+    digest: bool(),
+    digestHour: int({ minimum: 0, maximum: 23 }),
+  }),
+}, {
+  /**
+   * How big the interface is drawn: 1 = normal, 0.8 to 1.5. The desktop shell zooms its window to it; Ctrl (Cmd on
+   * a Mac) with +, - and 0 change it there. Added after contracts 1.1.0 (additive). Absent = 1.
+   */
+  display: obj({ zoom: num({ minimum: 0.8, maximum: 1.5 }) }),
+  /**
+   * The person's own SearXNG (Settings > Web search): its address, or null when web search is off. Added after
+   * contracts 1.1.0 (additive). Absent = off.
+   */
+  webSearch: obj({ url: nullable(str({ maxLength: 500 })) }),
 }), 'AppSettings');
 
 /**
@@ -208,6 +228,8 @@ export const LOCAL_API = {
   deleteAllData: route({ method: 'POST', path: '/api/v1/data/delete', auth: 'launch', owner: 'server', summary: 'Delete every personal record and file in the data folder', body: obj({ confirm: lit('delete everything') }), response: Ok }),
   listNotifications: route({ method: 'GET', path: '/api/v1/notifications', auth: 'launch', owner: 'server', summary: 'Notifications waiting for the shell to show', response: arr(NotificationSchema) }),
   ackNotification: route({ method: 'POST', path: '/api/v1/notifications/:notificationId/ack', auth: 'launch', owner: 'server', summary: 'Mark a notification shown (it is never shown again)', response: Ok }),
+  listNotificationHistory: route({ method: 'GET', path: '/api/v1/notifications/history', auth: 'launch', owner: 'server', summary: 'Every notification, shown or not, newest first (at most 200), until cleared', response: arr(NotificationSchema) }),
+  clearNotifications: route({ method: 'POST', path: '/api/v1/notifications/clear', auth: 'launch', owner: 'server', summary: 'Clear the notification history and mark every notification shown', response: Ok }),
   exportJobs: route({ method: 'GET', path: '/api/v1/export/jobs', auth: 'launch', owner: 'store', summary: 'Download saved jobs with their source credits (NDJSON)', response: 'file' }),
   shutdown: route({ method: 'POST', path: '/api/v1/shutdown', auth: 'launch', owner: 'server', summary: 'Stop the server cleanly (the desktop shell uses it to quit; Windows has no SIGTERM)', body: obj({}), response: Ok }),
   devClock: route({ method: 'POST', path: '/api/v1/dev/clock', auth: 'launch', owner: 'server', summary: 'Time-skip for tests', devOnly: true, body: obj({}, { offset: str(), now: IsoDateTimeSchema }), response: obj({ now: IsoDateTimeSchema }) }),
@@ -220,10 +242,12 @@ export const LOCAL_API = {
   }),
   searchJobs: route({ method: 'POST', path: '/api/v1/jobs/search', auth: 'launch', owner: 'store', summary: 'Search with the full filter set', body: JobSearchRequestSchema, response: JobSearchResponseSchema }),
   getJob: route({ method: 'GET', path: '/api/v1/jobs/:jobId', auth: 'launch', owner: 'store', summary: 'One job with company, match, tracker and network count', response: JobDetailSchema }),
+  replaceJobText: route({ method: 'PUT', path: '/api/v1/jobs/:jobId/text', auth: 'launch', owner: 'sources-other', summary: 'Replace the text of a job the person added (or kept from a web search) with the pasted posting; its facts are read again, its likes, notes and status stay', body: obj({ text: str({ minLength: 1, maxLength: 200_000 }) }), response: obj({ job: JobSchema }) }),
   addExternalJob: route({ method: 'POST', path: '/api/v1/jobs/external', auth: 'launch', owner: 'sources-other', summary: 'Add a job from a URL or pasted text (External tab)', body: ExternalJobRequestSchema, response: obj({ job: JobSchema, tracker: TrackerEntrySchema }) }),
   keywordGaps: route({ method: 'GET', path: '/api/v1/jobs/:jobId/keyword-gaps', auth: 'launch', owner: 'resume', summary: 'Keyword gaps of a resume for a job', query: obj({ resumeId: IdSchema }), response: KeywordGapReportSchema }),
 
   // ---- tracker and saved filters
+  getDigest: route({ method: 'GET', path: '/api/v1/digest', auth: 'launch', owner: 'server', summary: 'The new jobs that fit the profile in the last hours (24 by default, at most 168), best first, and what is due today', query: obj({}, { hours: QInt }), response: DigestSchema }),
   listTracker: route({ method: 'GET', path: '/api/v1/tracker', auth: 'launch', owner: 'store', summary: 'Liked, Applied, External, hidden, closed and tracked (everything the person did) views', query: obj({ view: TrackerViewSchema }, { status: TrackerStatusSchema }), response: TrackerListSchema }),
   updateTracker: route({ method: 'PATCH', path: '/api/v1/tracker/:jobId', auth: 'launch', owner: 'store', summary: 'Like, hide, set status, notes, reminders', body: TrackerPatchSchema, response: TrackerEntrySchema }),
   listFilters: route({ method: 'GET', path: '/api/v1/filters', auth: 'launch', owner: 'store', summary: 'Saved filters', response: arr(SavedFilterSchema) }),
@@ -271,6 +295,18 @@ export const LOCAL_API = {
   resolveBoard: route({ method: 'POST', path: '/api/v1/boards/resolve', auth: 'launch', owner: 'boards', summary: 'Find the board behind a careers or job link (adds nothing)', body: obj({ url: str({ maxLength: 4096 }) }, { acceptPaidLookup: bool() }), response: BoardResolveResponseSchema }),
   addBoard: route({ method: 'POST', path: '/api/v1/boards', auth: 'launch', owner: 'boards', summary: 'Add a confirmed board (409 conflict when already added)', body: obj({ ats: CrawlAtsIdSchema, board: str({ minLength: 1 }) }, { region: str() }), response: BoardEntrySchema }),
   updateBoard: route({ method: 'PATCH', path: '/api/v1/boards/:boardId', auth: 'launch', owner: 'boards', summary: 'Follow, hide or disable a board', body: obj({}, { followed: bool(), hidden: bool(), disabled: bool() }), response: BoardEntrySchema }),
+  checkWebSearch: route({ method: 'POST', path: '/api/v1/websearch/check', auth: 'launch', owner: 'server', summary: 'Test a SearXNG address (the given one, else the saved one) with one search', body: obj({}, { url: str({ maxLength: 500 }) }), response: WebSearchCheckSchema }),
+  webSearchJobs: route({ method: 'POST', path: '/api/v1/websearch/jobs', auth: 'launch', owner: 'server', summary: 'Search the web for jobs through the saved SearXNG; the job pages found are then read in the background (once each) and kept as jobs of the source external:web', body: WebSearchRequestSchema, response: WebSearchResponseSchema }),
+  listWebSaved: route({ method: 'GET', path: '/api/v1/websearch/saved', auth: 'launch', owner: 'server', summary: 'Saved web searches (they run by themselves and alert on new jobs)', response: arr(WebSavedSearchSchema) }),
+  addWebSaved: route({ method: 'POST', path: '/api/v1/websearch/saved', auth: 'launch', owner: 'server', summary: 'Save a web search (at most 10; 409 when the same one is saved)', body: WebSavedSearchInputSchema, response: WebSavedSearchSchema }),
+  updateWebSaved: route({ method: 'PATCH', path: '/api/v1/websearch/saved/:savedId', auth: 'launch', owner: 'server', summary: 'How often a saved web search runs', body: obj({ everyHours: int({ minimum: 0, maximum: 24 }) }), response: WebSavedSearchSchema }),
+  deleteWebSaved: route({ method: 'DELETE', path: '/api/v1/websearch/saved/:savedId', auth: 'launch', owner: 'server', summary: 'Delete a saved web search (its jobs stay)', response: Ok }),
+  webSearchOutcomes: route({ method: 'POST', path: '/api/v1/websearch/outcomes', auth: 'launch', owner: 'server', summary: 'What came of reading these web search results (job, list, closed, outside the country asked for)', body: obj({ urls: arr(str({ maxLength: 4096 }), { maxItems: 300 }) }, { country: str({ maxLength: 2 }) }), response: arr(WebResultOutcomeSchema) }),
+  saveWebResult: route({ method: 'POST', path: '/api/v1/websearch/save', auth: 'launch', owner: 'server', summary: 'Keep a web search result as a job, to like or track it: the job read from it, else one made from the result itself (nothing is sent to the site)', body: obj({ url: str({ minLength: 1, maxLength: 4096 }), title: str({ maxLength: 500 }) }, { snippet: str({ maxLength: 2000 }) }), response: obj({ jobId: IdSchema }) }),
+  getWebLast: route({ method: 'GET', path: '/api/v1/websearch/last', auth: 'launch', owner: 'server', summary: 'The last search made in Web jobs and its answer, More results merged in (kept across restarts)', response: obj({ last: nullable(WebLastSearchSchema) }) }),
+  getWebTabs: route({ method: 'GET', path: '/api/v1/websearch/tabs', auth: 'launch', owner: 'server', summary: 'The web search results open in tabs (kept across restarts)', response: WebTabsSchema }),
+  putWebTabs: route({ method: 'PUT', path: '/api/v1/websearch/tabs', auth: 'launch', owner: 'server', summary: 'Keep the web search results open in tabs', body: WebTabsSchema, response: WebTabsSchema }),
+  webReadStatus: route({ method: 'GET', path: '/api/v1/websearch/reading', auth: 'launch', owner: 'server', summary: 'How the background reading of web search results is going', response: WebReadStatusSchema }),
   exportBoards: route({ method: 'GET', path: '/api/v1/boards/export', auth: 'launch', owner: 'boards', summary: 'Download the directory and user boards (NDJSON)', response: 'file' }),
   listSources: route({ method: 'GET', path: '/api/v1/sources', auth: 'launch', owner: 'sources-other', summary: 'Every source: crawled or not, why, status', response: arr(SourceInfoSchema) }),
   updateSource: route({ method: 'PATCH', path: '/api/v1/sources/:sourceId', auth: 'launch', owner: 'sources-other', summary: 'Turn a source on or off', body: obj({ enabled: bool() }), response: SourceInfoSchema }),

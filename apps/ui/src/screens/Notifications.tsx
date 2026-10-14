@@ -1,7 +1,7 @@
 // Notifications: new jobs from refreshes, saved-filter alerts, reminders and follow-ups. The desktop app also shows
-// them as macOS notifications; dismissing one here marks it shown.
+// them as desktop notifications; dismissing one here marks it shown. NotificationHistory lists every one until cleared.
 
-import { Button } from 'antd';
+import { Button, Popconfirm } from 'antd';
 import { BellOutlined, CalendarOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons';
 import type { NetworkContact, Notification } from '@jobleft/contracts';
 import { call, type UiError } from '../app/api.ts';
@@ -65,6 +65,49 @@ export function Notifications() {
           {!upcoming.length && !followUps.length && <p className="jl-muted">No open reminders or upcoming follow-ups.</p>}
           {upcoming.map(({ r, it, overdue }) => <p key={r.id} style={{ margin: '4px 0' }}><CalendarOutlined /> {overdue && <span className="jl-chip warn" style={{ marginRight: 6 }}>Overdue</span>}{dateTimeText(r.at)}: {r.text} · <a href={`#/jobs/${encodeURIComponent(it.job.id)}`}>{it.job.company}</a></p>)}
           {followUps.map((c) => <p key={c.id} style={{ margin: '4px 0' }}><TeamOutlined /> {calendarDate(c.followUpOn)}: follow up with {c.firstName} {c.lastName}{c.company ? ` (${c.company})` : ''}</p>)}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+export function NotificationHistory() {
+  const notes = useApi<Notification[]>('notifications:history', () => call('listNotificationHistory'), { staleMs: 3000 });
+  const clear = async () => {
+    try { await call('clearNotifications'); invalidate('notifications'); } catch (e) { ui.message?.error((e as UiError).message); }
+  };
+  if (notes.error && !notes.data) return <div className="jl-page"><ErrorState error={notes.error} onRetry={() => { void notes.reload(); }} /></div>;
+  if (!notes.data) return <div className="jl-page"><Loading label="Loading notifications" /></div>;
+  return (
+    <div className="jl-page">
+      <div className="jl-page-inner" style={{ maxWidth: 860 }}>
+        <section className="jl-card-box" aria-labelledby="hist-h">
+          <div className="jl-row" style={{ marginBottom: 8 }}>
+            <h2 id="hist-h" className="jl-section-title jl-grow" style={{ margin: 0 }}>All notifications</h2>
+            {notes.data.length > 0 && (
+              <Popconfirm title="Clear every notification?" description="They are marked shown and leave this list." okText="Clear" okButtonProps={{ danger: true }} onConfirm={clear}>
+                <Button size="small" shape="round">Clear notifications</Button>
+              </Popconfirm>
+            )}
+          </div>
+          {!notes.data.length ? <EmptyState art="bell" title="No notifications" text="Every notification jobleft shows is kept here until you clear them." /> : notes.data.map((n) => {
+            const to = targetRoute(n.target);
+            const text = (
+              <>
+                <span className="jl-sec-icon" aria-hidden="true">{ICON[n.kind] ?? <BellOutlined />}</span>
+                <div className="jl-grow">
+                  <strong>{n.title}</strong>
+                  <p style={{ margin: '2px 0' }}>{n.body}</p>
+                  <span className="jl-small jl-muted">{dateTimeText(n.createdAt)}</span>
+                </div>
+              </>
+            );
+            const style = { padding: '10px 0', borderTop: '1px solid var(--jl-line)', alignItems: 'flex-start', color: 'inherit' } as const;
+            // opening one also marks it shown, as Open on the Alerts screen does
+            return to
+              ? <a key={n.id} href={`#/${to}`} className="jl-row" style={style} onClick={() => { void call('ackNotification', { params: { notificationId: n.id } }).then(() => invalidate('notifications'), () => undefined); }}>{text}</a>
+              : <article key={n.id} className="jl-row" style={style} aria-label={n.title}>{text}</article>;
+          })}
         </section>
       </div>
     </div>

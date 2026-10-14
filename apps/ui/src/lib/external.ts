@@ -27,3 +27,15 @@ export function realLink(url: string | null | undefined): string | null {
 }
 
 export const NO_LINK_TEXT = 'No apply link: this job was added from pasted text without one. Look for it on the employer\'s own site.';
+
+type TauriInternals = { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> };
+
+/**
+ * Opens a page in a jobleft window of its own (the desktop shell's `open_page`: no app access, never the hosts jobleft
+ * never contacts). In a browser, or when the shell refuses, the page opens in the default browser.
+ */
+export async function openPage(url: string, title?: string): Promise<void> {
+  const t = (window as unknown as { __TAURI_INTERNALS__?: TauriInternals }).__TAURI_INTERNALS__;
+  if (!t) { openExternal(url); return; }
+  try { await t.invoke('open_page', { url, ...(title ? { title } : {}) }); } catch { openExternal(url); }
+}

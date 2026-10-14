@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import { Browser, type Page } from './cdp.ts';
 import { appCall, dump, launch, openPopup, pair, panelText, practiceLog, pressFill, startApp, startPractice, waitFor } from './harness.ts';
+import { tmpdir } from 'node:os';
 
 const args = process.argv.slice(2);
 const only = args.includes('--only') ? new Set((args[args.indexOf('--only') + 1] ?? '').split(',')) : null;
@@ -62,7 +63,7 @@ async function watchWorker(b: Browser, extId: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const home = '/private/tmp/jl-e2e-app';
+  const home = join(tmpdir(), 'jl-e2e-app');
   rmSync(home, { recursive: true, force: true });
   let app = await startApp(home);
   const practice = await startPractice();

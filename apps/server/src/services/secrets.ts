@@ -2,20 +2,25 @@
 //   * keychain (macOS default): /usr/bin/security. The secret goes to `security -i` on stdin, hex-encoded, so it
 //     never shows in a process list. One Keychain service per data folder ("jobleft-<hash>"), so a scratch folder
 //     never sees another folder's keys, and a backup restored elsewhere carries none.
-//   * memory: tests and non-macOS systems; keys are forgotten when the server stops.
+//   * secret-service (Linux default): the desktop keyring (GNOME Keyring, KWallet) through `secret-tool` (libsecret).
+//     The secret goes in on stdin, base64-encoded, never in an argument. Same service name per data folder.
+//   * file (Linux without a keyring): @jobleft/ai-engine's AES-256-GCM file store under <home>/secrets.
+//   * memory: tests and other systems; keys are forgotten when the server stops.
 // Interim: @jobleft/ai-engine owns the real secret store (osSecretStore). This one keeps the server whole until it lands.
 
 import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { delimiter, join } from 'node:path';
 import type { SecretStore } from '@jobleft/contracts';
+import { encryptedFileSecretStore } from '@jobleft/ai-engine';
 import { ApiFailure } from '../errors.ts';
 
 const SECURITY = '/usr/bin/security';
 const NAME_RE = /^[A-Za-z0-9._:@-]{1,200}$/;
 
 export interface ServerSecretStore extends SecretStore {
-  readonly kind: 'keychain' | 'memory';
+  readonly kind: 'keychain' | 'secret-service' | 'file' | 'memory';
   /** Every name this store holds for this data folder (for delete-all). */
   knownNames(): string[];
 }
@@ -31,15 +36,15 @@ export function memorySecrets(): ServerSecretStore {
   };
 }
 
-function run(args: string[], stdin?: string): Promise<{ code: number; stdout: string }> {
+function run(args: string[], stdin?: string, bin = SECURITY): Promise<{ code: number; stdout: string }> {
   return new Promise((resolve) => {
     if (stdin === undefined) {
-      execFile(SECURITY, args, { timeout: 15_000, maxBuffer: 1 << 20 }, (err, stdout) => {
+      execFile(bin, args, { timeout: 15_000, maxBuffer: 1 << 20 }, (err, stdout) => {
         resolve({ code: err ? 1 : 0, stdout: String(stdout ?? '') });
       });
       return;
     }
-    const child = spawn(SECURITY, args, { stdio: ['pipe', 'pipe', 'ignore'] });
+    const child = spawn(bin, args, { stdio: ['pipe', 'pipe', 'ignore'] });
     let stdout = '';
     const timer = setTimeout(() => child.kill('SIGKILL'), 15_000);
     child.stdout.on('data', (d) => { stdout += String(d); });
@@ -95,10 +100,104 @@ export function keychainSecrets(service: string): ServerSecretStore {
   };
 }
 
+/** `secret-tool` on PATH, or null. */
+function findSecretTool(): string | null {
+  for (const dir of (process.env.PATH ?? '/usr/bin').split(delimiter)) {
+    const p = join(dir, 'secret-tool');
+    if (dir && existsSync(p)) return p;
+  }
+  return null;
+}
+
+/** The Linux desktop keyring (Secret Service) through libsecret's `secret-tool`. */
+export function secretServiceSecrets(service: string): ServerSecretStore {
+  const tool = process.platform === 'linux' ? findSecretTool() : null;
+  if (!tool || !process.env.DBUS_SESSION_BUS_ADDRESS) throw new Error('no Secret Service keyring is available');
+  const names = new Set<string>();
+  const check = (name: string) => { if (!NAME_RE.test(name)) throw new ApiFailure('bad_request', 'A secret name has characters that are not allowed.'); };
+  const lookup = (name: string) => run(['lookup', 'service', service, 'account', name], undefined, tool);
+  return {
+    kind: 'secret-service',
+    async get(name) {
+      check(name);
+      const r = await lookup(name);
+      if (r.code !== 0) return null;
+      names.add(name);
+      return decode(r.stdout);
+    },
+    async set(name, value) {
+      check(name);
+      if (typeof value !== 'string' || value.length === 0 || value.length > 4000) throw new ApiFailure('bad_request', 'The key is empty or too long.');
+      const r = await run(['store', `--label=${service}`, 'service', service, 'account', name], encode(value), tool);
+      const back = await lookup(name);
+      if (r.code !== 0 || back.code !== 0 || decode(back.stdout) !== value) {
+        throw new ApiFailure('write_failed', 'jobleft could not save the key in the system keyring. Unlock the keyring and try again.');
+      }
+      names.add(name);
+    },
+    async delete(name) {
+      check(name);
+      await run(['clear', 'service', service, 'account', name], undefined, tool);
+      names.delete(name);
+    },
+    knownNames: () => [...names],
+  };
+}
+
+/** The encrypted file store in <home>/secrets (a keyring-less Linux). */
+export function fileSecrets(home: string): ServerSecretStore {
+  const inner = encryptedFileSecretStore(join(home, 'secrets'));
+  const names = new Set<string>();
+  return {
+    kind: 'file',
+    async get(name) { const v = await inner.get(name); if (v !== null) names.add(name); return v; },
+    async set(name, value) { await inner.set(name, value); names.add(name); },
+    async delete(name) { await inner.delete(name); names.delete(name); },
+    knownNames: () => [...names],
+  };
+}
+
+/**
+ * Linux: the keyring when it works, else the encrypted file. `secret-tool` can be installed with no keyring running or
+ * unlocked (common outside GNOME and KDE), and then every write fails; the key goes to the file instead of being lost.
+ * A read tries the keyring, then the file; a save to the keyring clears any copy in the file.
+ */
+export function linuxSecrets(home: string, keyring: ServerSecretStore | null = null): ServerSecretStore {
+  let kr = keyring;
+  if (!kr) { try { kr = secretServiceSecrets(keychainServiceFor(home)); } catch { kr = null; } }
+  const file = fileSecrets(home);
+  if (!kr) return file;
+  const ring = kr;
+  return {
+    kind: 'secret-service',
+    async get(name) {
+      try { const v = await ring.get(name); if (v !== null) return v; } catch { /* keyring unreadable: try the file */ }
+      return file.get(name);
+    },
+    async set(name, value) {
+      try {
+        await ring.set(name, value);
+      } catch (e) {
+        if (e instanceof ApiFailure && e.code === 'bad_request') throw e;
+        await file.set(name, value);
+        return;
+      }
+      await file.delete(name);
+    },
+    async delete(name) {
+      try { await ring.delete(name); } catch { /* nothing to remove there */ }
+      await file.delete(name);
+    },
+    knownNames: () => [...new Set([...ring.knownNames(), ...file.knownNames()])],
+  };
+}
+
 export function createSecretStore(kind: string | undefined, home: string): ServerSecretStore {
   if (kind === 'memory') return memorySecrets();
+  if (kind === 'file') return fileSecrets(home);
   if (kind === 'keychain' || (kind === undefined && process.platform === 'darwin')) {
     try { return keychainSecrets(keychainServiceFor(home)); } catch { return memorySecrets(); }
   }
+  if (kind === 'secret-service' || (kind === undefined && process.platform === 'linux')) return linuxSecrets(home);
   return memorySecrets();
 }

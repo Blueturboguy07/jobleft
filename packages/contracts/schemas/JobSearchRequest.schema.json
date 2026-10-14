@@ -129,12 +129,20 @@
             "24h",
             "3d",
             "7d",
-            "30d"
+            "30d",
+            "365d"
           ]
         },
         "minAnnualPayUsd": {
           "type": "number",
           "minimum": 0
+        },
+        "payCurrency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "leaveOutDutch": {
+          "type": "boolean"
         },
         "h1bSponsorship": {
           "type": "boolean"
