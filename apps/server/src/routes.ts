@@ -186,6 +186,8 @@ export const HANDLERS: HandlerTable = {
     if (!d.notifications.ack(params.notificationId!)) notFound('That notification');
     return ok;
   },
+  listNotificationHistory: ({ d }) => ({ json: d.notifications.history() }),
+  clearNotifications: ({ d }) => { d.notifications.clear(); return ok; },
   exportJobs: ({ d }) => {
     const ids = new Set<string>();
     for (const v of ['liked', 'applied', 'external', 'closed'] as const) for (const it of d.tracker.list(v).items) ids.add(it.entry.jobId);

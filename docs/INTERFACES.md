@@ -313,6 +313,8 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `deleteAllData` | POST | `/api/v1/data/delete` | launch | server | — | `{ confirm }` | `Ok` | Delete every personal record and file in the data folder |
 | `listNotifications` | GET | `/api/v1/notifications` | launch | server | — | — | `Notification[]` | Notifications waiting for the shell to show |
 | `ackNotification` | POST | `/api/v1/notifications/:notificationId/ack` | launch | server | — | — | `Ok` | Mark a notification shown (it is never shown again) |
+| `listNotificationHistory` | GET | `/api/v1/notifications/history` | launch | server | — | — | `Notification[]` | Every notification, shown or not, newest first (at most 200), until cleared |
+| `clearNotifications` | POST | `/api/v1/notifications/clear` | launch | server | — | — | `Ok` | Clear the notification history and mark every notification shown |
 | `exportJobs` | GET | `/api/v1/export/jobs` | launch | store | — | — | file | Download saved jobs with their source credits (NDJSON) |
 | `shutdown` | POST | `/api/v1/shutdown` | launch | server | — | `{}` | `Ok` | Stop the server cleanly (the desktop shell uses it to quit; Windows has no SIGTERM) |
 | `devClock` | POST | `/api/v1/dev/clock` | launch | server | — | `{ offset?, now? }` | `{ now }` | Time-skip for tests (JOBLEFT_DEV=1 only) |
@@ -1408,7 +1410,7 @@ carries only one contact's name, title and company, one job and a short profile 
 Status: **Built** (server lane). Purpose: the local HTTP server that enforces section 6.1 and wires every package.
 Owns: tables `pairings`, `srv_kv`, `srv_notifications` and the interim `srv_*` tables (section 3); routes `health`,
 `getSettings`, `putSettings`, `backup`, `restore`, `exportAll`, `deleteAllData`, `listNotifications`,
-`ackNotification`, `devClock`, `pairingCode`, `pair`, `listPairings`, `deletePairing`, `unpair`, `extensionStatus`,
+`ackNotification`, `listNotificationHistory`, `clearNotifications`, `devClock`, `pairingCode`, `pair`, `listPairings`, `deletePairing`, `unpair`, `extensionStatus`,
 `fill`, `review`; the scripts `pnpm app:up` and `pnpm app:down`. How to run it: `apps/server/README.md`.
 
 | Export (`apps/server/src/index.ts`) | What |

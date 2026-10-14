@@ -15,9 +15,9 @@ import { aiCheckFailed, lastAiCheck, subscribeAiCheck } from '../lib/aiHealth.ts
 import { LogoMark } from './Art.tsx';
 import { Chat } from './Chat.tsx';
 import { closeChat, openChat, useChatTarget } from './chatStore.ts';
-import { IconAssistant, IconBell, IconDashboard, IconInterview, IconJobs, IconNetwork, IconProfile, IconResume, IconSettings, IconTracker, IconSparkle } from './Icons.tsx';
+import { IconAssistant, IconBell, IconDashboard, IconHistory, IconInterview, IconJobs, IconNetwork, IconProfile, IconResume, IconSettings, IconTracker, IconSparkle } from './Icons.tsx';
 
-export type ScreenId = 'jobs' | 'tracker' | 'dashboard' | 'resume' | 'profile' | 'network' | 'interview' | 'assistant' | 'settings' | 'notifications';
+export type ScreenId = 'jobs' | 'tracker' | 'dashboard' | 'resume' | 'profile' | 'network' | 'interview' | 'assistant' | 'settings' | 'notifications' | 'history';
 
 const NAV: Array<{ id: ScreenId; label: string; icon: ReactNode; to: string }> = [
   { id: 'jobs', label: 'Jobs', icon: <IconJobs />, to: '#/jobs' },
@@ -47,6 +47,9 @@ export function Rail({ active }: { active: ScreenId }) {
         <a href="#/notifications" className="jl-rail-item" aria-current={active === 'notifications' ? 'page' : undefined} aria-label={`Alerts${n ? `, ${n} new` : ''}`}>
           <IconBell /><span>Alerts</span>
           {n > 0 && <span className="jl-rail-badge" aria-hidden="true">{n > 99 ? '99+' : n}</span>}
+        </a>
+        <a href="#/history" className="jl-rail-item" aria-current={active === 'history' ? 'page' : undefined}>
+          <IconHistory /><span>Notifications</span>
         </a>
         <a href="#/settings" className="jl-rail-item" aria-current={active === 'settings' ? 'page' : undefined}>
           <IconSettings /><span>Settings</span>
@@ -133,7 +136,7 @@ function JobSearch({ onRecommended }: { onRecommended: boolean }) {
 
 const TITLES: Record<ScreenId, string> = {
   jobs: 'Jobs', tracker: 'Tracker', dashboard: 'Dashboard', resume: 'Resume', profile: 'Profile', network: 'Network', interview: 'Interview',
-  assistant: 'Assistant', settings: 'Settings', notifications: 'Alerts',
+  assistant: 'Assistant', settings: 'Settings', notifications: 'Alerts', history: 'Notifications',
 };
 
 /** The assistant button in the top bar: opens or closes the assistant panel (the panel stays over the page, closes with Esc). */
