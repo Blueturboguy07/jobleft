@@ -1,0 +1,54 @@
+name: bugfix-lab
+# workflow_dispatch is the documented trigger; GitHub only registers a dispatchable workflow that is on the default
+# branch, so a push to loop/<key> also starts it (the lab branch carries the file).
+on:
+  workflow_dispatch:
+  push:
+    branches: ['loop/jobleft-20261019-4cb8fb']
+jobs:
+  lab:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: pnpm
+        shell: bash
+        run: |
+          npm install -g pnpm@12.4.1
+          test "$(pnpm --version)" = "12.4.1"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/shell/src-tauri
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Build the UI
+        run: pnpm --filter @jobleft/ui build
+      - name: Node runtime for the sidecar
+        run: node apps/shell/scripts/fetch-node.mjs --target win-x64
+      - name: Sidecar tree
+        env:
+          JOBLEFT_PUBLIK_APP_TOKEN: ${{ secrets.PUBLIK_APP_TOKEN }}
+        run: node apps/shell/scripts/pack.ts --target win-x64
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          Set-Location apps/shell
+          $cli = node -p "require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })"
+          node $cli build --bundles nsis
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Bugfix lab
+        shell: pwsh
+        run: |
+          ./scripts/bugfix-lab/jobleft-20261019-4cb8fb.ps1
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lab-logs
+          if-no-files-found: ignore
+          path: lab-out
