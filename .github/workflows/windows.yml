@@ -133,8 +133,11 @@ jobs:
           $deadline = (Get-Date).AddSeconds(20)
           while (-not (Test-Path $shellFile) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
           "window: $(if (Test-Path $shellFile) { Get-Content $shellFile } else { 'no run/shell.json (window not reported)' })"
+          $window = if (Test-Path $shellFile) { (Get-Content $shellFile | ConvertFrom-Json).windowShown } else { $false }
           Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$($j.port)/api/v1/shutdown" -Headers @{ 'x-jobleft-token' = $j.token } -ContentType 'application/json' -Body '{}' | Out-Null
           Start-Sleep -Seconds 4
+          # A server that answers is not enough: users saw a cmd window and no app window (the shell gave up first).
+          if ($window -ne $true) { Get-Content "$env:APPDATA\jobleft\logs\sidecar.log" -ErrorAction SilentlyContinue | Select-Object -Last 30; throw "the app window did not open (run/shell.json windowShown is not true)" }
           $alive = Get-Process -Id $j.pid -ErrorAction SilentlyContinue
           if ($alive) { throw "server still running after shutdown" }
           "server stopped cleanly; run file gone: $(-not (Test-Path $run))"
