@@ -235,16 +235,40 @@ try {
 
   // Reload persistence: like one job and hide another, reload, check both.
   await p.waitFor(`document.querySelectorAll('#jl-feed-scroll button[aria-label^="Like "]').length >= 2 && document.querySelectorAll('#jl-feed-scroll button[aria-label^="Not interested in "]').length >= 2`, 10000);
-  const likeId = await p.eval(`(() => { const b = document.querySelector('#jl-feed-scroll button[aria-label^="Like "]'); return b ? b.closest('[data-job-id]').getAttribute('data-job-id') : null; })()`);
-  const hideId = await p.eval(`(() => { const all = [...document.querySelectorAll('#jl-feed-scroll button[aria-label^="Not interested in "]')].map(b => b.closest('[data-job-id]').getAttribute('data-job-id')).filter(x => x !== ${JSON.stringify(likeId)}); return all[0] || null; })()`);
+  let likeId = await p.eval(`(() => { const b = document.querySelector('#jl-feed-scroll button[aria-label^="Like "]'); return b ? b.closest('[data-job-id]').getAttribute('data-job-id') : null; })()`);
+  let hideId = await p.eval(`(() => { const all = [...document.querySelectorAll('#jl-feed-scroll button[aria-label^="Not interested in "]')].map(b => b.closest('[data-job-id]').getAttribute('data-job-id')).filter(x => x !== ${JSON.stringify(likeId)}); return all[0] || null; })()`);
   if (!likeId || !hideId) skip('reload persistence', 'no two jobs with Like and Not interested buttons');
   else {
     const likedBefore = (await api('/tracker?view=liked&limit=100')).body.items.length;
-    p.clearRequests();
-    await p.click(`#jl-feed-scroll [data-job-id="${likeId}"] button[aria-label^="Like "]`);
+    // While jobleft still scores new jobs, Top matched re-orders the list by itself every 3 s at the top (JL-feed-6),
+    // so a click can land on a card that just moved. The job whose Like was really clicked is the one checked; when
+    // the click hit no Like button at all, one more click on a fresh card (the detail says so).
+    const likedBy = () => {
+      const r = p.requests().find((x) => x.method === 'PATCH' && /\/tracker\//.test(x.url) && /"liked"\s*:\s*true/.test(x.body || ''));
+      return r ? decodeURIComponent(r.url.split('/tracker/')[1].split('?')[0]) : null;
+    };
+    let likeSent = false, second = false, moved = false;
+    for (let attempt = 0; attempt < 2 && !likeSent; attempt++) {
+      if (attempt) {
+        second = true;
+        likeId = await p.eval(`(() => { const b = document.querySelector('#jl-feed-scroll button[aria-label^="Like "]'); return b ? b.closest('[data-job-id]').getAttribute('data-job-id') : null; })()`);
+        if (!likeId) break;
+      }
+      p.clearRequests();
+      await p.click(`#jl-feed-scroll [data-job-id="${likeId}"] button[aria-label^="Like "]`);
+      for (let i = 0; i < 10 && !likeSent; i++) {
+        await p.waitFor('false', 300);
+        const id = likedBy();
+        if (id) { likeSent = true; if (id !== likeId) { moved = true; likeId = id; } }
+      }
+    }
+    if (likeId && likeId === hideId) {
+      hideId = await p.eval(`(() => { const all = [...document.querySelectorAll('#jl-feed-scroll button[aria-label^="Not interested in "]')].map(b => b.closest('[data-job-id]').getAttribute('data-job-id')).filter(x => x !== ${JSON.stringify(likeId)}); return all[0] || null; })()`);
+    }
     const likeShown = await p.waitFor(`[...document.querySelectorAll('.jl-topbar-tabs a')].some(a => a.getAttribute('aria-label') === 'Liked, ${likedBefore + 1}')`, 5000);
-    const likeSent = p.requests().some((r) => r.method === 'PATCH' && r.url.includes(encodeURIComponent(likeId)));
-    check('like: the Liked badge goes up at once', likeShown, `request sent: ${likeSent}; badge did not reach ${likedBefore + 1} in 5 s`);
+    const how = moved ? ' (the list re-ordered under the click: another card was liked, and that one is checked)' : second ? ' (on a second click: the first hit no Like button while the list re-ordered)' : '';
+    check('like: the Liked badge goes up at once', likeShown, `request sent: ${likeSent}${how}; badge did not reach ${likedBefore + 1} in 5 s`);
+    if (likeShown && how) console.log(`note: like${how}`);
     await p.click(`#jl-feed-scroll [data-job-id="${hideId}"] button[aria-label^="Not interested in "]`);
     const gone = await p.waitFor(`!document.querySelector('#jl-feed-scroll [data-job-id="${hideId}"] button[aria-label^="Not interested in "]')`, 5000);
     check('hide: the card leaves the list at once', gone, 'still listed after 5 s');
