@@ -2,20 +2,27 @@
 //   * keychain (macOS default): /usr/bin/security. The secret goes to `security -i` on stdin, hex-encoded, so it
 //     never shows in a process list. One Keychain service per data folder ("jobleft-<hash>"), so a scratch folder
 //     never sees another folder's keys, and a backup restored elsewhere carries none.
-//   * memory: tests and non-macOS systems; keys are forgotten when the server stops.
+//   * file (the default off macOS, and on macOS when the Keychain is not available): @jobleft/ai-engine's
+//     AES-256-GCM store in <data folder>/secrets (secrets.enc and master.key, both 0600). Keys survive a stop, a
+//     reboot and an update, as they do in the Keychain. Backups and exports leave the folder out; delete-all removes it.
+//     (Until 0.1.3 every system but macOS kept keys in memory only, so on Windows the publik connection was lost at
+//     every quit and reinstall, and the next connect made a new, unlinked publik install.)
+//   * memory: tests only; keys are forgotten when the server stops.
 // Interim: @jobleft/ai-engine owns the real secret store (osSecretStore). This one keeps the server whole until it lands.
 
 import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { SecretStore } from '@jobleft/contracts';
+import { encryptedFileSecretStore } from '@jobleft/ai-engine';
 import { ApiFailure } from '../errors.ts';
 
 const SECURITY = '/usr/bin/security';
 const NAME_RE = /^[A-Za-z0-9._:@-]{1,200}$/;
 
 export interface ServerSecretStore extends SecretStore {
-  readonly kind: 'keychain' | 'memory';
+  readonly kind: 'keychain' | 'file' | 'memory';
   /** Every name this store holds for this data folder (for delete-all). */
   knownNames(): string[];
 }
@@ -28,6 +35,23 @@ export function memorySecrets(): ServerSecretStore {
     async set(name, value) { m.set(name, value); },
     async delete(name) { m.delete(name); },
     knownNames: () => [...m.keys()],
+  };
+}
+
+/** The folder of the encrypted file store for a data folder. */
+export function secretsDirFor(home: string): string {
+  return join(home, 'secrets');
+}
+
+/** The encrypted file store (AES-256-GCM, 0600) in `dir`. A new server on the same data folder reads the same keys. */
+export function fileSecrets(dir: string): ServerSecretStore {
+  const inner = encryptedFileSecretStore(dir);
+  return {
+    kind: 'file',
+    get: (name) => inner.get(name),
+    set: (name, value) => inner.set(name, value),
+    delete: (name) => inner.delete(name),
+    knownNames: () => inner.names(),
   };
 }
 
@@ -95,10 +119,15 @@ export function keychainSecrets(service: string): ServerSecretStore {
   };
 }
 
+/**
+ * The store for a data folder: JOBLEFT_SECRET_STORE when set (keychain, file, memory); else the macOS Keychain on
+ * macOS and the encrypted file store elsewhere. The file store also stands in when the Keychain is not available.
+ */
 export function createSecretStore(kind: string | undefined, home: string): ServerSecretStore {
   if (kind === 'memory') return memorySecrets();
+  if (kind === 'file') return fileSecrets(secretsDirFor(home));
   if (kind === 'keychain' || (kind === undefined && process.platform === 'darwin')) {
-    try { return keychainSecrets(keychainServiceFor(home)); } catch { return memorySecrets(); }
+    try { return keychainSecrets(keychainServiceFor(home)); } catch { return fileSecrets(secretsDirFor(home)); }
   }
-  return memorySecrets();
+  return fileSecrets(secretsDirFor(home));
 }

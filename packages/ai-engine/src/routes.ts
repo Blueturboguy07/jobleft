@@ -99,7 +99,9 @@ export function createAiRouteHandlers(engine: AiEngine): AiRouteHandlers {
       return { status: 200, sse: chatEvents(engine, body as ChatRequest, { signal }) };
     }),
     cancelAi: ({ params }) => guard(async () => ({ status: 200, json: { cancelled: engine.cancel(String(params.requestId ?? '')) } })),
-    getPublik: () => guard(async () => ({ status: 200, json: await engine.publik.status() })),
+    // A read for a screen: the kept wallet, read again from publik when it can be old (a link made on the web shows
+    // up without a click). refreshPublik stays the explicit, always-fresh read.
+    getPublik: () => guard(async () => ({ status: 200, json: await engine.publik.latest() })),
     connectPublik: ({ body }) => guard(async () => {
       const invalid = checkBody('connectPublik', body);
       if (invalid) return invalid;

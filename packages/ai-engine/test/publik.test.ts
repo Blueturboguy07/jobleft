@@ -232,3 +232,63 @@ test('JL-network-19: a daily-limit refusal says what happened (this step, not th
     assert.doesNotMatch(bare.message.replace(/\$0\.25 a day, \$0\.14 used so far/, ''), /\$/);
   });
 });
+
+test('a link made on publikhq.com shows up without a click: a screen read (latest) reads the wallet again when it can be old, at most once per 5 s', async () => {
+  await withPublik({ balanceUsd: 0 }, async (p) => {
+    const { engine, kv } = makeEngine({ publikBaseUrl: p.baseUrl });
+    const { WALLET_STALE_MS } = await import('../src/index.ts');
+    const admin = (path: string, body: object) => fetch(`http://127.0.0.1:${p.port}/__admin/${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const walletReads = () => p.log.entries.filter((e) => e.path === '/api/v1/wallet').length;
+    // The kept wallet's age, as the screens see it (the kept state is key-free; the key stays in the secret store).
+    const age = (ms: number) => {
+      const s = kv.getJson<{ wallet: { updatedAt: string } }>('ai.publik')!;
+      kv.setJson('ai.publik', { ...s, wallet: { ...s.wallet, updatedAt: new Date(Date.now() - ms).toISOString() } });
+    };
+    assert.equal((await engine.publik.latest()).state, 'disconnected', 'nothing is read for a computer that is not connected');
+    await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
+    const after = walletReads();
+    let c = await engine.publik.latest();
+    assert.equal(c.wallet?.claimState, 'anonymous');
+    assert.equal(c.wallet?.balanceMicros, 0);
+    assert.equal(walletReads(), after, 'a wallet read a moment ago is shown as it is');
+
+    // The person links this computer on publikhq.com and the plan money arrives. Before: the screen kept saying
+    // "$0.00, AI steps cannot run yet" until "Read the balance again" or an AI step (Windows users gave up here).
+    await admin('claim', {});
+    await admin('add', { usd: 8.05 });
+    age(WALLET_STALE_MS.anonymous + 500);
+    c = await engine.publik.latest();
+    assert.equal(c.wallet?.claimState, 'claimed');
+    assert.equal(c.wallet?.balanceMicros, 8_050_000);
+    assert.equal(walletReads(), after + 1, 'one read, no click');
+    assert.equal(p.state().keys, 1);
+
+    // The gap: screens that ask again within 5 s get the kept wallet, not another request.
+    await admin('add', { usd: 1 });
+    age(WALLET_STALE_MS.claimed + 500);
+    c = await engine.publik.latest();
+    assert.equal(c.wallet?.balanceMicros, 8_050_000);
+    assert.equal(walletReads(), after + 1, 'no second read within 5 s');
+
+    // The explicit "Read the balance again" is never held back.
+    assert.equal((await engine.publik.refresh()).wallet?.balanceMicros, 9_050_000);
+    assert.equal(walletReads(), after + 2);
+
+    // When publik cannot be reached, the screen keeps the last wallet (with its own "last read" time) and gets no error.
+    const s = kv.getJson<{ baseUrl: string }>('ai.publik')!;
+    kv.setJson('ai.publik', { ...s, baseUrl: 'http://127.0.0.1:9/api/v1' });
+    age(WALLET_STALE_MS.claimed + 500);
+    (engine.publik as unknown as { lastReadAt: number }).lastReadAt = 0;
+    const t0 = Date.now();
+    c = await engine.publik.latest();
+    assert.ok(Date.now() - t0 < 4000, 'a short read, so the screen is not held');
+    assert.equal(c.state, 'connected');
+    assert.equal(c.wallet?.balanceMicros, 9_050_000);
+    assert.equal(walletReads(), after + 2);
+    kv.setJson('ai.publik', { ...kv.getJson<object>('ai.publik')!, baseUrl: s.baseUrl });
+
+    // Offline mode: nothing goes over the network; the kept wallet is shown.
+    const off = makeEngine({ publikBaseUrl: p.baseUrl, env: { JOBLEFT_OFFLINE: '1' } });
+    await off.engine.publik.connect(PUBLIK_DISCLOSURE_VERSION).catch(() => undefined);
+  });
+});

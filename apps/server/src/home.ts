@@ -28,6 +28,8 @@ export function homeLayout(home: string) {
     exports: join(home, 'files', 'exports'),
     datasets: join(home, 'datasets'),
     models: join(home, 'models'),
+    /** The encrypted file secret store (services/secrets.ts); made by the store itself (0700). Never in a backup or an export. */
+    secrets: join(home, 'secrets'),
     backups: join(home, 'backups'),
     logs: join(home, 'logs'),
     tmp: join(home, 'tmp'),

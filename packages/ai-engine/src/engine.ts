@@ -94,7 +94,7 @@ export class AiEngine {
     this.hostMap = aiHostMapFromEnv(this.env);
     this.publik = new PublikClient({
       baseUrl: opts.publikBaseUrl, appToken: opts.publikAppToken, secrets: opts.secrets, fetchImpl: opts.fetchImpl,
-      state: this.kv, appVersion: opts.appVersion, connectTimeoutMs: this.connectTimeoutMs,
+      state: this.kv, appVersion: opts.appVersion, connectTimeoutMs: this.connectTimeoutMs, offline: () => this.offline(),
     });
     // Disconnect stops every running publik request at once: nothing spends the balance afterwards (O2). The stop
     // says why (JL-settings-10): the person did not press Stop, publik was disconnected.

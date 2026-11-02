@@ -476,6 +476,8 @@ export async function deleteAllData(app: App): Promise<void> {
     for (const n of [...names, SECRET_NAMES.publikKey, ...app.cfg.secrets.knownNames()]) {
       try { await app.cfg.secrets.delete(n); } catch { /* not there */ }
     }
+    // The encrypted file store's folder goes too (its master key and the emptied file); the store makes a new one when a key is next saved.
+    if (app.cfg.secrets.kind === 'file') rmSync(l.secrets, { recursive: true, force: true });
   });
 }
 
