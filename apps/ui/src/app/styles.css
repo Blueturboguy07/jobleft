@@ -79,6 +79,15 @@ a { color: var(--jl-accent-ink); }
 .jl-status-chip:hover { background: var(--jl-chip); }
 .jl-status-chip .dot { width: 8px; height: 8px; border-radius: 4px; background: #0A8F5C; }
 .jl-status-chip .dot.off { background: #9AA0A6; }
+/* before AI is set up the chip is the "Connect publik" button: the accent fill, so it reads as the one thing to do */
+.jl-status-chip.jl-connect-chip { background: var(--jl-accent); color: #000; font-weight: 700; }
+.jl-status-chip.jl-connect-chip:hover { background: var(--jl-accent-hover); }
+/* the publik-first card at the top of the feed's right column */
+.jl-publik-first { background: linear-gradient(160deg, rgba(0,240,160,0.22), #fff 75%); border: 1px solid rgba(0,240,160,0.55); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.jl-publik-first h2 { font-size: 15px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 6px; }
+.jl-publik-first p { margin: 0; font-size: 13px; }
+.jl-publik-first.jl-narrow-only { display: none; margin-bottom: 8px; }
+@media (max-width: 1199px) { .jl-publik-first.jl-narrow-only { display: flex; } }
 
 /* ---------------------------------------------------------------- page scaffolds */
 .jl-page { flex: 1; min-width: 0; overflow-y: auto; padding: 16px; }

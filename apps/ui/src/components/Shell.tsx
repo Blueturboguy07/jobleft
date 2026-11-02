@@ -6,12 +6,12 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { Alert, Button, Input } from 'antd';
 import { Tooltip } from './Tip.tsx';
 import { SearchOutlined, CloseOutlined, ExpandAltOutlined } from '@ant-design/icons';
-import { formatDollars } from '@jobleft/contracts';
 import { navigate } from '../app/router.ts';
 import { useLayer, useReturnFocus } from '../app/layers.ts';
 import { invalidate } from '../app/data.ts';
 import { setFeed, useAiSettings, useFeed, useNotifications, usePublik, useTrackerCounts } from '../app/session.ts';
 import { aiCheckFailed, lastAiCheck, subscribeAiCheck } from '../lib/aiHealth.ts';
+import { PUBLIK_FIRST, chipState } from '../lib/aiSetup.ts';
 import { LogoMark } from './Art.tsx';
 import { Chat } from './Chat.tsx';
 import { closeChat, openChat, useChatTarget } from './chatStore.ts';
@@ -56,30 +56,33 @@ export function Rail({ active }: { active: ScreenId }) {
   );
 }
 
-/** The AI chip: the dollar balance with publik, or where AI answers come from. */
+/**
+ * The AI chip: the dollar balance with publik, or where AI answers come from. Before AI is set up it is the
+ * "Connect publik" button, which opens the connect step (no key needed).
+ */
 export function ProviderChip({ compact = false }: { compact?: boolean }) {
   const ai = useAiSettings();
   const s = ai.data;
   const lastCheck = useSyncExternalStore(subscribeAiCheck, lastAiCheck);
   const publik = usePublik(s?.provider === 'publik');
-  let text = 'AI: not set up';
-  let on = false;
-  let to = 'settings/ai';
-  if (s?.provider === 'publik') {
-    const w = publik.data?.wallet;
-    if (publik.data?.state === 'connected' && w) { text = `Balance: ${formatDollars(w.balanceMicros)}`; on = true; to = 'settings/balance'; }
-    else if (publik.error) { text = 'Balance: not available'; to = 'settings/balance'; }
-    else if (publik.data) { text = 'publik: not connected'; to = 'settings/balance'; }
-    else text = 'Balance: …';
-  } else if (s?.provider === 'local') { text = compact ? 'AI on this computer' : 'AI: model on this computer'; on = true; }
-  else if (s?.provider === 'custom') { text = 'AI: your server'; on = true; }
-  else if (s?.provider === 'own_key') { text = 'AI: your own key'; on = true; }
   // The last setup check of these settings failed (JL-settings-3): never a green dot then.
-  if (s?.provider && s.provider !== 'publik' && aiCheckFailed(lastCheck, s.updatedAt)) { text = 'AI: not answering'; on = false; }
+  const checkFailed = !!s?.provider && s.provider !== 'publik' && aiCheckFailed(lastCheck, s.updatedAt);
+  const c = chipState(s, publik.data, { publikError: !!publik.error, checkFailed, compact });
+  if (c.connect) {
+    // the compact chip sits under the publik-first card on the feed, which already has the button
+    if (compact) return null;
+    return (
+      <Tooltip title={`${PUBLIK_FIRST.title}. No key needed. Select to connect.`}>
+        <button type="button" className="jl-status-chip jl-connect-chip" onClick={() => navigate(c.to)}>
+          <IconSparkle size={14} />{c.text}
+        </button>
+      </Tooltip>
+    );
+  }
   return (
     <Tooltip title={s?.provider === 'publik' ? 'Your publik balance in dollars. Select to see it or add money.' : 'Where AI answers come from. Select to change it.'}>
-      <button type="button" className="jl-status-chip" onClick={() => navigate(to)}>
-        <span className={`dot${on ? '' : ' off'}`} aria-hidden="true" />{text}
+      <button type="button" className="jl-status-chip" onClick={() => navigate(c.to)}>
+        <span className={`dot${c.on ? '' : ' off'}`} aria-hidden="true" />{c.text}
       </button>
     </Tooltip>
   );

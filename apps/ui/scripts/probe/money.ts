@@ -61,14 +61,15 @@ export async function run(demo: Demo, outDir: string): Promise<void> {
     await p.waitFor("document.querySelector('.jl-card')", 20000);
     await sleep(600);
     await p.eval(OBSERVER);
-    check(/AI: not set up/.test(await balanceChip(p)), 'O14 before a provider is chosen the header says the AI is not set up (no balance shown)', await balanceChip(p));
+    check(/^Connect publik$/.test((await balanceChip(p)).trim()), 'O14 before a provider is chosen the header asks to connect publik (no balance shown)', await balanceChip(p));
 
     // -------- connect publik in Settings > Balance (the person ticks "I have read this" and presses the button)
     await p.eval(`location.hash = '#/settings/balance'`);
     await sleep(900);
     await p.clickText('I have read this');
     await sleep(200);
-    await p.clickMatching('button', '^Connect');
+    // the connect button on the page (the top bar's "Connect publik" chip only opens this page)
+    await p.clickMatching('#jl-main button', '^Connect');
     await sleep(1500);
     await p.shot(join(dir, '01-balance.png'));
     const bal1 = await p.eval<string>(`document.querySelector('main').innerText`);

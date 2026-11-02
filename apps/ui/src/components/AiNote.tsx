@@ -12,6 +12,7 @@ import { navigate } from '../app/router.ts';
 import { useAiSettings, usePublik } from '../app/session.ts';
 import { hostOf } from '../lib/format.ts';
 import { dailyLimitReached } from '../lib/dailyLimit.ts';
+import { CONNECT_ROUTE, OTHER_PROVIDERS_ROUTE, PUBLIK_FIRST, needsPublikConnect } from '../lib/aiSetup.ts';
 
 export type AiKind = 'chatTurn' | 'tailor' | 'coverLetter' | 'outreachDraft' | 'practice';
 
@@ -49,11 +50,13 @@ export function AiNote({ kind, what }: { kind: AiKind; what: string }) {
   const pub = usePublik(d.charges);
   const limited = d.charges && dailyLimitReached(pub.data?.wallet);
   if (!ai.data) return null;
-  if (!d.set) {
+  // publik first: no provider yet, or publik chosen and not connected, points to connecting publik (no key needed)
+  if (!d.set || needsPublikConnect(ai.data, pub.data)) {
     return (
       <div className="jl-provider-note" role="note">
-        <WarningOutlined /> <span>To {what}, choose where AI answers come from first.</span>
-        <Button size="small" type="link" onClick={() => navigate('settings/ai')}>Choose</Button>
+        <WarningOutlined /> <span>To {what}, connect publik first. No key needed.</span>
+        <Button size="small" type="link" onClick={() => navigate(CONNECT_ROUTE)}>{PUBLIK_FIRST.button}</Button>
+        {!d.set && <Button size="small" type="link" onClick={() => navigate(OTHER_PROVIDERS_ROUTE)}>Other choices</Button>}
       </div>
     );
   }
@@ -83,8 +86,8 @@ function consentId(s: AiSettings): string {
 export async function ensureAiConsent(s: AiSettings | undefined, kind: AiKind): Promise<boolean> {
   const d = destinationOf(s, kind);
   if (!d.set) {
-    ui.message?.info('Choose where AI answers come from in Settings first.');
-    navigate('settings/ai');
+    ui.message?.info('Connect publik first. No key needed.');
+    navigate(CONNECT_ROUTE);
     return false;
   }
   if (!d.remote || !s) return true;

@@ -62,9 +62,9 @@ export interface Target {
 
 export function targetFor(state: MockState): Target {
   const s = state.data.ai;
-  if (!s.provider) throw new ApiFail('needs_provider', 409, 'Choose an AI provider in Settings first. You can use a model on this computer, the publik API or your own key.');
+  if (!s.provider) throw new ApiFail('needs_provider', 409, 'Connect publik in Settings first: no key needed. You can also use a model on this computer or your own key.');
   if (s.provider === 'publik') {
-    if (state.data.publik.state !== 'connected' || !state.data.publik.key) throw new ApiFail('needs_provider', 409, 'Connect to publik in Settings, or choose another AI provider.');
+    if (state.data.publik.state !== 'connected' || !state.data.publik.key) throw new ApiFail('needs_provider', 409, 'Connect publik in Settings (no key needed), or choose another AI provider.');
     return { kind: 'publik', baseUrl: publikBase(), key: state.data.publik.key, model: s.model ?? 'publik-balanced', label: 'publik' };
   }
   if (s.provider === 'own_key') throw new ApiFail('provider_error', 502, 'This test build does not call real AI vendors. Choose a model on this computer or the publik stand-in in Settings.');

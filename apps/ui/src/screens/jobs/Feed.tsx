@@ -19,7 +19,7 @@ import { clipWords, plural, searchable } from '../../lib/format.ts';
 import { AllFiltersDrawer } from './AllFilters.tsx';
 import { useCardActions } from './cardActions.tsx';
 import { FilterBar } from './Filters.tsx';
-import { BoardsCard, Checklist, SavedFilters, SaveFilterModal, UserCard, useSavedFilters } from './Side.tsx';
+import { BoardsCard, Checklist, PublikFirstCard, SavedFilters, SaveFilterModal, UserCard, useSavedFilters } from './Side.tsx';
 
 /** The finish time of the refresh whose problem notice the person closed (kept while the app runs, so tab switches do not bring it back). */
 let closedNotice: string | null = null;
@@ -238,6 +238,7 @@ export function Feed() {
               message={`jobleft is still scoring ${plural(indexing, 'job')} for you. They are listed after the scored jobs until their score is ready; the order updates by itself.`}
               action={<Button size="small" onClick={() => { scrollRef.current?.scrollTo({ top: 0 }); void load(true); }}>Update now</Button>} />
           )}
+          <PublikFirstCard narrow />
           {needsProfile && <Alert type="info" showIcon style={{ marginBottom: 8 }} message="Top matched needs your profile, so this list uses the recommended order." action={<Button size="small" onClick={() => navigate('profile')}>Add profile</Button>} />}
           {progress?.running && (
             <div className="jl-progress" role="status" style={{ marginBottom: 8 }}>
@@ -266,6 +267,7 @@ export function Feed() {
         </div>
       </div>
       <aside className="jl-rightcol collapsible" aria-label="Your filters and setup">
+        <PublikFirstCard />
         <UserCard />
         <SavedFilters current={feed.filter} currentSort={feed.sort} currentQ={feed.q} savedId={feed.savedId} onApply={applySaved} onEdit={(s) => setDrawer({ open: true, saved: s })} />
         <BoardsCard />

@@ -231,7 +231,7 @@ try {
     const t6 = await p.eval('document.body.innerText');
     check('ai-step-offers-own-key', /own key|your key/i.test(t6), 'only publik and local model are offered');
     check('ai-step-has-back', await p.eval(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Back')`), 'no Back button on step 6');
-    await p.clickMatching('button', '^publik API'); await sleep(2500);
+    await p.clickMatching('button', '^Continue with publik'); await sleep(2500);
     const after6 = await p.eval('document.body.innerText');
     const h6 = await p.eval('location.hash');
     check('publik-card-shows-terms-and-connect', /I have read this/i.test(after6) || /^#\/settings/.test(h6), `card went to ${h6} with no terms or connect button`);

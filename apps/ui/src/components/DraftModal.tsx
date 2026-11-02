@@ -11,6 +11,7 @@ import { call, type UiError } from '../app/api.ts';
 import { invalidate, useApi } from '../app/data.ts';
 import { confirmDiscard, ui, useDirty } from '../app/layers.ts';
 import { navigate } from '../app/router.ts';
+import { CONNECT_ROUTE } from '../lib/aiSetup.ts';
 import { InlineError } from './States.tsx';
 
 async function copyText(text: string): Promise<boolean> {
@@ -108,7 +109,7 @@ export function DraftModal({ contact, jobId, jobLabel, open, onClose }: { contac
         <div className="jl-row jl-wrap">
           {dest && <Button type="primary" shape="round" loading={busy} disabled={!canAi} onClick={() => { void run(false); }}>{draft ? 'Draft again with AI' : 'Draft with AI'}</Button>}
           <Button shape="round" loading={busy && !dest} onClick={() => { void run(true); }}>Use a plain template (no AI)</Button>
-          {!dest && <Button type="link" onClick={() => navigate('settings/ai')}>Choose an AI provider</Button>}
+          {!dest && <Button type="link" onClick={() => navigate(CONNECT_ROUTE)}>Connect publik for AI (no key needed)</Button>}
         </div>
         <InlineError error={err} />
         {draft && (

@@ -4,7 +4,7 @@
 // either. You can skip at any step: what you chose is kept, and the setup does not open by itself again.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, Checkbox, Input, Progress, Select, Space, Steps, Tag } from 'antd';
+import { Alert, Button, Checkbox, Input, Progress, Select, Space, Steps } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import type { OnboardingState, Profile, ProfileInput } from '@jobleft/contracts';
 import { call, type UiError } from '../app/api.ts';
@@ -16,11 +16,12 @@ import { Art, LogoMark, Wordmark } from '../components/Art.tsx';
 import { InlineError, Loading } from '../components/States.tsx';
 import { COMMON_COUNTRY_OPTIONS, COUNTRY_OPTIONS, JOB_FUNCTION_SUGGESTIONS, LEVEL_OPTIONS, MODEL_OPTIONS, TYPE_OPTIONS, filterFromProfile, toggle } from '../lib/filters.ts';
 import { countrySort } from '../lib/countries.ts';
-import { plural, secureStoreText, yearMonthText } from '../lib/format.ts';
+import { plural, yearMonthText } from '../lib/format.ts';
 import { PlacePicker } from './jobs/Filters.tsx';
 import { NumberBox, YesNo } from './Profile.tsx';
 import { importChanges } from '../lib/importMerge.ts';
 import { PAY_RULE, cleanForSave, problemsIn, serverProblems, type FieldProblem } from '../lib/profileErrors.ts';
+import { CONNECT_ROUTE, PUBLIK_FIRST } from '../lib/aiSetup.ts';
 import { LAST_STEP, MAX_FUNCTION_LENGTH, addJobFunction, bodyToSave, closedState, keptState, replaceUpload, resumeSetup, toInput, type PendingImport } from '../lib/onboarding.ts';
 
 /** jobleft 0.1.2 and earlier kept "skipped" only in this browser; read once to carry it over, never written again. */
@@ -283,15 +284,18 @@ export function Onboarding() {
     ),
     (
       <Space direction="vertical" size={14} style={{ width: '100%' }} key="5">
-        <h2 className="jl-display" style={{ fontSize: 28 }}>Where should AI answers come from?</h2>
-        <p className="jl-muted">AI is the one part of jobleft that costs money: tailoring a resume or a letter runs a model, and the model's provider charges for each run. Through publik you pay only for those runs, from a dollar balance, which comes to about 2% of what the subscription job-search apps charge each month.</p>
-        <p className="jl-muted">AI is optional. Search, filters, match scores and the tracker work without it.</p>
-        <div className="jl-choice-grid">
-          <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/balance'} onClick={() => { void finish('settings/balance'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><span className="jl-row" style={{ gap: 8 }}><strong>publik API</strong><Tag color="green" style={{ margin: 0 }}>Cheapest</Tag></span><span className="jl-small">Pay per use from a dollar balance. Link your publik account for $0.05 of free use, once. You read the terms and connect on the next screen.</span></button>
-          <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/ai?pick=local'} onClick={() => { void finish('settings/ai?pick=local'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>A model on this computer</strong><span className="jl-small">Ollama, LM Studio and similar. Nothing leaves this computer. Be warned: the small models that fit on a laptop tailor resumes and answer questions noticeably worse than the hosted ones. You pick the server and test it on the next screen.</span></button>
-          <button type="button" className="jl-choice" disabled={!!leaving} aria-busy={leaving === 'settings/ai?pick=own_key'} onClick={() => { void finish('settings/ai?pick=own_key'); }} style={{ flexDirection: 'column', alignItems: 'flex-start' }}><strong>Your own key</strong><span className="jl-small">Your account with OpenAI, Anthropic, OpenRouter or Google. The vendor bills you. You paste the key on the next screen; it stays in {secureStoreText()}.</span></button>
+        <h2 className="jl-display" style={{ fontSize: 28 }}>{PUBLIK_FIRST.title}</h2>
+        <p style={{ margin: 0 }}>No key needed. AI tailors your resume and letters, drafts messages and answers questions. You pay per use from your publik balance, about 2% of what other job-search apps charge each month. Linking your publik account gives $0.05 of free use, once.</p>
+        <Button type="primary" shape="round" size="large" className="jl-accent-btn" style={{ alignSelf: 'flex-start' }} disabled={!!leaving} loading={leaving === CONNECT_ROUTE} onClick={() => { void finish(CONNECT_ROUTE); }}>Continue with publik</Button>
+        <p className="jl-small jl-muted" style={{ margin: 0 }}>You read the terms and connect on the next screen. AI is optional: search, filters, match scores and the tracker work without it.</p>
+        <div style={{ borderTop: '1px solid var(--jl-line)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span className="jl-small jl-muted">Or use another provider</span>
+          <div className="jl-row jl-wrap" style={{ gap: 4 }}>
+            <Button type="link" size="small" style={{ paddingLeft: 0 }} disabled={!!leaving} loading={leaving === 'settings/ai?pick=local'} onClick={() => { void finish('settings/ai?pick=local'); }}>A model on this computer</Button>
+            <Button type="link" size="small" disabled={!!leaving} loading={leaving === 'settings/ai?pick=own_key'} onClick={() => { void finish('settings/ai?pick=own_key'); }}>My own key</Button>
+          </div>
+          <span className="jl-small jl-muted">A model on this computer is free, but small models write noticeably worse. With your own key, the vendor bills you.</span>
         </div>
-        <p className="jl-small">Want more than the $0.05 of free use? <a href="https://publikhq.com/pricing" target="_blank" rel="noopener noreferrer">See the plans and prices on publikhq.com</a>. A plan adds a weekly budget to your balance; you still pay only for what you use.</p>
         {leaving && <p className="jl-small jl-muted" role="status">Saving your answers…</p>}
       </Space>
     ),

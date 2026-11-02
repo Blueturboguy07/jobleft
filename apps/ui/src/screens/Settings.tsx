@@ -20,6 +20,7 @@ import { ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { ago, dateText, fitIndexText, hostOf, plural, secondsLeft, secureStoreText } from '../lib/format.ts';
 import { readAllPages } from '../lib/pages.ts';
 import { rememberAiCheck } from '../lib/aiHealth.ts';
+import { CONNECT_ROUTE, PUBLIK_FIRST, needsPublikConnect } from '../lib/aiSetup.ts';
 import { dailyLimitText, zeroBalanceText } from '../lib/dailyLimit.ts';
 import { WATCH_EVERY_MS, WATCH_MS, watchingBalance } from '../lib/publikWatch.ts';
 
@@ -59,6 +60,7 @@ const VENDORS: Array<{ value: OwnKeyVendor; label: string }> = [
 
 function AiTab() {
   const ai = useAiSettings();
+  const pub = usePublik(ai.data?.provider === 'publik');
   const [kind, setKind] = useState<AiSettings['provider']>(null);
   const [localKind, setLocalKind] = useState<LocalServerKind>('ollama');
   const [vendor, setVendor] = useState<OwnKeyVendor>('openai');
@@ -147,6 +149,15 @@ function AiTab() {
   const p = s.meteredFetch.pricesPer1000Micros;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {needsPublikConnect(s, pub.data) && (
+        <section className="jl-publik-first" aria-labelledby="pf-ai-title" style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <h2 id="pf-ai-title"><CloudOutlined aria-hidden="true" />{PUBLIK_FIRST.title}. No key needed.</h2>
+            <p>One button connects this computer. The other choices below are for a model on this computer, your own server or your own key.</p>
+          </div>
+          <Button className="jl-accent-btn" shape="round" onClick={() => navigate(CONNECT_ROUTE)}>{PUBLIK_FIRST.button}</Button>
+        </section>
+      )}
       <Panel title="Where AI answers come from" desc="AI helps with chat, tailoring, cover letters, messages and interview practice. Pick one. jobleft uses only the one you pick; it never switches to another on its own.">
         <div className="jl-choice-grid">
           {card('publik', <CloudOutlined />, 'publik API', 'Pay per use from a dollar balance. Link your publik account for $0.05 of free use, once.')}
@@ -262,17 +273,18 @@ function BalanceTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {switching && <Alert type="info" showIcon message="Making publik your AI provider. jobleft is testing the connection; this can take a few seconds." />}
-      {ai.data && ai.data.provider !== 'publik' && !switching && (
+      {ai.data && ai.data.provider !== 'publik' && !switching && c?.state === 'connected' && (
         <Alert type="info" showIcon message="publik is not your AI provider now, so nothing charges your balance." action={<Button size="small" onClick={() => { void usePublikNow(); }}>Use publik</Button>} />
       )}
       {pub.error && !c && <ErrorState error={pub.error} onRetry={() => { void pub.reload(); }} title="The balance could not load" />}
       {!c && !pub.error && <Loading label="Reading your balance" />}
       {c && c.state !== 'connected' && (
-        <Panel title="Connect to publik">
+        <Panel title="Connect publik">
+          <p style={{ margin: 0, fontWeight: 600 }}>jobleft runs AI on publik API. No key needed: one button connects this computer.</p>
           {DISCLOSURE.map((d) => <p key={d} style={{ margin: 0 }}>{d}</p>)}
           <p className="jl-small" style={{ margin: 0 }}><a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See publik's prices per tier</a> before you connect.</p>
           <Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)}>I have read this</Checkbox>
-          <Button type="primary" shape="round" style={{ alignSelf: 'flex-start' }} disabled={!agree} loading={busy === 'connect'} onClick={() => { void connect(); }}>{notProvider ? 'Connect and use publik for AI' : 'Connect to publik'}</Button>
+          <Button type="primary" shape="round" style={{ alignSelf: 'flex-start' }} disabled={!agree} loading={busy === 'connect'} onClick={() => { void connect(); }}>{notProvider ? 'Connect publik and use it for AI' : 'Connect publik'}</Button>
           <p className="jl-small jl-muted" style={{ margin: 0 }}>No key is typed. jobleft keeps the connection key in {secureStoreText()}.</p>
         </Panel>
       )}
