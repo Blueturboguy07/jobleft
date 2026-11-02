@@ -96,8 +96,8 @@ interface EncFile {
   entries: Record<string, { iv: string; tag: string; ct: string }>;
 }
 
-/** AES-256-GCM file store (mode 0600). See the file header for what it protects against. */
-export function encryptedFileSecretStore(dir: string, opts: { masterKeyFile?: string } = {}): SecretStore {
+/** AES-256-GCM file store (mode 0600). See the file header for what it protects against. `names()` lists what it holds (for delete-all). */
+export function encryptedFileSecretStore(dir: string, opts: { masterKeyFile?: string } = {}): SecretStore & { names(): string[] } {
   const file = join(dir, 'secrets.enc');
   const masterFile = opts.masterKeyFile ?? join(dir, 'master.key');
 
@@ -167,6 +167,10 @@ export function encryptedFileSecretStore(dir: string, opts: { masterKeyFile?: st
       if (!(name in data.entries)) return;
       delete data.entries[name];
       save(data);
+    },
+    names() {
+      if (!existsSync(file)) return [];
+      try { return Object.keys(load().entries); } catch { return []; }
     },
   };
 }

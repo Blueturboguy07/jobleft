@@ -33,6 +33,16 @@ export const PUBLIK_JUSTIFICATION =
 const KEY_FORMAT = /^pk_(live|test)_[a-z0-9]{12}_[a-z0-9]{32}$/;
 const PUBLIK_SITE = 'https://publikhq.com';
 const FALLBACK_TOP_UP = 'https://publikhq.com/dashboard/api';
+/**
+ * How old the kept wallet may be before latest() reads the balance again. An unlinked (anonymous) computer is read
+ * sooner: the person is on publikhq.com linking it, and the screen must show the link and the plan money without a
+ * click. A linked one changes only when an AI step runs (which updates the wallet itself) or when money is added.
+ */
+export const WALLET_STALE_MS = { anonymous: 5_000, claimed: 20_000 } as const;
+/** latest() reads publik at most this often, whatever the screens ask, and gives up fast when publik is slow. */
+const LATEST_GAP_MS = 5_000;
+const LATEST_CONNECT_TIMEOUT_MS = 3_000;
+const LATEST_IDLE_TIMEOUT_MS = 8_000;
 
 interface PublikState {
   state: 'connected' | 'disconnected';
@@ -61,6 +71,8 @@ export interface PublikClientOptions {
   state?: KvStore;
   appVersion?: string;
   connectTimeoutMs?: number;
+  /** true while the app is in offline mode: latest() then reads nothing over the network. */
+  offline?: () => boolean;
 }
 
 function int(v: unknown): number | null {
@@ -130,8 +142,12 @@ export class PublikClient {
   private readonly kv: KvStore;
   private readonly appVersion: string;
   private readonly connectTimeoutMs: number | undefined;
+  private readonly offline: () => boolean;
   private connecting = false;
   private readonly disconnectListeners = new Set<() => void>();
+  /** The balance read latest() has under way (every caller waits for the same one), and when the last one started. */
+  private reading: Promise<PublikConnection> | null = null;
+  private lastReadAt = 0;
 
   constructor(opts: PublikClientOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, '');
@@ -140,6 +156,7 @@ export class PublikClient {
     this.kv = opts.state ?? memoryKvStore();
     this.appVersion = opts.appVersion ?? '0.1.0';
     this.connectTimeoutMs = opts.connectTimeoutMs;
+    this.offline = opts.offline ?? (() => false);
   }
 
   private load(): PublikState {
@@ -216,6 +233,29 @@ export class PublikClient {
       return { state: 'connected', wallet: s.wallet, disclosureVersion: s.disclosureVersion };
     }
     return { state: 'disconnected', wallet: null, disclosureVersion: null };
+  }
+
+  /**
+   * The connection for a screen: status(), plus a quick balance read (GET /wallet) when the kept wallet can be old:
+   * there is none, or it is older than WALLET_STALE_MS for its claim state. So the screen shows a link made on
+   * publikhq.com, and the plan money, without a click ("Read the balance again") and without an AI step.
+   * The read is short (3 s to connect) and at most one per 5 s; several callers at once wait for the same one;
+   * when it fails, or in offline mode, the kept wallet is shown as before, with its own "last read" time.
+   */
+  async latest(): Promise<PublikConnection> {
+    const current = await this.status();
+    if (current.state !== 'connected' || this.offline()) return current;
+    if (this.reading) return this.reading;
+    const now = nowMs();
+    const w = current.wallet;
+    const age = w ? now - Date.parse(w.updatedAt) : Infinity;
+    if (Number.isFinite(age) && age < WALLET_STALE_MS[w!.claimState]) return current;
+    if (now - this.lastReadAt < LATEST_GAP_MS) return current;
+    this.lastReadAt = now;
+    this.reading = this.refresh({ connectTimeoutMs: LATEST_CONNECT_TIMEOUT_MS, idleTimeoutMs: LATEST_IDLE_TIMEOUT_MS })
+      .catch(() => this.status())
+      .finally(() => { this.reading = null; });
+    return this.reading;
   }
 
   /** POST /installs after the person accepted the disclosure. No key is typed or shown. */
@@ -339,11 +379,14 @@ export class PublikClient {
   }
 
   /** Reads the balance again (GET /wallet). */
-  async refresh(): Promise<PublikConnection> {
+  async refresh(limits: { connectTimeoutMs?: number; idleTimeoutMs?: number } = {}): Promise<PublikConnection> {
     const s = this.load();
     const key = await this.secrets.get(SECRET_NAMES.publikKey);
     if (s.state !== 'connected' || !key) return this.status();
-    const res = await send({ method: 'GET', url: `${this.gatewayBase(s)}/wallet`, headers: { authorization: `Bearer ${key}` }, connectTimeoutMs: this.connectTimeoutMs, idleTimeoutMs: 30_000 });
+    const res = await send({
+      method: 'GET', url: `${this.gatewayBase(s)}/wallet`, headers: { authorization: `Bearer ${key}` },
+      connectTimeoutMs: limits.connectTimeoutMs ?? this.connectTimeoutMs, idleTimeoutMs: limits.idleTimeoutMs ?? 30_000,
+    });
     const raw = await res.text();
     if (res.status >= 400) throw await this.failure(res.status, res.headers, raw);
     if (looksLikeHtml(res.headers['content-type'], raw)) throw new AiError('not_ai_server', 'The publik address answered with a web page, not a balance. Check the publik address.');

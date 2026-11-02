@@ -85,7 +85,7 @@ logs outside it). Secrets live in the OS secret store, never in a plain-text fil
 | `files/exports/` | Files the person exports | server |
 | `datasets/` | Updated dataset releases (verified before use; shipped copies live in the app) | static-data |
 | `models/` | The fit model (bge-small-en-v1.5), downloaded once and verified | ai-engine |
-| `secrets/` | Only with `JOBLEFT_SECRET_STORE=file`: `secrets.enc` (AES-256-GCM) and `master.key`, both 0600. Backups and exports MUST leave this folder out | ai-engine |
+| `secrets/` | The encrypted file secret store (the default on Windows and Linux, and with `JOBLEFT_SECRET_STORE=file`): `secrets.enc` (AES-256-GCM) and `master.key`, both 0600. Backups and exports MUST leave this folder out; delete-all removes it | ai-engine (the server picks it in `services/secrets.ts`) |
 | `ai/state.json`, `ai/unsent.json` | The ai-engine CLI only: key-free AI settings and publik connection state (the server keeps these in `settings`), and the last message that was not sent | ai-engine |
 | `backups/` | Backup files the person asks for | server |
 | `logs/` | Logs with no personal data, no keys, no tokens, no resume or chat text | server |

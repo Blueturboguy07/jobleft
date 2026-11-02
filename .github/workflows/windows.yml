@@ -133,12 +133,76 @@ jobs:
           $deadline = (Get-Date).AddSeconds(20)
           while (-not (Test-Path $shellFile) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
           "window: $(if (Test-Path $shellFile) { Get-Content $shellFile } else { 'no run/shell.json (window not reported)' })"
+          $window = if (Test-Path $shellFile) { (Get-Content $shellFile | ConvertFrom-Json).windowShown } else { $false }
           Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$($j.port)/api/v1/shutdown" -Headers @{ 'x-jobleft-token' = $j.token } -ContentType 'application/json' -Body '{}' | Out-Null
           Start-Sleep -Seconds 4
+          # A server that answers is not enough: users saw a cmd window and no app window (the shell gave up first).
+          if ($window -ne $true) { Get-Content "$env:APPDATA\jobleft\logs\sidecar.log" -ErrorAction SilentlyContinue | Select-Object -Last 30; throw "the app window did not open (run/shell.json windowShown is not true)" }
           $alive = Get-Process -Id $j.pid -ErrorAction SilentlyContinue
           if ($alive) { throw "server still running after shutdown" }
           "server stopped cleanly; run file gone: $(-not (Test-Path $run))"
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+
+      # The two defects behind "linked to publik, but the plan is never used" on Windows (0.1.3): the publik key died
+      # with the local service (keys lived in memory off macOS), and a link made on publikhq.com never showed up
+      # without a click. Against the repo's own publik stand-in (nothing reaches publikhq.com): connect, link at the
+      # stand-in, read the balance with no click, quit, start the installed app again: still connected, ONE install.
+      - name: "Smoke: the publik connection survives a restart"
+        id: restart
+        continue-on-error: true # the verdict comes at the end, like the suites': the installer and the replay still run
+        shell: pwsh
+        env:
+          JOBLEFT_PUBLIK_APP_TOKEN: ${{ secrets.PUBLIK_APP_TOKEN }}
+        run: |
+          if (-not $env:JOBLEFT_PUBLIK_APP_TOKEN) { "no app token on this runner (a fork?): the packaged app has no token file, so Connect answers 'not available'. Skipped."; exit 0 }
+          $standin = Start-Process -FilePath node -ArgumentList 'qa/bin/publik-standin.mjs','47991' -PassThru -RedirectStandardOutput standin.out -RedirectStandardError standin.err
+          Start-Sleep -Seconds 3
+          "stand-in: $(Get-Content standin.out -ErrorAction SilentlyContinue) $(Get-Content standin.err -ErrorAction SilentlyContinue)"
+          $admin = 'http://127.0.0.1:47991/__admin'
+          $exe = "$env:LOCALAPPDATA\jobleft\jobleft.exe"
+          if (-not (Test-Path $exe)) { $exe = (Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Recurse -Filter 'jobleft.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
+          $env:JOBLEFT_AUTO_CRAWL = '0'
+          $env:JOBLEFT_SEED_BOARDS = 'none'
+          $env:JOBLEFT_PUBLIK_BASE_URL = 'http://127.0.0.1:47991/api/v1'
+          $run = "$env:APPDATA\jobleft\run\server.json"
+          function Start-App {
+            $p = Start-Process -FilePath $exe -PassThru
+            $deadline = (Get-Date).AddSeconds(60)
+            while (-not (Test-Path $run) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+            if (-not (Test-Path $run)) { Get-Content "$env:APPDATA\jobleft\logs\sidecar.log" -ErrorAction SilentlyContinue | Select-Object -Last 30; throw "no run/server.json after 60 s" }
+            $j = Get-Content $run | ConvertFrom-Json
+            return @{ app = $p; port = $j.port; token = $j.token }
+          }
+          function Stop-App($a) {
+            try { Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$($a.port)/api/v1/shutdown" -Headers @{ 'x-jobleft-token' = $a.token } -ContentType 'application/json' -Body '{}' | Out-Null } catch { "shutdown route: $_" }
+            Start-Sleep -Seconds 4
+            Stop-Process -Id $a.app.Id -Force -ErrorAction SilentlyContinue
+            Remove-Item $run -Force -ErrorAction SilentlyContinue
+          }
+          $a = Start-App
+          $h = @{ 'x-jobleft-token' = $a.token }
+          $c = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$($a.port)/api/v1/publik/connect" -Headers $h -ContentType 'application/json' -Body '{"disclosureAccepted":true,"disclosureVersion":1}'
+          "connect: state=$($c.state) claim=$($c.wallet.claimState) balance=$($c.wallet.balanceMicros)"
+          if ($c.state -ne 'connected') { Stop-App $a; Stop-Process -Id $standin.Id -Force -ErrorAction SilentlyContinue; throw "Connect did not connect (state=$($c.state))" }
+          # The person links the computer on publikhq.com and the plan money arrives: the app shows it with no click.
+          Invoke-RestMethod -Method Post -Uri "$admin/claim" -ContentType 'application/json' -Body '{}' | Out-Null
+          Invoke-RestMethod -Method Post -Uri "$admin/add" -ContentType 'application/json' -Body '{"usd":8.05}' | Out-Null
+          Start-Sleep -Seconds 6
+          $w = Invoke-RestMethod -Uri "http://127.0.0.1:$($a.port)/api/v1/publik" -Headers $h
+          "after the web link, no click: claim=$($w.wallet.claimState) balance=$($w.wallet.balanceMicros)"
+          Stop-App $a
+          # Quit and start again (a reboot, an update and a slow first start do the same): still connected, one install.
+          $b = Start-App
+          $h = @{ 'x-jobleft-token' = $b.token }
+          $s = Invoke-RestMethod -Uri "http://127.0.0.1:$($b.port)/api/v1/publik" -Headers $h
+          "after a restart: state=$($s.state) claim=$($s.wallet.claimState) balance=$($s.wallet.balanceMicros)"
+          $st = Invoke-RestMethod -Method Post -Uri "$admin/price" -ContentType 'application/json' -Body '{"usd":0.01}'
+          "stand-in installs minted: $($st.keys)"
+          Stop-App $b
+          Stop-Process -Id $standin.Id -Force -ErrorAction SilentlyContinue
+          if ($w.wallet.claimState -ne 'claimed' -or $w.wallet.balanceMicros -ne 8050000) { throw "the balance screen did not see the web link without a click (claim=$($w.wallet.claimState) balance=$($w.wallet.balanceMicros))" }
+          if ($s.state -ne 'connected') { throw "the publik connection did not survive a restart (state=$($s.state)): the key was not kept" }
+          if ($st.keys -ne 1) { throw "a second publik install was minted after the restart (installs: $($st.keys))" }
 
       - name: Keep the installer
         uses: actions/upload-artifact@v4
@@ -159,9 +223,9 @@ jobs:
 
       # The verdict on the suites comes last: the installer, its smoke and the release attach never wait on a flaky test.
       - name: Test result
-        if: steps.tests.outcome == 'failure'
+        if: steps.tests.outcome == 'failure' || steps.restart.outcome == 'failure'
         run: |
-          echo "a test suite failed on Windows (see the Tests on Windows step)"
+          echo "a test suite failed on Windows (see the Tests on Windows step): ${{ steps.tests.outcome }}; the publik restart smoke: ${{ steps.restart.outcome }}"
           exit 1
 
   # The black-box replay: the scenario scripts the Mac testers wrote (qa/scenarios) run on Windows against the

@@ -38,11 +38,12 @@ export function dailyLimitText(w: PublikWallet, now: number = Date.now()): { sum
  * One plain line for a $0.00 balance (JL-v2-5). Since publik's 2026-09-28 policy a new connection always starts at
  * $0.00 and the only free use is $0.05 paid once when the computer is linked to a publik account; the line says so
  * instead of letting the words promise a free amount, and the screen shows it with the top-up link publik returned
- * (the claim page while unlinked). null when there is money in the balance.
+ * (the claim page while unlinked). An unlinked computer is told the balance is read again on its own: the person
+ * who just linked it on publikhq.com must not take "$0.00" for "the link did not work". null when there is money.
  */
 export function zeroBalanceText(w: PublikWallet): string | null {
   if (w.balanceMicros > 0) return null;
   return w.claimState === 'anonymous'
-    ? `Your publik balance is ${formatDollars(0)}, so AI steps cannot run yet. Link this computer to your publik account for $0.05 of free use, once, or add money at publik.`
+    ? `Your publik balance is ${formatDollars(0)}, so AI steps cannot run yet. Link this computer to your publik account for $0.05 of free use, once, or add money at publik. Linked already? jobleft reads the balance again in a moment.`
     : `Your publik balance is ${formatDollars(0)}, so AI steps cannot run until you add money at publik.`;
 }

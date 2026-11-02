@@ -31,7 +31,9 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
-const READY_TIMEOUT: Duration = Duration::from_secs(15);
+// A first start on Windows is slow (Defender scans node.exe and the server tree). The smoke test in windows.yml
+// waits up to 60 s for the same server; at 15 s the shell killed a server that was still starting.
+const READY_TIMEOUT: Duration = Duration::from_secs(60);
 /// Set by the SIGTERM handler (Unix); a thread turns it into the same clean quit as the menu bar item.
 static TERM: AtomicBool = AtomicBool::new(false);
 #[cfg(unix)]
@@ -189,6 +191,13 @@ fn spawn_server(app: &AppHandle, home: &Path, token: &str) -> Result<Child, Stri
     if let Some(tok) = publik_app_token(app) {
         cmd.env("JOBLEFT_PUBLIK_APP_TOKEN", tok).env("JOBLEFT_PUBLIK_ALLOW_LIVE", "1");
     }
+    // node.exe is a console program. Started from this GUI process, it gets a new console window (the "cmd" window
+    // users report). CREATE_NO_WINDOW starts it with no window; its output already goes to logs/sidecar.log.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
     cmd.spawn().map_err(|e| format!("could not start node: {e}"))
 }
 
@@ -212,7 +221,7 @@ fn wait_ready(home: &Path, token: &str, child: &mut Child) -> Result<u16, String
         }
         thread::sleep(Duration::from_millis(150));
     }
-    Err("the local service did not answer within 15 seconds; see logs/sidecar.log".into())
+    Err(format!("the local service did not answer within {} seconds; see logs/sidecar.log", READY_TIMEOUT.as_secs()))
 }
 
 fn show_main(app: &AppHandle) {

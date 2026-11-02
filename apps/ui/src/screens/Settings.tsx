@@ -21,6 +21,7 @@ import { ago, dateText, fitIndexText, hostOf, plural, secondsLeft } from '../lib
 import { readAllPages } from '../lib/pages.ts';
 import { rememberAiCheck } from '../lib/aiHealth.ts';
 import { dailyLimitText, zeroBalanceText } from '../lib/dailyLimit.ts';
+import { WATCH_EVERY_MS, WATCH_MS, watchingBalance } from '../lib/publikWatch.ts';
 
 /** Where keys are kept on this system: the macOS Keychain, or an encrypted file in the data folder elsewhere (Windows). */
 function secureStore(): string {
@@ -251,6 +252,17 @@ function BalanceTab() {
   const w = c?.wallet;
   const daily = w ? dailyLimitText(w) : null;
   const zero = w ? zeroBalanceText(w) : null;
+  // An unlinked computer: the balance is read again every 5 s for 3 minutes (from the screen, and again from a click
+  // on the link), so the link the person makes on publikhq.com shows up here with no click (JL-windows-plan). The
+  // local service itself reads publik at most once per 5 s.
+  const [watchUntil, setWatchUntil] = useState(() => Date.now() + WATCH_MS);
+  const watching = watchingBalance(c, watchUntil);
+  useEffect(() => {
+    if (!watching) return;
+    const t = setInterval(() => { if (document.visibilityState === 'visible' && Date.now() < watchUntil) void pub.reload(); }, WATCH_EVERY_MS);
+    return () => clearInterval(t);
+  }, [watching, watchUntil, pub.reload]);
+  const openTopUp = (url: string) => { setWatchUntil(Date.now() + WATCH_MS); openExternal(url); };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {switching && <Alert type="info" showIcon message="Making publik your AI provider. jobleft is testing the connection; this can take a few seconds." />}
@@ -273,7 +285,7 @@ function BalanceTab() {
           <div className="jl-row" style={{ alignItems: 'baseline', gap: 12 }}>
             <span className="jl-display" style={{ fontSize: 40 }} aria-label={`Balance: ${formatDollars(w.balanceMicros)}`}>Balance: {formatDollars(w.balanceMicros)}</span>
           </div>
-          {zero && <Alert type="warning" showIcon message={zero} action={<Button size="small" icon={<LinkOutlined />} onClick={() => openExternal(w.topUpUrl)}>Add money</Button>} />}
+          {zero && <Alert type="warning" showIcon message={zero} action={<Button size="small" icon={<LinkOutlined />} onClick={() => openTopUp(w.topUpUrl)}>{w.claimState === 'anonymous' ? 'Link this computer' : 'Add money'}</Button>} />}
           <Descriptions size="small" column={1} items={[
             ...(w.starterRemainingMicros !== null ? [{ key: 's', label: 'Free starter amount left', children: formatDollars(w.starterRemainingMicros) }] : []),
             { key: 'u', label: 'Used this week', children: formatDollars(w.week.usedMicros) },
@@ -284,7 +296,7 @@ function BalanceTab() {
           {daily?.reached && <Alert type="warning" showIcon message="Today's publik spending limit for this computer was reached" description={daily.reached} />}
           <p style={{ margin: 0 }}>{JUSTIFICATION} <a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See the prices per tier</a>.</p>
           <Space wrap>
-            <Button type="primary" shape="round" icon={<LinkOutlined />} onClick={() => openExternal(w.topUpUrl)}>Add money to your balance</Button>
+            <Button type="primary" shape="round" icon={<LinkOutlined />} onClick={() => openTopUp(w.topUpUrl)}>{w.claimState === 'anonymous' ? 'Link this computer to your publik account' : 'Add money to your balance'}</Button>
             <Button shape="round" icon={<ReloadOutlined />} loading={busy === 'refresh'} onClick={() => { void refresh(); }}>Read the balance again</Button>
             <Popconfirm title="Disconnect from publik?" description="The key is deleted from this computer, so nothing can spend the balance from here. The balance stays on this computer's publik account: connect again to use it." onConfirm={() => { void disconnect(); }} okText="Disconnect">
               <Button shape="round">Disconnect</Button>
