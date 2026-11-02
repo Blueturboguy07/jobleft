@@ -43,7 +43,8 @@ interface Pages {
   fit: FitState | null;
 }
 
-export function useJobPages(filter: JobFilter, sort: JobSort, q: string) {
+/** `ready` false holds the first search (the starting filter is not known yet); the list shows its skeleton meanwhile. */
+export function useJobPages(filter: JobFilter, sort: JobSort, q: string, ready = true) {
   const [st, setSt] = useState<Pages>({ items: [], total: null, next: null, loading: true, loadingMore: false, error: null, moreError: null, fit: null });
   const seq = useRef(0);
   const ref = useRef(st);
@@ -66,7 +67,7 @@ export function useJobPages(filter: JobFilter, sort: JobSort, q: string) {
     }
   }, [body]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (ready) void load(); }, [load, ready]);
 
   const more = useCallback(async () => {
     const cur = ref.current;
@@ -115,7 +116,11 @@ export function Feed() {
     setFeed({ filter: filterFromProfile(profile.data), initialized: true });
   }, [profile.data, feed.initialized]);
 
-  const { st, load, more, ops, retryMore } = useJobPages(feed.filter, feed.sort, feed.q);
+  // The first search waits until the starting filter is known: a browser with no saved feed state gets its filter
+  // from the profile once the profile has loaded. Searching before that showed every job for a moment and then the
+  // filtered list, so a card clicked in that moment could open nothing (the list changed under the click).
+  const filterKnown = feed.initialized || !!profile.error || (profile.loaded && !profileIsSet(profile.data));
+  const { st, load, more, ops, retryMore } = useJobPages(feed.filter, feed.sort, feed.q, filterKnown);
   // an empty filtered list: is any job stored at all? Before the first refresh the honest answer is "No jobs yet",
   // not "nothing matches these filters" (JL-onboarding-29)
   const emptyFiltered = !st.loading && !st.error && st.items.length === 0 && !progress?.running && (!!feed.q.trim() || activeCount(feed.filter) > 0);

@@ -74,3 +74,20 @@ export function formatDollars(micros: number): string {
   const rest = String(cents % 100).padStart(2, '0');
   return `${sign}$${dollars.toLocaleString('en-US')}.${rest}`;
 }
+
+/**
+ * What one step was charged, in dollars, as close as it is: under $1 to a tenth of a cent ("$0.017"; "$0.02" when the
+ * tenths are 0), so a step that cost 1.7 cents never reads "$0.01". formatDollars floors to whole cents, which is right
+ * for a balance (never more than there is) and wrong for a charge. Under a tenth of a cent: "<$0.001". From $1: cents.
+ */
+export function formatCost(micros: number): string {
+  if (!Number.isFinite(micros)) return '$—';
+  const sign = micros < 0 ? '-' : '';
+  const abs = Math.abs(Math.round(micros));
+  if (abs === 0) return '$0.00';
+  const mills = Math.round(abs / 1_000);
+  if (mills < 1) return `${sign}<$0.001`;
+  if (mills < 1_000) return mills % 10 === 0 ? `${sign}$0.${String(mills / 10).padStart(2, '0')}` : `${sign}$0.${String(mills).padStart(3, '0')}`;
+  const cents = Math.round(abs / 10_000);
+  return `${sign}$${Math.floor(cents / 100).toLocaleString('en-US')}.${String(cents % 100).padStart(2, '0')}`;
+}

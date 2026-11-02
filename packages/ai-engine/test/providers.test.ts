@@ -326,3 +326,15 @@ test('Ollama: a long text gets a larger context, and a text that cannot fit is r
     assert.equal(m.log.entries.filter((e) => e.path === '/api/chat').length, before, 'nothing was sent');
   });
 });
+
+test('reasoning_effort is never sent to a server that did not say it takes it (local, custom, own key)', async () => {
+  await withModel({ key: CANARY }, async (m) => {
+    const env = { JOBLEFT_AI_HOST_MAP: JSON.stringify({ 'api.openai.com': m.url }) };
+    const { engine } = makeEngine({ env });
+    await use(engine, { provider: 'own_key', vendor: 'openai', model: 'standin-7b' });
+    await engine.setKey(CANARY);
+    await engine.client().complete({ messages: [{ role: 'user', content: 'Reply with the word ready' }], maxTokens: 300, reasoningEffort: 'low' });
+    const body = JSON.parse(m.log.entries.filter((e) => e.path === '/v1/chat/completions').at(-1)!.body);
+    assert.equal('reasoning_effort' in body, false);
+  });
+});

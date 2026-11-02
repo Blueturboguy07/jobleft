@@ -89,6 +89,7 @@ export class AppData {
     this.pairing = new PairingService(this.db);
     this.profile = new ProfileService(this.db, () => this.settings.createdAt());
     this.onboarding = new OnboardingService(this.kv, () => this.profile.exists());
+    if (opened.fresh) this.onboarding.markNew();
     this.jobs = new JobsService(this.db);
     this.network = new NetworkService({ db: this.db, companyKey });
     this.tracker = new TrackerService(this.db, {

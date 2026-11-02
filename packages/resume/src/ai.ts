@@ -3,10 +3,17 @@
 // to plain messages. Job text is always passed as quoted data, never as instructions (resume O14).
 
 import type { AiClient } from '@jobleft/ai-engine';
-import { formatDollars } from '@jobleft/contracts';
+import { formatCost } from '@jobleft/contracts';
 import { ResumeError } from './errors.ts';
 
 export interface AiCall { text: string; costMicros: number | null; model: string }
+
+/**
+ * Output caps of the resume steps. A reasoning model's thinking counts against the cap, so each has room for it: the
+ * tailoring's 1,200 was used up by thinking 3 times in 4 on publik-balanced, the answer was cut short and still charged.
+ */
+export const TAILOR_MAX_TOKENS = 4000;
+export const LETTER_MAX_TOKENS = 2000;
 
 /** The job text as data: cut to a size small models handle, and fenced so it cannot pose as instructions. */
 export function jobBlock(title: string, company: string, description: string): string {
@@ -27,12 +34,13 @@ export function aiLabel(client: AiClient | null): string {
 }
 
 /** One completion. No retry: a failed paid step is never charged twice. Failures become plain ResumeErrors. */
-export async function aiComplete(client: AiClient, system: string, user: string, opts: { maxTokens?: number; requestId?: string; signal?: AbortSignal } = {}): Promise<AiCall> {
+export async function aiComplete(client: AiClient, system: string, user: string, opts: { maxTokens?: number; reasoningEffort?: 'low' | 'medium' | 'high'; requestId?: string; signal?: AbortSignal } = {}): Promise<AiCall> {
   let res;
   try {
     res = await client.complete({
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
       maxTokens: opts.maxTokens ?? 900,
+      ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
       ...(opts.requestId ? { requestId: opts.requestId } : {}),
       ...(opts.signal ? { signal: opts.signal } : {}),
     });
@@ -41,7 +49,7 @@ export async function aiComplete(client: AiClient, system: string, user: string,
   }
   // A provider may charge for an answer jobleft cannot use: the message says so, in dollars (JL-resume-27).
   const charged = res.costMicros !== null && res.costMicros > 0;
-  const cost = charged ? ` The provider still charged ${formatDollars(res.costMicros!)} for it.` : '';
+  const cost = charged ? ` The provider still charged ${formatCost(res.costMicros!)} for it.` : '';
   const details = charged ? { costMicros: res.costMicros } : null;
   if (res.incomplete) throw new ResumeError('provider_error', `The AI answer was cut short, so jobleft did not use it. Nothing was saved.${cost} Try again.`, details);
   if (!res.text || !res.text.trim()) throw new ResumeError('provider_error', `The AI provider sent an empty answer, so nothing was changed.${cost} Try again, or tailor without AI.`, details);

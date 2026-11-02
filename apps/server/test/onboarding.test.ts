@@ -3,6 +3,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { cleanup, PERSONA, scratchHome, startTest } from './helpers.ts';
 
 test('the setup state starts new, keeps the step and the draft across a restart, and ends done or skipped', async () => {
@@ -35,9 +37,28 @@ test('the setup state starts new, keeps the step and the draft across a restart,
 });
 
 test('a data folder from before the setup state, with a saved profile, counts as set up', async () => {
-  const s = await startTest('onb-old');
+  const home = scratchHome('onb-old');
+  let s = await startTest('onb-old', { home });
   try {
     assert.equal((await s.call('PUT', '/api/v1/profile', PERSONA)).status, 200);
+    await s.stop();
+    // a folder made before the setup record existed has a profile and no record
+    const db = new DatabaseSync(join(home, 'data', 'jobleft.db'));
+    db.prepare("DELETE FROM srv_kv WHERE key = 'onboarding'").run();
+    db.close();
+    s = await startTest('onb-old', { home });
     assert.equal((await s.call('GET', '/api/v1/onboarding')).json.status, 'done');
-  } finally { await s.stop(); cleanup(s.home); }
+  } finally { await s.stop(); cleanup(home); }
+});
+
+test('a new data folder keeps its setup open when a profile is saved through the API before the window opens', async () => {
+  const home = scratchHome('onb-api');
+  let s = await startTest('onb-api', { home });
+  try {
+    assert.equal((await s.call('PUT', '/api/v1/profile', PERSONA)).status, 200);
+    assert.equal((await s.call('GET', '/api/v1/onboarding')).json.status, 'new', 'a profile saved by a script or a restore is not a finished setup');
+    await s.stop();
+    s = await startTest('onb-api', { home });
+    assert.equal((await s.call('GET', '/api/v1/onboarding')).json.status, 'new', 'and a restart keeps it so');
+  } finally { await s.stop(); cleanup(home); }
 });

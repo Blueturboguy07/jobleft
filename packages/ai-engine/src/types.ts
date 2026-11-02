@@ -55,6 +55,12 @@ export interface AiRequest {
   /** Used to cancel; cancelling stops the upstream request too. */
   requestId?: string;
   maxTokens?: number;
+  /**
+   * How long a reasoning model may think before it answers, where the provider takes it (publik passes it to the
+   * model). A step that wants a short structured answer asks for 'low', so the thinking does not use up maxTokens and
+   * leave no answer (publik-balanced spent all 1,200 tokens of a resume tailoring on thinking, 3 times in 4).
+   */
+  reasoningEffort?: 'low' | 'medium' | 'high';
   temperature?: number;
   signal?: AbortSignal;
   tools?: AiTool[];

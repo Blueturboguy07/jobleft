@@ -5,7 +5,7 @@
 import { Button, Space } from 'antd';
 import { CloudOutlined, DesktopOutlined, WarningOutlined } from '@ant-design/icons';
 import type { AiSettings } from '@jobleft/contracts';
-import { formatDollars } from '@jobleft/contracts';
+import { formatCost } from '@jobleft/contracts';
 import { invalidate } from '../app/data.ts';
 import { ui } from '../app/layers.ts';
 import { navigate } from '../app/router.ts';
@@ -62,7 +62,7 @@ export function AiNote({ kind, what }: { kind: AiKind; what: string }) {
       {d.remote ? <CloudOutlined /> : <DesktopOutlined />}
       <span>
         {d.charges
-          ? <>Charges your publik balance{d.costMicros !== null ? <>: about <strong>{formatDollars(d.costMicros)}</strong></> : '. The exact charge shows when it finishes'}. Sends the text to publik.{limited ? <> Today's publik spending limit for this computer was reached: a step that would go over it is refused (see Settings &gt; Balance).</> : null}</>
+          ? <>Charges your publik balance{d.costMicros !== null ? <>: about <strong>{formatCost(d.costMicros)}</strong></> : '. The exact charge shows when it finishes'}. Sends the text to publik.{limited ? <> Today's publik spending limit for this computer was reached: a step that would go over it is refused (see Settings &gt; Balance).</> : null}</>
           : d.remote ? <>Sends the text to {d.label}. No charge to your publik balance.</>
             : <>Runs on {d.label}. Nothing leaves this computer and nothing is charged.</>}
       </span>
@@ -96,7 +96,7 @@ export async function ensureAiConsent(s: AiSettings | undefined, kind: AiKind): 
     content: (
       <Space direction="vertical">
         <span>This AI step sends the job's text and a short summary of your profile to <strong>{d.label}</strong>. Your contact details, work authorization and equal-employment answers are never sent.</span>
-        {d.charges && <span>Each step charges your publik balance{d.costMicros !== null ? ` (about ${formatDollars(d.costMicros)} each)` : ''}. You see the charge after each step.</span>}
+        {d.charges && <span>Each step charges your publik balance{d.costMicros !== null ? ` (about ${formatCost(d.costMicros)} each)` : ''}. You see the charge after each step.</span>}
         <span>jobleft asks once for each service. You can change the service in Settings at any time, or use a model on this computer so nothing leaves this computer.</span>
       </Space>
     ),
@@ -113,5 +113,5 @@ export async function ensureAiConsent(s: AiSettings | undefined, kind: AiKind): 
 /** After a paid step: say what it cost and refresh the balance. */
 export function afterAiStep(costMicros: number | null | undefined): void {
   invalidate('ai:publik', 'ai:settings');
-  if (costMicros !== null && costMicros !== undefined && costMicros > 0) ui.message?.info(`This step cost ${formatDollars(costMicros)} from your publik balance.`);
+  if (costMicros !== null && costMicros !== undefined && costMicros > 0) ui.message?.info(`This step cost ${formatCost(costMicros)} from your publik balance.`);
 }

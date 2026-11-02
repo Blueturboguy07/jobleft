@@ -316,6 +316,7 @@ export class AiEngine {
           },
           key: async () => (await this.publik.gatewayKey())?.key ?? null,
           maxTokensField: 'max_tokens',
+          reasoningEffort: true,
           classify: (status, headers, raw) => this.publik.failure(status, headers, raw),
           // A streamed answer's headers come before the charge: their balance is minus a temporary hold, so it is not
           // shown; the balance is read again once the answer ends (the `after` hook below). (JL-tracker-14)

@@ -15,7 +15,7 @@ import { AiNote, afterAiStep, ensureAiConsent } from '../components/AiNote.tsx';
 import { EmptyState, InlineError } from '../components/States.tsx';
 import { dateText } from '../lib/format.ts';
 import { answeredCount, placeholdersIn, savedFor, type ShownFeedback } from '../lib/practice.ts';
-import { formatDollars } from '@jobleft/contracts';
+import { formatCost } from '@jobleft/contracts';
 
 function useCandidateJobs() {
   const applied = useApi<TrackerList>('tracker:list:applied:', () => call('listTracker', { query: { view: 'applied' } }));
@@ -88,7 +88,7 @@ function Question({ s, q, jobId }: { s: PracticeSession; q: PracticeSession['que
             {fb.placeholders.length > 0 && <span className="jl-small jl-muted">Marked parts are placeholders. Fill them with your own true facts; jobleft does not invent achievements.</span>}
           </>)}
           {fb.mode === 'rules' && <span className="jl-small jl-muted">Made by simple checks on this computer. Nothing was charged.</span>}
-          {fb.mode === 'ai' && fb.costMicros !== null && <span className="jl-small jl-muted">{fb.costMicros > 0 ? `Cost: ${formatDollars(fb.costMicros)} from your balance.` : 'No charge to your publik balance.'}</span>}
+          {fb.mode === 'ai' && fb.costMicros !== null && <span className="jl-small jl-muted">{fb.costMicros > 0 ? `Cost: ${formatCost(fb.costMicros)} from your balance.` : 'No charge to your publik balance.'}</span>}
         </div>
       )}
     </section>

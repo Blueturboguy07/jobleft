@@ -425,7 +425,7 @@ test('an answer cut short is not used, and the message says what the provider st
   try {
     const base = svc.create({ name: 'Base' });
     await assert.rejects(svc.tailor(base.id, J_FIT().id), (e: unknown) => e instanceof ResumeError && e.code === 'provider_error'
-      && /cut short/.test(e.message) && /still charged <\$0\.01/.test(e.message) && (e.details as { costMicros: number }).costMicros === 2100 && !/credit/i.test(e.message));
+      && /cut short/.test(e.message) && /still charged \$0\.002/.test(e.message) && (e.details as { costMicros: number }).costMicros === 2100 && !/credit/i.test(e.message));
     assert.equal(svc.list().filter((r) => r.kind === 'tailored').length, 0);
   } finally { db.close(); t.done(); await paid.close(); }
 });

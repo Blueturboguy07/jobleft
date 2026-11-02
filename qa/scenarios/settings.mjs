@@ -240,8 +240,12 @@ try {
       const st = (await api('/storage')).body; const prof = (await api('/profile')).body;
       const pub = (await api('/publik')).body; const ai = (await api('/ai/settings')).body;
       const res = (await api('/resumes')).body;
-      const wiped = st.jobs === 0 && st.openJobs === 0 && (!prof.personal.firstName) && Array.isArray(res) && res.length === 0 && pub.state === 'disconnected' && ai.keySet === false;
-      check('delete-all wipes the data folder contents', wiped, `storage ${j(st)} profile.firstName ${prof.personal.firstName} resumes ${res.length} publik ${pub.state} keySet ${ai.keySet}`);
+      const tracked = ((await api('/tracker?view=tracked&limit=100')).body || {}).items || [];
+      const added = ((await api('/tracker?view=external&limit=100')).body || {}).items || [];
+      // Personal records go; the crawled jobs and their boards stay (JL-settings-22: public postings, no one's record,
+      // and the screen says "Crawled jobs stay"). Jobs the person added by link or text go with the personal records.
+      const wiped = (!prof.personal.firstName) && Array.isArray(res) && res.length === 0 && pub.state === 'disconnected' && ai.keySet === false && tracked.length === 0 && added.length === 0;
+      check('delete-all wipes the data folder contents', wiped, `storage ${j(st)} profile.firstName ${prof.personal.firstName} resumes ${res.length} publik ${pub.state} keySet ${ai.keySet} tracked ${tracked.length} added ${added.length}`);
       // restore so the instance is left usable
       const rr = await api('/restore', { method: 'POST', headers: { 'content-type': 'application/zip' }, body: backup, raw: true });
       const back = (await api('/storage')).body;

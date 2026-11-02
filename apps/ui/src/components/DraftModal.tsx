@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Checkbox, Collapse, Input, Modal, Radio, Space } from 'antd';
 import { CopyOutlined } from '@ant-design/icons';
-import { formatDollars, type DraftPreview, type NetworkContact, type OutreachDraft, type PublikConnection } from '@jobleft/contracts';
+import { formatCost, formatDollars, type DraftPreview, type NetworkContact, type OutreachDraft, type PublikConnection } from '@jobleft/contracts';
 import { call, type UiError } from '../app/api.ts';
 import { invalidate, useApi } from '../app/data.ts';
 import { confirmDiscard, ui, useDirty } from '../app/layers.ts';
@@ -118,7 +118,7 @@ export function DraftModal({ contact, jobId, jobLabel, open, onClose }: { contac
               : <Alert type="success" showIcon message="Ready: it uses only facts from your file, the job and your profile" />}
             <Input.TextArea value={text} onChange={(e) => setText(e.target.value)} autoSize={{ minRows: 4, maxRows: 12 }} aria-label="Message text" />
             {draft.charLimit && <span className={text.length > draft.charLimit ? '' : 'jl-muted'} style={text.length > draft.charLimit ? { color: 'var(--jl-error)' } : undefined}>{text.length} of {draft.charLimit} characters</span>}
-            <span className="jl-small jl-muted">Written by {draft.provider}{draft.costMicros ? `. This draft cost ${formatDollars(draft.costMicros)} from your publik balance.` : '.'}</span>
+            <span className="jl-small jl-muted">Written by {draft.provider}{draft.costMicros ? `. This draft cost ${formatCost(draft.costMicros)} from your publik balance.` : '.'}</span>
             <div className="jl-row jl-wrap">
               <Button shape="round" icon={<CopyOutlined />} onClick={() => { void copyText(text).then((ok) => (ok ? ui.message?.success('Copied. Paste it where you want to send it.') : ui.message?.error('Copy did not work. Select the text and copy it yourself.'))); }}>Copy message</Button>
               <Button shape="round" onClick={() => { void markMessaged(); }}>I sent it: mark as messaged</Button>

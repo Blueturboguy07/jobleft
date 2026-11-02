@@ -77,4 +77,13 @@ export class OnboardingService {
     this.kv.set('onboarding', prune(OnboardingStateSchema, s));
     return this.get();
   }
+
+  /**
+   * A data folder created by this version starts its setup as "new" in the record, so only a folder from before the
+   * record falls back to "a saved profile counts as set up". Without it, a profile saved through the local API before
+   * the window first opened (a backup restore, a script) skipped the whole setup on a new computer.
+   */
+  markNew(): void {
+    if (this.kv.get<OnboardingState>('onboarding') === null) this.put({ status: 'new', step: 0, draft: null, pendingImport: null });
+  }
 }

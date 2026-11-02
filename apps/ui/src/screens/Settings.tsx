@@ -17,16 +17,12 @@ import { navigate, queryParam } from '../app/router.ts';
 import { useAiSettings, useCrawl, usePublik } from '../app/session.ts';
 import { LogoMark, Wordmark } from '../components/Art.tsx';
 import { ErrorState, InlineError, Loading } from '../components/States.tsx';
-import { ago, dateText, fitIndexText, hostOf, plural, secondsLeft } from '../lib/format.ts';
+import { ago, dateText, fitIndexText, hostOf, plural, secondsLeft, secureStoreText } from '../lib/format.ts';
 import { readAllPages } from '../lib/pages.ts';
 import { rememberAiCheck } from '../lib/aiHealth.ts';
 import { dailyLimitText, zeroBalanceText } from '../lib/dailyLimit.ts';
 import { WATCH_EVERY_MS, WATCH_MS, watchingBalance } from '../lib/publikWatch.ts';
 
-/** Where keys are kept on this system: the macOS Keychain, or an encrypted file in the data folder elsewhere (Windows). */
-function secureStore(): string {
-  return /Mac|iPhone|iPad/.test(navigator.userAgent) ? 'the macOS Keychain' : 'an encrypted file in the data folder';
-}
 
 const TABS = [
   { key: 'ai', label: 'AI provider', icon: <ApiOutlined /> },
@@ -182,7 +178,7 @@ function AiTab() {
           : <Alert type="error" showIcon message={check.message} action={(check as ProviderCheck & { link?: { label: string; url: string } }).link ? <Button size="small" onClick={() => openExternal((check as ProviderCheck & { link: { url: string } }).link.url)}>{(check as ProviderCheck & { link: { label: string } }).link.label}</Button> : undefined} />)}
       </Panel>
       {(kind === 'custom' || kind === 'own_key' || kind === 'local') && (
-        <Panel title={kind === 'own_key' ? `Your ${keyFor} key` : 'Key'} desc={<>Kept in {secureStore()}, never in a plain file. Only its last 4 characters are ever shown. It goes only to {kind === 'own_key' ? keyFor : 'the address above'}.{!sameKeySlot ? ' Saving the key also saves this provider choice.' : ''}</>}>
+        <Panel title={kind === 'own_key' ? `Your ${keyFor} key` : 'Key'} desc={<>Kept in {secureStoreText()}, never in a plain file. Only its last 4 characters are ever shown. It goes only to {kind === 'own_key' ? keyFor : 'the address above'}.{!sameKeySlot ? ' Saving the key also saves this provider choice.' : ''}</>}>
           {sameKeySlot && s.keySet ? (
             <Space><Tag icon={<KeyOutlined />}>Key saved, ending in {s.keyHint}</Tag><Popconfirm title="Forget this key?" onConfirm={() => { void forgetKey(); }}><Button shape="round">Forget key</Button></Popconfirm></Space>
           ) : (
@@ -277,7 +273,7 @@ function BalanceTab() {
           <p className="jl-small" style={{ margin: 0 }}><a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See publik's prices per tier</a> before you connect.</p>
           <Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)}>I have read this</Checkbox>
           <Button type="primary" shape="round" style={{ alignSelf: 'flex-start' }} disabled={!agree} loading={busy === 'connect'} onClick={() => { void connect(); }}>{notProvider ? 'Connect and use publik for AI' : 'Connect to publik'}</Button>
-          <p className="jl-small jl-muted" style={{ margin: 0 }}>No key is typed. jobleft keeps the connection key in {secureStore()}.</p>
+          <p className="jl-small jl-muted" style={{ margin: 0 }}>No key is typed. jobleft keeps the connection key in {secureStoreText()}.</p>
         </Panel>
       )}
       {c && c.state === 'connected' && w && (
@@ -323,7 +319,7 @@ function AlertsTab() {
   const s = settings.data;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Panel title="Notifications" desc="jobleft shows these as macOS notifications and in Notifications. They are made on this computer; nothing is emailed.">
+      <Panel title="Notifications" desc="jobleft shows these as notifications on this computer and in Notifications. They are made on this computer; nothing is emailed.">
         <label className="jl-row"><Switch aria-label="Tracker reminders and follow-ups" checked={s.notifications.reminders} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, reminders: v } }); }} /> Tracker reminders and follow-ups</label>
         <label className="jl-row"><Switch aria-label="New jobs after a refresh, and saved-filter alerts" checked={s.notifications.alerts} onChange={(v) => { void put({ ...s, notifications: { ...s.notifications, alerts: v } }); }} /> New jobs after a refresh, and saved-filter alerts</label>
       </Panel>
@@ -445,7 +441,7 @@ function DataTab() {
     try { const f = await download(name); ui.message?.success(`Saved ${f} to your Downloads.`); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
   };
   const restore = async (f: File) => {
-    const ok = await ui.modal?.confirm({ title: 'Restore this backup?', content: "Your current data is replaced by the data in the backup. This Mac's saved AI keys and publik connection stay as they are. A damaged or foreign file is refused and nothing changes.", okText: 'Restore', okButtonProps: { shape: 'round' }, cancelButtonProps: { shape: 'round' } });
+    const ok = await ui.modal?.confirm({ title: 'Restore this backup?', content: "Your current data is replaced by the data in the backup. This computer's saved AI keys and publik connection stay as they are. A damaged or foreign file is refused and nothing changes.", okText: 'Restore', okButtonProps: { shape: 'round' }, cancelButtonProps: { shape: 'round' } });
     if (!ok) return;
     setBusy('restore'); setErr(null);
     try {
@@ -466,7 +462,7 @@ function DataTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <InlineError error={err} />
-      <Panel title="Where your data lives" desc={`Everything is on this computer, in one folder. Keys are in ${secureStore()}, not in plain files.`}>
+      <Panel title="Where your data lives" desc={`Everything is on this computer, in one folder. Keys are in ${secureStoreText()}, not in plain files.`}>
         {storage.data ? (
           <Descriptions size="small" column={1} items={[
             { key: 'd', label: 'Data folder', children: <code style={{ overflowWrap: 'anywhere' }}>{storage.data.dataDir}</code> },

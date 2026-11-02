@@ -51,7 +51,7 @@ test('a tailoring step publik charged but cut short says what it cost, in dollar
     const r = await s.call('POST', `/api/v1/resumes/${up.json.resume.id}/tailor`, { jobId: job.json.job.id });
     assert.equal(r.status, 502, r.text);
     assert.match(r.json.error.message, /cut short/);
-    assert.match(r.json.error.message, /This step still cost \$0\.01 from your publik balance\./);
+    assert.match(r.json.error.message, /This step still cost \$0\.014 from your publik balance\./);
     assert.doesNotMatch(r.json.error.message, /credit/i);
     assert.equal(r.json.error.details.costMicros, 13_600);
   } finally { await s.stop(); await pub.close(); cleanup(s.home); }

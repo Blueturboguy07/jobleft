@@ -116,17 +116,17 @@ function CardView({ item, profileSet, actions, now }: { item: CardItem; profileS
             {!why && (
               <>
                 <Tooltip title={j.title} mouseEnterDelay={0.5}>
-                  <h3 className="jl-card-title" id={titleId}>
+                  <h3 className="jl-card-title" id={titleId} data-posting="">
                     <a href={`#/jobs/${encodeURIComponent(j.id)}`} onClick={(e) => { e.preventDefault(); actions.open(j.id); }}>{j.title}</a>
                   </h3>
                 </Tooltip>
-                <div className="jl-card-company" title={j.company}>{j.company}{j.department && <span className="sub"> / {j.department}</span>}</div>
+                <div className="jl-card-company" title={j.company} data-posting="">{j.company}{j.department && <span className="sub"> / {j.department}</span>}</div>
               </>
             )}
             {why && (
               <div className="jl-card-why">
                 <h3 className="jl-card-title" id={titleId} style={{ fontSize: 16 }}>
-                  <a href={`#/jobs/${encodeURIComponent(j.id)}`} onClick={(e) => { e.preventDefault(); actions.open(j.id); }}>Why this match: {j.title}</a>
+                  <a href={`#/jobs/${encodeURIComponent(j.id)}`} onClick={(e) => { e.preventDefault(); actions.open(j.id); }}>Why this match: <span data-posting="">{j.title}</span></a>
                 </h3>
                 <p className="summary">{full.data ? whySummary(full.data) : full.error ? full.error.message : 'Loading the reasons…'}</p>
               </div>

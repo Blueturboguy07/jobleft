@@ -242,10 +242,16 @@ const AUDIT = `(() => {
   }
   out.overflowX = document.documentElement.scrollWidth > window.innerWidth + 1;
   for (const e of document.querySelectorAll('.ant-modal-close, .ant-drawer-close, [aria-label^="Close"]')) { if (!vis(e)) continue; const r = e.getBoundingClientRect(); if (r.top < 0 || r.left < 0 || r.bottom > innerHeight || r.right > innerWidth) out.offscreen.push(e.getAttribute('aria-label') || e.className); }
-  const text = document.body.innerText + ' ' + [...document.querySelectorAll('[title],[aria-label],[placeholder],img[alt]')].map((e) => [e.getAttribute('title'), e.getAttribute('aria-label'), e.getAttribute('placeholder'), e.getAttribute('alt')].filter(Boolean).join(' ')).join(' ') + ' ' + document.title;
+  let text = document.body.innerText + ' ' + [...document.querySelectorAll('[title],[aria-label],[placeholder],img[alt]')].map((e) => [e.getAttribute('title'), e.getAttribute('aria-label'), e.getAttribute('placeholder'), e.getAttribute('alt')].filter(Boolean).join(' ')).join(' ') + ' ' + document.title;
+  // The employer's own posting text (job titles, company names, the description; the app marks it data-posting) is
+  // data, not app copy: a live title such as "Credit Cards & Banking" is not a banned word. It is left out, also where
+  // a label repeats it ("Like <title>").
+  const posting = [...document.querySelectorAll('[data-posting]')].map((e) => (e.innerText || e.textContent || '').trim()).filter((x) => x.length > 1).sort((a, b) => b.length - a.length);
+  for (const x of posting) text = text.split(x).join(' ');
   const words = ['job' + 'right', 'or' + 'ion', 'tur' + 'bo', 'credit', 'applicants', 'early applicant', 'top applicant', 'not visible on', 'no h-1b', 'no h1b', 'does not sponsor', 'undefined', 'null', 'nan', '[object object]', 'lorem', 'coming soon', 'upgrade'];
   for (const w of words) { const re = new RegExp('(^|[^a-z0-9])' + w.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&') + '([^a-z0-9]|$)', 'i'); if (re.test(text)) { const i = text.toLowerCase().indexOf(w); out.banned.push(w + ': \u2026' + text.slice(Math.max(0, i - 40), i + 40).replace(/\\s+/g, ' ') + '\u2026'); } }
-  if (/\\$0(\\.00)?(?![.\\d])/.test(text)) out.banned.push('$0 found');
+  // a bare "$0" (a placeholder pay or price) is banned; "$0.00" is an honest amount (a new publik balance starts there)
+  if (/\\$0(?![.,\\d])/.test(text)) out.banned.push('$0 found');
   out.text = text.length;
   return out;
 })()`;

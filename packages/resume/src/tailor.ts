@@ -8,7 +8,7 @@ import type { Job, Profile, ResumeDocument, ResumeItem, TailorProposal, TruthVio
 import { nowIso } from '@jobleft/contracts';
 import type { AiClient } from '@jobleft/ai-engine';
 import type { SkillDictionary } from '@jobleft/static-data';
-import { aiComplete, aiLabel, jobBlock, TRUTH_RULES } from './ai.ts';
+import { aiComplete, aiLabel, jobBlock, TAILOR_MAX_TOKENS, TRUTH_RULES } from './ai.ts';
 import { dateRange, degreeLine } from './document.ts';
 import { ResumeError } from './errors.ts';
 import { canonicalSkill, findSkills, scanFacts } from './facts.ts';
@@ -291,7 +291,9 @@ export async function draftTailoring(input: TailorInput): Promise<TailorDraft> {
       'Answer with one line per changed bullet, like "B2: new text". Add "SUMMARY: new text" if you improve the summary. If nothing should change, answer NONE.',
     ].filter(Boolean).join('\n\n');
     const system = `You improve resume bullet points for one job. Rules:\n${TRUTH_RULES}\nKeep each bullet one sentence, about as long as the original. Plain text only.`;
-    const res = await aiComplete(input.ai, system, user, { maxTokens: 1200 });
+    // A reasoning model thinks before it answers, and the thinking counts against maxTokens: 1,200 left no answer
+    // 3 times in 4 on publik-balanced (each still charged). Room for the thinking, and as little of it as the step needs.
+    const res = await aiComplete(input.ai, system, user, { maxTokens: TAILOR_MAX_TOKENS, reasoningEffort: 'low' });
     costMicros = res.costMicros;
     const parsed = parseRewrites(res.text, new Set(refs.map((r) => r.id)));
     // An answer in the wrong form is not used at all (never pasted into a resume); the rule-based changes remain.

@@ -19,6 +19,8 @@ export interface OpenAiDriverOptions {
   label: string;
   /** OpenAI's own API wants max_completion_tokens; everything else takes max_tokens. */
   maxTokensField?: 'max_tokens' | 'max_completion_tokens';
+  /** The server takes `reasoning_effort` (publik); other servers are never sent it. */
+  reasoningEffort?: boolean;
   /** Ask for JSON with response_format (json_schema) when a structured answer is wanted. */
   jsonMode?: 'json_schema' | 'json_object' | 'none';
   extraHeaders?: Record<string, string>;
@@ -90,6 +92,7 @@ export class OpenAiDriver implements ProviderDriver {
       stream: true,
     };
     if (req.maxTokens) body[this.o.maxTokensField ?? 'max_tokens'] = req.maxTokens;
+    if (req.reasoningEffort && this.o.reasoningEffort) body.reasoning_effort = req.reasoningEffort;
     if (req.temperature !== undefined) body.temperature = req.temperature;
     if (req.tools?.length) {
       body.tools = req.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Pay } from '@jobleft/contracts';
-import { NOT_STATED, jobLink, payExactText, payText } from '../src/lib/format.ts';
+import { NOT_STATED, jobLink, payExactText, payText, secureStoreText } from '../src/lib/format.ts';
 
 const year = (min: number | null, max: number | null): Pay => ({ min, max, currency: 'USD', period: 'year', source: 'description', ranges: 1, annualMin: min, annualMax: max });
 
@@ -57,4 +57,9 @@ test('both ends of a pay range use one format (JL-onboarding-25)', () => {
   assert.equal(payText(year(187200, 295520)), '$187.2K/yr - $295.5K/yr');
   assert.equal(payText(year(150000, 200000)), '$150K/yr - $200K/yr');
   assert.equal(payText(year(88500, null)), 'From $88.5K/yr');
+});
+
+test('the key store is named by system: never the macOS Keychain on Windows', () => {
+  assert.equal(secureStoreText('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15'), 'the macOS Keychain');
+  assert.equal(secureStoreText('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edg/131.0'), 'an encrypted file in the data folder');
 });

@@ -270,9 +270,9 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
               <div className="jl-grow" style={{ minWidth: 300 }}>
                 <div className="jl-row" style={{ gap: 12 }}>
                   <CompanyMark name={job.company} keyText={job.companyKey} size={48} />
-                  <span><strong>{job.company}</strong> · <span title={job.postedAt ? dateTimeText(job.postedAt) ?? undefined : undefined}>{posted}</span></span>
+                  <span><strong data-posting="">{job.company}</strong> · <span title={job.postedAt ? dateTimeText(job.postedAt) ?? undefined : undefined}>{posted}</span></span>
                 </div>
-                <h1 style={{ fontSize: 24, fontWeight: 700, margin: '12px 0', overflowWrap: 'anywhere' }}>{job.title}</h1>
+                <h1 style={{ fontSize: 24, fontWeight: 700, margin: '12px 0', overflowWrap: 'anywhere' }} data-posting="">{job.title}</h1>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '8px 24px' }}>
                   <Fact icon={<EnvironmentOutlined />} label="Location" unknown="Place not stated">{job.places.some((p) => p.text) ? <Places job={job} /> : null}</Fact>
                   <Fact icon={<HomeOutlined />} label="Work model" unknown="Work model not stated">{workModelText(job)}</Fact>
@@ -318,7 +318,7 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
 
           <section className="jl-detail-sec jl-desc" aria-labelledby="sec-desc-h">
             <SecHead icon={<BulbOutlined />} title="The posting" id="sec-desc-h" />
-            {blocks.length ? blocks.map((b, i) => b.kind === 'h' ? <h3 key={i}>{b.text}</h3> : b.kind === 'p' ? <p key={i}>{b.text}</p> : <ul key={i}>{b.items.map((x, j) => <li key={j}>{x}</li>)}</ul>)
+            {blocks.length ? <div data-posting="">{blocks.map((b, i) => b.kind === 'h' ? <h3 key={i}>{b.text}</h3> : b.kind === 'p' ? <p key={i}>{b.text}</p> : <ul key={i}>{b.items.map((x, j) => <li key={j}>{x}</li>)}</ul>)}</div>
               : <p className="jl-muted">The posting has no description text.</p>}
             <p className="jl-source" style={{ marginTop: 12 }}>
               Seen on {job.sources.map((s, i) => <span key={s.sourceId + i}>{i > 0 && ', '}{jobLink(s.url) ? <a href={jobLink(s.url)!} target="_blank" rel="noopener noreferrer">{s.name}</a> : s.name}{s.credit && <> ({s.credit.text})</>}</span>)}. First seen by jobleft {dateText(job.firstSeenAt)}.

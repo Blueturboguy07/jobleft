@@ -302,7 +302,8 @@ try {
       const tabProbs = [];
       const tabN = (name) => +((tabs.find((t) => t.startsWith(name + ',')) || '').split(',')[1] ?? NaN);
       if (tabN('Liked') !== st.counts.liked) tabProbs.push(`Liked tab ${tabN('Liked')} vs API ${st.counts.liked}`);
-      if (tabN('Applied') !== st.applications) tabProbs.push(`Applied tab ${tabN('Applied')} vs API ${st.applications}`);
+      // the feed tab of every application is "Applications" (JL-tracker-23); "Applied" is only the Tracker's column
+      if (tabN('Applications') !== st.applications) tabProbs.push(`Applications tab ${tabN('Applications')} vs API ${st.applications}`);
       for (const [lab, n] of [['All', st.applications], ['Applied', st.applied], ['Interviewing', st.interviewing], ['Offer Received', st.offer], ['Rejected', st.rejected], ['Archived', st.archived]]) if (!segs.includes(`${lab} (${n})`)) tabProbs.push(`segment ${lab} (${n}) missing in "${segs}"`);
       check('feed-tabs-equal-tracker' + suffix, tabProbs.length === 0, tabProbs.join('; '));
       // dashboard

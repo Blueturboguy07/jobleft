@@ -300,3 +300,11 @@ export function changeName(c: { field: string; before: string; after: string }):
   if (c.field.startsWith('bullets[')) return `Keep the change to the bullet ${cut(c.before)}`;
   return `Keep the change to ${cut(c.after)}`;
 }
+
+/**
+ * Where keys are kept on this system: the macOS Keychain on a Mac, an encrypted file in the data folder elsewhere
+ * (Windows). One sentence part for every screen, so no Windows screen names the macOS Keychain.
+ */
+export function secureStoreText(userAgent: string = typeof navigator === 'undefined' ? '' : navigator.userAgent): string {
+  return /Mac|iPhone|iPad/.test(userAgent) ? 'the macOS Keychain' : 'an encrypted file in the data folder';
+}

@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button, Checkbox, Input } from 'antd';
 import { Tooltip } from './Tip.tsx';
 import { CloseOutlined, SendOutlined, StopOutlined, ReloadOutlined } from '@ant-design/icons';
-import { formatDollars, type ActionProposal, type ChatThread } from '@jobleft/contracts';
+import { formatCost, type ActionProposal, type ChatThread } from '@jobleft/contracts';
 import { parseMarkdown, type Span } from '../lib/markdown.ts';
 import { EMPTY_CHAT, afterDecision, dropEmptyAnswer, onStreamEvent, proposalMode, startTurn, viewOfThread, type ChatView } from '../lib/chatState.ts';
 import { call, streamChat, type UiError } from '../app/api.ts';
@@ -178,7 +178,7 @@ export function Chat({ jobId, jobTitle, chatId: initialChatId, draft, onThread, 
             <span className="jl-sr">{m.role === 'user' ? 'You said: ' : 'Assistant: '}</span>
             {m.content ? (m.role === 'assistant' ? <AnswerText text={m.content} /> : m.content) : (busy && i === msgs.length - 1 ? '…' : '')}
             {m.incomplete && <div className="jl-small" style={{ marginTop: 6, opacity: 0.8 }}>The answer stopped early. What arrived is kept.</div>}
-            {m.costMicros ? <div className="jl-small" style={{ marginTop: 6, opacity: 0.8 }}>Cost: {formatDollars(m.costMicros)} from your balance</div> : null}
+            {m.costMicros ? <div className="jl-small" style={{ marginTop: 6, opacity: 0.8 }}>Cost: {formatCost(m.costMicros)} from your balance</div> : null}
           </div>
         ))}
         {view.proposals.map((p) => <ProposalCard key={p.id} p={p} onDecide={decide} />)}

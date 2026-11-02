@@ -50,8 +50,8 @@ function Mini({ it }: { it: Item }) {
   const e = it.entry;
   return (
     <div className="jl-mini" draggable onDragStart={(e) => { e.dataTransfer.setData('text/jobleft-job', it.job.id); e.dataTransfer.effectAllowed = 'move'; }}>
-      <a className="t" href={`#/jobs/${encodeURIComponent(it.job.id)}`} style={{ color: '#000' }}>{it.job.title}</a>
-      <span className="jl-small">{it.job.company}</span>
+      <a className="t" href={`#/jobs/${encodeURIComponent(it.job.id)}`} style={{ color: '#000' }} data-posting="">{it.job.title}</a>
+      <span className="jl-small" data-posting="">{it.job.company}</span>
       {it.job.status === 'closed' && <span className="jl-chip closed" style={{ alignSelf: 'flex-start' }}>Posting closed</span>}
       {e.appliedAt && e.status !== null && <span className="jl-small jl-muted">Applied {dateText(e.appliedAt)}</span>}
       {e.status === null && !e.liked && <span className="jl-small jl-muted">Not liked. Kept here for your notes and reminders.</span>}
@@ -111,8 +111,8 @@ export function TrackerScreen() {
         ) : (
           <Table size="middle" rowKey={(r) => r.job.id} dataSource={all} pagination={{ pageSize: 25, hideOnSinglePage: true }}
             columns={[
-              { title: 'Job', key: 'job', render: (_, r) => <a href={`#/jobs/${encodeURIComponent(r.job.id)}`}>{r.job.title}</a>, sorter: (a, b) => a.job.title.localeCompare(b.job.title) },
-              { title: 'Company', key: 'co', render: (_, r) => r.job.company, sorter: (a, b) => a.job.company.localeCompare(b.job.company) },
+              { title: 'Job', key: 'job', render: (_, r) => <a href={`#/jobs/${encodeURIComponent(r.job.id)}`} data-posting="">{r.job.title}</a>, sorter: (a, b) => a.job.title.localeCompare(b.job.title) },
+              { title: 'Company', key: 'co', render: (_, r) => <span data-posting="">{r.job.company}</span>, sorter: (a, b) => a.job.company.localeCompare(b.job.company) },
               { title: 'Stage', key: 'st', width: 190, render: (_, r) => <StatusSelect it={r} /> },
               { title: 'Applied', key: 'ap', render: (_, r) => dateText(r.entry.appliedAt) ?? '', sorter: (a, b) => (a.entry.appliedAt ?? '').localeCompare(b.entry.appliedAt ?? '') },
               { title: 'Posting', key: 'po', render: (_, r) => (r.job.status === 'closed' ? 'Closed' : 'Open') },
@@ -133,7 +133,7 @@ export function TrackerScreen() {
                     afterTrackerChange();
                   } catch (err) { ui.message?.error((err as UiError).message); }
                 }} />
-                <span className="jl-grow">{overdue && <span className="jl-chip warn" style={{ marginRight: 6 }}>Overdue</span>}<strong>{dateTimeText(r.at)}</strong>: {r.text} · <a href={`#/jobs/${encodeURIComponent(it.job.id)}`}>{it.job.company}</a></span>
+                <span className="jl-grow">{overdue && <span className="jl-chip warn" style={{ marginRight: 6 }}>Overdue</span>}<strong>{dateTimeText(r.at)}</strong>: {r.text} · <a href={`#/jobs/${encodeURIComponent(it.job.id)}`} data-posting="">{it.job.company}</a></span>
               </div>
             ))}
             {reminders.length > 12 && <p className="jl-small jl-muted">{plural(reminders.length - 12, 'more open reminder')}. Open a job to see all of its reminders.</p>}
@@ -143,8 +143,8 @@ export function TrackerScreen() {
             {closed.data && !closed.data.items.length && <p className="jl-muted">None. When a posting you track closes, it is listed here with its stage and notes.</p>}
             {closed.data?.items.slice(0, 12).map((it) => (
               <div key={it.job.id} className="jl-row" style={{ padding: '4px 0' }}>
-                <a className="jl-grow" href={`#/jobs/${encodeURIComponent(it.job.id)}`}>{it.job.title}</a>
-                <span className="jl-muted jl-small">{it.job.company}</span>
+                <a className="jl-grow" href={`#/jobs/${encodeURIComponent(it.job.id)}`} data-posting="">{it.job.title}</a>
+                <span className="jl-muted jl-small" data-posting="">{it.job.company}</span>
                 <Tooltip title={`Closed ${dateText(it.job.closedAt) ?? ''}`}><span className="jl-chip">{it.entry.status ? TRACKER_STATUS_LABELS[it.entry.status] : 'Liked'}</span></Tooltip>
               </div>
             ))}

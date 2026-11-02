@@ -33,15 +33,16 @@ async function api(path, { method = 'GET', body, headers = {}, token = TOKEN } =
 }
 const search = (filter = {}, extra = {}) => api('/jobs/search', { method: 'POST', body: { sort: 'recommended', filter, limit: 100, ...extra } });
 async function pageAll(filter, extra = {}, maxItems = 3000) {
-  let cursor = null; const items = []; const totals = new Set(); let err = null;
+  let cursor = null; const items = []; const totals = new Set(); let err = null; let fit = null;
   while (items.length < maxItems) {
     const r = await search(filter, { ...extra, ...(cursor ? { cursor } : {}) });
     if (r.status !== 200) { err = `HTTP ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`; break; }
+    if (!cursor) fit = r.body.fit ?? null;
     totals.add(r.body.total); items.push(...r.body.items);
     cursor = r.body.nextCursor; if (!cursor) break;
   }
   const ids = items.map((i) => i.job.id);
-  return { items, totals: [...totals], complete: !cursor, dup: ids.length - new Set(ids).size, err };
+  return { items, totals: [...totals], complete: !cursor, dup: ids.length - new Set(ids).size, err, fit };
 }
 
 // Facts each filter promises, judged from the job's own facts (the same facts the card shows).
@@ -122,9 +123,22 @@ if (timeLeft() > 0) {
   let inv = mr.items.findIndex((it, k) => k > 0 && it.job.postedAt && mr.items[k - 1].job.postedAt && Date.parse(mr.items[k - 1].job.postedAt) < Date.parse(it.job.postedAt));
   const nullBeforeDated = mr.items.findIndex((it, k) => k > 0 && !mr.items[k - 1].job.postedAt && it.job.postedAt);
   check('sort: Most recent is newest posted first (first 2,000)', inv < 0 && nullBeforeDated < 0, inv >= 0 ? `place ${inv}: ${mr.items[inv - 1].job.postedAt} before ${mr.items[inv].job.postedAt}` : `undated job before a dated one at ${nullBeforeDated}`);
+  // Top matched promises the order of the jobs it has scored; while it is still scoring (fit.state "indexing"), the
+  // jobs it has not scored yet follow in recommended order and are counted as `waiting` (JL-feed-6). Wait for the
+  // scoring to finish (up to 2 minutes), then check the order; if it is still scoring, check the scored part only.
+  let fitState = null;
+  for (const until = Date.now() + 120_000; Date.now() < until && timeLeft() > 60_000;) {
+    const f = await search({}, { sort: 'top_matched', limit: 1 });
+    fitState = f.status === 200 ? f.body.fit : null;
+    if (!fitState || fitState.state !== 'indexing') break;
+    await new Promise((r) => setTimeout(r, 3000));
+  }
   const tm = await pageAll({}, { sort: 'top_matched' }, 2000);
-  inv = tm.items.findIndex((it, k) => k > 0 && tm.items[k - 1].match.percent < it.match.percent);
-  check('sort: Top matched is highest match first (first 2,000)', inv < 0, inv >= 0 ? `place ${inv}: ${tm.items[inv - 1].match.percent}% before ${tm.items[inv].match.percent}%` : '');
+  const waiting = tm.fit?.state === 'indexing' ? tm.fit.waiting : 0;
+  const scoredPart = waiting > 0 ? tm.items.slice(0, Math.max(0, (tm.totals[0] ?? tm.items.length) - waiting)) : tm.items;
+  inv = scoredPart.findIndex((it, k) => k > 0 && scoredPart[k - 1].match.percent < it.match.percent);
+  if (waiting > 0) console.log(`# Top matched: ${waiting} jobs were still being scored after 2 minutes; the order of the ${scoredPart.length} scored jobs is checked`);
+  check('sort: Top matched is highest match first (first 2,000)', inv < 0, inv >= 0 ? `place ${inv}: ${scoredPart[inv - 1].match.percent}% before ${scoredPart[inv].match.percent}%` : '');
   const bandBad = tm.items.filter((i) => i.match.band !== (i.match.percent >= 85 ? 'strong' : i.match.percent >= 70 ? 'good' : 'fair'));
   check('match band follows the number (STRONG >= 85, GOOD 70-84, FAIR < 70)', !bandBad.length, bandBad.slice(0, 3).map((i) => `${i.job.id} ${i.match.percent}% ${i.match.band}`).join('; '));
   let diff = [];
@@ -157,14 +171,16 @@ try {
   await p.shot(join(SHOTS, 'feed-01-first.png'));
 
   const audit = await p.eval(AUDIT);
-  const cardText = await p.eval(`[...document.querySelectorAll('${cardsSel}')].map(c => c.innerText).join('\\n')`);
+  // the employer's own words (title, company; marked data-posting) are data: "Senior Credit Analyst" is a real title
+  const cardText = await p.eval(`[...document.querySelectorAll('${cardsSel}')].map(c => { let t = c.innerText; for (const e of c.querySelectorAll('[data-posting]')) { const x = e.innerText.trim(); if (x.length > 1) t = t.split(x).join(' '); } return t; }).join('\\n')`);
   const banned = (cardText.match(/\bundefined\b|\bnull\b|\bNaN\b|\[object Object\]|\$0(?![\d.,])|\b0\+ years|\bcredits?\b(?! risk| card| union)/gi) || []);
   check('UI: no banned words or placeholders on cards', !banned.length, banned.slice(0, 5).join(', '));
   check('UI: no horizontal page scroll', !audit.overflowX, 'page scrolls sideways');
 
   // Counts vs badges.
   const badges = await p.eval(`Object.fromEntries([...document.querySelectorAll('.jl-topbar-tabs a')].map(a => { const m = (a.getAttribute('aria-label') || '').match(/^(\\w+), (\\d+)$/); return m ? [m[1], +m[2]] : [a.innerText.trim(), null]; }))`);
-  for (const [tab, view] of [['Liked', 'liked'], ['Applied', 'applied'], ['External', 'external']]) {
+  // every application, whatever its stage, is on the "Applications" tab (JL-tracker-23: never "Applied", the Tracker column)
+  for (const [tab, view] of [['Liked', 'liked'], ['Applications', 'applied'], ['External', 'external']]) {
     const t = await api(`/tracker?view=${view}&limit=100`);
     const n = t.status === 200 ? t.body.items.length : -1;
     check(`counts: ${tab} badge equals saved ${view} jobs`, badges[tab] === n, `badge ${badges[tab]} vs ${n}`);

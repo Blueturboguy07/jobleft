@@ -7,6 +7,7 @@
 // Entries a resume brings in are new, so the service checks dates and company names only of entries the person
 // edited (same id as before); the editors check every entry of the block the person is editing.
 
+import { isCountryCode } from './common.ts';
 import type { ProfileInput } from './profile.ts';
 
 export type ProfileBlock = 'personal' | 'education' | 'work' | 'projects' | 'preferences';
@@ -120,6 +121,16 @@ export function profileIssues(next: ProfileInput, prev: ProfileInput | null, now
     return { block: 'work', path: `/work/${i}/company`, message: `Work experience, job ${i + 1}: add the company name.` };
   });
   entries('projects', 'projects', next.projects, (x, i) => `Projects, ${x.name.trim() || `project ${i + 1}`}`);
+  // Country codes: only an assigned ISO 3166-1 code (JL-onboarding-22); a code stored before this check never blocks a save.
+  const countryLists: Array<[ProfileBlock, string, string[], string[] | undefined, string]> = [
+    ['preferences', '/preferences/countries', next.preferences.countries, prev?.preferences.countries, 'Countries'],
+    ['preferences', '/workAuthorization/authorizedCountries', next.workAuthorization?.authorizedCountries ?? [], prev?.workAuthorization?.authorizedCountries, 'Countries where you may work'],
+  ];
+  for (const [block, path, list, before, label] of countryLists) {
+    const known = new Set(before ?? []);
+    const i = list.findIndex((c) => !known.has(c) && !isCountryCode(c));
+    if (i >= 0) out.push({ block, path: `${path}/${i}`, message: `${label}: "${String(list[i]).slice(0, 20)}" is not a country. Choose countries from the list.` });
+  }
   const pay = next.preferences.minAnnualPayUsd;
   if (pay !== null && pay > PROFILE_LIMITS.minAnnualPayUsd && (!prev || prev.preferences.minAnnualPayUsd !== pay)) {
     out.push({ block: 'preferences', path: '/preferences/minAnnualPayUsd', message: `Minimum yearly pay: type an amount up to $${PROFILE_LIMITS.minAnnualPayUsd.toLocaleString('en-US')}.` });

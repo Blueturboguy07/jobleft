@@ -422,6 +422,8 @@ export async function draftOutreach(input: DraftInput): Promise<OutreachDraft> {
   const answer = await input.ai.complete({
     messages,
     maxTokens: input.variant === 'short' ? 220 : 700,
+    // a short message needs little thinking; a reasoning model must not spend the whole cap on it
+    reasoningEffort: 'low',
     ...(input.signal ? { signal: input.signal } : {}),
     ...(input.requestId ? { requestId: input.requestId } : {}),
   });

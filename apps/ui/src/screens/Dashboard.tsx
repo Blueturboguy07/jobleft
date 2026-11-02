@@ -90,7 +90,7 @@ export function Dashboard() {
           <section className="jl-card-box" aria-labelledby="rem2-h">
             <h2 id="rem2-h" className="jl-section-title" style={{ fontSize: 17 }}>Next reminders</h2>
             {!reminders.length && <p className="jl-muted">No open reminders.</p>}
-            {reminders.map(({ r, it, overdue }) => <p key={r.id} style={{ margin: '4px 0' }}>{overdue && <span className="jl-chip warn" style={{ marginRight: 6 }}>Overdue</span>}<strong>{dateTimeText(r.at)}</strong>: {r.text} · <a href={`#/jobs/${encodeURIComponent(it.job.id)}`}>{it.job.company}</a></p>)}
+            {reminders.map(({ r, it, overdue }) => <p key={r.id} style={{ margin: '4px 0' }}>{overdue && <span className="jl-chip warn" style={{ marginRight: 6 }}>Overdue</span>}<strong>{dateTimeText(r.at)}</strong>: {r.text} · <a href={`#/jobs/${encodeURIComponent(it.job.id)}`} data-posting="">{it.job.company}</a></p>)}
             {allReminders.length > reminders.length && <Button type="link" style={{ padding: 0 }} onClick={() => navigate('tracker')}>{plural(allReminders.length - reminders.length, 'more open reminder')} in the Tracker</Button>}
           </section>
           <section className="jl-card-box" aria-labelledby="ref-h">

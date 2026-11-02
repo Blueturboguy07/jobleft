@@ -292,3 +292,18 @@ test('a link made on publikhq.com shows up without a click: a screen read (lates
     await off.engine.publik.connect(PUBLIK_DISCLOSURE_VERSION).catch(() => undefined);
   });
 });
+
+test('a step that asks for little thinking sends reasoning_effort to publik, and only to publik', async () => {
+  await withPublik({ balanceUsd: 5, priceUsd: 0.01 }, async (p) => {
+    const { engine } = makeEngine({ publikBaseUrl: p.baseUrl });
+    await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
+    await use(engine, { provider: 'publik' });
+    await engine.client().complete({ messages: [{ role: 'user', content: 'Reply with the word ready' }], maxTokens: 4000, reasoningEffort: 'low' });
+    await engine.client().complete({ messages: [{ role: 'user', content: 'Reply with the word ready' }], maxTokens: 300 });
+    const bodies = p.log.entries.filter((e) => e.path === '/api/v1/chat/completions').map((e) => JSON.parse(e.body));
+    const [withEffort, without] = bodies.slice(-2);
+    assert.equal(withEffort.reasoning_effort, 'low');
+    assert.equal(withEffort.max_tokens, 4000);
+    assert.equal('reasoning_effort' in without, false, 'a step that does not ask sends nothing: publik keeps its own default');
+  });
+});

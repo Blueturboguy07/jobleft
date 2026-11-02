@@ -5,7 +5,7 @@
 import type { Job, Profile, ResumeDocument } from '@jobleft/contracts';
 import type { AiClient } from '@jobleft/ai-engine';
 import type { SkillDictionary } from '@jobleft/static-data';
-import { aiComplete, aiLabel, jobBlock, TRUTH_RULES } from './ai.ts';
+import { aiComplete, aiLabel, jobBlock, LETTER_MAX_TOKENS, TRUTH_RULES } from './ai.ts';
 import { scanFacts } from './facts.ts';
 import { jobTerms, keywordGaps, safeDictionary } from './gaps.ts';
 import { buildProfileFacts, checkLetter, checkText, headerFromProfile, jobContext, refusedFacts, workYears, type ProfileFacts } from './truth.ts';
@@ -213,7 +213,7 @@ export async function draftLetter(input: { profile: Profile; job: Job; resume: R
   const opener = endWith(`I am writing to apply for ${names.title === 'this role' ? 'this role' : `the ${names.title} role`} at ${names.company}`, '.');
   const system = `You write the middle of a cover letter: two short paragraphs, under 170 words in total. Rules:\n${TRUTH_RULES}\nDo not greet and do not sign. Do not name any company except as "${names.company}". Answer as:\nBODY:\n<paragraphs>\nEND`;
   const user = [profileBlockForLetter(input.profile), jobBlock(input.job.title, input.job.company, input.job.description), `Write why this person fits the ${names.title} role at ${names.company}, using only the PROFILE.`].join('\n\n');
-  const res = await aiComplete(input.ai, system, user, { maxTokens: 700 });
+  const res = await aiComplete(input.ai, system, user, { maxTokens: LETTER_MAX_TOKENS, reasoningEffort: 'low' });
   const body = parseBody(res.text);
   const gated = gateSentences(body, ctx);
   let paras = gated.paras;
@@ -301,7 +301,7 @@ export async function editLetter(input: {
     `Current letter middle:\n${body.join('\n\n')}`,
     `The person asks: ${input.instruction.slice(0, 500)}`,
   ].join('\n\n');
-  const res = await aiComplete(input.ai, system, user, { maxTokens: 700 });
+  const res = await aiComplete(input.ai, system, user, { maxTokens: LETTER_MAX_TOKENS, reasoningEffort: 'low' });
   const gated = gateSentences(parseBody(res.text), ctx);
   if (!gated.paras.length) {
     return { text: input.current, gaps, changed: false, provider: aiLabel(input.ai), costMicros: res.costMicros, notice: 'The AI edit could not be used (it held facts that are not in your profile, or no text). The letter is unchanged.' };

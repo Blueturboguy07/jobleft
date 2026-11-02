@@ -2,7 +2,7 @@
 // One engine per open data folder. Settings and the key-free publik state live in srv_kv; keys live in the secret
 // store (Keychain, or memory in tests). Chat history is kept here: the engine streams one answer, this saves it.
 
-import { formatDollars, type ChatRequest, type ChatStreamEvent, type Job } from '@jobleft/contracts';
+import { formatCost, type ChatRequest, type ChatStreamEvent, type Job } from '@jobleft/contracts';
 import {
   AiEngine, PUBLIK_DEFAULT_BASE_URL, chatEvents, isLoopbackHost, kvSettingsStore, toApiError, type AiClient, type KvStore,
 } from '@jobleft/ai-engine';
@@ -76,7 +76,7 @@ export class AiFacade {
       try { await this.engine.idle(); const after = balance(await this.engine.publik.refresh()); if (after !== null) cost = before - after; } catch { cost = 0; }
       if (cost <= 0) throw e;
       const had = e.extra.details && typeof e.extra.details === 'object' ? e.extra.details as Record<string, unknown> : {};
-      throw new ApiFailure(e.code, `${e.message} This step still cost ${formatDollars(cost)} from your publik balance.`, { ...e.extra, details: { ...had, costMicros: cost } });
+      throw new ApiFailure(e.code, `${e.message} This step still cost ${formatCost(cost)} from your publik balance.`, { ...e.extra, details: { ...had, costMicros: cost } });
     }
     if ((r.costMicros === null || r.costMicros === undefined) && before !== null) {
       try {

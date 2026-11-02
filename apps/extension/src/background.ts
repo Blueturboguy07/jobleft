@@ -5,7 +5,7 @@
 // only the fields' own labels and options.
 
 import {
-  DraftResponseSchema, EXTENSION_PROTOCOL_VERSION, ExtensionStatusSchema, FillResponseSchema, PageInfoSchema, ReviewResponseSchema, formatDollars,
+  DraftResponseSchema, EXTENSION_PROTOCOL_VERSION, ExtensionStatusSchema, FillResponseSchema, PageInfoSchema, ReviewResponseSchema, formatCost, formatDollars,
 } from '@jobleft/contracts';
 import type { FillRequest, FillResponse, FormField, PageInfo } from '@jobleft/contracts';
 import { AppError, createAppClient, type Pairing } from './appclient.ts';
@@ -268,7 +268,7 @@ async function makeDrafts(tabId: number, fieldIds: string[], maxCostMicros: numb
     const r = await call<{ drafts: Array<{ fieldId: string; text: string; provider: string }>; costMicros: number; balanceMicros: number | null; skipped: Array<{ fieldId: string; message: string }> }>(
       '/api/v1/extension/drafts', 'POST', { requestId: t.requestId, pageUrl: t.pageUrl, jobId: t.jobId, fields, maxCostMicros }, DraftResponseSchema, 120000,
     );
-    const cost = r.costMicros > 0 ? `These drafts cost ${formatDollars(r.costMicros)} from your balance.${r.balanceMicros !== null ? ` Balance now: ${formatDollars(r.balanceMicros)}.` : ''}` : null;
+    const cost = r.costMicros > 0 ? `These drafts cost ${formatCost(r.costMicros)} from your balance.${r.balanceMicros !== null ? ` Balance now: ${formatDollars(r.balanceMicros)}.` : ''}` : null;
     await toFrame(tabId, t.formFrame, { type: 'drafts', drafts: r.drafts.filter((d) => fieldIds.includes(d.fieldId)), skipped: r.skipped, costNote: cost });
   } catch (e) {
     await toFrame(tabId, t.formFrame, { type: 'drafts', drafts: [], skipped: fieldIds.map((id) => ({ fieldId: id, message: e instanceof Error ? e.message : 'No draft was made.' })), costNote: null });

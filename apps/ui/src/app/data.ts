@@ -52,8 +52,14 @@ export function load(key: string): Promise<void> {
   );
 }
 
-/** Cached data older than this is read again in the background when a screen that shows it opens. */
+/** Cached data older than this is read again in the background on every screen change (the shell's badges). */
 const STALE_MS = 4000;
+/**
+ * A screen that opens reads again any data older than this, so a change made outside this window (the browser
+ * extension, a restore, the local API) shows on the screen at once, not only after 4 s (the Companies tab showed
+ * "No target companies yet" for targets added 2 s before it opened).
+ */
+const OPEN_STALE_MS = 1000;
 /** Pure results that only change when the profile or the job changes (those callers invalidate them). */
 const STABLE = /^(match:|gaps:|resume:fit:|network:rank:|letters:)/;
 
@@ -73,14 +79,15 @@ export function useApi<T>(key: string | null, fetcher: () => Promise<T>, opts: {
     if (!key) return;
     // Checked when the subscriber mounts and again on every screen change: the shell's badges never remount, and the
     // browser extension or a refresh can change their counts while the app is open.
-    const check = () => {
+    const check = (opening: boolean) => {
       const en = entry(key);
-      const stale = opts.staleMs ?? (STABLE.test(key) ? Infinity : STALE_MS);
+      const stale = opts.staleMs ?? (STABLE.test(key) ? Infinity : opening ? OPEN_STALE_MS : STALE_MS);
       if (!en.loading && (!en.loaded || opts.revalidate || Date.now() - en.loadedAt > stale)) void load(key);
     };
-    check();
-    window.addEventListener('hashchange', check);
-    return () => window.removeEventListener('hashchange', check);
+    check(true);
+    const onScreenChange = () => check(false);
+    window.addEventListener('hashchange', onScreenChange);
+    return () => window.removeEventListener('hashchange', onScreenChange);
   }, [key]);
   const reload = useCallback(() => (key ? load(key) : Promise.resolve()), [key]);
   return { ...(snap as Snapshot<T>), reload };

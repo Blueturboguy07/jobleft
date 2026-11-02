@@ -209,8 +209,13 @@ try {
     assert('job_a_dob_empty', (f.q_dob || '') === '', `dob=${f.q_dob}`);
     assert('job_a_ssn_traps_empty', !f.trap_ssn && !f.outside_ssn && !f.trap_phone && !f.trap_address, 'a hidden/SSN trap was filled');
     assert('job_a_salary_empty', (f.q_salary || '') === '', `salary=${f.q_salary}`);
-    // a field the profile lacks stays empty (no middle name, no github link)
-    assert('job_a_missing_stay_empty', !f.middle_name && !f.github, `middle=${f.middle_name} github=${f.github}`);
+    // a field the profile lacks stays empty, and a field it has holds the profile's own value (never a guess). The
+    // earlier scenarios may have saved a middle name (Profile) and a GitHub link (a resume's links), so read the profile.
+    const wantMiddle = per.middleName || '';
+    const wantGithub = ((per.links || []).find((l) => /github\.com/i.test(l.url || '')) || {}).url || '';
+    const middleOk = wantMiddle ? (f.middle_name || '') === wantMiddle || !f.middle_name : !f.middle_name;
+    const githubOk = wantGithub ? (f.github || '') === wantGithub || !f.github : !f.github;
+    assert('job_a_missing_stay_empty', middleOk && githubOk, `middle=${f.middle_name} (profile ${wantMiddle || 'none'}) github=${f.github} (profile ${wantGithub || 'none'})`);
     const log = await practiceLog();
     assert('job_a_no_submit', log.submit === 0 && log.next === 0, `log submit=${log.submit} next=${log.next}`);
     // network isolation: every host contacted during the fill is 127.0.0.1

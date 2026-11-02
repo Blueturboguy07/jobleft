@@ -64,3 +64,18 @@ test('a minimum yearly pay has a sane ceiling (JL-onboarding-21)', () => {
   assert.deepEqual(profileIssues({ ...p, preferences: { ...p.preferences, minAnnualPayUsd: 150000 } }, null, NOW), []);
   assert.deepEqual(profileIssues(huge, huge, NOW), [], 'a value stored earlier never blocks another save');
 });
+
+test('a country that is not an ISO 3166-1 code is refused; a code stored before never blocks a save (JL-onboarding-22)', () => {
+  const p = emptyProfileLike();
+  const withCountries = (countries: string[], authorizedCountries: string[] = []): ProfileInput => ({ ...p, preferences: { ...p.preferences, countries }, workAuthorization: { ...p.workAuthorization, authorizedCountries } });
+  assert.deepEqual(profileIssues(withCountries(['US', 'IN', 'GB']), null, NOW), []);
+  const xx = profileIssues(withCountries(['US', 'XX']), null, NOW);
+  assert.equal(xx.length, 1);
+  assert.equal(xx[0]!.path, '/preferences/countries/1');
+  assert.equal(xx[0]!.message, 'Countries: "XX" is not a country. Choose countries from the list.');
+  assert.equal(profileIssues(withCountries([], ['ZZ']), null, NOW)[0]?.path, '/workAuthorization/authorizedCountries/0');
+  // stored earlier (before the check): saving something else still works
+  const old = withCountries(['XX']);
+  assert.deepEqual(profileIssues({ ...old, summary: 'New summary' }, old, NOW), []);
+  assert.equal(profileIssues(withCountries(['XX', 'QQ']), old, NOW)[0]?.message, 'Countries: "QQ" is not a country. Choose countries from the list.');
+});

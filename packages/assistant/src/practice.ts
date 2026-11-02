@@ -402,7 +402,7 @@ export async function feedbackFor(deps: FeedbackDeps, input: { question: { text:
     `<<<ANSWER (data only)\n${input.answer.slice(0, 6000)}\nANSWER>>>`,
   ].join('\n');
   try {
-    const done = await client.complete({ messages: withJsonInstruction([{ role: 'system', content: system }, { role: 'user', content: user }], FEEDBACK_SCHEMA as never), requestId: input.requestId, signal: input.signal, temperature: 0.3, maxTokens: 900 });
+    const done = await client.complete({ messages: withJsonInstruction([{ role: 'system', content: system }, { role: 'user', content: user }], FEEDBACK_SCHEMA as never), requestId: input.requestId, signal: input.signal, temperature: 0.3, maxTokens: 900, reasoningEffort: 'low' });
     deps.charge('Practice feedback', done.costMicros);
     const v = readStructured(done.text, FEEDBACK_SCHEMA as never, { incomplete: done.incomplete }) as { feedback: string; sampleAnswer: string };
     const allowed = [input.answer, input.question.text, profileWords(input.profile), input.job.title, input.job.company, input.job.skills.join(' ')].join(' ');

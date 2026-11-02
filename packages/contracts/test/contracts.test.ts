@@ -4,7 +4,7 @@ import {
   ChatStreamEventSchema, CompanySchema, EXPERIENCE_LEVELS, FillRequestSchema, FillResponseSchema, JobSchema,
   JobSearchResponseSchema, LOCAL_API, MatchResultSchema, NetworkContactSchema, PairRequestSchema, ProfileSchema,
   PublikWalletSchema, ResumeSchema, ReviewResultSchema, SCHEMAS, TrackerEntrySchema, bandFor, buildPath,
-  experienceLevelOf, formatDollars, LEVELS, matchRoute, nowMs, parseDuration, summarizeMatch, validate,
+  experienceLevelOf, formatCost, formatDollars, LEVELS, matchRoute, nowMs, parseDuration, summarizeMatch, validate,
   type JsonSchema, type RouteSpec,
 } from '../src/index.ts';
 import * as fx from './fixtures.ts';
@@ -144,4 +144,16 @@ test('docs/INTERFACES.md lists every local API route (run node scripts/gen-inter
   for (const [name, r] of Object.entries(LOCAL_API) as Array<[string, RouteSpec]>) {
     assert.ok(doc.includes(`| \`${name}\` | ${r.method} | \`${r.path}\` |`), `INTERFACES.md is missing route ${name} (${r.method} ${r.path})`);
   }
+});
+
+test('formatCost: a charge as close as it is, never floored to whole cents', () => {
+  assert.equal(formatCost(17_310), '$0.017', 'a tailoring cut short that cost 1.7 cents');
+  assert.equal(formatCost(18_092), '$0.018');
+  assert.equal(formatCost(9_112), '$0.009');
+  assert.equal(formatCost(20_000), '$0.02', 'no trailing tenth when it is 0');
+  assert.equal(formatCost(400), '<$0.001');
+  assert.equal(formatCost(0), '$0.00');
+  assert.equal(formatCost(999_600), '$1.00');
+  assert.equal(formatCost(1_234_567), '$1.23');
+  assert.equal(formatCost(Number.NaN), '$—');
 });
