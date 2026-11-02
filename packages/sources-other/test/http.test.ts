@@ -154,8 +154,9 @@ test('pacing: two processes sharing the database never send to one host less tha
 
 test('a stalled event loop never bunches requests: each one goes a full gap after the one that really left last', async () => {
   const stall = (ms: number) => { const end = Date.now() + ms; while (Date.now() < end) { /* the computer is busy */ } };
-  // Measured with Date.now() while timers run on another clock: a loaded Windows runner needs some room.
-  const slack = process.platform === 'win32' ? 150 : 20;
+  // Measured when each wait returns. On Windows a late request's start is written before its commit, which took up
+  // to ~290 ms on a loaded runner (tag v0.1.5 run: one gap of 814 ms); the old pacers sent 1 ms apart.
+  const slack = process.platform === 'win32' ? 500 : 20;
   const dir = tempDir();
   const db = new DatabaseSync(join(dir, 'pace.db')); migrateSourcesOther(db);
   try {
