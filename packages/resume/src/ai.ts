@@ -11,9 +11,11 @@ export interface AiCall { text: string; costMicros: number | null; model: string
 /**
  * Output caps of the resume steps. A reasoning model's thinking counts against the cap, so each has room for it: the
  * tailoring's 1,200 was used up by thinking 3 times in 4 on publik-balanced, the answer was cut short and still charged.
+ * Measured live on publik-balanced with reasoning "low" (Nov 2026): tailoring used 950 to 3,251 output tokens (the
+ * answer itself under 100), a letter 427. A cap costs nothing unless it is used; publik lowers it to fit a small balance.
  */
-export const TAILOR_MAX_TOKENS = 4000;
-export const LETTER_MAX_TOKENS = 2000;
+export const TAILOR_MAX_TOKENS = 8000;
+export const LETTER_MAX_TOKENS = 4000;
 
 /** The job text as data: cut to a size small models handle, and fenced so it cannot pose as instructions. */
 export function jobBlock(title: string, company: string, description: string): string {
