@@ -201,13 +201,26 @@ try {
   } else skip('counts: "N jobs" equals the search total', 'no search request seen');
 
   // Filter from the screen: Experience level "Entry Level" → every card shows "Entry"; then Job type keeps it.
+  // `option` is a label, or a list of labels: the first one that is not checked yet is picked (a click on a checked one
+  // would turn it off). A popover that is still open afterwards is closed, so it never covers the cards below it.
+  let pickedLabel = null;
   const applyPop = async (label, option) => {
     p.clearRequests();
+    pickedLabel = null;
     await p.click(`button[aria-label^="${label}"]`);
     if (!(await p.waitFor(`document.querySelector('${POP}')`, 5000))) return null;
-    const picked = await p.clickText(option, POP);
-    await p.clickText('Apply', POP);
-    await p.waitFor(`document.querySelector('${POP}') === null`, 5000);
+    await p.waitFor('false', 300); // the popover finishes opening (a click during its animation can miss)
+    let want = option;
+    if (Array.isArray(option)) {
+      const on = await p.eval(`[...document.querySelectorAll('${POP} .ant-checkbox-wrapper-checked')].map(e => e.innerText.trim())`);
+      want = option.find((o) => !on.includes(o)) ?? null;
+    }
+    const picked = want ? await p.clickText(want, POP) : false;
+    if (picked) { pickedLabel = want; await p.clickText('Apply', POP); }
+    if (!(await p.waitFor(`document.querySelector('${POP}') === null`, 5000))) {
+      await p.click(`button[aria-label^="${label}"]`); // the trigger closes its own popover
+      if (!(await p.waitFor(`document.querySelector('${POP}') === null`, 2000))) await p.press('Escape');
+    }
     await p.waitFor(`!document.body.innerText.includes('Updating')`, 15000);
     const reqs = p.requests().filter((r) => r.url.includes('/jobs/search'));
     return picked && reqs.length ? JSON.parse(reqs[reqs.length - 1].body) : null;
@@ -219,14 +232,15 @@ try {
     const badCards = cards.filter(([, t]) => !/\bEntry\b/.test(t) || /\bSenior Level\b/.test(t));
     check('UI filter: every card under "Entry Level" shows Entry and not Senior', cards.length > 0 && !badCards.length, cards.length ? badCards.slice(0, 3).map(([id]) => id).join(', ') : 'no cards');
     await p.shot(join(SHOTS, 'feed-02-entry.png'));
-    // The setup may have chosen Full-time already (a click would turn it off): pick a job type that is not on yet.
-    const typeOn = new Set((JSON.parse((await p.eval(`localStorage.getItem('jobleft.feed.v1')`)) || '{}').filter?.employmentTypes) || []);
-    const [typeLabel, typeValue] = [['Full-time', 'full_time'], ['Contract', 'contract'], ['Part-time', 'part_time']].find(([, v]) => !typeOn.has(v)) || ['Full-time', 'full_time'];
-    const r2 = await applyPop('Job type filter', typeLabel);
-    if (!r2) skip('UI filter: filters combine', 'could not apply Job type');
-    else check('UI filter: a second filter keeps the first (Entry Level + Full-time)', (r2.filter.levels || []).includes('entry') && (r2.filter.employmentTypes || []).includes(typeValue), `added ${typeLabel}; request filter ${JSON.stringify(r2.filter)}`);
+    // The setup may have chosen Full-time already (a click would turn it off): add a job type that is not checked yet.
+    const TYPES = { 'Full-time': 'full_time', Contract: 'contract', 'Part-time': 'part_time' };
+    const r2 = await applyPop('Job type filter', Object.keys(TYPES));
+    if (!r2) skip('UI filter: filters combine', `could not apply Job type (picked: ${pickedLabel})`);
+    else check('UI filter: a second filter keeps the first (Entry Level + a job type)', (r2.filter.levels || []).includes('entry') && (r2.filter.employmentTypes || []).includes(TYPES[pickedLabel]), `added ${pickedLabel}; request filter ${JSON.stringify(r2.filter)}`);
     await p.shot(join(SHOTS, 'feed-03-combined.png'));
   }
+  if (await p.eval(`!!document.querySelector('${POP}')`)) { await p.press('Escape'); await p.waitFor(`document.querySelector('${POP}') === null`, 2000); }
+  check('UI: no filter popover is left open over the cards', await p.eval(`!document.querySelector('${POP}')`), 'a popover is still open');
   p.clearRequests();
   await p.clickText('Clear all');
   await p.waitFor(`!document.body.innerText.includes('Updating')`, 15000);
