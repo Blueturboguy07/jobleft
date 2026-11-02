@@ -28,6 +28,15 @@ export const ROW = 232;
 export const GAP = 8;
 const PAGE = 100;
 
+/** "Refresh now" on the empty feed says what happened, also when there is no board to read yet. */
+async function refreshNow(): Promise<void> {
+  try {
+    const r = await call('crawlRun', { body: {} });
+    if (r.started) ui.message?.success(r.message); else ui.message?.info(r.message);
+    invalidate('crawl');
+  } catch (e) { ui.message?.error((e as UiError).message); }
+}
+
 export function toCard(i: JobListItem): CardItem {
   return { job: i.job, match: i.match, liked: i.liked, hidden: i.hidden, trackerStatus: i.trackerStatus, networkCount: i.networkCount, h1bTag: i.h1bTag, h1bNote: i.h1bNote ?? null };
 }
@@ -176,7 +185,7 @@ export function Feed() {
             <Button shape="round" onClick={() => setDrawer({ open: true, saved: null })}>Change filters</Button></div>} />
       );
     }
-    else body = <EmptyState art="search" title="No jobs yet" text="jobleft reads the public job boards you follow. Start a refresh, or add boards in Settings." action={<div className="jl-row"><Button shape="round" type="primary" icon={<ReloadOutlined />} onClick={() => { void call('crawlRun', { body: {} }).then(() => undefined, () => undefined); }}>Refresh now</Button><Button shape="round" onClick={() => navigate('settings/sources')}>Job sources</Button></div>} />;
+    else body = <EmptyState art="search" title="No jobs yet" text="jobleft reads the public job boards you follow. Start a refresh, or add boards in Settings." action={<div className="jl-row"><Button shape="round" type="primary" icon={<ReloadOutlined />} onClick={() => { void refreshNow(); }}>Refresh now</Button><Button shape="round" onClick={() => navigate('settings/sources')}>Job sources</Button></div>} />;
   } else {
     body = (
       <>
