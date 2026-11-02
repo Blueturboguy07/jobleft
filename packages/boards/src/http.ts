@@ -15,10 +15,14 @@ import { forbiddenProvider } from './hosts.ts';
 
 /** How long a robots.txt answer is reused across jobleft processes (the long-lived clients renew theirs as often). */
 export const ROBOTS_CACHE_MS = 10 * 60_000;
-/** A pacer wake this much later than its slot is late: it may not go before the request booked after it. */
-export const LATE_WAKE_MS = 50;
-/** A request that woke late this many times in a row goes at its next slot (no starvation). */
-const MAX_REBOOKS = 5;
+/**
+ * A request goes only a full gap after the request that really left last. Slots alone are not enough: a waiter that
+ * wakes late (a busy event loop, a stalled computer) would leave together with the one booked after it.
+ * The time of the last real start is kept in a row `sent <host>` of host_pacing (no new column).
+ */
+const sentKey = (host: string) => `sent ${host}`;
+/** A timer can fire a little before Date.now() says so (Windows clock steps); this much early still counts. */
+const EARLY_MS = 2;
 
 export class OfflineError extends Error {
   constructor() { super('offline: JOBLEFT_OFFLINE=1, no request sent'); this.name = 'OfflineError'; }
@@ -102,30 +106,39 @@ export class SqlitePacer extends BusyPacer {
       }
     }
   }
+  private nextAt(key: string): number {
+    const r = this.db.prepare('SELECT next_at FROM host_pacing WHERE host = ?').get(key) as { next_at: number } | undefined;
+    return Number(r?.next_at ?? 0);
+  }
+  private setNextAt(key: string, value: number): void {
+    this.db.prepare(`INSERT INTO host_pacing (host, next_at, busy_until) VALUES (?, ?, 0)
+      ON CONFLICT(host) DO UPDATE SET next_at = excluded.next_at`).run(key, value);
+  }
   override async wait(host: string, extraIntervalMs = 0): Promise<void> {
     const gap = Math.max(this.intervalMs, extraIntervalMs);
-    for (let round = 0; ; round++) {
-      const { start, t } = await this.txn(() => {
-        const r = this.db.prepare('SELECT next_at, busy_until FROM host_pacing WHERE host = ?').get(host) as { next_at: number; busy_until: number } | undefined;
-        const t = Date.now();
-        const busy = Number(r?.busy_until ?? 0);
-        if (busy - t > this.maxWaitMs) throw new HostBusyError(host, busy);
-        const start = Math.max(t, Number(r?.next_at ?? 0), busy);
-        this.db.prepare(`INSERT INTO host_pacing (host, next_at, busy_until) VALUES (?, ?, 0)
-          ON CONFLICT(host) DO UPDATE SET next_at = excluded.next_at`).run(host, start + gap);
-        return { start, t };
+    const { start, t } = await this.txn(() => {
+      const r = this.db.prepare('SELECT next_at, busy_until FROM host_pacing WHERE host = ?').get(host) as { next_at: number; busy_until: number } | undefined;
+      const t = Date.now();
+      const busy = Number(r?.busy_until ?? 0);
+      if (busy - t > this.maxWaitMs) throw new HostBusyError(host, busy);
+      const last = this.nextAt(sentKey(host));
+      const start = Math.max(t, Number(r?.next_at ?? 0), busy, last ? last + gap : 0);
+      this.setNextAt(host, start + gap);
+      return { start, t };
+    });
+    if (start > t) await new Promise((r) => setTimeout(r, start - t));
+    for (let guard = 0; guard < 50; guard++) {
+      const rest = await this.txn(() => {
+        const now = Date.now();
+        const last = this.nextAt(sentKey(host));
+        const due = last ? last + gap : 0;
+        if (now < due - EARLY_MS) return due - now;
+        this.setNextAt(sentKey(host), now);
+        this.setNextAt(host, Math.max(this.nextAt(host), now + gap));
+        return 0;
       });
-      if (start > t) await new Promise((r) => setTimeout(r, start - t));
-      // A wake later than its slot (a busy event loop, a stalled computer) must not bunch up with the request booked
-      // after it: when this was the last booking, the next slot moves back; else this request books a new slot.
-      if (round >= MAX_REBOOKS || Date.now() - start <= LATE_WAKE_MS) return;
-      const go = await this.txn(() => {
-        const r = this.db.prepare('SELECT next_at FROM host_pacing WHERE host = ?').get(host) as { next_at: number } | undefined;
-        if (Math.abs(Number(r?.next_at ?? 0) - (start + gap)) >= 1) return false;
-        this.db.prepare('UPDATE host_pacing SET next_at = ? WHERE host = ?').run(Date.now() + gap, host);
-        return true;
-      });
-      if (go) return;
+      if (rest <= 0) return;
+      await new Promise((r) => setTimeout(r, rest));
     }
   }
 }

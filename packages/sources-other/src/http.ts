@@ -67,10 +67,14 @@ export interface HostPacer {
   hold?(host: string, gapMs: number): Promise<void> | void;
 }
 
-/** A pacer wake this much later than its slot is late: it may not go before the request booked after it. */
-export const LATE_WAKE_MS = 50;
-/** A request that woke late this many times in a row goes at its next slot (no starvation). */
-const MAX_REBOOKS = 5;
+/**
+ * A request goes only a full gap after the request that really left last. Slots alone are not enough: a waiter that
+ * wakes late (a busy event loop, a stalled computer) would leave together with the one booked after it.
+ * The time of the last real start is kept in a row `sent <host>` beside the host's slot row (no new column).
+ */
+const sentKey = (host: string) => `sent ${host}`;
+/** A timer can fire a little before Date.now() says so (Windows clock steps); this much early still counts. */
+const EARLY_MS = 2;
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (ms <= 0) return Promise.resolve();
@@ -85,16 +89,20 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 /** In-process pacer (tests, one-off tools). */
 export class MemoryPacer implements HostPacer {
   private next = new Map<string, number>();
+  private sent = new Map<string, number>();
   async wait(host: string, gapMs: number, signal?: AbortSignal): Promise<void> {
     const gap = Math.max(MIN_GAP_MS, gapMs);
-    for (let round = 0; ; round++) {
-      const now = Date.now();
-      const start = Math.max(now, this.next.get(host) ?? 0);
-      this.next.set(host, start + gap);
-      await sleep(start - now, signal);
-      if (round >= MAX_REBOOKS || Date.now() - start <= LATE_WAKE_MS) return;
-      // Woke late: the last booking moves the next slot back; any other books a new slot (see DbPacer.wait).
-      if (this.next.get(host) === start + gap) { this.next.set(host, Date.now() + gap); return; }
+    const now = Date.now();
+    const last = this.sent.get(host);
+    const start = Math.max(now, this.next.get(host) ?? 0, last === undefined ? 0 : last + gap);
+    this.next.set(host, start + gap);
+    await sleep(start - now, signal);
+    for (let guard = 0; guard < 50; guard++) {
+      const t = Date.now();
+      const l = this.sent.get(host);
+      const due = l === undefined ? 0 : l + gap;
+      if (t >= due - EARLY_MS) { this.sent.set(host, t); this.next.set(host, Math.max(this.next.get(host) ?? 0, t + gap)); return; }
+      await sleep(due - t, signal);
     }
   }
   hold(host: string, gapMs: number): void {
@@ -110,21 +118,15 @@ export class DbPacer implements HostPacer {
   private db: DatabaseSync;
   constructor(db: DatabaseSync) { this.db = db; }
 
-  /** Reads the host's slot and writes its new value in one write transaction. */
-  private async book<T>(host: string, signal: AbortSignal | undefined, next: (now: number, slot: number) => { value: T; nextAt: number | null }): Promise<{ value: T; now: number }> {
+  /** One short write transaction, tried again while another process holds the lock. */
+  private async txn<T>(signal: AbortSignal | undefined, fn: () => T): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       try {
         this.db.exec('BEGIN IMMEDIATE');
         try {
-          const now = Date.now();
-          const row = this.db.prepare('SELECT next_at_ms FROM source_host_slots WHERE host = ?').get(host) as { next_at_ms: number } | undefined;
-          const { value, nextAt } = next(now, Number(row?.next_at_ms ?? 0));
-          if (nextAt !== null) {
-            this.db.prepare('INSERT INTO source_host_slots (host, next_at_ms) VALUES (?, ?) ON CONFLICT(host) DO UPDATE SET next_at_ms = excluded.next_at_ms')
-              .run(host, nextAt);
-          }
+          const v = fn();
           this.db.exec('COMMIT');
-          return { value, now };
+          return v;
         } catch (e) {
           try { this.db.exec('ROLLBACK'); } catch { /* already rolled back */ }
           throw e;
@@ -136,22 +138,41 @@ export class DbPacer implements HostPacer {
       }
     }
   }
+  private get(key: string): number {
+    const row = this.db.prepare('SELECT next_at_ms FROM source_host_slots WHERE host = ?').get(key) as { next_at_ms: number } | undefined;
+    return Number(row?.next_at_ms ?? 0);
+  }
+  private put(key: string, value: number): void {
+    this.db.prepare('INSERT INTO source_host_slots (host, next_at_ms) VALUES (?, ?) ON CONFLICT(host) DO UPDATE SET next_at_ms = excluded.next_at_ms').run(key, value);
+  }
 
   async wait(host: string, gapMs: number, signal?: AbortSignal): Promise<void> {
     const gap = Math.max(MIN_GAP_MS, gapMs);
-    for (let round = 0; ; round++) {
-      const { value: start, now } = await this.book(host, signal, (n, slot) => { const st = Math.max(n, slot); return { value: st, nextAt: st + gap }; });
-      await sleep(start - now, signal);
-      // A wake later than its slot (a busy event loop, a stalled computer) must not bunch up with the request booked
-      // after it: when this was the last booking, the next slot moves back; else this request books a new slot.
-      if (round >= MAX_REBOOKS || Date.now() - start <= LATE_WAKE_MS) return;
-      const { value: go } = await this.book(host, signal, (n, slot) => (Math.abs(slot - (start + gap)) < 1 ? { value: true, nextAt: n + gap } : { value: false, nextAt: null }));
-      if (go) return;
+    const { start, now } = await this.txn(signal, () => {
+      const now = Date.now();
+      const last = this.get(sentKey(host));
+      const start = Math.max(now, this.get(host), last ? last + gap : 0);
+      this.put(host, start + gap);
+      return { start, now };
+    });
+    await sleep(start - now, signal);
+    for (let guard = 0; guard < 50; guard++) {
+      const rest = await this.txn(signal, () => {
+        const t = Date.now();
+        const last = this.get(sentKey(host));
+        const due = last ? last + gap : 0;
+        if (t < due - EARLY_MS) return due - t;
+        this.put(sentKey(host), t);
+        this.put(host, Math.max(this.get(host), t + gap));
+        return 0;
+      });
+      if (rest <= 0) return;
+      await sleep(rest, signal);
     }
   }
 
   async hold(host: string, gapMs: number): Promise<void> {
-    await this.book(host, undefined, (n, slot) => ({ value: null, nextAt: Math.max(slot, n + gapMs) }));
+    await this.txn(undefined, () => { this.put(host, Math.max(this.get(host), Date.now() + gapMs)); });
   }
 }
 

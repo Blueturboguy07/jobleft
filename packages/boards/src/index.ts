@@ -26,7 +26,7 @@ export { scanPage } from './page.ts';
 export type { Evidence, PageBoard, PageScan } from './page.ts';
 export { forbiddenProvider, isForbiddenHost, jobSite, unsupportedProvider } from './hosts.ts';
 export {
-  BusyPacer, ForbiddenHostError, HostBusyError, LATE_WAKE_MS, OfflineError, RedirectLog, SqlitePacer, createBoardHttp, httpStateFor,
+  BusyPacer, ForbiddenHostError, HostBusyError, OfflineError, RedirectLog, SqlitePacer, createBoardHttp, httpStateFor,
   networkCode, offlineFromEnv, redirectLogFor,
 } from './http.ts';
 export type { BoardHttpOptions, BoardHttpState } from './http.ts';

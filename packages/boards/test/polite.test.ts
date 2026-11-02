@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { USER_AGENT } from '@jobleft/crawler';
-import { LATE_WAKE_MS, SqlitePacer, createBoardHttp } from '../src/index.ts';
+import { SqlitePacer, createBoardHttp } from '../src/index.ts';
 import { startMockHosts } from '../scripts/mock-hosts.ts';
 import { tmpdir } from 'node:os';
 // Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
@@ -41,7 +41,7 @@ test('a stalled event loop never bunches requests of two pacers on one database'
     // here (the old pacers: 1 ms). The point is that the requests no longer leave together.
     const slack = process.platform === 'win32' ? 150 : 20;
     const gaps = times.slice(1).map((t, i) => t - times[i]!);
-    for (const g of gaps) assert.ok(g >= 300 - LATE_WAKE_MS - slack, `gaps ${gaps.join(', ')} ms`);
+    for (const g of gaps) assert.ok(g >= 300 - slack, `gaps ${gaps.join(', ')} ms`);
   } finally { p1.close(); p2.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
