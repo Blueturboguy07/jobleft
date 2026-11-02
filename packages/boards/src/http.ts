@@ -23,6 +23,11 @@ export const ROBOTS_CACHE_MS = 10 * 60_000;
 const sentKey = (host: string) => `sent ${host}`;
 /** A timer can fire a little before Date.now() says so (Windows clock steps); this much early still counts. */
 const EARLY_MS = 2;
+/**
+ * A request that starts this much after its slot records when it really left (one more write). On time, its start is
+ * its slot, which the queue already spaces, so nothing is written: one write per request, as before.
+ */
+const LATE_MS = 20;
 
 export class OfflineError extends Error {
   constructor() { super('offline: JOBLEFT_OFFLINE=1, no request sent'); this.name = 'OfflineError'; }
@@ -128,13 +133,17 @@ export class SqlitePacer extends BusyPacer {
     });
     if (start > t) await new Promise((r) => setTimeout(r, start - t));
     for (let guard = 0; guard < 50; guard++) {
+      const now = Date.now();
+      const last = this.nextAt(sentKey(host)); // a plain read: no write lock on time
+      if (last && now < last + gap - EARLY_MS) { await new Promise((r) => setTimeout(r, last + gap - now)); continue; }
+      if (now - start <= LATE_MS) return;
+      // Late: check again and record the real start in one write, so a waiter in another process sees it.
       const rest = await this.txn(() => {
-        const now = Date.now();
-        const last = this.nextAt(sentKey(host));
-        const due = last ? last + gap : 0;
-        if (now < due - EARLY_MS) return due - now;
-        this.setNextAt(sentKey(host), now);
-        this.setNextAt(host, Math.max(this.nextAt(host), now + gap));
+        const n = Date.now();
+        const l = this.nextAt(sentKey(host));
+        if (l && n < l + gap - EARLY_MS) return l + gap - n;
+        this.setNextAt(sentKey(host), n);
+        this.setNextAt(host, Math.max(this.nextAt(host), n + gap));
         return 0;
       });
       if (rest <= 0) return;

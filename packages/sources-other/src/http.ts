@@ -75,6 +75,11 @@ export interface HostPacer {
 const sentKey = (host: string) => `sent ${host}`;
 /** A timer can fire a little before Date.now() says so (Windows clock steps); this much early still counts. */
 const EARLY_MS = 2;
+/**
+ * A request that starts this much after its slot records when it really left (one more write). On time, its start is
+ * its slot, which the queue already spaces, so nothing is written: one write per request, as before.
+ */
+const LATE_MS = 20;
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (ms <= 0) return Promise.resolve();
@@ -101,8 +106,9 @@ export class MemoryPacer implements HostPacer {
       const t = Date.now();
       const l = this.sent.get(host);
       const due = l === undefined ? 0 : l + gap;
-      if (t >= due - EARLY_MS) { this.sent.set(host, t); this.next.set(host, Math.max(this.next.get(host) ?? 0, t + gap)); return; }
-      await sleep(due - t, signal);
+      if (t < due - EARLY_MS) { await sleep(due - t, signal); continue; }
+      if (t - start > LATE_MS) { this.sent.set(host, t); this.next.set(host, Math.max(this.next.get(host) ?? 0, t + gap)); }
+      return;
     }
   }
   hold(host: string, gapMs: number): void {
@@ -157,13 +163,17 @@ export class DbPacer implements HostPacer {
     });
     await sleep(start - now, signal);
     for (let guard = 0; guard < 50; guard++) {
+      const t = Date.now();
+      const last = this.get(sentKey(host)); // a plain read: no write lock on time
+      if (last && t < last + gap - EARLY_MS) { await sleep(last + gap - t, signal); continue; }
+      if (t - start <= LATE_MS) return;
+      // Late: check again and record the real start in one write, so a waiter in another process sees it.
       const rest = await this.txn(signal, () => {
-        const t = Date.now();
-        const last = this.get(sentKey(host));
-        const due = last ? last + gap : 0;
-        if (t < due - EARLY_MS) return due - t;
-        this.put(sentKey(host), t);
-        this.put(host, Math.max(this.get(host), t + gap));
+        const now = Date.now();
+        const l = this.get(sentKey(host));
+        if (l && now < l + gap - EARLY_MS) return l + gap - now;
+        this.put(sentKey(host), now);
+        this.put(host, Math.max(this.get(host), now + gap));
         return 0;
       });
       if (rest <= 0) return;
