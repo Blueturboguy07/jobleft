@@ -37,7 +37,11 @@ test('a stalled event loop never bunches requests of two pacers on one database'
     const end = Date.now() + 800; while (Date.now() < end) { /* the computer is busy: every slot is over */ }
     await all;
     times.sort((x, y) => x - y);
-    for (let i = 1; i < times.length; i++) assert.ok(times[i]! - times[i - 1]! >= 300 - LATE_WAKE_MS - 20, `gap ${times[i]! - times[i - 1]!} ms`);
+    // Measured with Date.now() while timers run on another clock: a loaded Windows runner showed one gap of 202 ms
+    // here (the old pacers: 1 ms). The point is that the requests no longer leave together.
+    const slack = process.platform === 'win32' ? 150 : 20;
+    const gaps = times.slice(1).map((t, i) => t - times[i]!);
+    for (const g of gaps) assert.ok(g >= 300 - LATE_WAKE_MS - slack, `gaps ${gaps.join(', ')} ms`);
   } finally { p1.close(); p2.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
