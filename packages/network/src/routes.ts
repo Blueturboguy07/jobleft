@@ -89,7 +89,7 @@ export function aiErrorToApi(e: unknown): NetworkApiError {
   if (e instanceof AiError) {
     switch (e.code) {
       case 'no_provider':
-        return new NetworkApiError('needs_provider', 'No AI provider is set up. Set one up in Settings > AI (a model on this computer works), or use the plain template.');
+        return new NetworkApiError('needs_provider', 'AI is not set up yet. Connect publik in Settings > Balance (no key needed), or use the plain template. A model on this computer or your own key also works (Settings > AI provider).');
       case 'insufficient_balance':
         return new NetworkApiError('insufficient_balance', e.message || 'Your publik balance ran out. Add money, then draft again.', undefined, e.topUpUrl ? { label: 'Add money', url: e.topUpUrl } : null);
       case 'timeout':

@@ -22,6 +22,7 @@ import { NumberBox, YesNo } from './Profile.tsx';
 import { importChanges } from '../lib/importMerge.ts';
 import { PAY_RULE, cleanForSave, problemsIn, serverProblems, type FieldProblem } from '../lib/profileErrors.ts';
 import { CONNECT_ROUTE, PUBLIK_FIRST } from '../lib/aiSetup.ts';
+import { IconSparkle } from '../components/Icons.tsx';
 import { LAST_STEP, MAX_FUNCTION_LENGTH, addJobFunction, bodyToSave, closedState, keptState, replaceUpload, resumeSetup, toInput, type PendingImport } from '../lib/onboarding.ts';
 
 /** jobleft 0.1.2 and earlier kept "skipped" only in this browser; read once to carry it over, never written again. */
@@ -199,6 +200,7 @@ export function Onboarding() {
   const body = [
     (
       <Space direction="vertical" size={14} style={{ width: '100%' }} key="0">
+        <p className="jl-publik-line"><IconSparkle size={14} />{PUBLIK_FIRST.setupLine}</p>
         <h2 className="jl-display" style={{ fontSize: 28 }}>What kind of work are you looking for?</h2>
         <p className="jl-muted">Pick one or more. This sets the starting filters of your job list; you can change them any time.</p>
         <div className="jl-choice-grid">

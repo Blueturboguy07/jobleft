@@ -11,7 +11,7 @@ import { call, type UiError } from '../app/api.ts';
 import { invalidate, useApi } from '../app/data.ts';
 import { confirmDiscard, ui, useDirty } from '../app/layers.ts';
 import { navigate } from '../app/router.ts';
-import { CONNECT_ROUTE } from '../lib/aiSetup.ts';
+import { CONNECT_PLACE, CONNECT_ROUTE } from '../lib/aiSetup.ts';
 import { InlineError } from './States.tsx';
 
 async function copyText(text: string): Promise<boolean> {
@@ -92,7 +92,7 @@ export function DraftModal({ contact, jobId, jobLabel, open, onClose }: { contac
               ? <p style={{ margin: 0 }}>{dest.remote
                 ? <>Drafting sends the details below to <strong>{dest.label}</strong>.{dest.provider === 'publik' ? ' It charges your publik balance.' : ''}</>
                 : <>Drafting runs on <strong>{dest.label}</strong>. Nothing leaves this computer and nothing is charged.</>}</p>
-              : <p style={{ margin: 0 }}>No AI provider is set up. An AI provider is needed to write a draft with AI. You can use the plain template below, or choose a provider first.</p>}
+              : <p style={{ margin: 0 }}>AI is not set up yet, so this draft uses the plain template below. To write it with AI, connect publik in {CONNECT_PLACE} (no key needed).</p>}
             <p className="jl-small" style={{ margin: '6px 0 0' }}>
               Only this one person is included: {preview.sends.contact.firstName} {preview.sends.contact.lastName}
               {preview.sends.contact.title ? `, ${preview.sends.contact.title}` : ''}{preview.sends.contact.company ? `, ${preview.sends.contact.company}` : ''}

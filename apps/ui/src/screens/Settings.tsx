@@ -3,7 +3,7 @@
 // and what leaves this computer. Nothing here spends money or sends anything without a button that says so.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, Checkbox, Descriptions, Input, Menu, Popconfirm, Radio, Select, Space, Switch, Table, Tag } from 'antd';
+import { Alert, Button, Descriptions, Input, Menu, Popconfirm, Radio, Select, Space, Switch, Table, Tag } from 'antd';
 import { Tooltip } from '../components/Tip.tsx';
 import { CloudOutlined, DesktopOutlined, KeyOutlined, LinkOutlined, ReloadOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, ApiOutlined, WalletOutlined, BellOutlined, DatabaseOutlined, AppstoreOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import {
@@ -20,9 +20,10 @@ import { ErrorState, InlineError, Loading } from '../components/States.tsx';
 import { ago, dateText, fitIndexText, hostOf, plural, secondsLeft, secureStoreText } from '../lib/format.ts';
 import { readAllPages } from '../lib/pages.ts';
 import { rememberAiCheck } from '../lib/aiHealth.ts';
-import { CONNECT_ROUTE, PUBLIK_FIRST, needsPublikConnect } from '../lib/aiSetup.ts';
+import { PUBLIK_FIRST, needsLink } from '../lib/aiSetup.ts';
+import { ConnectBody, LinkBody, PRICING_URL, PublikSetupCard, WalletErrorBody, openLinkPage, startLinkWatch } from '../components/PublikConnect.tsx';
 import { dailyLimitText, zeroBalanceText } from '../lib/dailyLimit.ts';
-import { WATCH_EVERY_MS, WATCH_MS, watchingBalance } from '../lib/publikWatch.ts';
+import { WATCH_MS } from '../lib/publikWatch.ts';
 
 
 const TABS = [
@@ -60,7 +61,6 @@ const VENDORS: Array<{ value: OwnKeyVendor; label: string }> = [
 
 function AiTab() {
   const ai = useAiSettings();
-  const pub = usePublik(ai.data?.provider === 'publik');
   const [kind, setKind] = useState<AiSettings['provider']>(null);
   const [localKind, setLocalKind] = useState<LocalServerKind>('ollama');
   const [vendor, setVendor] = useState<OwnKeyVendor>('openai');
@@ -149,15 +149,7 @@ function AiTab() {
   const p = s.meteredFetch.pricesPer1000Micros;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {needsPublikConnect(s, pub.data) && (
-        <section className="jl-publik-first" aria-labelledby="pf-ai-title" style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <h2 id="pf-ai-title"><CloudOutlined aria-hidden="true" />{PUBLIK_FIRST.title}. No key needed.</h2>
-            <p>One button connects this computer. The other choices below are for a model on this computer, your own server or your own key.</p>
-          </div>
-          <Button className="jl-accent-btn" shape="round" onClick={() => navigate(CONNECT_ROUTE)}>{PUBLIK_FIRST.button}</Button>
-        </section>
-      )}
+      <PublikSetupCard id="pf-ai-title" showOther={false} />
       <Panel title="Where AI answers come from" desc="AI helps with chat, tailoring, cover letters, messages and interview practice. Pick one. jobleft uses only the one you pick; it never switches to another on its own.">
         <div className="jl-choice-grid">
           {card('publik', <CloudOutlined />, 'publik API', 'Pay per use from a dollar balance. Link your publik account for $0.05 of free use, once.')}
@@ -201,7 +193,7 @@ function AiTab() {
         </Panel>
       )}
       <Panel title="Paid web lookups" desc={<>Off unless you turn it on. When on, jobleft may pay per request, from your publik balance or your own key, to read pages a plain fetch cannot, or to look up company facts. Prices per 1,000 requests: web search {formatDollars(p.search)}, page {formatDollars(p.page)}, page that needs JavaScript {formatDollars(p.jsPage)}. jobleft always tries a free plain fetch first. <a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See publik's current prices</a>.</>}>
-        <label className="jl-row"><Switch aria-label="Paid web lookups" checked={s.meteredFetch.enabled} disabled={!s.provider} onChange={(v) => { void setMetered(v); }} /> {s.meteredFetch.enabled ? 'On' : 'Off'}{!s.provider && <span className="jl-muted"> (choose a provider first)</span>}</label>
+        <label className="jl-row"><Switch aria-label="Paid web lookups" checked={s.meteredFetch.enabled} disabled={!s.provider} onChange={(v) => { void setMetered(v); }} /> {s.meteredFetch.enabled ? 'On' : 'Off'}{!s.provider && <span className="jl-muted"> (connect publik first: the {PUBLIK_FIRST.button} button is at the top of this page)</span>}</label>
       </Panel>
     </div>
   );
@@ -215,36 +207,13 @@ const FIT_STATE: Record<string, string> = {
   model_missing: 'Not built yet: the fit model is not on this computer', failed: 'Stopped with a problem',
 };
 
-const DISCLOSURE = [
-  'jobleft can send its AI requests to the publik API: each request is priced per use and paid in dollars from your publik balance. Your balance starts at $0.00; linking a publik account gives $0.05 of free use, once.',
-  "Your prompts go through publik's servers to the AI model's provider, publik does not train on them, and you can change to a local model or your own key at any time.",
-];
-/** publik's live price list (JL-settings-25): every price the app quotes can be checked there. */
-const PRICING_URL = 'https://publikhq.com/pricing';
 const JUSTIFICATION = "The AI model behind publik charges per use; publik charges a fixed, published price per tier, a little above what the model costs publik, which keeps publik running and pays the app's developer. Nothing is charged behind your back, and every call is listed on your publik dashboard.";
 
 function BalanceTab() {
   const ai = useAiSettings();
   const pub = usePublik(true);
-  const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<UiError | null>(null);
-  const [switching, setSwitching] = useState(false);
-  const notProvider = !!ai.data && ai.data.provider !== 'publik';
-  const connect = async () => {
-    setBusy('connect'); setErr(null);
-    let connected = false;
-    try {
-      const c = await call('connectPublik', { body: { disclosureAccepted: true, disclosureVersion: 1 } });
-      setCached('ai:publik', () => c);
-      connected = true;
-      // The switch is saved at once, but its answer waits for a live test of publik, while the balance already shows:
-      // until it answers the page says the switch is under way, and after it the AI settings are read again, so the
-      // page never says "publik is not your AI provider" to a person who just chose it (JL-v1-2).
-      if (notProvider) { setSwitching(true); const r = await call('putAiSettings', { body: { provider: 'publik' } }); setCached('ai:settings', () => r.settings); }
-      ui.message?.success(notProvider ? 'Connected. AI answers now come from publik.' : 'Connected to publik.');
-    } catch (e) { setErr(e as UiError); } finally { setBusy(null); setSwitching(false); if (connected) invalidate('ai:'); }
-  };
   const refresh = async () => {
     setBusy('refresh'); setErr(null);
     try { const c = await call('refreshPublik'); setCached('ai:publik', () => c); } catch (e) { setErr(e as UiError); } finally { setBusy(null); }
@@ -259,41 +228,36 @@ function BalanceTab() {
   const w = c?.wallet;
   const daily = w ? dailyLimitText(w) : null;
   const zero = w ? zeroBalanceText(w) : null;
-  // An unlinked computer: the balance is read again every 5 s for 3 minutes (from the screen, and again from a click
-  // on the link), so the link the person makes on publikhq.com shows up here with no click (JL-windows-plan). The
-  // local service itself reads publik at most once per 5 s.
-  const [watchUntil, setWatchUntil] = useState(() => Date.now() + WATCH_MS);
-  const watching = watchingBalance(c, watchUntil);
-  useEffect(() => {
-    if (!watching) return;
-    const t = setInterval(() => { if (document.visibilityState === 'visible' && Date.now() < watchUntil) void pub.reload(); }, WATCH_EVERY_MS);
-    return () => clearInterval(t);
-  }, [watching, watchUntil, pub.reload]);
-  const openTopUp = (url: string) => { setWatchUntil(Date.now() + WATCH_MS); openExternal(url); };
+  // An unlinked computer: opening this screen reads the balance again every 5 s for 3 minutes (the app-wide link
+  // watch, PublikLinkWatcher), so the link the person makes on publikhq.com shows up here with no click
+  // (JL-windows-plan). The local service itself reads publik at most once per 5 s.
+  useEffect(() => { startLinkWatch(WATCH_MS); }, []);
+  const openTopUp = () => { if (!openLinkPage(c) && w) { startLinkWatch(WATCH_MS); openExternal(w.topUpUrl); } };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {switching && <Alert type="info" showIcon message="Making publik your AI provider. jobleft is testing the connection; this can take a few seconds." />}
-      {ai.data && ai.data.provider !== 'publik' && !switching && c?.state === 'connected' && (
+      {ai.data && ai.data.provider !== 'publik' && c?.state === 'connected' && (
         <Alert type="info" showIcon message="publik is not your AI provider now, so nothing charges your balance." action={<Button size="small" onClick={() => { void usePublikNow(); }}>Use publik</Button>} />
       )}
-      {pub.error && !c && <ErrorState error={pub.error} onRetry={() => { void pub.reload(); }} title="The balance could not load" />}
+      {pub.error && !c && <ErrorState error={pub.error} onRetry={() => { void pub.reload(); }} title={PUBLIK_FIRST.walletError} />}
       {!c && !pub.error && <Loading label="Reading your balance" />}
       {c && c.state !== 'connected' && (
-        <Panel title="Connect publik">
-          <p style={{ margin: 0, fontWeight: 600 }}>jobleft runs AI on publik API. No key needed: one button connects this computer.</p>
-          {DISCLOSURE.map((d) => <p key={d} style={{ margin: 0 }}>{d}</p>)}
-          <p className="jl-small" style={{ margin: 0 }}><a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See publik's prices per tier</a> before you connect.</p>
-          <Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)}>I have read this</Checkbox>
-          <Button type="primary" shape="round" style={{ alignSelf: 'flex-start' }} disabled={!agree} loading={busy === 'connect'} onClick={() => { void connect(); }}>{notProvider ? 'Connect publik and use it for AI' : 'Connect publik'}</Button>
-          <p className="jl-small jl-muted" style={{ margin: 0 }}>No key is typed. jobleft keeps the connection key in {secureStoreText()}.</p>
+        <Panel title={PUBLIK_FIRST.button}>
+          <p style={{ margin: 0, fontWeight: 600 }}>jobleft runs AI on publik API. No key needed: this one button connects this computer.</p>
+          <ConnectBody />
         </Panel>
+      )}
+      {c && c.state === 'connected' && !w && (
+        <Panel title="publik balance"><WalletErrorBody /></Panel>
+      )}
+      {c && c.state === 'connected' && w && needsLink(w) && (
+        <Panel title={PUBLIK_FIRST.link}><LinkBody c={c} /></Panel>
       )}
       {c && c.state === 'connected' && w && (
         <Panel title="publik balance">
           <div className="jl-row" style={{ alignItems: 'baseline', gap: 12 }}>
             <span className="jl-display" style={{ fontSize: 40 }} aria-label={`Balance: ${formatDollars(w.balanceMicros)}`}>Balance: {formatDollars(w.balanceMicros)}</span>
           </div>
-          {zero && <Alert type="warning" showIcon message={zero} action={<Button size="small" icon={<LinkOutlined />} onClick={() => openTopUp(w.topUpUrl)}>{w.claimState === 'anonymous' ? 'Link this computer' : 'Add money'}</Button>} />}
+          {zero && !needsLink(w) && <Alert type="warning" showIcon message={zero} action={<Button size="small" icon={<LinkOutlined />} onClick={openTopUp}>{w.claimState === 'anonymous' ? 'Link this computer' : 'Add money'}</Button>} />}
           <Descriptions size="small" column={1} items={[
             ...(w.starterRemainingMicros !== null ? [{ key: 's', label: 'Free starter amount left', children: formatDollars(w.starterRemainingMicros) }] : []),
             { key: 'u', label: 'Used this week', children: formatDollars(w.week.usedMicros) },
@@ -304,7 +268,7 @@ function BalanceTab() {
           {daily?.reached && <Alert type="warning" showIcon message="Today's publik spending limit for this computer was reached" description={daily.reached} />}
           <p style={{ margin: 0 }}>{JUSTIFICATION} <a href={PRICING_URL} target="_blank" rel="noopener noreferrer">See the prices per tier</a>.</p>
           <Space wrap>
-            <Button type="primary" shape="round" icon={<LinkOutlined />} onClick={() => openTopUp(w.topUpUrl)}>{w.claimState === 'anonymous' ? 'Link this computer to your publik account' : 'Add money to your balance'}</Button>
+            {!needsLink(w) && <Button type="primary" shape="round" icon={<LinkOutlined />} onClick={openTopUp}>{w.claimState === 'anonymous' ? 'Link this computer to your publik account' : 'Add money to your balance'}</Button>}
             <Button shape="round" icon={<ReloadOutlined />} loading={busy === 'refresh'} onClick={() => { void refresh(); }}>Read the balance again</Button>
             <Popconfirm title="Disconnect from publik?" description="The key is deleted from this computer, so nothing can spend the balance from here. The balance stays on this computer's publik account: connect again to use it." onConfirm={() => { void disconnect(); }} okText="Disconnect">
               <Button shape="round">Disconnect</Button>

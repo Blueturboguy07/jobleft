@@ -63,11 +63,11 @@ export async function run(demo: Demo, outDir: string): Promise<void> {
     await p.eval(OBSERVER);
     check(/^Connect publik$/.test((await balanceChip(p)).trim()), 'O14 before a provider is chosen the header asks to connect publik (no balance shown)', await balanceChip(p));
 
-    // -------- connect publik in Settings > Balance (the person ticks "I have read this" and presses the button)
+    // -------- connect publik in Settings > Balance: one press next to the disclosure (no box to tick first)
     await p.eval(`location.hash = '#/settings/balance'`);
     await sleep(900);
-    await p.clickText('I have read this');
-    await sleep(200);
+    check(!(await p.eval<boolean>(`!!document.querySelector('.jl-topbar .jl-connect-chip')`)), 'O14 on the connect page the top bar has no second "Connect publik" (no click that does nothing)');
+    check(await p.eval<boolean>(`[...document.querySelectorAll('#jl-main button')].some((b) => /^Connect publik$/.test(b.innerText.trim()) && !b.disabled)`), 'O14 the connect button works on the first press (not greyed out)');
     // the connect button on the page (the top bar's "Connect publik" chip only opens this page)
     await p.clickMatching('#jl-main button', '^Connect');
     await sleep(1500);

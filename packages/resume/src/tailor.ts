@@ -324,7 +324,7 @@ export async function draftTailoring(input: TailorInput): Promise<TailorDraft> {
       }
     }
   } else if (instruction && !refused.length) {
-    notice = 'No AI provider is set up, so jobleft could not follow the request in words. These are the changes it makes without AI.';
+    notice = 'AI is not set up yet, so jobleft could not follow the request in words. These are the changes it makes without AI. Connect publik in Settings > Balance (no key needed) to have it follow your words.';
   }
 
   // Gaps: what the job asks for that the profile does not have (shown, never added).

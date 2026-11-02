@@ -87,6 +87,8 @@ a { color: var(--jl-accent-ink); }
 .jl-publik-first h2 { font-size: 15px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 6px; }
 .jl-publik-first p { margin: 0; font-size: 13px; }
 .jl-publik-first.jl-narrow-only { display: none; margin-bottom: 8px; }
+/* setup step 1: one line that says AI runs on publik API */
+.jl-publik-line { margin: 0; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; font-size: 13px; font-weight: 600; color: var(--jl-accent-ink); background: rgba(0,240,160,0.14); border: 1px solid rgba(0,240,160,0.45); border-radius: 999px; padding: 4px 12px; }
 @media (max-width: 1199px) { .jl-publik-first.jl-narrow-only { display: flex; } }
 
 /* ---------------------------------------------------------------- page scaffolds */

@@ -381,7 +381,7 @@ export async function feedbackFor(deps: FeedbackDeps, input: { question: { text:
     const err = asAiError(e);
     // No provider chosen: the simple checks still help. Any other problem (a wrong key, an empty balance) is told
     // to the person as it is, and the answer stays saved so they can ask again.
-    if (err.code === 'no_provider') return { ...base, feedback: `${base.feedback} (No AI provider is set up, so this feedback comes from simple checks. Choose one in Settings for a fuller answer.)`, mode: 'rules', costMicros: null };
+    if (err.code === 'no_provider') return { ...base, feedback: `${base.feedback} (AI is not set up yet, so this feedback comes from simple checks. Connect publik in Settings > Balance, no key needed, for a fuller answer.)`, mode: 'rules', costMicros: null };
     throw err;
   }
   const prof = input.profile ? JSON.stringify(profileForModel(input.profile)) : 'no profile';

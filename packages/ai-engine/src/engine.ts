@@ -25,7 +25,7 @@ import {
   parseBaseUrl, shortHash, VENDOR_BASE_URLS,
 } from './urls.ts';
 
-export const NO_PROVIDER_MESSAGE = 'No AI provider is set up. jobleft works without one; set one up in Settings > AI to use this feature.';
+export const NO_PROVIDER_MESSAGE = 'AI is not set up yet. jobleft works without it; to use this, connect publik in Settings > Balance (no key needed), or choose another provider in Settings > AI provider.';
 /** The whole setup check ends within this time (ai-engine O3: each result within 60 seconds). */
 export const CHECK_BUDGET_MS = 55_000;
 
@@ -311,7 +311,7 @@ export class AiEngine {
           ...t, provider: 'publik', model, label: 'publik',
           root: async () => {
             const g = await this.publik.gatewayKey();
-            if (!g) throw new AiError('no_provider', 'publik is not connected. Connect publik in Settings > AI, or choose another provider.');
+            if (!g) throw new AiError('no_provider', 'publik is not connected. Connect publik in Settings > Balance (no key needed), or choose another provider in Settings > AI provider.');
             return g.baseUrl;
           },
           key: async () => (await this.publik.gatewayKey())?.key ?? null,
@@ -373,7 +373,7 @@ export class AiEngine {
       begin: (req: AiRequest) => this.begin(req, provider),
       after: provider === 'publik' ? () => this.track(this.publik.refresh().catch(() => undefined)) : undefined,
       guard: provider === 'publik'
-        ? async () => { if (!(await this.publik.gatewayKey())) throw new AiError('no_provider', 'publik is not connected. Connect publik in Settings > AI, or choose another provider.'); }
+        ? async () => { if (!(await this.publik.gatewayKey())) throw new AiError('no_provider', 'publik is not connected. Connect publik in Settings > Balance (no key needed), or choose another provider in Settings > AI provider.'); }
         : undefined,
     });
   }

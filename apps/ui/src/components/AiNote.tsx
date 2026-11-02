@@ -12,7 +12,8 @@ import { navigate } from '../app/router.ts';
 import { useAiSettings, usePublik } from '../app/session.ts';
 import { hostOf } from '../lib/format.ts';
 import { dailyLimitReached } from '../lib/dailyLimit.ts';
-import { CONNECT_ROUTE, OTHER_PROVIDERS_ROUTE, PUBLIK_FIRST, needsPublikConnect } from '../lib/aiSetup.ts';
+import { CONNECT_ROUTE, OTHER_PROVIDERS_ROUTE, PUBLIK_FIRST, needsPublikConnect, publikStage } from '../lib/aiSetup.ts';
+import { openLinkPage } from './PublikConnect.tsx';
 
 export type AiKind = 'chatTurn' | 'tailor' | 'coverLetter' | 'outreachDraft' | 'practice';
 
@@ -51,6 +52,14 @@ export function AiNote({ kind, what }: { kind: AiKind; what: string }) {
   const limited = d.charges && dailyLimitReached(pub.data?.wallet);
   if (!ai.data) return null;
   // publik first: no provider yet, or publik chosen and not connected, points to connecting publik (no key needed)
+  if (d.charges && publikStage(ai.data, pub.data) === 'linking') {
+    return (
+      <div className="jl-provider-note" role="note">
+        <WarningOutlined /> <span>To {what}, finish linking this computer to your publik account first.</span>
+        <Button size="small" type="link" onClick={() => { openLinkPage(pub.data); }}>{PUBLIK_FIRST.link}</Button>
+      </div>
+    );
+  }
   if (!d.set || needsPublikConnect(ai.data, pub.data)) {
     return (
       <div className="jl-provider-note" role="note">

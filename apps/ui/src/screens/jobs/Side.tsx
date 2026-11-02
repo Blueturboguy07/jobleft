@@ -14,27 +14,16 @@ import { displayName, profileIsSet, useAiSettings, useCrawl, useProfile, usePubl
 import { ago, plural } from '../../lib/format.ts';
 import { cleanFilter, sameFilter, suggestName } from '../../lib/filters.ts';
 import { ProviderChip } from '../../components/Shell.tsx';
-import { IconSparkle } from '../../components/Icons.tsx';
-import { CONNECT_ROUTE, OTHER_PROVIDERS_ROUTE, PUBLIK_FIRST, aiChecklistStep, needsPublikConnect } from '../../lib/aiSetup.ts';
+import { aiChecklistStep } from '../../lib/aiSetup.ts';
+import { PublikSetupCard } from '../../components/PublikConnect.tsx';
 
 /**
- * publik first: until AI is set up, the feed says that AI runs on publik API with no key, and gives one button that
- * opens the connect step. `narrow`: the copy in the main column, shown only when the right column is hidden.
+ * publik first: until AI is set up, the feed says that AI runs on publik API with no key, next to the one button that
+ * connects (and then "Finish linking on publikhq.com" until the link lands). `narrow`: the copy in the main column,
+ * shown only when the right column is hidden.
  */
 export function PublikFirstCard({ narrow = false }: { narrow?: boolean }) {
-  const ai = useAiSettings();
-  const pub = usePublik(ai.data?.provider === 'publik');
-  if (!needsPublikConnect(ai.data, pub.data)) return null;
-  return (
-    <section className={`jl-publik-first${narrow ? ' jl-narrow-only' : ''}`} aria-labelledby={narrow ? 'pf-title-n' : 'pf-title'}>
-      <h2 id={narrow ? 'pf-title-n' : 'pf-title'}><span style={{ color: 'var(--jl-accent-ink)', display: 'inline-flex' }} aria-hidden="true"><IconSparkle size={16} /></span>{PUBLIK_FIRST.title}</h2>
-      <p>{PUBLIK_FIRST.body}</p>
-      <div className="jl-row jl-wrap" style={{ gap: 8 }}>
-        <Button className="jl-accent-btn" shape="round" onClick={() => navigate(CONNECT_ROUTE)}>{PUBLIK_FIRST.button}</Button>
-        <Button size="small" type="link" style={{ padding: 0 }} onClick={() => navigate(OTHER_PROVIDERS_ROUTE)}>{PUBLIK_FIRST.other}</Button>
-      </div>
-    </section>
-  );
+  return <PublikSetupCard id={narrow ? 'pf-title-n' : 'pf-title'} narrow={narrow} />;
 }
 
 export function UserCard() {
@@ -180,7 +169,7 @@ export function Checklist() {
   const steps = [
     { done: profileIsSet(profile.data), text: 'Add your profile', to: 'profile' },
     { done: (resumes.data?.length ?? 0) > 0, text: 'Add a resume', to: 'resume' },
-    aiChecklistStep(ai.data, pub.data),
+    aiChecklistStep(ai.data, pub.data, { publikError: !!pub.error }),
     { done: (contacts.data?.length ?? 0) > 0, text: 'Import your connections (optional)', to: 'network' },
   ];
   const done = steps.filter((s) => s.done).length;

@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { Button } from 'antd';
 import { Art, LogoMark, Wordmark } from '../components/Art.tsx';
 import { ChatPanel, ConnectionBanner, Rail, TopBar, type ScreenId } from '../components/Shell.tsx';
+import { PublikLinkWatcher } from '../components/PublikConnect.tsx';
 import { ErrorBoundary } from '../components/States.tsx';
 import { AssistantScreen } from '../screens/Assistant.tsx';
 import { Dashboard } from '../screens/Dashboard.tsx';
@@ -106,6 +107,7 @@ export function App() {
       <div className="jl-main">
         <TopBar screen={screen} jobsTab={jobsTab} />
         <ConnectionBanner />
+        <PublikLinkWatcher />
         <main id="jl-main" className="jl-content" tabIndex={-1} style={{ outline: 'none' }}>
           <ErrorBoundary label="This screen stopped working" resetKey={route.join('/')}>{body}</ErrorBoundary>
         </main>

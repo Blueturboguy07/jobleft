@@ -114,7 +114,7 @@ async function network<K extends NetworkRouteName>(name: K, c: Ctx<K>): Promise<
   const { d, app } = c;
   const body = (c.body ?? {}) as { template?: boolean };
   let client: AiClient | null = null;
-  let clientError: unknown = new AiError('no_provider', 'No AI provider is set up.');
+  let clientError: unknown = new AiError('no_provider', 'AI is not set up yet. Connect publik in Settings > Balance (no key needed).');
   // A client is made only for a real AI draft. Making it sends nothing. A failure here is raised by the package at the
   // point where it needs the client, after its own checks (no provider, offline, first remote draft).
   if (name === 'draftOutreach' && !body.template && d.ai.destination()) {

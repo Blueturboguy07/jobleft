@@ -118,7 +118,7 @@ export function createMeteredClient(deps: MeteredDeps) {
     }
     if (price > maxPriceMicros) throw new MeteredError('price_cap', `This costs ${priceText(price)}, which is above the limit of ${priceText(maxPriceMicros)}. Nothing was sent.`);
     const gw = await deps.gateway();
-    if (!gw) throw new MeteredError('not_connected', `The paid route needs publik. Connect publik in Settings. ${OWN_KEY_OFFER}`, { offerOwnKey: true });
+    if (!gw) throw new MeteredError('not_connected', `The paid route needs publik. Connect publik in Settings > Balance. ${OWN_KEY_OFFER}`, { offerOwnKey: true });
     const signals: AbortSignal[] = [AbortSignal.timeout(timeoutMs)];
     if (signal) signals.push(signal);
     let res: Response;

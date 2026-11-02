@@ -63,7 +63,7 @@ export function mapAiError(e: unknown): ResumeError {
   const code = (e as { code?: string }).code;
   const top = (e as { topUpUrl?: string | null }).topUpUrl ?? null;
   switch (code) {
-    case 'no_provider': return new ResumeError('needs_provider', 'No AI provider is set up. Set one up, or use the version jobleft makes without AI.');
+    case 'no_provider': return new ResumeError('needs_provider', 'AI is not set up yet. Connect publik in Settings > Balance (no key needed), or use the version jobleft makes without AI.');
     case 'timeout': return new ResumeError('provider_timeout', 'The AI provider did not answer in time. Nothing was saved; try again later.');
     case 'insufficient_balance': return new ResumeError('insufficient_balance', 'Your publik balance ran out, so this step did not run. Nothing was saved; add to your balance in dollars to continue.', null, top);
     case 'bad_answer': return new ResumeError('provider_error', 'The AI answer could not be used (it was not in the expected form). Nothing was saved; try again.');

@@ -116,7 +116,6 @@ export async function run(demo: Demo, outDir: string): Promise<void> {
     // ---------------- phase B: publik chosen and connected
     await p.eval(`location.hash = '#/settings/balance'`);
     await sleep(800);
-    await p.clickText('I have read this');
     await p.clickMatching('button', '^Connect');
     await sleep(1500);
     await p.eval(`location.hash = '#/assistant'`);

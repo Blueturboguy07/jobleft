@@ -6,12 +6,13 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { Alert, Button, Input } from 'antd';
 import { Tooltip } from './Tip.tsx';
 import { SearchOutlined, CloseOutlined, ExpandAltOutlined } from '@ant-design/icons';
-import { navigate } from '../app/router.ts';
+import { navigate, useRoute } from '../app/router.ts';
 import { useLayer, useReturnFocus } from '../app/layers.ts';
 import { invalidate } from '../app/data.ts';
 import { setFeed, useAiSettings, useFeed, useNotifications, usePublik, useTrackerCounts } from '../app/session.ts';
 import { aiCheckFailed, lastAiCheck, subscribeAiCheck } from '../lib/aiHealth.ts';
-import { PUBLIK_FIRST, chipState } from '../lib/aiSetup.ts';
+import { CONNECT_ROUTE, PUBLIK_FIRST, chipState } from '../lib/aiSetup.ts';
+import { openLinkPage, retryPublik } from './PublikConnect.tsx';
 import { LogoMark } from './Art.tsx';
 import { Chat } from './Chat.tsx';
 import { closeChat, openChat, useChatTarget } from './chatStore.ts';
@@ -58,23 +59,37 @@ export function Rail({ active }: { active: ScreenId }) {
 
 /**
  * The AI chip: the dollar balance with publik, or where AI answers come from. Before AI is set up it is the
- * "Connect publik" button, which opens the connect step (no key needed).
+ * "Connect publik" button, which opens the connect panel (no key needed); on that page it is not shown, so it is never
+ * a click that does nothing. While the computer waits for its link it opens the publikhq.com claim page again, and when
+ * the balance did not load it reads it again.
  */
 export function ProviderChip({ compact = false }: { compact?: boolean }) {
   const ai = useAiSettings();
   const s = ai.data;
+  const route = useRoute();
   const lastCheck = useSyncExternalStore(subscribeAiCheck, lastAiCheck);
   const publik = usePublik(s?.provider === 'publik');
   // The last setup check of these settings failed (JL-settings-3): never a green dot then.
   const checkFailed = !!s?.provider && s.provider !== 'publik' && aiCheckFailed(lastCheck, s.updatedAt);
   const c = chipState(s, publik.data, { publikError: !!publik.error, checkFailed, compact });
-  if (c.connect) {
-    // the compact chip sits under the publik-first card on the feed, which already has the button
-    if (compact) return null;
+  const onConnectPage = route.join('/') === CONNECT_ROUTE;
+  if (c.kind === 'connect' || c.kind === 'link') {
+    // the compact chip sits under the publik-first card on the feed, which already has the button; the connect page
+    // has the button itself
+    if (compact || (c.kind === 'connect' && onConnectPage)) return null;
     return (
-      <Tooltip title={`${PUBLIK_FIRST.title}. No key needed. Select to connect.`}>
-        <button type="button" className="jl-status-chip jl-connect-chip" onClick={() => navigate(c.to)}>
+      <Tooltip title={c.kind === 'connect' ? `${PUBLIK_FIRST.title}. No key needed. Select to connect.` : 'Opens publikhq.com, where you sign in and link this computer.'}>
+        <button type="button" className="jl-status-chip jl-connect-chip" onClick={() => { if (c.kind === 'link') openLinkPage(publik.data); else navigate(c.to); }}>
           <IconSparkle size={14} />{c.text}
+        </button>
+      </Tooltip>
+    );
+  }
+  if (c.kind === 'retry') {
+    return (
+      <Tooltip title="Reads your publik balance again.">
+        <button type="button" className="jl-status-chip" onClick={() => { void retryPublik(); }}>
+          <span className="dot off" aria-hidden="true" />{compact ? `Balance did not load · ${PUBLIK_FIRST.retry}` : c.text}
         </button>
       </Tooltip>
     );
