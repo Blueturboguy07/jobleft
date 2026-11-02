@@ -15,6 +15,10 @@ import { forbiddenProvider } from './hosts.ts';
 
 /** How long a robots.txt answer is reused across jobleft processes (the long-lived clients renew theirs as often). */
 export const ROBOTS_CACHE_MS = 10 * 60_000;
+/** A pacer wake this much later than its slot is late: it may not go before the request booked after it. */
+export const LATE_WAKE_MS = 50;
+/** A request that woke late this many times in a row goes at its next slot (no starvation). */
+const MAX_REBOOKS = 5;
 
 export class OfflineError extends Error {
   constructor() { super('offline: JOBLEFT_OFFLINE=1, no request sent'); this.name = 'OfflineError'; }
@@ -78,33 +82,51 @@ export class SqlitePacer extends BusyPacer {
     const r = this.db.prepare('SELECT busy_until FROM host_pacing WHERE host = ?').get(host) as { busy_until: number } | undefined;
     return Number(r?.busy_until ?? 0);
   }
-  override async wait(host: string, extraIntervalMs = 0): Promise<void> {
-    const gap = Math.max(this.intervalMs, extraIntervalMs);
-    let start = 0, t = 0;
+  /** One short IMMEDIATE transaction on this connection, tried again while another connection holds the lock. */
+  private async txn<T>(fn: () => T): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       try {
         this.db.exec('BEGIN IMMEDIATE');
         try {
-          const r = this.db.prepare('SELECT next_at, busy_until FROM host_pacing WHERE host = ?').get(host) as { next_at: number; busy_until: number } | undefined;
-          t = Date.now();
-          const busy = Number(r?.busy_until ?? 0);
-          if (busy - t > this.maxWaitMs) { this.db.exec('ROLLBACK'); throw new HostBusyError(host, busy); }
-          start = Math.max(t, Number(r?.next_at ?? 0), busy);
-          this.db.prepare(`INSERT INTO host_pacing (host, next_at, busy_until) VALUES (?, ?, 0)
-            ON CONFLICT(host) DO UPDATE SET next_at = excluded.next_at`).run(host, start + gap);
+          const v = fn();
           this.db.exec('COMMIT');
+          return v;
         } catch (e) {
           try { this.db.exec('ROLLBACK'); } catch { /* not in a transaction */ }
           throw e;
         }
-        break;
       } catch (e) {
         if (e instanceof HostBusyError) throw e;
         if (attempt >= 50) throw e;
         await new Promise((r) => setTimeout(r, 20 + Math.random() * 30));
       }
     }
-    if (start > t) await new Promise((r) => setTimeout(r, start - t));
+  }
+  override async wait(host: string, extraIntervalMs = 0): Promise<void> {
+    const gap = Math.max(this.intervalMs, extraIntervalMs);
+    for (let round = 0; ; round++) {
+      const { start, t } = await this.txn(() => {
+        const r = this.db.prepare('SELECT next_at, busy_until FROM host_pacing WHERE host = ?').get(host) as { next_at: number; busy_until: number } | undefined;
+        const t = Date.now();
+        const busy = Number(r?.busy_until ?? 0);
+        if (busy - t > this.maxWaitMs) throw new HostBusyError(host, busy);
+        const start = Math.max(t, Number(r?.next_at ?? 0), busy);
+        this.db.prepare(`INSERT INTO host_pacing (host, next_at, busy_until) VALUES (?, ?, 0)
+          ON CONFLICT(host) DO UPDATE SET next_at = excluded.next_at`).run(host, start + gap);
+        return { start, t };
+      });
+      if (start > t) await new Promise((r) => setTimeout(r, start - t));
+      // A wake later than its slot (a busy event loop, a stalled computer) must not bunch up with the request booked
+      // after it: when this was the last booking, the next slot moves back; else this request books a new slot.
+      if (round >= MAX_REBOOKS || Date.now() - start <= LATE_WAKE_MS) return;
+      const go = await this.txn(() => {
+        const r = this.db.prepare('SELECT next_at FROM host_pacing WHERE host = ?').get(host) as { next_at: number } | undefined;
+        if (Math.abs(Number(r?.next_at ?? 0) - (start + gap)) >= 1) return false;
+        this.db.prepare('UPDATE host_pacing SET next_at = ? WHERE host = ?').run(Date.now() + gap, host);
+        return true;
+      });
+      if (go) return;
+    }
   }
 }
 

@@ -5,7 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { USER_AGENT } from '@jobleft/crawler';
-import { DbPacer, FeedClient, FeedError, MIN_GAP_MS, MemoryPacer } from '../src/http.ts';
+import { DbPacer, FeedClient, FeedError, LATE_WAKE_MS, MIN_GAP_MS, MemoryPacer } from '../src/http.ts';
 import { migrateSourcesOther } from '../src/db.ts';
 import { cleanup, noWait, tempDir } from './helpers.ts';
 
@@ -150,6 +150,29 @@ test('pacing: two processes sharing the database never send to one host less tha
     await pa.wait('other.example', 0);
     assert.ok(Date.now() - t0 < 200);
   } finally { a?.close(); b?.close(); cleanup(dir); } // closed before the removal: Windows cannot delete an open database
+});
+
+test('a stalled event loop never bunches requests: a late wake waits for a slot after the request booked next', async () => {
+  const stall = (ms: number) => { const end = Date.now() + ms; while (Date.now() < end) { /* the computer is busy */ } };
+  const dir = tempDir();
+  const db = new DatabaseSync(join(dir, 'pace.db')); migrateSourcesOther(db);
+  try {
+    for (const [name, p] of [['in-memory', new MemoryPacer()], ['shared-database', new DbPacer(db)]] as const) {
+      const times: number[] = [];
+      const all = Promise.all([0, 1].map(async () => { await p.wait('stall.example', 0); times.push(Date.now()); }));
+      stall(MIN_GAP_MS + 200); // both slots are over when the event loop runs again
+      await all;
+      times.sort((x, y) => x - y);
+      assert.ok(times[1]! - times[0]! >= MIN_GAP_MS - LATE_WAKE_MS - 20, `${name}: gap ${times[1]! - times[0]!} ms`);
+      // The last booking that woke late moves the next slot back: the next request still keeps the full gap.
+      const before = Date.now();
+      const late = p.wait('stall2.example', 0); stall(300); await late;
+      const woke = Date.now();
+      await p.wait('stall2.example', 0);
+      assert.ok(Date.now() - woke >= MIN_GAP_MS - 20, `${name}: after a late wake the next one came ${Date.now() - woke} ms later`);
+      assert.ok(woke - before < MIN_GAP_MS, `${name}: the late last booking went at once`);
+    }
+  } finally { db.close(); cleanup(dir); }
 });
 
 test('memory pacer spaces one host by at least MIN_GAP_MS and honours a longer crawl delay', async () => {

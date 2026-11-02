@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { USER_AGENT } from '@jobleft/crawler';
-import { SqlitePacer, createBoardHttp } from '../src/index.ts';
+import { LATE_WAKE_MS, SqlitePacer, createBoardHttp } from '../src/index.ts';
 import { startMockHosts } from '../scripts/mock-hosts.ts';
 import { tmpdir } from 'node:os';
 // Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
@@ -25,6 +25,20 @@ test('two clients with separate pacers on one database still space requests to a
     for (let i = 1; i < times.length; i++) assert.ok(times[i]! - times[i - 1]! >= 250 - slack, `gap ${times[i]! - times[i - 1]!} ms`);
     for (const e of mock.log) assert.equal(e.headers['user-agent'], USER_AGENT);
   } finally { p1.close(); p2.close(); await mock.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('a stalled event loop never bunches requests of two pacers on one database', async () => {
+  const dir = mkdtempSync(join(TMP, 'jl-boards-pacer-'));
+  const db = join(dir, 'p.db');
+  const p1 = new SqlitePacer(db, 300), p2 = new SqlitePacer(db, 300);
+  try {
+    const times: number[] = [];
+    const all = Promise.all([p1, p2, p1].map(async (p) => { await p.wait('stall.example'); times.push(Date.now()); }));
+    const end = Date.now() + 800; while (Date.now() < end) { /* the computer is busy: every slot is over */ }
+    await all;
+    times.sort((x, y) => x - y);
+    for (let i = 1; i < times.length; i++) assert.ok(times[i]! - times[i - 1]! >= 300 - LATE_WAKE_MS - 20, `gap ${times[i]! - times[i - 1]!} ms`);
+  } finally { p1.close(); p2.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('a host that answers 429 with Retry-After gets no request before that time; robots.txt blocks a path', async () => {
