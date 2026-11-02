@@ -23,7 +23,7 @@ import { CompanyMark, sponsorChip, sponsorTip } from '../../components/JobCard.t
 import { BAND_WORD, bandOf, chipText, pct, type MatchResultX } from '../../components/Match.tsx';
 import { EmptyState, ErrorState, Loading } from '../../components/States.tsx';
 import {
-  ago, dateText, dateTimeText, jobLink, levelsText, payConvertedText, payExactText, payNotes, payText, statusLabel, textBlocks, typeText, workModelText, yearsText,
+  NOT_STATED, ago, dateText, dateTimeText, jobLink, levelsText, payConvertedText, payExactText, payNotes, payText, statusLabel, textBlocks, typeText, workModelText, yearsText,
 } from '../../lib/format.ts';
 import { CompanySection, NetworkSection, NotesSection, SecHead, SponsorSection } from './Panels.tsx';
 import { CoverLetterDrawer, GapsDrawer, TailorDrawer } from './Tools.tsx';
@@ -274,13 +274,13 @@ export function JobDetail({ id, onClose }: { id: string; onClose: () => void }) 
                 </div>
                 <h1 style={{ fontSize: 24, fontWeight: 700, margin: '12px 0', overflowWrap: 'anywhere' }} data-posting="">{job.title}</h1>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '8px 24px' }}>
-                  <Fact icon={<EnvironmentOutlined />} label="Location" unknown="Place not stated">{job.places.some((p) => p.text) ? <Places job={job} /> : null}</Fact>
-                  <Fact icon={<HomeOutlined />} label="Work model" unknown="Work model not stated">{workModelText(job)}</Fact>
-                  <Fact icon={<ClockCircleOutlined />} label="Job type" unknown="Job type not stated">{typeText(job.employmentType)}</Fact>
-                  <Fact icon={<IdcardOutlined />} label="Level" unknown="Level not stated">{levelsText(job.levels)}</Fact>
-                  <Fact icon={<CalendarOutlined />} label="Experience" unknown="Years of experience not stated">{yearsText(job.yearsRequired)}</Fact>
+                  <Fact icon={<EnvironmentOutlined />} label="Location" unknown={NOT_STATED.place}>{job.places.some((p) => p.text) ? <Places job={job} /> : null}</Fact>
+                  <Fact icon={<HomeOutlined />} label="Work model" unknown={NOT_STATED.workModel}>{workModelText(job)}</Fact>
+                  <Fact icon={<ClockCircleOutlined />} label="Job type" unknown={NOT_STATED.type}>{typeText(job.employmentType)}</Fact>
+                  <Fact icon={<IdcardOutlined />} label="Level" unknown={NOT_STATED.level}>{levelsText(job.levels)}</Fact>
+                  <Fact icon={<CalendarOutlined />} label="Experience" unknown={NOT_STATED.years}>{yearsText(job.yearsRequired)}</Fact>
                   <Fact icon={<ApartmentOutlined />} label="Department">{job.department}</Fact>
-                  <Fact icon={<DollarOutlined />} label="Pay" unknown="Pay not stated">
+                  <Fact icon={<DollarOutlined />} label="Pay" unknown={NOT_STATED.pay}>
                     {payText(job.pay) && (
                       <span>
                         {payText(job.pay)}

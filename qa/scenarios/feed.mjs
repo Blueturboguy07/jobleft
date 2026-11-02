@@ -45,6 +45,10 @@ async function pageAll(filter, extra = {}, maxItems = 3000) {
   return { items, totals: [...totals], complete: !cursor, dup: ids.length - new Set(ids).size, err, fit };
 }
 
+// The remote areas that include a country, as the posting names them ("Remote - EMEA" is open to people in Germany).
+const AREAS_OF = { CA: ['NA'], MX: ['NA', 'LATAM'], GB: ['EMEA'], IE: ['EU', 'EMEA'], DE: ['EU', 'EMEA'], FR: ['EU', 'EMEA'], NL: ['EU', 'EMEA'], ES: ['EU', 'EMEA'],
+  IT: ['EU', 'EMEA'], PL: ['EU', 'EMEA'], SE: ['EU', 'EMEA'], DK: ['EU', 'EMEA'], PT: ['EU', 'EMEA'], AU: ['APAC'], NZ: ['APAC'], SG: ['APAC'],
+  IN: ['APAC'], JP: ['APAC'], KR: ['APAC'], BR: ['LATAM'], AR: ['LATAM'], CO: ['LATAM'], AE: ['EMEA'], IL: ['EMEA'] };
 // Facts each filter promises, judged from the job's own facts (the same facts the card shows).
 const DAY = 864e5;
 const WIN = { '24h': DAY, '3d': 3 * DAY, '7d': 7 * DAY, '30d': 30 * DAY };
@@ -55,7 +59,8 @@ const FACT = {
   postedWithin: (j, v, unk) => (j.postedAt && Date.now() - Date.parse(j.postedAt) <= WIN[v] + 2 * 36e5) || (unk && !j.postedAt),
   maxYearsRequired: (j, v, unk) => (j.yearsRequired && j.yearsRequired.min <= v) || (unk && !j.yearsRequired),
   minAnnualPayUsd: (j, v, unk) => (j.pay && j.pay.currency === 'USD' && (j.pay.annualMax ?? j.pay.annualMin) >= v) || (unk && !j.pay),
-  countries: (j, v, unk) => (j.places || []).some((p) => v.includes(p.country)) || (j.remoteScope?.regions || []).some((r) => v.includes(r)) || (unk && (j.places || []).every((p) => !p.country)),
+  // a remote area the card names is open to people in its countries (JL-feed-2): "Remote, North America" is open to CA
+  countries: (j, v, unk) => (j.places || []).some((p) => v.includes(p.country)) || (j.remoteScope?.regions || []).some((r) => v.includes(r) || r === 'WORLDWIDE' || v.some((c) => (AREAS_OF[c] || []).includes(r))) || (unk && (j.places || []).every((p) => !p.country)),
 };
 const UNK = { levels: 'level', employmentTypes: 'employmentType', workModels: 'workModel', postedWithin: 'postedAt', maxYearsRequired: 'years', minAnnualPayUsd: 'pay', countries: 'place' };
 
@@ -214,9 +219,12 @@ try {
     const badCards = cards.filter(([, t]) => !/\bEntry\b/.test(t) || /\bSenior Level\b/.test(t));
     check('UI filter: every card under "Entry Level" shows Entry and not Senior', cards.length > 0 && !badCards.length, cards.length ? badCards.slice(0, 3).map(([id]) => id).join(', ') : 'no cards');
     await p.shot(join(SHOTS, 'feed-02-entry.png'));
-    const r2 = await applyPop('Job type filter', 'Full-time');
+    // The setup may have chosen Full-time already (a click would turn it off): pick a job type that is not on yet.
+    const typeOn = new Set((JSON.parse((await p.eval(`localStorage.getItem('jobleft.feed.v1')`)) || '{}').filter?.employmentTypes) || []);
+    const [typeLabel, typeValue] = [['Full-time', 'full_time'], ['Contract', 'contract'], ['Part-time', 'part_time']].find(([, v]) => !typeOn.has(v)) || ['Full-time', 'full_time'];
+    const r2 = await applyPop('Job type filter', typeLabel);
     if (!r2) skip('UI filter: filters combine', 'could not apply Job type');
-    else check('UI filter: a second filter keeps the first (Entry Level + Full-time)', (r2.filter.levels || []).includes('entry') && (r2.filter.employmentTypes || []).includes('full_time'), `request filter ${JSON.stringify(r2.filter)}`);
+    else check('UI filter: a second filter keeps the first (Entry Level + Full-time)', (r2.filter.levels || []).includes('entry') && (r2.filter.employmentTypes || []).includes(typeValue), `added ${typeLabel}; request filter ${JSON.stringify(r2.filter)}`);
     await p.shot(join(SHOTS, 'feed-03-combined.png'));
   }
   p.clearRequests();
