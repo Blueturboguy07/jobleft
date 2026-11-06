@@ -551,7 +551,8 @@ function AboutTab() {
           { what: '"Check for newer data" (shipped datasets)', where: 'Only when a release location is set: asks it for newer data files, with no personal data. This build has none set, so nothing is sent.' },
           ...(s?.provider === 'publik' ? [{ what: 'publik balance', where: 'Read from publik with this computer\'s publik key when you open Balance or after an AI step.' }] : []),
           { what: 'Paid web lookups', where: s?.meteredFetch.enabled ? 'On: sent to publik or your key\'s service, priced per request.' : 'Off.' },
-          { what: 'Usage data, analytics, crash reports', where: 'None. jobleft has no tracking.' },
+          { what: 'Usage counts ("the app was opened", "the app is still open")', where: 'Sent to publik at each start and every 30 minutes: the app version, the kind of computer and a random install ID, and this computer\'s publik key when publik is connected. Nothing you typed, opened or saved. To turn them off, start jobleft with DO_NOT_TRACK=1.' },
+          { what: 'Analytics of what you do, crash reports', where: 'None.' },
           { what: 'Fonts, icons, company logos', where: 'None fetched: they are bundled, and company tiles use initials.' },
         ]} columns={[{ title: 'What', dataIndex: 'what' }, { title: 'Where it goes', dataIndex: 'where' }]} />
       </Panel>

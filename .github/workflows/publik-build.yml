@@ -1,0 +1,281 @@
+# publik build: the release files of one version, built from this branch and kept as workflow artifacts.
+#   macOS (Apple silicon): jobleft.app, NOT signed here. The release Mac signs it with the Developer ID, notarizes it,
+#     staples it and puts it in the dmg (the same steps as apps/shell/scripts/build-macos.sh).
+#   Windows (x64): the NSIS installer, not code-signed (there is no Windows certificate). It is installed on the runner
+#     and must send one "app opened" usage count to a listener on the runner (never to publikhq.com), and none with
+#     DO_NOT_TRACK=1.
+# This workflow never creates, changes or publishes a release.
+name: publik-build
+
+on:
+  push:
+    branches: ['telemetry/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publik-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS arm64 (jobleft.app, not signed)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: pnpm
+        shell: bash
+        run: |
+          npm install -g pnpm@12.4.1
+          test "$(pnpm --version)" = "12.4.1"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/shell/src-tauri
+
+      # --ignore-scripts: no dependency install script runs (rule 5, see pnpm-workspace.yaml).
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        id: tests
+        continue-on-error: true # the app is still built and kept; the job fails at the end
+        run: pnpm test
+
+      - name: Build the UI
+        run: pnpm --filter @jobleft/ui build
+
+      - name: Node runtime for the sidecar
+        run: node apps/shell/scripts/fetch-node.mjs --target darwin-arm64
+
+      - name: Sidecar tree
+        env:
+          JOBLEFT_PUBLIK_APP_TOKEN: ${{ secrets.PUBLIK_APP_TOKEN }}
+        run: node apps/shell/scripts/pack.ts --target darwin-arm64
+
+      - name: The tree carries the publik app token and the usage-count client
+        shell: bash
+        run: |
+          res=apps/shell/src-tauri/resources
+          test -s "$res/publik-app-token.txt" || { echo "No publik app token in the tree: Connect publik would be dead in this build."; exit 1; }
+          test -f "$res/server/src/publik-telemetry.cjs" || { echo "publik-telemetry.cjs is not in the server tree."; exit 1; }
+          grep -q "publik-telemetry.cjs" "$res/server/src/main.js" || { echo "main.js does not load publik-telemetry.cjs."; exit 1; }
+          echo "token: present; client: present; main.js loads it"
+
+      - name: Build the app (not signed)
+        shell: bash
+        run: |
+          cd apps/shell
+          cli="$(node -p "require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })")"
+          echo "tauri cli: $cli"
+          node "$cli" build --bundles app
+
+      - name: Pack the app (ditto keeps symlinks)
+        shell: bash
+        run: |
+          app=apps/shell/src-tauri/target/release/bundle/macos/jobleft.app
+          test -d "$app" || { echo "No jobleft.app was produced."; exit 1; }
+          echo "version: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")"
+          echo "architectures: $(lipo -archs "$app/Contents/MacOS/jobleft") (shell), $(lipo -archs "$app/Contents/MacOS/node") (node)"
+          test -s "$app/Contents/Resources/publik-app-token.txt"
+          test -f "$app/Contents/Resources/server/src/publik-telemetry.cjs"
+          /usr/bin/ditto -c -k --keepParent "$app" jobleft-macos-arm64.app.zip
+          ls -l jobleft-macos-arm64.app.zip
+
+      - name: Keep the app
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobleft-macos-arm64-app
+          path: jobleft-macos-arm64.app.zip
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Test result
+        if: steps.tests.outcome == 'failure'
+        run: |
+          echo "a test suite failed on macOS (see the Test step)"
+          exit 1
+
+  windows:
+    name: Windows x64 (NSIS installer, not code-signed)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # pnpm from npm: pnpm/action-setup's shim was a silent no-op on windows-latest (see windows.yml).
+      - name: pnpm
+        shell: bash
+        run: |
+          npm install -g pnpm@12.4.1
+          test "$(pnpm --version)" = "12.4.1"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/shell/src-tauri
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build the UI
+        run: pnpm --filter @jobleft/ui build
+
+      - name: Node runtime for the sidecar
+        run: node apps/shell/scripts/fetch-node.mjs --target win-x64
+
+      - name: Sidecar tree
+        env:
+          JOBLEFT_PUBLIK_APP_TOKEN: ${{ secrets.PUBLIK_APP_TOKEN }}
+        run: node apps/shell/scripts/pack.ts --target win-x64
+
+      - name: The tree carries the publik app token and the usage-count client
+        shell: bash
+        run: |
+          res=apps/shell/src-tauri/resources
+          test -s "$res/publik-app-token.txt" || { echo "No publik app token in the tree: Connect publik would be dead in this build."; exit 1; }
+          test -f "$res/server/src/publik-telemetry.cjs" || { echo "publik-telemetry.cjs is not in the server tree."; exit 1; }
+          grep -q "publik-telemetry.cjs" "$res/server/src/main.js" || { echo "main.js does not load publik-telemetry.cjs."; exit 1; }
+          echo "token: present; client: present; main.js loads it"
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          Set-Location apps/shell
+          $cli = node -p "require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })"
+          "tauri cli: $cli"
+          node $cli build --bundles nsis
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # The installed app runs twice on the runner, for about 20 seconds each. Run 1: the usage-count client points at a
+      # listener on the runner (PUBLIK_TELEMETRY_URL) and exactly the "app opened" count of this version must arrive.
+      # Run 2: DO_NOT_TRACK=1 and nothing may arrive. Nothing goes to publikhq.com.
+      - name: "Smoke: install, start, one usage count to a local listener, none with DO_NOT_TRACK"
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = Get-ChildItem -Path apps/shell/src-tauri/target/release/bundle/nsis -Filter '*.exe' | Select-Object -First 1
+          "installer: $($setup.Name) ($([math]::Round($setup.Length/1MB)) MB)"
+          $version = (Get-Content apps/shell/src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          if ($setup.Name -ne "jobleft_$($version)_x64-setup.exe") { throw "the installer name is not jobleft_$($version)_x64-setup.exe" }
+          Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait
+          $exe = "$env:LOCALAPPDATA\jobleft\jobleft.exe"
+          if (-not (Test-Path $exe)) { $exe = (Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Recurse -Filter 'jobleft.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
+          "installed at: $exe"
+
+          # The listener: any free port on 127.0.0.1, one JSON line per request, answer 204 (what publik answers).
+          $js = Join-Path $env:RUNNER_TEMP 'usage-listener.cjs'
+          $seen = Join-Path $env:RUNNER_TEMP 'usage-requests.jsonl'
+          $portFile = Join-Path $env:RUNNER_TEMP 'usage-port.txt'
+          @'
+          const http = require('node:http');
+          const fs = require('node:fs');
+          const [portFile, seen] = process.argv.slice(2);
+          const server = http.createServer((req, res) => {
+            let body = '';
+            req.on('data', (d) => { body += d; });
+            req.on('end', () => {
+              fs.appendFileSync(seen, JSON.stringify({ method: req.method, url: req.url, headers: req.headers, body }) + '\n');
+              res.statusCode = 204;
+              res.end();
+            });
+          });
+          server.listen(0, '127.0.0.1', () => fs.writeFileSync(portFile, String(server.address().port)));
+          '@ | Set-Content -Path $js -Encoding utf8
+          $listener = Start-Process -FilePath node -ArgumentList "`"$js`"", "`"$portFile`"", "`"$seen`"" -PassThru
+          $deadline = (Get-Date).AddSeconds(15)
+          while (-not (Test-Path $portFile) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
+          if (-not (Test-Path $portFile)) { throw "the listener did not start" }
+          $port = (Get-Content $portFile).Trim()
+          "listener: http://127.0.0.1:$port"
+
+          $env:JOBLEFT_AUTO_CRAWL = '0'
+          $env:JOBLEFT_SEED_BOARDS = 'none'
+          $env:PUBLIK_TELEMETRY_URL = "http://127.0.0.1:$port/api/v1/telemetry"
+          $env:PUBLIK_TELEMETRY_DEBUG = '1'
+          $run = "$env:APPDATA\jobleft\run\server.json"
+          $sidecarLog = "$env:APPDATA\jobleft\logs\sidecar.log"
+          function Start-App {
+            $p = Start-Process -FilePath $exe -PassThru
+            $deadline = (Get-Date).AddSeconds(60)
+            while (-not (Test-Path $run) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+            if (-not (Test-Path $run)) { Get-Content $sidecarLog -ErrorAction SilentlyContinue | Select-Object -Last 30; throw "no run/server.json after 60 s" }
+            $j = Get-Content $run | ConvertFrom-Json
+            return @{ app = $p; port = $j.port; token = $j.token }
+          }
+          function Stop-App($a) {
+            try { Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$($a.port)/api/v1/shutdown" -Headers @{ 'x-jobleft-token' = $a.token } -ContentType 'application/json' -Body '{}' | Out-Null } catch { "shutdown route: $_" }
+            Start-Sleep -Seconds 4
+            Stop-Process -Id $a.app.Id -Force -ErrorAction SilentlyContinue
+            Remove-Item $run -Force -ErrorAction SilentlyContinue
+          }
+
+          # Run 1: usage counts on.
+          $a = Start-App
+          $deadline = (Get-Date).AddSeconds(20)
+          while (-not (Test-Path $seen) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+          Start-Sleep -Seconds 2
+          Stop-App $a
+          "sidecar log: $((Select-String -Path $sidecarLog -Pattern 'publik-telemetry' -ErrorAction SilentlyContinue | ForEach-Object { $_.Line }) -join ' | ')"
+          if (-not (Test-Path $seen)) { Get-Content $sidecarLog -ErrorAction SilentlyContinue | Select-Object -Last 30; Stop-Process -Id $listener.Id -Force -ErrorAction SilentlyContinue; throw "no usage count arrived within 20 s" }
+          $lines = @(Get-Content $seen)
+          "requests: $($lines.Count)"
+          $lines | ForEach-Object { $r = $_ | ConvertFrom-Json; "  $($r.method) $($r.url) body=$($r.body) origin=$($r.headers.origin) authorization=$(if ($r.headers.authorization) { 'present' } else { 'none' })" }
+          $first = $lines[0] | ConvertFrom-Json
+          $b = $first.body | ConvertFrom-Json
+          $fields = @($b.PSObject.Properties.Name | Sort-Object) -join ','
+          $problems = @()
+          if ($lines.Count -ne 1) { $problems += "expected 1 request, got $($lines.Count)" }
+          if ($first.method -ne 'POST' -or $first.url -ne '/api/v1/telemetry') { $problems += "wrong request line: $($first.method) $($first.url)" }
+          if ($first.headers.origin) { $problems += "the request has an Origin header" }
+          if ($first.headers.authorization) { $problems += "a signed-out run sent an Authorization header" }
+          if ($fields -ne 'app,app_version,arch,event,install_id,os,v') { $problems += "fields: $fields" }
+          if ($b.v -ne 1) { $problems += "v: $($b.v)" }
+          if ($b.app -ne 'jobleft') { $problems += "app: $($b.app)" }
+          if ($b.event -ne 'app_opened') { $problems += "event: $($b.event)" }
+          if ($b.app_version -ne $version) { $problems += "app_version: $($b.app_version), expected $version" }
+          if ($b.os -ne 'windows') { $problems += "os: $($b.os)" }
+          if ($b.arch -ne 'x64') { $problems += "arch: $($b.arch)" }
+          if ($b.install_id -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$') { $problems += "install_id is not a lowercase UUID v4" }
+          "install ID file: $(Test-Path "$env:LOCALAPPDATA\publik\telemetry.json")"
+
+          # Run 2: DO_NOT_TRACK=1, nothing may arrive.
+          Remove-Item $seen -Force
+          $env:DO_NOT_TRACK = '1'
+          $c = Start-App
+          Start-Sleep -Seconds 12
+          Stop-App $c
+          $late = if (Test-Path $seen) { @(Get-Content $seen).Count } else { 0 }
+          "with DO_NOT_TRACK=1: $late requests"
+          if ($late -ne 0) { $problems += "DO_NOT_TRACK=1 still sent $late requests" }
+          Stop-Process -Id $listener.Id -Force -ErrorAction SilentlyContinue
+          if ($problems.Count -gt 0) { throw "usage count smoke failed: $($problems -join '; ')" }
+          "usage count smoke: app_opened for jobleft $version arrived once; none with DO_NOT_TRACK=1"
+
+      - name: Keep the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobleft-windows-setup
+          path: apps/shell/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          compression-level: 0

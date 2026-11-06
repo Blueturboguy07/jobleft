@@ -38,9 +38,17 @@ Search, filters, match scores and the tracker use no AI and cost nothing. Tailor
 - Every request to an employer board carries a plain `jobleft/<version>` User-Agent and no personal data.
 - One request a second per host, and `robots.txt` is honoured. LinkedIn, Indeed and Glassdoor are never contacted.
 - The local service listens on `127.0.0.1` only, and only the app window and a paired extension can use it.
-- No analytics, no crash reports, no update check that sends an identifier.
+- No crash reports, no analytics of what you do, no update check that sends an identifier. The one thing that is counted is under "Usage counts" below.
 
 The data folder is `~/Library/Application Support/jobleft`. Settings → Data and backup exports or deletes all of it.
+
+## Usage counts
+
+From version 0.1.7 the installed app tells publik that it was opened (once at each start) and that it is still open (every 30 minutes).
+Each message holds the app name, the app version, the system (macOS or Windows), the CPU type and a random install ID from `~/Library/Application Support/publik/telemetry.json` (Windows: `%LOCALAPPDATA%\publik\telemetry.json`).
+When publik is connected, the message also carries this computer's publik key, so that one person is counted once.
+No job, profile, resume, search or other content is sent.
+To turn it off, start jobleft with `DO_NOT_TRACK=1`, or put `{"usage": false}` in `consent.json` in that publik folder. Details: https://publikhq.com/skills/telemetry.md
 
 ## Build from source
 

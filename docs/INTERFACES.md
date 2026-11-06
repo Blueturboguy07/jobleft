@@ -1530,8 +1530,9 @@ The app contacts only these hosts, and only for these reasons. Anything else is 
 | Free company-fact sources (Wikidata, SEC, GLEIF) | Company facts | When a company block is opened and its kept facts expired |
 | The AI provider the person chose | AI answers | Only for AI steps |
 | publik (`JOBLEFT_PUBLIK_BASE_URL`) | AI through publik, wallet, metered fetch and search | Only when the person chose publik, or turned metered fetch on |
+| publik (`publikhq.com/api/v1/telemetry`) | Usage counts (publik telemetry v1): "app opened" and "active session", with the app version, the system, the CPU type and a random install ID; the publik key when publik is connected. No content | A packaged app only (`apps/server/src/main.ts`, `publik-telemetry.cjs`): at each start and every 30 minutes. Off with `DO_NOT_TRACK=1`, `PUBLIK_TELEMETRY=0`, `"usage": false` in publik's `consent.json`, or `JOBLEFT_OFFLINE=1` |
 
-No telemetry, no crash reporter, no analytics, no update check that sends an identifier.
+No crash reporter, no analytics of what the person does, no update check that sends an identifier. The usage counts in the last row are the only telemetry (from 0.1.7; README, "Usage counts").
 
 ## 10. Never-crawl hosts
 

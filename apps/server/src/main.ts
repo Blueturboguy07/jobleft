@@ -5,11 +5,14 @@
 // Exit codes: 0 stopped cleanly; 1 could not start; 2 the data folder was refused (newer, read-only, full, not
 // jobleft) and left untouched; 3 another jobleft server already uses this data folder.
 
+import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { SECRET_NAMES } from '@jobleft/contracts';
 import { newLaunchToken, resolveHome } from './home.ts';
 import { DataFolderError } from './db/open.ts';
 import { AlreadyRunningError, startServer } from './server.ts';
+import { createSecretStore } from './services/secrets.ts';
 import { APP_VERSION } from './version.ts';
 
 // Every file the server makes is readable by this user only (server O1 step 6).
@@ -84,6 +87,16 @@ try {
     onStop: () => process.exit(0),
   });
   running = s;
+  // publik usage counts (telemetry v1, README "Usage counts"): "app opened" now and "active session" every 30 minutes,
+  // sent in the background by the vendored client (publik-telemetry.cjs). No content. Only a packaged app sends them:
+  // the shell sets JOBLEFT_PUBLIK_ALLOW_LIVE there, and dev runs and tests never reach the live publik API. Never when
+  // jobleft is set to work offline. The publik key (when publik is connected) is read from the secret store before
+  // each send, so one person is counted once. Opt-out: DO_NOT_TRACK=1 (the client checks it before any file or request).
+  if (env.JOBLEFT_PUBLIK_ALLOW_LIVE === '1' && env.JOBLEFT_OFFLINE !== '1') {
+    const telemetry = createRequire(import.meta.url)('./publik-telemetry.cjs') as { start(slug: string, version: string, key?: () => Promise<string | null>): void };
+    const keys = createSecretStore(env.JOBLEFT_SECRET_STORE, home);
+    telemetry.start('jobleft', APP_VERSION, () => keys.get(SECRET_NAMES.publikKey));
+  }
   if (!quiet) {
     process.stdout.write([
       `jobleft server ${APP_VERSION}`,

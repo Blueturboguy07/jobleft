@@ -1,6 +1,8 @@
 # Windows: the workspace's tests on windows-latest, then the NSIS installer (the Windows shell with the Node sidecar),
 # installed silently on the runner and proven to start, answer health and stop. On a published release, or on
-# workflow_dispatch with a tag, the installer is attached to that release. No secrets beyond the public app token.
+# workflow_dispatch with a tag, the installer is attached to that release, but only when the release has no installer
+# of that name yet: a file that is already on a release is never replaced (a release can be made with checked files
+# first, see publik-build.yml). No secrets beyond the public app token.
 name: windows
 
 on:
@@ -21,6 +23,11 @@ permissions:
 concurrency:
   group: windows-${{ github.ref }}
   cancel-in-progress: true
+
+# The app that these jobs install and start is a test copy on a runner, not a person: it sends no usage counts
+# (README, "Usage counts").
+env:
+  DO_NOT_TRACK: '1'
 
 jobs:
   windows:
@@ -219,7 +226,12 @@ jobs:
         run: |
           $tag = if ('${{ github.event_name }}' -eq 'release') { '${{ github.event.release.tag_name }}' } else { '${{ github.event.inputs.release_tag }}' }
           $setup = Get-ChildItem -Path apps/shell/src-tauri/target/release/bundle/nsis -Filter '*.exe' | Select-Object -First 1
-          gh release upload $tag $setup.FullName --clobber
+          # Never replace a file that is already on the release (no --clobber): it may be the checked one.
+          $have = @(gh release view $tag --json assets --jq '.assets[].name')
+          if ($LASTEXITCODE -ne 0) { throw "could not read the assets of release $tag; nothing was uploaded" }
+          if ($have -contains $setup.Name) { "release $tag already has $($setup.Name): left as it is, nothing uploaded"; exit 0 }
+          gh release upload $tag $setup.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # The verdict on the suites comes last: the installer, its smoke and the release attach never wait on a flaky test.
       - name: Test result

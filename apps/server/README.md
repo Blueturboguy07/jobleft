@@ -113,11 +113,12 @@ pnpm app:down    # stops it: SIGTERM, then SIGKILL after 10 s
 | `JOBLEFT_OFFLINE` | off | `1` = no outbound request at all. Crawl, AI and publik answer `503 offline` at once |
 | `JOBLEFT_NOW`, `JOBLEFT_CLOCK_OFFSET` | real time | Freeze or shift the app clock (`72h`, `-30m`, `3d`) |
 | `JOBLEFT_HOST_MAP` | none | JSON map from a real job-board host to a loopback stand-in (section 9) |
-| `JOBLEFT_PUBLIK_BASE_URL` | `https://publikhq.com/api/v1` | Point it at the loopback stand-in for tests (section 9). Nothing is sent to publik unless the person connects |
+| `JOBLEFT_PUBLIK_BASE_URL` | `https://publikhq.com/api/v1` | Point it at the loopback stand-in for tests (section 9). Nothing is sent to publik unless the person connects (the one exception: the usage counts of a packaged app, see `DO_NOT_TRACK`) |
 | `JOBLEFT_PUBLIK_APP_TOKEN` | none | No real publik app token exists yet, so connecting answers a plain "not available" message. For tests, any text (for example `stand-in`) turns the connect flow on, but ONLY when `JOBLEFT_PUBLIK_BASE_URL` is a loopback address; with any other address it is ignored (section 9.4) |
 | `JOBLEFT_SECRET_STORE` | `keychain` on macOS, else `file` | `keychain` = the macOS Keychain; `file` = AES-256-GCM in `$JOBLEFT_HOME/secrets/` (0600; the default on Windows and Linux, and on macOS when the Keychain is not available); `memory` keeps keys in memory only (use it for tests; keys are forgotten at stop) |
 | `JOBLEFT_LOG_LEVEL` | `info` | `error`, `warn`, `info`, `debug` |
 | `JOBLEFT_QUIET` | off | `1` = print nothing at start (used by `pnpm app:up`) |
+| `DO_NOT_TRACK` | off | `1` = no usage counts. A packaged app (the shell sets `JOBLEFT_PUBLIK_ALLOW_LIVE=1`) tells publik "app opened" at start and "active session" every 30 minutes (`src/publik-telemetry.cjs`, publik telemetry v1; the root README says what a message holds). A server started from source sends none, and `JOBLEFT_OFFLINE=1` stops them too. For tests, `PUBLIK_TELEMETRY_URL` points the client at a loopback listener |
 
 ## 4. The data folder
 
