@@ -372,6 +372,8 @@ jobs:
           Get-Content "$env:APPDATA\jobleft\logs\sidecar.log" -Tail 80 -ErrorAction SilentlyContinue
           "--- logs/server.log (last 80 lines)"
           Get-Content "$env:APPDATA\jobleft\logs\server.log" -Tail 80 -ErrorAction SilentlyContinue
+          "--- logs/server.log: every profile or setup write, every refused request, every warning"
+          Select-String -Path "$env:APPDATA\jobleft\logs\server.log" -Pattern 'putOnboarding|putProfile|status=[45]\d\d| warn | error |publik' -ErrorAction SilentlyContinue | ForEach-Object { $_.Line } | Select-Object -Last 120
           "--- stand-in"
           Get-Content standin.out,standin.err -ErrorAction SilentlyContinue
 
