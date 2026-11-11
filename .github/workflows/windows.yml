@@ -343,6 +343,24 @@ jobs:
           JOBLEFT_QA_STATE: fresh
         run: node qa/bin/run-all.mjs onboarding
 
+      # What the app did around the sign-in and the first run: whether the shell, the local service and the stand-in
+      # are still there, and the tails of the app's own logs (the scenarios above only see the HTTP side).
+      - name: App state after the first run
+        if: always()
+        shell: pwsh
+        run: |
+          "shell pid $env:JOBLEFT_APP_PID alive: $([bool](Get-Process -Id $env:JOBLEFT_APP_PID -ErrorAction SilentlyContinue))"
+          "stand-in pid $env:JOBLEFT_STANDIN_PID alive: $([bool](Get-Process -Id $env:JOBLEFT_STANDIN_PID -ErrorAction SilentlyContinue))"
+          "run/server.json present: $(Test-Path "$env:APPDATA\jobleft\run\server.json")"
+          try { "health: $((Invoke-WebRequest -Uri "$env:JOBLEFT_QA_API/health" -UseBasicParsing).StatusCode)" } catch { "health: $($_.Exception.Message)" }
+          Get-Process -Name jobleft,node -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,StartTime | Format-Table | Out-String
+          "--- logs/sidecar.log (last 80 lines)"
+          Get-Content "$env:APPDATA\jobleft\logs\sidecar.log" -Tail 80 -ErrorAction SilentlyContinue
+          "--- logs/server.log (last 80 lines)"
+          Get-Content "$env:APPDATA\jobleft\logs\server.log" -Tail 80 -ErrorAction SilentlyContinue
+          "--- stand-in"
+          Get-Content standin.out,standin.err -ErrorAction SilentlyContinue
+
       - name: Jobs from live boards
         id: crawl
         continue-on-error: true
@@ -355,15 +373,22 @@ jobs:
           JOBLEFT_QA_STATE: golden
         run: node qa/bin/run-all.mjs feed tracker resume network settings extension
 
+      # The logs are copied under qa/shots first: upload-artifact refuses two roots (the workspace and the profile).
+      - name: Collect the app's logs
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path qa/shots/app-logs | Out-Null
+          Copy-Item "$env:APPDATA\jobleft\logs\*" qa/shots/app-logs -ErrorAction SilentlyContinue
+          Copy-Item standin.out,standin.err qa/shots/app-logs -ErrorAction SilentlyContinue
+
       - name: Keep the screenshots and the app's logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jobleft-windows-replay
           if-no-files-found: ignore
-          path: |
-            qa/shots
-            ~/AppData/Roaming/jobleft/logs
+          path: qa/shots
 
       - name: Stop the app
         if: always()
