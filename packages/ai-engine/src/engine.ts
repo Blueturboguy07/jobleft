@@ -16,7 +16,7 @@ import { AiError, asAiError } from './errors.ts';
 import { AnthropicDriver } from './providers/anthropic.ts';
 import { OllamaDriver, sameOllamaModel } from './providers/ollama.ts';
 import { OpenAiDriver, resolveOpenAiRoot } from './providers/openai.ts';
-import { PUBLIK_DEFAULT_MODEL, PUBLIK_TIERS, PublikClient } from './publik.ts';
+import { PUBLIK_DEFAULT_MODEL, PUBLIK_TIERS, PublikClient, type PublikSignIn } from './publik.ts';
 import { defaultAiSettings, memoryKvStore, type AiSettingsStore, type KvStore } from './state.ts';
 import { DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_IDLE_TIMEOUT_MS } from './transport.ts';
 import type { AiClient, AiRequest, ProviderDriver } from './types.ts';
@@ -34,8 +34,8 @@ export interface AiEngineOptions {
   secrets: SecretStore;
   /** JOBLEFT_PUBLIK_BASE_URL, else PUBLIK_DEFAULT_BASE_URL. */
   publikBaseUrl: string;
-  /** The publik app token (G-publik). null until the owner approves one: connect then answers a plain error. */
-  publikAppToken: string | null;
+  /** Where this computer's publik key comes from: Sign in with publik (the server's publik module), or a memory one. */
+  publikSignIn: PublikSignIn;
   /** Kept for the interface; the engine uses its own transport (connect, silence and cancel limits). */
   fetchImpl?: typeof fetch;
   connectTimeoutMs?: number;
@@ -93,7 +93,7 @@ export class AiEngine {
     this.idleTimeoutMs = opts.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
     this.hostMap = aiHostMapFromEnv(this.env);
     this.publik = new PublikClient({
-      baseUrl: opts.publikBaseUrl, appToken: opts.publikAppToken, secrets: opts.secrets, fetchImpl: opts.fetchImpl,
+      baseUrl: opts.publikBaseUrl, signIn: opts.publikSignIn, fetchImpl: opts.fetchImpl,
       state: this.kv, appVersion: opts.appVersion, connectTimeoutMs: this.connectTimeoutMs, offline: () => this.offline(),
     });
     // Disconnect stops every running publik request at once: nothing spends the balance afterwards (O2). The stop
@@ -268,7 +268,7 @@ export class AiEngine {
     st.keyHints = {};
     this.saveEngineState(st);
     if ((await this.publik.status()).state === 'connected') { await this.publik.disconnect(); n++; }
-    else await this.secrets.delete(SECRET_NAMES.publikKey);
+    await this.secrets.delete(SECRET_NAMES.publikKey); // a key a 0.1.7 build saved here (the sign-in keeps it now)
     this.publik.forget();
     return n;
   }

@@ -163,14 +163,18 @@ through columns this section names. Nobody writes another owner's table.
 | `JOBLEFT_PAID_FETCH_URL` | boards CLI and dev server | none | A LOOPBACK stand-in of the paid page fetch (`POST <url>/fetch` with `{ url, js, maxPriceMicros }` answers `{ url, html, costMicros }`). Unset = no paid lookup is offered. The app passes sources-other's metered client instead |
 | `JOBLEFT_PAID_FETCH_PRICE_MICROS` | boards CLI and dev server | `4000` | The price the stand-in shows for one paid page fetch |
 | `JOBLEFT_PUBLIK_BASE_URL` | ai-engine, sources-other | `https://publikhq.com/api/v1` | Lanes and tests MUST point this at a local stand-in. No lane calls publikhq.com |
+| `PUBLIK_ORIGIN` | server (`src/publik.ts`, the publik module) | `https://publikhq.com` | Tests only: the origin the sign-in gate, the self-test and the usage counts use. Tests point it at the stand-in (`apps/server/test/publik-gate.test.ts`) |
+| `PUBLIK_APP_TOKEN` | server (`src/publik.ts`) | none | The publik app token the module sends to `POST /installs`. The packaged app gets it from the shell (`JOBLEFT_PUBLIK_APP_TOKEN`, read from `Resources/publik-app-token.txt`); `main.ts` copies that into `PUBLIK_APP_TOKEN`. Tests pass the stand-in token |
+| `PUBLIK_SELF_TEST` | server (`src/main.ts`) | off | `1` = print `publik self-test: ok jobleft <version>` after one real `GET /wallet` and exit (the builder's check). The shell passes it through: `PUBLIK_SELF_TEST=1 jobleft.app/Contents/MacOS/jobleft` |
+| `PUBLIK_API_KEY`, `PUBLIK_API_BASE_URL` | server (`src/publik.ts`) | none | A person's own publik key and base URL: the gate uses them instead of this computer's install |
 | `JOBLEFT_SOURCE_KEY_<ID>` | sources-other CLI only | none | A source key for the `jobleft-sources` CLI (for example `JOBLEFT_SOURCE_KEY_THEMUSE`). Read, never saved or printed. The app uses the OS secret store (`SECRET_NAMES.sourceKey(id)`) |
 | `JOBLEFT_SOURCE_TIMEOUT_MS` | sources-other CLI | `15000` | Per-request timeout of other-source requests |
-| `JOBLEFT_PUBLIK_APP_TOKEN` | ai-engine | none | The publik app token. None exists yet (gate G-publik); without it, connect answers a plain error. The server's interim publik client uses it only when `JOBLEFT_PUBLIK_BASE_URL` is a loopback address (tests), and ignores it otherwise |
+| `JOBLEFT_PUBLIK_APP_TOKEN` | server (`src/main.ts`), shell | none | The publik app token the shell passes to the sidecar (from `Resources/publik-app-token.txt`, written by `pack.ts` from `apps/shell/publik-app-token.local` or this variable at build time). `main.ts` copies it into `PUBLIK_APP_TOKEN` for the publik module. Server tests also use it to turn the stand-in sign-in on, ONLY with a loopback `JOBLEFT_PUBLIK_BASE_URL` |
 | `JOBLEFT_MODEL_BASE_URL` | ai-engine, store | the Hugging Face `BAAI/bge-small-en-v1.5` files at revision `5c38ec7c` | Where the fit model is downloaded from, once (tests use a local stand-in). The store also accepts a `file://` URL or a folder path (copied, verified the same way) |
 | `JOBLEFT_AI_HOST_MAP` | ai-engine | none | JSON map from an own-key vendor host (`api.openai.com`, `api.anthropic.com`, `openrouter.ai`, `generativelanguage.googleapis.com`) to a LOOPBACK stand-in origin. Other hosts and non-loopback targets are refused |
 | `JOBLEFT_SECRET_STORE` | ai-engine | `keychain` on macOS, else `file` | `keychain` (macOS Keychain), `file` (AES-256-GCM file in `$JOBLEFT_HOME/secrets/`), `memory` (tests) |
 | `JOBLEFT_ORT_MODULE` | ai-engine | none | Path of an installed `onnxruntime-node` entry for the fit model (until the app build bundles it) |
-| `JOBLEFT_PUBLIK_ALLOW_LIVE` | ai-engine (`createEngineFromEnv`) | off | Until `1`, the app token is ignored for any publik address that is not loopback, so no build contacts the live service before gate G-publik |
+| `JOBLEFT_PUBLIK_ALLOW_LIVE` | server (`src/main.ts`), shell | off | `1` (the shell sets it when the app token file exists) = the packaged app runs Sign in with publik at start (the publik module's gate, served at `/` until it passes). A server started from source, or with `JOBLEFT_OFFLINE=1`, runs no gate |
 | `JOBLEFT_DATASET_MANIFEST_URL` | static-data | none until the owner names the release location | Where newer dataset releases are listed (tests use a local stand-in) |
 | `JOBLEFT_LOG_LEVEL` | server | `info` | `error`, `warn`, `info`, `debug`. No level logs personal text, keys or tokens |
 | `JOBLEFT_SECRET_STORE` | server | `keychain` on macOS, else `memory` | `memory` keeps keys in memory only (tests); keys are then forgotten at stop |
@@ -397,7 +401,7 @@ Record names in backticks are schemas in `packages/contracts/schemas/`.
 | `cancelAi` | POST | `/api/v1/ai/requests/:requestId/cancel` | launch | ai-engine | — | — | `{ cancelled }` | Cancel a running AI request (stops upstream too) |
 | `getPublik` | GET | `/api/v1/publik` | launch | ai-engine | — | — | `PublikConnection` | publik connection and balance |
 | `connectPublik` | POST | `/api/v1/publik/connect` | launch | ai-engine | — | `{ disclosureAccepted, disclosureVersion }` | `PublikConnection` | Connect after the disclosure (no key is typed) |
-| `disconnectPublik` | POST | `/api/v1/publik/disconnect` | launch | ai-engine | — | — | `PublikConnection` | Disconnect: the key is deleted and nothing spends the balance |
+| `disconnectPublik` | POST | `/api/v1/publik/disconnect` | launch | ai-engine | — | — | `PublikConnection` | Disconnect: nothing spends the balance; the sign-in stays |
 | `refreshPublik` | POST | `/api/v1/publik/refresh` | launch | ai-engine | — | — | `PublikConnection` | Read the balance again |
 | `pairingCode` | POST | `/api/v1/extension/pairing-code` | launch | server | — | — | `PairingCode` | Show a 6-digit pairing code (5 minutes) |
 | `pair` | POST | `/api/v1/extension/pair` | none | server | — | `PairRequest` | `PairResponse` | Pair the extension with a code (Origin must be the extension) |
@@ -1530,7 +1534,8 @@ The app contacts only these hosts, and only for these reasons. Anything else is 
 | Free company-fact sources (Wikidata, SEC, GLEIF) | Company facts | When a company block is opened and its kept facts expired |
 | The AI provider the person chose | AI answers | Only for AI steps |
 | publik (`JOBLEFT_PUBLIK_BASE_URL`) | AI through publik, wallet, metered fetch and search | Only when the person chose publik, or turned metered fetch on |
-| publik (`publikhq.com/api/v1/telemetry`) | Usage counts (publik telemetry v1): "app opened" and "active session", with the app version, the system, the CPU type and a random install ID; the publik key when publik is connected. No content | A packaged app only (`apps/server/src/main.ts`, `publik-telemetry.cjs`): at each start and every 30 minutes. Off with `DO_NOT_TRACK=1`, `PUBLIK_TELEMETRY=0`, `"usage": false` in publik's `consent.json`, or `JOBLEFT_OFFLINE=1` |
+| publik (`publikhq.com/api/v1/installs`, `/wallet`) | Sign in with publik: this computer's install key, the sign-in state and the plan | A packaged app only (`apps/server/src/publik.ts`, the publik module): at each start, before the UI, and every 3 s while the sign-in screen waits |
+| publik (`publikhq.com/api/v1/telemetry`) | Usage counts (publik telemetry v1): "app opened" and "active session", with the app version, the system, the CPU type and a random install ID, and this computer's publik key. No content | A packaged app only (the publik module, after the sign-in): at each start and every 30 minutes. Off with `DO_NOT_TRACK=1`, `PUBLIK_TELEMETRY=0`, `"usage": false` in publik's `consent.json`, or `JOBLEFT_OFFLINE=1` |
 
 No crash reporter, no analytics of what the person does, no update check that sends an identifier. The usage counts in the last row are the only telemetry (from 0.1.7; README, "Usage counts").
 

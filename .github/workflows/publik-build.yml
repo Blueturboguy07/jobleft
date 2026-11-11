@@ -1,9 +1,11 @@
 # publik build: the release files of one version, built from this branch and kept as workflow artifacts.
 #   macOS (Apple silicon): jobleft.app, NOT signed here. The release Mac signs it with the Developer ID, notarizes it,
 #     staples it and puts it in the dmg (the same steps as apps/shell/scripts/build-macos.sh).
-#   Windows (x64): the NSIS installer, not code-signed (there is no Windows certificate). It is installed on the runner
-#     and must send one "app opened" usage count to a listener on the runner (never to publikhq.com), and none with
-#     DO_NOT_TRACK=1.
+#   Windows (x64): the NSIS installer, not code-signed (there is no Windows certificate). It is installed on the runner,
+#     signs in with publik at the repo's stand-in (never at publikhq.com), and must send one "app opened" usage count,
+#     with the sign-in key, to a listener on the runner, and none with DO_NOT_TRACK=1.
+#   Both: the built app carries the publik module (server/src/publik.js); on macOS the app's own self-test
+#     (PUBLIK_SELF_TEST=1) must print its one line against the stand-in.
 # This workflow never creates, changes or publishes a release.
 name: publik-build
 
@@ -72,9 +74,10 @@ jobs:
         run: |
           res=apps/shell/src-tauri/resources
           test -s "$res/publik-app-token.txt" || { echo "No publik app token in the tree: Connect publik would be dead in this build."; exit 1; }
-          test -f "$res/server/src/publik-telemetry.cjs" || { echo "publik-telemetry.cjs is not in the server tree."; exit 1; }
-          grep -q "publik-telemetry.cjs" "$res/server/src/main.js" || { echo "main.js does not load publik-telemetry.cjs."; exit 1; }
-          echo "token: present; client: present; main.js loads it"
+          test -f "$res/server/src/publik.js" || { echo "publik.js (the publik module) is not in the server tree."; exit 1; }
+          grep -q "./publik.js" "$res/server/src/main.js" || { echo "main.js does not load ./publik.js."; exit 1; }
+          grep -q '"jobleft"' "$res/server/src/publik.js" || { echo "publik.js does not carry the app slug jobleft."; exit 1; }
+          echo "token: present; publik module: present; main.js loads it"
 
       - name: Build the app (not signed)
         shell: bash
@@ -92,9 +95,33 @@ jobs:
           echo "version: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")"
           echo "architectures: $(lipo -archs "$app/Contents/MacOS/jobleft") (shell), $(lipo -archs "$app/Contents/MacOS/node") (node)"
           test -s "$app/Contents/Resources/publik-app-token.txt"
-          test -f "$app/Contents/Resources/server/src/publik-telemetry.cjs"
+          test -f "$app/Contents/Resources/server/src/publik.js"
           /usr/bin/ditto -c -k --keepParent "$app" jobleft-macos-arm64.app.zip
           ls -l jobleft-macos-arm64.app.zip
+
+      # The builder's check: the app itself, with PUBLIK_SELF_TEST=1, prints one line after a real GET /wallet (at the
+      # stand-in on this runner, never at publikhq.com) and exits before any window. The shell passes it to the sidecar.
+      - name: "Self-test: PUBLIK_SELF_TEST=1 prints the one line"
+        shell: bash
+        env:
+          JOBLEFT_PUBLIK_APP_TOKEN: ${{ secrets.PUBLIK_APP_TOKEN }} # the stand-in accepts the token the app ships with
+        run: |
+          app=apps/shell/src-tauri/target/release/bundle/macos/jobleft.app
+          version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")"
+          node qa/bin/publik-standin.mjs 47992 > standin.out 2>&1 &
+          standin=$!
+          sleep 3
+          cat standin.out
+          set +e
+          out="$(PUBLIK_SELF_TEST=1 PUBLIK_ORIGIN=http://127.0.0.1:47992 JOBLEFT_PUBLIK_BASE_URL=http://127.0.0.1:47992/api/v1 perl -e 'alarm 90; exec @ARGV' -- "$app/Contents/MacOS/jobleft" 2>self-test.err)"
+          code=$?
+          set -e
+          kill "$standin" 2>/dev/null || true
+          rm -f "$HOME/Library/Application Support/publik/apps/jobleft.json"
+          echo "exit $code: $out"
+          cat self-test.err
+          test "$code" = 0 || { echo "the self-test exited $code"; exit 1; }
+          test "$out" = "publik self-test: ok jobleft $version" || { echo "expected 'publik self-test: ok jobleft $version'"; exit 1; }
 
       - name: Keep the app
         uses: actions/upload-artifact@v4
@@ -154,9 +181,10 @@ jobs:
         run: |
           res=apps/shell/src-tauri/resources
           test -s "$res/publik-app-token.txt" || { echo "No publik app token in the tree: Connect publik would be dead in this build."; exit 1; }
-          test -f "$res/server/src/publik-telemetry.cjs" || { echo "publik-telemetry.cjs is not in the server tree."; exit 1; }
-          grep -q "publik-telemetry.cjs" "$res/server/src/main.js" || { echo "main.js does not load publik-telemetry.cjs."; exit 1; }
-          echo "token: present; client: present; main.js loads it"
+          test -f "$res/server/src/publik.js" || { echo "publik.js (the publik module) is not in the server tree."; exit 1; }
+          grep -q "./publik.js" "$res/server/src/main.js" || { echo "main.js does not load ./publik.js."; exit 1; }
+          grep -q '"jobleft"' "$res/server/src/publik.js" || { echo "publik.js does not carry the app slug jobleft."; exit 1; }
+          echo "token: present; publik module: present; main.js loads it"
 
       - name: Build the installer
         shell: pwsh
@@ -167,11 +195,15 @@ jobs:
           node $cli build --bundles nsis
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      # The installed app runs twice on the runner, for about 20 seconds each. Run 1: the usage-count client points at a
-      # listener on the runner (PUBLIK_TELEMETRY_URL) and exactly the "app opened" count of this version must arrive.
-      # Run 2: DO_NOT_TRACK=1 and nothing may arrive. Nothing goes to publikhq.com.
-      - name: "Smoke: install, start, one usage count to a local listener, none with DO_NOT_TRACK"
+      # The installed app runs twice on the runner, for about 20 seconds each, signed in at the repo's publik stand-in.
+      # Run 1: the gate (Sign in with publik, then Connect your plan) is passed with qa/bin/publik-gate-pass.mjs; the
+      # usage counts point at a listener on the runner (PUBLIK_TELEMETRY_URL) and exactly the "app opened" count of this
+      # version must arrive, with the sign-in key. Run 2: DO_NOT_TRACK=1, the stored answer passes the gate with no
+      # click, and nothing may arrive. Nothing goes to publikhq.com.
+      - name: "Smoke: install, start, sign in, one usage count to a local listener, none with DO_NOT_TRACK"
         shell: pwsh
+        env:
+          JOBLEFT_PUBLIK_APP_TOKEN: ${{ secrets.PUBLIK_APP_TOKEN }} # the stand-in accepts the token the app ships with
         run: |
           $ErrorActionPreference = 'Stop'
           $setup = Get-ChildItem -Path apps/shell/src-tauri/target/release/bundle/nsis -Filter '*.exe' | Select-Object -First 1
@@ -209,6 +241,16 @@ jobs:
           $port = (Get-Content $portFile).Trim()
           "listener: http://127.0.0.1:$port"
 
+          # The publik stand-in: the person is signed in and has a plan ($1.00), so the gate asks "Connect your plan".
+          $standin = Start-Process -FilePath node -ArgumentList 'qa/bin/publik-standin.mjs','47994' -PassThru -RedirectStandardOutput standin.out -RedirectStandardError standin.err
+          Start-Sleep -Seconds 3
+          "stand-in: $(Get-Content standin.out -ErrorAction SilentlyContinue) $(Get-Content standin.err -ErrorAction SilentlyContinue)"
+          $admin = 'http://127.0.0.1:47994/__admin'
+          Invoke-RestMethod -Method Post -Uri "$admin/claim" -ContentType 'application/json' -Body '{}' | Out-Null
+          Invoke-RestMethod -Method Post -Uri "$admin/add" -ContentType 'application/json' -Body '{"usd":1}' | Out-Null
+          Remove-Item "$env:LOCALAPPDATA\publik\apps\jobleft.json" -Force -ErrorAction SilentlyContinue
+          $env:PUBLIK_ORIGIN = 'http://127.0.0.1:47994'
+          $env:JOBLEFT_PUBLIK_BASE_URL = 'http://127.0.0.1:47994/api/v1'
           $env:JOBLEFT_AUTO_CRAWL = '0'
           $env:JOBLEFT_SEED_BOARDS = 'none'
           $env:PUBLIK_TELEMETRY_URL = "http://127.0.0.1:$port/api/v1/telemetry"
@@ -230,8 +272,10 @@ jobs:
             Remove-Item $run -Force -ErrorAction SilentlyContinue
           }
 
-          # Run 1: usage counts on.
+          # Run 1: usage counts on. The count goes out once the gate has passed.
           $a = Start-App
+          node qa/bin/publik-gate-pass.mjs --port $a.port --token $a.token --admin $admin --action connect
+          if ($LASTEXITCODE -ne 0) { Stop-App $a; Stop-Process -Id $standin.Id -Force -ErrorAction SilentlyContinue; Stop-Process -Id $listener.Id -Force -ErrorAction SilentlyContinue; throw "the sign-in gate did not pass" }
           $deadline = (Get-Date).AddSeconds(20)
           while (-not (Test-Path $seen) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
           Start-Sleep -Seconds 2
@@ -248,7 +292,8 @@ jobs:
           if ($lines.Count -ne 1) { $problems += "expected 1 request, got $($lines.Count)" }
           if ($first.method -ne 'POST' -or $first.url -ne '/api/v1/telemetry') { $problems += "wrong request line: $($first.method) $($first.url)" }
           if ($first.headers.origin) { $problems += "the request has an Origin header" }
-          if ($first.headers.authorization) { $problems += "a signed-out run sent an Authorization header" }
+          if (-not $first.headers.authorization) { $problems += "no Authorization header: the sign-in key was not sent" }
+          elseif ($first.headers.authorization -cnotmatch '^Bearer pk_') { $problems += "the Authorization header is not a publik key" }
           if ($fields -ne 'app,app_version,arch,event,install_id,os,v') { $problems += "fields: $fields" }
           if ($b.v -ne 1) { $problems += "v: $($b.v)" }
           if ($b.app -ne 'jobleft') { $problems += "app: $($b.app)" }
@@ -259,18 +304,22 @@ jobs:
           if ($b.install_id -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$') { $problems += "install_id is not a lowercase UUID v4" }
           "install ID file: $(Test-Path "$env:LOCALAPPDATA\publik\telemetry.json")"
 
-          # Run 2: DO_NOT_TRACK=1, nothing may arrive.
+          # Run 2: DO_NOT_TRACK=1, the stored answer passes the gate with no click, nothing may arrive.
           Remove-Item $seen -Force
           $env:DO_NOT_TRACK = '1'
           $c = Start-App
+          node qa/bin/publik-gate-pass.mjs --port $c.port --token $c.token --wait-s 30
+          if ($LASTEXITCODE -ne 0) { $problems += "the gate asked again at the second start" }
           Start-Sleep -Seconds 12
           Stop-App $c
           $late = if (Test-Path $seen) { @(Get-Content $seen).Count } else { 0 }
           "with DO_NOT_TRACK=1: $late requests"
           if ($late -ne 0) { $problems += "DO_NOT_TRACK=1 still sent $late requests" }
           Stop-Process -Id $listener.Id -Force -ErrorAction SilentlyContinue
+          Stop-Process -Id $standin.Id -Force -ErrorAction SilentlyContinue
+          Remove-Item "$env:LOCALAPPDATA\publik\apps\jobleft.json" -Force -ErrorAction SilentlyContinue
           if ($problems.Count -gt 0) { throw "usage count smoke failed: $($problems -join '; ')" }
-          "usage count smoke: app_opened for jobleft $version arrived once; none with DO_NOT_TRACK=1"
+          "usage count smoke: app_opened for jobleft $version arrived once, with the sign-in key; none with DO_NOT_TRACK=1"
 
       - name: Keep the installer
         uses: actions/upload-artifact@v4

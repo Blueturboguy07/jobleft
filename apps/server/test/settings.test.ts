@@ -74,8 +74,7 @@ test('JL-settings-9: Disconnect then Connect resumes the same publik install (sa
     assert.equal(again.json.state, 'connected');
     assert.equal(again.json.wallet.balanceMicros, 240_000);
     const ids = mints();
-    assert.equal(ids.length, 2);
-    assert.equal(ids[1], ids[0], 'the reconnect asks publik for the same install');
+    assert.equal(ids.length, 1, 'one install, made once: the reconnect asks publik for nothing new');
   } finally { await s.stop(); await pub.close(); cleanup(s.home); }
 });
 

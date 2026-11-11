@@ -5,10 +5,10 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { AiEngine } from './engine.ts';
-import { PUBLIK_DEFAULT_BASE_URL } from './publik.ts';
+import { memoryPublikSignIn, PUBLIK_DEFAULT_BASE_URL, type PublikSignIn } from './publik.ts';
 import { osSecretStore } from './secrets.ts';
 import { fileKvStore, kvSettingsStore } from './state.ts';
-import { isLoopbackHost, shortHash } from './urls.ts';
+import { shortHash } from './urls.ts';
 
 /** The data folder: JOBLEFT_HOME, else the OS default (same rule as apps/server resolveHome). */
 export function resolveHome(env: Record<string, string | undefined> = process.env, platform: NodeJS.Platform = process.platform): string {
@@ -24,6 +24,17 @@ export function keychainServiceFor(home: string, env: Record<string, string | un
   return home === defaultHome ? 'jobleft' : `jobleft-${shortHash(home).slice(0, 10)}`;
 }
 
+/**
+ * The CLI's sign-in: Sign in with publik happens in the jobleft app (the server's publik module), not here. For
+ * development, PUBLIK_API_KEY (and PUBLIK_API_BASE_URL) in the environment stand in for a signed-in computer, the
+ * same override the publik module honours.
+ */
+export function envPublikSignIn(env: Record<string, string | undefined> = process.env): PublikSignIn {
+  const key = env.PUBLIK_API_KEY?.trim();
+  const base = (env.PUBLIK_API_BASE_URL || env.JOBLEFT_PUBLIK_BASE_URL || PUBLIK_DEFAULT_BASE_URL).replace(/\/+$/, '');
+  return memoryPublikSignIn(key && key.startsWith('pk_') ? { key, baseUrl: base, installId: 'env', claimUrl: null, choice: 'publik' } : null);
+}
+
 export function createEngineFromEnv(opts: { env?: Record<string, string | undefined>; home?: string } = {}): { engine: AiEngine; home: string; statePath: string; keysAt: string } {
   const env = opts.env ?? process.env;
   const home = opts.home ?? resolveHome(env);
@@ -31,18 +42,13 @@ export function createEngineFromEnv(opts: { env?: Record<string, string | undefi
   const kv = fileKvStore(statePath);
   const secrets = osSecretStore(keychainServiceFor(home, env), { fileDir: join(home, 'secrets'), env });
   const publikBaseUrl = env.JOBLEFT_PUBLIK_BASE_URL || PUBLIK_DEFAULT_BASE_URL;
-  // Gate G-publik: until the owner approves a real app token, this build never provisions against a non-loopback
-  // publik address. A stand-in on 127.0.0.1 works; the live service needs JOBLEFT_PUBLIK_ALLOW_LIVE=1.
-  let loopback = false;
-  try { loopback = isLoopbackHost(new URL(publikBaseUrl).hostname); } catch { loopback = false; }
-  const publikAppToken = loopback || env.JOBLEFT_PUBLIK_ALLOW_LIVE === '1' ? env.JOBLEFT_PUBLIK_APP_TOKEN || null : null;
   const engine = new AiEngine({
     settings: kvSettingsStore(kv),
     secrets,
     state: kv,
     env,
     publikBaseUrl,
-    publikAppToken,
+    publikSignIn: envPublikSignIn(env),
   });
   const choice = env.JOBLEFT_SECRET_STORE ?? (process.platform === 'darwin' ? 'keychain' : 'file');
   const keysAt = choice === 'keychain'

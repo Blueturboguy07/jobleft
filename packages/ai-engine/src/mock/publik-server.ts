@@ -68,7 +68,7 @@ export async function startMockPublikServer(opts: MockPublikOptions = {}): Promi
     install_id: installId, app_slug: 'jobleft', claim_state: claimState,
     balance_micros: balance,
     starter: { remaining_micros: 0, expires_at: null },
-    plan: { id: 'none', label: 'No plan', monthly_micros: 0 },
+    plan: { id: 'none', kind: 'none', label: 'No plan', monthly_micros: 0 },
     week: { used_micros: weekUsed, budget_micros: null, resets_at: resetsAt, window_days: 7 },
     daily_cap_micros: 2_000_000, spent_today_micros: weekUsed,
     claim_code: claimState === 'anonymous' ? claimCode : null,

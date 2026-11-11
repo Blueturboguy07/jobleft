@@ -29,6 +29,7 @@ import { Kv, OnboardingService, SettingsService } from './services/kv.ts';
 import { NotificationService } from './services/notifications.ts';
 import { PairingService } from './services/pairing.ts';
 import type { ServerSecretStore } from './services/secrets.ts';
+import type { PublikSignIn } from '@jobleft/ai-engine';
 import { APP_VERSION } from './version.ts';
 
 export interface AppConfig {
@@ -42,7 +43,8 @@ export interface AppConfig {
   parentPid: number | null;
   uiDir: string | null;
   publikBaseUrl: string;
-  publikAppToken: string | null;
+  /** Sign in with publik: where this computer's publik key comes from (the publik module; a memory one in tests). */
+  publikSignIn: PublikSignIn;
   hostMap: Record<string, string>;
   /** The environment the server was started with (the AI engine reads JOBLEFT_AI_HOST_MAP and friends). */
   env?: Record<string, string | undefined>;
@@ -101,7 +103,7 @@ export class AppData {
     const offline = () => cfg.offline;
     // i-resume: the real AI engine (settings, keys, publik balance, chat) and the real resume engine.
     this.ai = new AiFacade({
-      kv: this.kv, secrets: cfg.secrets, chats: this.chats, publikBaseUrl: cfg.publikBaseUrl, publikAppToken: cfg.publikAppToken,
+      kv: this.kv, secrets: cfg.secrets, chats: this.chats, publikBaseUrl: cfg.publikBaseUrl, publikSignIn: cfg.publikSignIn,
       offline: cfg.offline, env: cfg.env ?? process.env, appVersion: APP_VERSION,
     });
     this.resumes = new ResumeBridge({

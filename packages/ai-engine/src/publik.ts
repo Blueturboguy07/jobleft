@@ -1,12 +1,12 @@
-// The publik connection (ai-engine O2, O6, O7): provisioning with POST /installs after the disclosure (no key is
-// typed, copied or shown), the balance in dollars, the one top-up link, and disconnect (the key is revoked at
-// publik and deleted from this computer; nothing spends the balance afterwards).
+// The publik connection (ai-engine O2, O6, O7) on top of Sign in with publik: this computer's publik key comes from
+// the sign-in gate (the publik module, apps/server/src/publik.ts, keeps it in the publik credential file), never
+// from a mint of its own. "Connect" is the person's answer "pay for AI with my publik plan" (the module's
+// setChoice('publik')); "disconnect" is "use my own key" (setChoice('own_key')): nothing spends the balance after it.
+// This client reads the balance in dollars, gives the one top-up link, and turns gateway failures into plain words.
 // Contract: ~/publik-api-research/CONTRACT.md sections 1, 3.2 and 12; memo R21 sections 2.1 to 2.6.
 
-import { randomUUID } from 'node:crypto';
-import { arch as osArch, release as osRelease } from 'node:os';
-import type { PublikConnection, PublikWallet, SecretStore } from '@jobleft/contracts';
-import { formatDollars, nowIso, nowMs, SECRET_NAMES } from '@jobleft/contracts';
+import type { PublikConnection, PublikWallet } from '@jobleft/contracts';
+import { formatDollars, nowIso, nowMs } from '@jobleft/contracts';
 import { AiError } from './errors.ts';
 import { memoryKvStore, type KvStore } from './state.ts';
 import { looksLikeHtml, send, tryJson } from './transport.ts';
@@ -15,7 +15,6 @@ import { looksLikeHtml, send, tryJson } from './transport.ts';
 export const PUBLIK_DISCLOSURE_VERSION = 1;
 /** The compiled default. Tests and development point JOBLEFT_PUBLIK_BASE_URL at a local stand-in. */
 export const PUBLIK_DEFAULT_BASE_URL = 'https://publikhq.com/api/v1';
-export const PUBLIK_APP_SLUG = 'jobleft';
 /** The three publik tiers. publik-balanced is the default. */
 export const PUBLIK_TIERS = ['publik-fast', 'publik-balanced', 'publik-smart'] as const;
 export const PUBLIK_DEFAULT_MODEL = 'publik-balanced';
@@ -30,7 +29,6 @@ export const PUBLIK_DISCLOSURE = [
 export const PUBLIK_JUSTIFICATION =
   'The AI model behind publik charges per use; publik charges a fixed, published price per tier, a little above what the model costs publik, which keeps publik running and pays the app\'s developer. Nothing is charged behind your back, and every call is listed on your publik dashboard.';
 
-const KEY_FORMAT = /^pk_(live|test)_[a-z0-9]{12}_[a-z0-9]{32}$/;
 const PUBLIK_SITE = 'https://publikhq.com';
 const FALLBACK_TOP_UP = 'https://publikhq.com/dashboard/api';
 /**
@@ -44,13 +42,8 @@ const LATEST_GAP_MS = 5_000;
 const LATEST_CONNECT_TIMEOUT_MS = 3_000;
 const LATEST_IDLE_TIMEOUT_MS = 8_000;
 
+/** The key-free facts this client keeps (the kept wallet, where it came from). The key itself stays with the sign-in. */
 interface PublikState {
-  state: 'connected' | 'disconnected';
-  /**
-   * This computer's publik install. Kept after a disconnect (only the key is deleted), so connecting again resumes
-   * the same install and the same balance (publik re-keys an install whose key the app revoked). Only forget()
-   * (delete all data) drops it.
-   */
   installId: string | null;
   baseUrl: string | null;
   disclosureVersion: number | null;
@@ -58,13 +51,49 @@ interface PublikState {
   connectedAt: string | null;
 }
 
-const EMPTY: PublikState = { state: 'disconnected', installId: null, baseUrl: null, disclosureVersion: null, wallet: null, connectedAt: null };
-const INSTALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const EMPTY: PublikState = { installId: null, baseUrl: null, disclosureVersion: null, wallet: null, connectedAt: null };
+
+/** This computer's publik credential, as Sign in with publik stored it (the publik module's credential file). */
+export interface PublikSignInCredential {
+  key: string;
+  baseUrl: string;
+  installId: string;
+  claimUrl: string | null;
+  /** The person's answer to "how does this app pay for AI": connect your plan, use my own key, or not answered yet. */
+  choice: 'publik' | 'own_key' | null;
+}
+
+/**
+ * Where the key comes from: Sign in with publik. The server passes the publik module (readCredential, setChoice,
+ * provision); tests and the CLI pass a memory one. The engine never mints a key itself.
+ */
+export interface PublikSignIn {
+  /** The stored credential, or null before this computer signed in. Read on every call; never cached here. */
+  credential(): PublikSignInCredential | null;
+  /** Stores the answer to the plan screen. null = ask again at the next start. */
+  setChoice(choice: 'publik' | 'own_key' | null): void;
+  /** Makes this computer's install when there is none (POST /installs through the module). Throws a readable message. */
+  provision(): Promise<PublikSignInCredential>;
+}
+
+/** A sign-in that lives in memory (tests, the CLI): `mint` stands in for the module's provision(). */
+export function memoryPublikSignIn(initial: PublikSignInCredential | null = null, mint?: () => Promise<PublikSignInCredential>): PublikSignIn & { current: PublikSignInCredential | null } {
+  const s = {
+    current: initial,
+    credential: () => s.current,
+    setChoice(choice: 'publik' | 'own_key' | null) { if (s.current) s.current = { ...s.current, choice }; },
+    async provision() {
+      if (!mint) throw new Error('Sign in with publik happens when the jobleft app starts. Start jobleft, or set PUBLIK_API_KEY for development.');
+      s.current = { ...(await mint()), choice: s.current?.choice ?? null };
+      return s.current;
+    },
+  };
+  return s;
+}
 
 export interface PublikClientOptions {
   baseUrl: string;
-  appToken: string | null;
-  secrets: SecretStore;
+  signIn: PublikSignIn;
   /** Kept for the interface; the client uses its own transport (connect and silence limits). */
   fetchImpl?: typeof fetch;
   /** Where the key-free connection state lives (install id, last balance, links). Default: memory. */
@@ -129,16 +158,9 @@ export function publikDailyLimitText(d: { capMicros: number | null; usedMicros: 
     + (d.claimState === 'anonymous' ? ' Linking this computer to a publik account (Settings > Balance) raises the limit.' : '');
 }
 
-function contractOs(): 'macos' | 'windows' | 'linux' {
-  if (process.platform === 'darwin') return 'macos';
-  if (process.platform === 'win32') return 'windows';
-  return 'linux';
-}
-
 export class PublikClient {
   private readonly baseUrl: string;
-  private readonly appToken: string | null;
-  private readonly secrets: SecretStore;
+  private readonly signIn: PublikSignIn;
   private readonly kv: KvStore;
   private readonly appVersion: string;
   private readonly connectTimeoutMs: number | undefined;
@@ -151,8 +173,7 @@ export class PublikClient {
 
   constructor(opts: PublikClientOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, '');
-    this.appToken = opts.appToken;
-    this.secrets = opts.secrets;
+    this.signIn = opts.signIn;
     this.kv = opts.state ?? memoryKvStore();
     this.appVersion = opts.appVersion ?? '0.1.0';
     this.connectTimeoutMs = opts.connectTimeoutMs;
@@ -179,6 +200,23 @@ export class PublikClient {
   /** The API root to use: publik's answer when it is on the same origin or publikhq.com, else the configured one. */
   private gatewayBase(s: PublikState = this.load()): string {
     return s.baseUrl ?? this.baseUrl;
+  }
+
+  /** A base URL publik gave (the module's credential): kept when it is on the configured origin or publikhq.com. */
+  private acceptBase(given: string | null | undefined): string {
+    const base = typeof given === 'string' ? given.replace(/\/+$/, '') : '';
+    if (!base) return this.baseUrl;
+    try {
+      const o = new URL(base).origin;
+      if (o === new URL(this.baseUrl).origin || o === PUBLIK_SITE) return base;
+    } catch { /* keep the configured address */ }
+    return this.baseUrl;
+  }
+
+  /** Connected = signed in and the person chose to pay for AI with the publik plan (the module's choice "publik"). */
+  private connectedCredential(): PublikSignInCredential | null {
+    const c = this.signIn.credential();
+    return c && c.choice === 'publik' ? c : null;
   }
 
   /** Maps a GET /wallet body (R21 section 2.3) to the contract. Refuses a body without a balance (never a $0.00 guess). */
@@ -222,17 +260,12 @@ export class PublikClient {
   /** The connection as the app shows it. Reads no network; call refresh() for a new balance. */
   async status(): Promise<PublikConnection> {
     if (this.connecting) return { state: 'connecting', wallet: null, disclosureVersion: null };
+    const c = this.connectedCredential();
+    if (!c) return { state: 'disconnected', wallet: null, disclosureVersion: null };
     const s = this.load();
-    if (s.state === 'connected') {
-      const key = await this.secrets.get(SECRET_NAMES.publikKey);
-      if (!key) {
-        // The key is gone (deleted outside the app): the connection is gone too; the install is kept for a reconnect.
-        this.save({ ...EMPTY, installId: s.installId });
-        return { state: 'disconnected', wallet: null, disclosureVersion: null };
-      }
-      return { state: 'connected', wallet: s.wallet, disclosureVersion: s.disclosureVersion };
-    }
-    return { state: 'disconnected', wallet: null, disclosureVersion: null };
+    // A kept wallet belongs to the install it was read for; a new install (a re-provision) starts without one.
+    const wallet = s.installId === c.installId ? s.wallet : null;
+    return { state: 'connected', wallet, disclosureVersion: s.disclosureVersion ?? PUBLIK_DISCLOSURE_VERSION };
   }
 
   /**
@@ -258,57 +291,34 @@ export class PublikClient {
     return this.reading;
   }
 
-  /** POST /installs after the person accepted the disclosure. No key is typed or shown. */
+  /**
+   * Connect your plan: the person's answer to the gate's question, after the disclosure. No key is typed or shown;
+   * this computer's key came from Sign in with publik. Before the gate ran (a dev run, a test), the sign-in's
+   * provision() makes the install first.
+   */
   async connect(disclosureVersion: number): Promise<PublikConnection> {
     if (!Number.isInteger(disclosureVersion) || disclosureVersion !== PUBLIK_DISCLOSURE_VERSION) {
       throw new AiError('bad_request', 'Show the current publik disclosure and accept it before connecting.');
     }
-    // No app token: say so before anything is read or sent (a status read would turn into "unreachable").
-    if (!this.appToken) {
-      throw new AiError('not_ready', 'Connecting to publik is not available in this build yet (it has no publik app token). Choose a local model or your own key instead.');
-    }
     const current = await this.status();
-    if (current.state === 'connected') return current; // one connection, one key: never a second mint
+    if (current.state === 'connected') return current; // one connection, one key: never a second install
     if (this.connecting) throw new AiError('bad_request', 'publik is already connecting. Wait a moment.');
     this.connecting = true;
     try {
-      // Nothing half-done is kept: the key is saved only after a valid answer, and state only after the key.
-      await this.secrets.delete(SECRET_NAMES.publikKey);
-      // A reconnect resumes this computer's install (JL-settings-9): publik gives an install whose key the app revoked
-      // a new key on the same balance. A new install is made only when there is none yet, or when publik cannot
-      // re-key the old one (403: removed on the publik dashboard; 200 with no key: its old key is still live).
-      const prior = this.load().installId;
-      let installId = prior && INSTALL_ID.test(prior) ? prior : randomUUID();
-      let answer = await this.mint(installId, disclosureVersion);
-      const noKey = answer.status === 200 && (answer.body?.key === null || answer.body?.key === undefined);
-      if (noKey || (installId === prior && answer.status === 403)) {
-        installId = randomUUID(); // a replay without a saved key: mint once more with a new install id (R21 section 2.1)
-        answer = await this.mint(installId, disclosureVersion);
-      }
-      const body = answer.body;
-      if (answer.status !== 201 && answer.status !== 200) throw this.mintFailure(answer.status, answer.raw, answer.contentType);
-      const key = typeof body?.key === 'string' ? body.key : null;
-      if (!key || !KEY_FORMAT.test(key)) {
-        throw new AiError('provider_error', 'publik sent an answer that jobleft cannot use, so nothing was connected. Try again later.');
-      }
-      const responseBase = typeof body?.base_url === 'string' ? body.base_url.replace(/\/+$/, '') : null;
-      let baseUrl = this.baseUrl;
-      if (responseBase) {
-        try {
-          const o = new URL(responseBase).origin;
-          if (o === new URL(this.baseUrl).origin || o === PUBLIK_SITE) baseUrl = responseBase;
-        } catch { /* keep the configured address */ }
-      }
-      await this.secrets.set(SECRET_NAMES.publikKey, key);
-      let wallet: PublikWallet | null = null;
-      try {
-        if (body?.wallet && typeof body.wallet === 'object' && (body.wallet.balance_micros !== undefined || body.wallet.available_micros !== undefined)) {
-          wallet = this.walletFrom({ claim_url: body.claim_url, ...body.wallet });
-        } else if (body?.balance_micros !== undefined) {
-          wallet = this.walletFrom(body);
+      let c = this.signIn.credential();
+      if (!c) {
+        try { c = await this.signIn.provision(); } catch (e) {
+          if (e instanceof AiError) throw e;
+          const msg = e instanceof Error ? e.message : String(e);
+          if (/not reachable|fetch failed|abort|timeout/i.test(msg) || e instanceof TypeError) throw new AiError('unreachable', 'publik cannot be reached right now, so nothing was connected. Check your connection and try again.');
+          throw new AiError('not_ready', `${msg} Nothing was connected.`.replace(/\.\s+Nothing/, '. Nothing'));
         }
-      } catch { wallet = null; }
-      this.save({ state: 'connected', installId, baseUrl, disclosureVersion, wallet, connectedAt: nowIso() });
+      }
+      this.signIn.setChoice('publik');
+      const prior = this.load();
+      // The kept wallet survives a disconnect and reconnect of the same install (JL-settings-9: same balance).
+      const wallet = prior.installId === c.installId ? prior.wallet : null;
+      this.save({ installId: c.installId, baseUrl: this.acceptBase(c.baseUrl), disclosureVersion, wallet, connectedAt: nowIso() });
     } finally {
       this.connecting = false;
     }
@@ -318,73 +328,30 @@ export class PublikClient {
     return this.status();
   }
 
-  private async mint(installId: string, disclosureVersion: number): Promise<{ status: number; body: Record<string, any> | undefined; raw: string; contentType: string | undefined }> {
-    const res = await send({
-      method: 'POST',
-      url: `${this.baseUrl}/installs`,
-      // The contract accepts the public app token in the header or in the body; both are sent (it is not a secret).
-      headers: { authorization: `Bearer ${this.appToken}` },
-      body: JSON.stringify({
-        app_token: this.appToken,
-        app_slug: PUBLIK_APP_SLUG,
-        app_version: this.appVersion.slice(0, 32),
-        os: contractOs(),
-        os_version: osRelease().slice(0, 32),
-        arch: osArch().slice(0, 16),
-        // A coarse name only: a computer's own name often holds its owner's name.
-        device_name: `jobleft on ${contractOs() === 'macos' ? 'macOS' : contractOs() === 'windows' ? 'Windows' : 'Linux'}`,
-        install_id: installId,
-        disclosure_version: disclosureVersion,
-        dialects: ['chat_completions', 'embeddings'],
-      }),
-      connectTimeoutMs: this.connectTimeoutMs,
-      idleTimeoutMs: 30_000,
-    });
-    const raw = await res.text();
-    return { status: res.status, body: tryJson(raw) as Record<string, any> | undefined, raw, contentType: res.headers['content-type'] };
-  }
-
-  private mintFailure(status: number, raw: string, contentType: string | undefined): AiError {
-    if (looksLikeHtml(contentType, raw)) return new AiError('not_ai_server', 'The publik address answered with a web page, so nothing was connected. Check the publik address.');
-    if (status === 401 || status === 403) return new AiError('provider_error', 'publik did not accept this build of jobleft, so nothing was connected. Update jobleft, or choose another provider.');
-    if (status === 429) return new AiError('provider_error', 'publik is limiting new connections from this network right now, so nothing was connected. Try again later.');
-    if (status >= 500) return new AiError('provider_error', 'publik is not available right now, so nothing was connected. Try again in a few minutes.');
-    return new AiError('provider_error', `publik refused the connection request (HTTP ${status}), so nothing was connected.`);
-  }
-
-  /** Deletes the key from the secret store; nothing spends the balance after this returns. */
+  /**
+   * Use my own key: nothing spends the balance after this returns. This computer stays signed in (the key stays with
+   * the sign-in, so Connect returns to the same install and balance, JL-settings-9); the app just stops using it.
+   */
   async disconnect(): Promise<PublikConnection> {
     for (const stop of this.disconnectListeners) { try { stop(); } catch { /* ignore */ } }
-    const s = this.load();
-    const key = await this.secrets.get(SECRET_NAMES.publikKey);
-    if (key) {
-      // Revoke at publik first (best effort, 5 s): the key then stops working even if a copy survived somewhere.
-      try {
-        const res = await send({ method: 'POST', url: `${this.gatewayBase(s)}/installs/revoke`, headers: { authorization: `Bearer ${key}` }, connectTimeoutMs: Math.min(this.connectTimeoutMs ?? 5000, 5000), idleTimeoutMs: 5000 });
-        await res.text().catch(() => '');
-      } catch { /* offline: the key is still deleted here, and publik's idle sweep revokes it later */ }
-    }
-    await this.secrets.delete(SECRET_NAMES.publikKey);
-    if (await this.secrets.get(SECRET_NAMES.publikKey)) {
-      throw new AiError('not_ready', 'jobleft could not delete the publik key from this computer. Unlock the Keychain and try again.');
-    }
-    // The key is gone; the install is kept, so a later connect returns to the same balance (JL-settings-9).
-    this.save({ ...EMPTY, installId: s.installId });
+    this.signIn.setChoice('own_key');
     return { state: 'disconnected', wallet: null, disclosureVersion: null };
   }
 
-  /** Forgets this computer's publik install too (delete all data). Call after disconnect(). */
+  /** Forgets the kept wallet and the answer to the plan screen (delete all data): the next start asks again. */
   forget(): void {
     this.save({ ...EMPTY });
+    this.signIn.setChoice(null);
   }
 
   /** Reads the balance again (GET /wallet). */
   async refresh(limits: { connectTimeoutMs?: number; idleTimeoutMs?: number } = {}): Promise<PublikConnection> {
+    const c = this.connectedCredential();
+    if (!c) return this.status();
     const s = this.load();
-    const key = await this.secrets.get(SECRET_NAMES.publikKey);
-    if (s.state !== 'connected' || !key) return this.status();
+    const base = s.installId === c.installId && s.baseUrl ? s.baseUrl : this.acceptBase(c.baseUrl);
     const res = await send({
-      method: 'GET', url: `${this.gatewayBase(s)}/wallet`, headers: { authorization: `Bearer ${key}` },
+      method: 'GET', url: `${base}/wallet`, headers: { authorization: `Bearer ${c.key}` },
       connectTimeoutMs: limits.connectTimeoutMs ?? this.connectTimeoutMs, idleTimeoutMs: limits.idleTimeoutMs ?? 30_000,
     });
     const raw = await res.text();
@@ -393,9 +360,9 @@ export class PublikClient {
     const wallet = this.walletFrom(tryJson(raw));
     const now = this.load();
     // A refusal for the daily limit is remembered until the limit starts again.
-    const prev = now.wallet?.daily;
+    const prev = now.installId === c.installId ? now.wallet?.daily : undefined;
     if (prev?.reachedAt && Date.parse(prev.resetsAt) > nowMs() && wallet.daily) wallet.daily = { ...wallet.daily, reachedAt: prev.reachedAt, resetsAt: prev.resetsAt };
-    if (now.state === 'connected') this.save({ ...now, wallet });
+    this.save({ ...now, installId: c.installId, baseUrl: base, wallet });
     return this.status();
   }
 
@@ -410,7 +377,7 @@ export class PublikClient {
       return (headers as Record<string, string | undefined>)[name];
     };
     const s = this.load();
-    if (s.state !== 'connected' || !s.wallet) return;
+    if (!this.connectedCredential() || !s.wallet) return;
     const w: PublikWallet = { ...s.wallet, week: { ...s.wallet.week } };
     let changed = false;
     const balance = int(get('x-publik-balance') ?? get('x-publik-balance-micros'));
@@ -443,10 +410,10 @@ export class PublikClient {
 
   /** @internal The key for gateway calls. Only the AI engine's publik driver calls this; it never leaves the process. */
   async gatewayKey(): Promise<{ key: string; baseUrl: string } | null> {
+    const c = this.connectedCredential();
+    if (!c) return null;
     const s = this.load();
-    if (s.state !== 'connected') return null;
-    const key = await this.secrets.get(SECRET_NAMES.publikKey);
-    return key ? { key, baseUrl: this.gatewayBase(s) } : null;
+    return { key: c.key, baseUrl: s.installId === c.installId && s.baseUrl ? s.baseUrl : this.acceptBase(c.baseUrl) };
   }
 
   /** @internal Called on disconnect (the engine stops running publik requests). */
@@ -474,7 +441,7 @@ export class PublikClient {
       const link = this.allowedLink(e.top_up_url)
         ?? (claimState === 'anonymous' ? this.allowedLink(e.claim_url) : this.allowedLink(e.add_credit_url))
         ?? s.wallet?.topUpUrl ?? FALLBACK_TOP_UP;
-      if (available !== null && s.state === 'connected' && s.wallet) {
+      if (available !== null && this.connectedCredential() && s.wallet) {
         this.save({ ...s, wallet: { ...s.wallet, balanceMicros: available, claimState, topUpUrl: link, updatedAt: nowIso() } });
       }
       const amount = available !== null ? formatDollars(available) : null;
@@ -487,13 +454,16 @@ export class PublikClient {
       return new AiError('insufficient_balance', `${first} ${next}, then send your message again.`, link);
     }
     if (status === 403 && type === 'key_revoked') {
-      await this.secrets.delete(SECRET_NAMES.publikKey);
-      this.save({ ...EMPTY, installId: this.load().installId });
+      // The key is dead: nothing spends with it, and the next start signs this computer in again (the module makes
+      // a new install when publik answers 401 to its key).
+      for (const stop of this.disconnectListeners) { try { stop(); } catch { /* ignore */ } }
+      this.signIn.setChoice(null);
+      this.save({ ...EMPTY });
       return new AiError('key_refused', e.reprovision === true
-        ? 'publik retired this connection because it was not used for a long time, so publik is now disconnected. Connect again to use it.'
-        : 'This computer was removed from your publik account, so publik is now disconnected. Connect again to use it.');
+        ? 'publik retired this connection because it was not used for a long time, so publik is now disconnected. Quit and open jobleft again to sign in.'
+        : 'This computer was removed from your publik account, so publik is now disconnected. Quit and open jobleft again to sign in.');
     }
-    if (status === 401) return new AiError('key_refused', 'publik no longer accepts this connection. Disconnect publik and connect again.');
+    if (status === 401) return new AiError('key_refused', 'publik no longer accepts this connection. Quit and open jobleft again to sign in.');
     if (status === 400 && /unknown_model/.test(type)) return new AiError('model_not_found', `publik does not have this model. Choose ${PUBLIK_TIERS.join(', ')}.`);
     if (status === 429 && type === 'daily_cap_reached') {
       // Not "you reached the limit": publik refused THIS step because it would go over; smaller ones may still fit.
@@ -505,7 +475,7 @@ export class PublikClient {
         usedMicros: int(e.spent_today_micros ?? e.used_micros) ?? prev?.usedMicros ?? null,
         resetsAt, reachedAt: nowIso(),
       };
-      if (s.state === 'connected' && s.wallet) this.save({ ...s, wallet: { ...s.wallet, daily } });
+      if (this.connectedCredential() && s.wallet) this.save({ ...s, wallet: { ...s.wallet, daily } });
       return new AiError('provider_error', publikDailyLimitText({ ...daily, claimState: s.wallet?.claimState ?? 'anonymous' }));
     }
     if (status === 429) return new AiError('provider_error', 'publik is limiting requests right now. Wait a minute, then try again.');

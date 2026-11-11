@@ -29,7 +29,9 @@ The first run asks for your job function, job type, place, pay and work authoriz
 
 Search, filters, match scores and the tracker use no AI and cost nothing. Tailoring a resume, writing a letter and the assistant run a model. You choose where:
 
-- **publik API**: pay per use from a dollar balance, with a small free starter amount. No key to paste; jobleft keeps the connection key in the macOS Keychain.
+- **publik API**: pay per use from a dollar balance, with a small free starter amount. No key to paste.
+
+From version 0.1.8 jobleft starts with "Sign in with publik": the first screen asks you to sign in in your browser, then how AI is paid for (your publik plan, or your own key). The sign-in key is in `~/Library/Application Support/publik/apps/jobleft.json` (Windows: `%LOCALAPPDATA%\publik\apps\jobleft.json`), shared with no other app. You can change the answer in Settings > AI at any time.
 - **A model on this computer**: Ollama, LM Studio or any OpenAI-compatible server. Nothing leaves the Mac.
 - **Your own key**: Anthropic or OpenAI.
 
@@ -44,9 +46,9 @@ The data folder is `~/Library/Application Support/jobleft`. Settings → Data an
 
 ## Usage counts
 
-From version 0.1.7 the installed app tells publik that it was opened (once at each start) and that it is still open (every 30 minutes).
+From version 0.1.7 the installed app tells publik that it was opened (once at each start, after the sign-in) and that it is still open (every 30 minutes).
 Each message holds the app name, the app version, the system (macOS or Windows), the CPU type and a random install ID from `~/Library/Application Support/publik/telemetry.json` (Windows: `%LOCALAPPDATA%\publik\telemetry.json`).
-When publik is connected, the message also carries this computer's publik key, so that one person is counted once.
+The message also carries this computer's publik sign-in key, so that one person is counted once.
 No job, profile, resume, search or other content is sent.
 To turn it off, start jobleft with `DO_NOT_TRACK=1`, or put `{"usage": false}` in `consent.json` in that publik folder. Details: https://publikhq.com/skills/telemetry.md
 

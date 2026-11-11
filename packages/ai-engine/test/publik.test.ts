@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SECRET_NAMES, formatDollars } from '@jobleft/contracts';
+import { formatDollars } from '@jobleft/contracts';
 import { AiError, PUBLIK_DISCLOSURE_VERSION, toApiError } from '../src/index.ts';
 import { collect, makeEngine, use, withPublik } from './helpers.ts';
 
 test('connect needs no typed key; one connection keeps one key', async () => {
   await withPublik({ balanceUsd: 5 }, async (p) => {
-    const { engine, secrets } = makeEngine({ publikBaseUrl: p.baseUrl });
+    const { engine, signIn } = makeEngine({ publikBaseUrl: p.baseUrl });
     assert.equal((await engine.publik.status()).state, 'disconnected');
     await assert.rejects(engine.publik.connect(PUBLIK_DISCLOSURE_VERSION + 1), /disclosure/);
     const c = await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
@@ -14,8 +14,8 @@ test('connect needs no typed key; one connection keeps one key', async () => {
     assert.equal(c.wallet?.balanceMicros, 5_000_000);
     assert.match(c.wallet!.topUpUrl, /^https:\/\/publikhq\.com\/claim\//);
     assert.ok(!JSON.stringify(c).includes('pk_test_'), 'the key is never in what the app shows');
-    const key = await secrets.get(SECRET_NAMES.publikKey);
-    assert.match(key!, /^pk_test_/);
+    assert.match(signIn.current!.key, /^pk_test_/, 'the key stays with the sign-in');
+    assert.equal(signIn.current!.choice, 'publik', 'connect = pay for AI with the publik plan');
     await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
     assert.equal(p.state().keys, 1, 'a second connect does not mint a second key');
   });
@@ -68,16 +68,16 @@ test('balance too low: one plain message, exactly one link, no retry, works agai
   });
 });
 
-test('disconnect revokes and deletes the key; nothing spends the balance afterwards', async () => {
+test('disconnect (use my own key): nothing spends the balance afterwards; the sign-in stays', async () => {
   await withPublik({ balanceUsd: 5 }, async (p) => {
-    const { engine, secrets } = makeEngine({ publikBaseUrl: p.baseUrl });
+    const { engine, signIn } = makeEngine({ publikBaseUrl: p.baseUrl });
     await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
     await use(engine, { provider: 'publik' });
     const charges = p.state().charges;
     const d = await engine.publik.disconnect();
     assert.equal(d.state, 'disconnected');
-    assert.equal(await secrets.get(SECRET_NAMES.publikKey), null);
-    assert.equal(p.state().liveKeys, 0, 'revoked at publik');
+    assert.equal(signIn.current!.choice, 'own_key', 'the answer to the plan screen is now "use my own key"');
+    assert.match(signIn.current!.key, /^pk_test_/, 'this computer stays signed in');
     const n = p.log.entries.length;
     await assert.rejects(collect(engine.client().chat({ messages: [{ role: 'user', content: 'hi' }] })), (e: AiError) => e.code === 'no_provider');
     await assert.rejects(engine.client().json({ schema: { type: 'object' }, messages: [{ role: 'user', content: 'hi' }] }), (e: AiError) => e.code === 'no_provider');
@@ -113,10 +113,10 @@ test('disconnect during a stream stops it at once', async () => {
 
 test('a failed connect leaves nothing half connected', async () => {
   await withPublik({}, async (p) => {
-    const { engine, secrets } = makeEngine({ publikBaseUrl: p.baseUrl, appToken: 'pat_jobleft_wrongwrongwrongwrongwrongwrong00' });
-    await assert.rejects(engine.publik.connect(PUBLIK_DISCLOSURE_VERSION), (e: AiError) => /nothing was connected/.test(e.message));
+    const { engine, signIn } = makeEngine({ publikBaseUrl: p.baseUrl, appToken: 'pat_jobleft_wrongwrongwrongwrongwrongwrong00' });
+    await assert.rejects(engine.publik.connect(PUBLIK_DISCLOSURE_VERSION), (e: AiError) => /Nothing was connected/.test(e.message));
     assert.equal((await engine.publik.status()).state, 'disconnected');
-    assert.equal(await secrets.get(SECRET_NAMES.publikKey), null);
+    assert.equal(signIn.current, null);
   });
   const { engine } = makeEngine({ appToken: null });
   await assert.rejects(engine.publik.connect(PUBLIK_DISCLOSURE_VERSION), (e: AiError) => e.code === 'not_ready' && /no publik app token/.test(e.message));
@@ -127,7 +127,7 @@ test('a failed connect leaves nothing half connected', async () => {
 
 test('publik-smart needs a linked account; a revoked key disconnects with a plain message', async () => {
   await withPublik({ balanceUsd: 5 }, async (p) => {
-    const { engine, secrets } = makeEngine({ publikBaseUrl: p.baseUrl });
+    const { engine, signIn } = makeEngine({ publikBaseUrl: p.baseUrl });
     await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
     const { check } = await use(engine, { provider: 'publik', model: 'publik-smart' });
     assert.equal(check.ok, false);
@@ -136,16 +136,16 @@ test('publik-smart needs a linked account; a revoked key disconnects with a plai
     await use(engine, { provider: 'publik', model: 'publik-balanced' });
     await fetch(`http://127.0.0.1:${p.port}/__admin/revoke-all`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
     await assert.rejects(collect(engine.client().chat({ messages: [{ role: 'user', content: 'hi' }] })), (e: AiError) => e.code === 'key_refused' && /removed/.test(e.message));
-    assert.equal(await secrets.get(SECRET_NAMES.publikKey), null);
+    assert.equal(signIn.current!.choice, null, 'the next start asks again (the module signs the computer in anew)');
     assert.equal((await engine.publik.status()).state, 'disconnected');
   });
 });
 
 test('the publik key never goes to another provider', async () => {
   await withPublik({ balanceUsd: 5 }, async (p) => {
-    const { engine, secrets } = makeEngine({ publikBaseUrl: p.baseUrl });
+    const { engine, signIn } = makeEngine({ publikBaseUrl: p.baseUrl });
     await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
-    const key = (await secrets.get(SECRET_NAMES.publikKey))!;
+    const key = signIn.current!.key;
     const { startMockModelServer } = await import('../src/mock/model-server.ts');
     const m = await startMockModelServer({});
     try {
@@ -158,38 +158,27 @@ test('the publik key never goes to another provider', async () => {
   });
 });
 
-// JL-settings-9: Disconnect then Connect made a new, empty publik account; the balance stayed on the old one.
-test('disconnect then connect resumes the same install and balance; delete-all forgets it', async () => {
+// JL-settings-9: Disconnect then Connect made a new, empty publik account; the balance stayed on the old one. With
+// Sign in with publik the install is this computer's for good: connect and disconnect only change how the app pays.
+test('disconnect then connect resumes the same install and balance; delete-all asks again, same install', async () => {
   await withPublik({ balanceUsd: 0.24 }, async (p) => {
-    const { engine, secrets } = makeEngine({ publikBaseUrl: p.baseUrl });
+    const { engine, signIn } = makeEngine({ publikBaseUrl: p.baseUrl });
     const installIds = () => p.log.entries.filter((e) => e.path === '/api/v1/installs' && e.method === 'POST').map((e) => JSON.parse(e.body).install_id as string);
     await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
-    const firstKey = await secrets.get(SECRET_NAMES.publikKey);
+    const firstKey = signIn.current!.key;
     await engine.publik.disconnect();
-    assert.equal(await secrets.get(SECRET_NAMES.publikKey), null, 'the key is deleted on disconnect');
-    assert.equal(p.state().liveKeys, 0, 'and revoked at publik');
+    assert.equal(signIn.current!.key, firstKey, 'the key stays with the sign-in');
+    assert.equal(p.state().liveKeys, 1, 'nothing is revoked at publik');
     const again = await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
     assert.equal(again.state, 'connected');
     assert.equal(again.wallet?.balanceMicros, 240_000, 'the same balance');
-    const ids = installIds();
-    assert.equal(ids.length, 2);
-    assert.equal(ids[1], ids[0], 'the reconnect resumes the same install');
-    const secondKey = await secrets.get(SECRET_NAMES.publikKey);
-    assert.ok(secondKey && secondKey !== firstKey, 'publik gave the install a new key');
-    // An install removed on the publik dashboard cannot be resumed: a new install is made, in the same connect.
-    await engine.publik.disconnect();
-    await fetch(`${p.baseUrl.replace(/\/api\/v1$/, '')}/__admin/remove-installs`, { method: 'POST', body: '{}' });
-    assert.equal((await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION)).state, 'connected');
-    const after = installIds();
-    assert.equal(after.length, 4);
-    assert.equal(after[2], ids[0]);
-    assert.notEqual(after[3], ids[0]);
-    // Delete all data forgets the install: the next connect is a new install.
+    assert.equal(installIds().length, 1, 'one install, made once; the reconnect asks publik for nothing new');
+    // Delete all data forgets the kept wallet and the answer to the plan screen; the computer stays signed in.
     await engine.forgetAllKeys();
-    await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION);
-    const last = installIds();
-    assert.equal(last.length, 5);
-    assert.notEqual(last[4], after[3]);
+    assert.equal(signIn.current!.choice, null);
+    assert.equal((await engine.publik.status()).state, 'disconnected');
+    assert.equal((await engine.publik.connect(PUBLIK_DISCLOSURE_VERSION)).wallet?.balanceMicros, 240_000);
+    assert.equal(installIds().length, 1);
   });
 });
 

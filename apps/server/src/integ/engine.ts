@@ -4,7 +4,7 @@
 
 import { formatCost, type ChatRequest, type ChatStreamEvent, type Job } from '@jobleft/contracts';
 import {
-  AiEngine, PUBLIK_DEFAULT_BASE_URL, chatEvents, isLoopbackHost, kvSettingsStore, toApiError, type AiClient, type KvStore,
+  AiEngine, PUBLIK_DEFAULT_BASE_URL, chatEvents, isLoopbackHost, kvSettingsStore, toApiError, type AiClient, type KvStore, type PublikSignIn,
 } from '@jobleft/ai-engine';
 import { ApiFailure } from '../errors.ts';
 import type { ChatService } from '../interim/chats.ts';
@@ -16,7 +16,7 @@ export interface EngineConfig {
   secrets: ServerSecretStore;
   chats: ChatService;
   publikBaseUrl: string;
-  publikAppToken: string | null;
+  publikSignIn: PublikSignIn;
   offline: boolean;
   env: Record<string, string | undefined>;
   appVersion: string;
@@ -43,13 +43,10 @@ export class AiFacade {
       getJson: <T>(key: string) => cfg.kv.get<T>(`ai:${key}`),
       setJson: (key, value) => { if (value === null || value === undefined) cfg.kv.delete(`ai:${key}`); else cfg.kv.set(`ai:${key}`, value); },
     };
-    // Gate G-publik: until the owner approves a real app token, a non-loopback publik address gets no token.
-    let loopback = false;
-    try { loopback = isLoopbackHost(new URL(cfg.publikBaseUrl).hostname); } catch { loopback = false; }
-    const token = loopback || cfg.env.JOBLEFT_PUBLIK_ALLOW_LIVE === '1' ? cfg.publikAppToken : null;
+    // The key comes from Sign in with publik (cfg.publikSignIn: the publik module in the app, a memory one in tests).
     this.engine = new AiEngine({
       settings: kvSettingsStore(kv), secrets: cfg.secrets, state: kv, publikBaseUrl: cfg.publikBaseUrl || PUBLIK_DEFAULT_BASE_URL,
-      publikAppToken: token, env: { ...cfg.env, ...(cfg.offline ? { JOBLEFT_OFFLINE: '1' } : {}) }, appVersion: cfg.appVersion,
+      publikSignIn: cfg.publikSignIn, env: { ...cfg.env, ...(cfg.offline ? { JOBLEFT_OFFLINE: '1' } : {}) }, appVersion: cfg.appVersion,
     });
     this.chats = cfg.chats;
   }
