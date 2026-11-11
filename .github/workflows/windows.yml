@@ -19,9 +19,13 @@ on:
       release_tag:
         description: "Attach the installer to this existing release tag (optional)"
         required: false
+      installer_run_id:
+        description: "Replay only, against the jobleft-windows-setup artifact of this earlier run (skips the build; optional)"
+        required: false
 
 permissions:
   contents: write
+  actions: read # the replay may download the installer of an earlier run
 
 concurrency:
   group: windows-${{ github.ref }}
@@ -34,6 +38,7 @@ env:
 
 jobs:
   windows:
+    if: github.event.inputs.installer_run_id == ''
     runs-on: windows-latest
     timeout-minutes: 90
     outputs:
@@ -268,7 +273,7 @@ jobs:
   # installed app, on a first run (onboarding), then after a live crawl of 12 boards (every other surface).
   replay:
     needs: windows
-    if: always() && needs.windows.outputs.installer == 'true'
+    if: always() && (needs.windows.outputs.installer == 'true' || github.event.inputs.installer_run_id != '')
     runs-on: windows-latest
     timeout-minutes: 75
     steps:
@@ -300,6 +305,8 @@ jobs:
         with:
           name: jobleft-windows-setup
           path: setup
+          run-id: ${{ github.event.inputs.installer_run_id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Install the app and start it (12 starting boards)
         shell: pwsh
@@ -319,6 +326,7 @@ jobs:
           $env:JOBLEFT_PUBLIK_BASE_URL = 'http://127.0.0.1:47993/api/v1'
           Remove-Item "$env:LOCALAPPDATA\publik\apps\jobleft.json" -Force -ErrorAction SilentlyContinue
           $env:JOBLEFT_SEED_LIMIT = '12'
+          $env:JOBLEFT_LOG_LEVEL = 'debug' # the app's logs go into the artifact
           $p = Start-Process -FilePath $exe -PassThru
           $run = "$env:APPDATA\jobleft\run\server.json"
           $deadline = (Get-Date).AddSeconds(60)
@@ -327,6 +335,10 @@ jobs:
           $j = Get-Content $run | ConvertFrom-Json
           node qa/bin/publik-gate-pass.mjs --port $j.port --token $j.token --admin 'http://127.0.0.1:47993/__admin' --action own_key
           if ($LASTEXITCODE -ne 0) { throw "the sign-in gate did not pass" }
+          # Still in this step: is the app there 10 s after the gate passed? (It was gone by the next step on 2026-11-11.)
+          Start-Sleep -Seconds 10
+          "10 s after the gate: shell alive=$([bool](Get-Process -Id $p.Id -ErrorAction SilentlyContinue)) stand-in alive=$([bool](Get-Process -Id $standin.Id -ErrorAction SilentlyContinue))"
+          try { "10 s after the gate: health $((Invoke-WebRequest -Uri "http://127.0.0.1:$($j.port)/api/v1/health" -UseBasicParsing).StatusCode)" } catch { "10 s after the gate: health $($_.Exception.Message)" }
           "JOBLEFT_STANDIN_PID=$($standin.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "JOBLEFT_QA_URL=http://127.0.0.1:$($j.port)/#token=$($j.token)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "JOBLEFT_QA_API=http://127.0.0.1:$($j.port)/api/v1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
