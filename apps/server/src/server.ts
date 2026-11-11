@@ -26,7 +26,9 @@ import { HANDLERS, STREAMED_BODY, type Ctx, type Out } from './routes.ts';
 import { recoverInterruptedRestore } from './services/backup.ts';
 import { createSecretStore, type ServerSecretStore } from './services/secrets.ts';
 import { readRunFile, removeRunFile, writeRunFile, type RunInfo } from './runfile.ts';
-import { PUBLIK_DEFAULT_BASE_URL } from './interim/publik.ts';
+import { PUBLIK_DEFAULT_BASE_URL, type PublikSignIn } from '@jobleft/ai-engine';
+import { GATE_PATH, GATE_SCRIPT_PATH, type PublikGate } from './http/publik-gate.ts';
+import { provision, readCredential, setChoice } from './publik.ts';
 import { APP_VERSION } from './version.ts';
 
 export interface ServerOptions {
@@ -45,8 +47,33 @@ export interface ServerOptions {
   env?: Record<string, string | undefined>;
   /** Tests: the secret store (default: the macOS Keychain, or memory where there is none). */
   secrets?: ServerSecretStore;
+  /**
+   * Sign in with publik: where this computer's publik key comes from. Default: the publik module (src/publik.ts,
+   * the credential file every publik app shares). Tests pass a memory one, so no test reads or writes that file.
+   */
+  publikSignIn?: PublikSignIn;
+  /**
+   * The gate main.ts runs before the UI (ensureSignedIn from src/publik.ts). While it is pending, "/" serves the
+   * gate page and every API route but health, shutdown and the gate's own answers 503 not_ready.
+   */
+  publikGate?: PublikGate | null;
   /** Called when the server stops on its own (parent gone). main.ts exits the process. */
   onStop?: (reason: string) => void;
+}
+
+/** The publik module as the engine's sign-in: this computer's credential file, its choice, and provision(). */
+export function moduleSignIn(): PublikSignIn {
+  return {
+    credential() {
+      const c = readCredential();
+      return c ? { key: c.key, baseUrl: c.base_url, installId: c.install_id, claimUrl: c.claim_url, choice: c.choice ?? null } : null;
+    },
+    setChoice,
+    async provision() {
+      const c = await provision();
+      return { key: c.key, baseUrl: c.base_url, installId: c.install_id, claimUrl: c.claim_url, choice: c.choice ?? null };
+    },
+  };
 }
 
 export interface RunningServer {
@@ -133,8 +160,9 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const cfg: AppConfig = {
     home: opts.home, layout, launchToken: opts.launchToken, dev: opts.dev ?? false, offline: opts.offline ?? false,
     parentPid: opts.parentPid ?? null, uiDir, publikBaseUrl: env.JOBLEFT_PUBLIK_BASE_URL || PUBLIK_DEFAULT_BASE_URL,
-    publikAppToken: env.JOBLEFT_PUBLIK_APP_TOKEN || null, hostMap, env, log, secrets,
+    publikSignIn: opts.publikSignIn ?? moduleSignIn(), hostMap, env, log, secrets,
   };
+  const gate = opts.publikGate ?? null;
   const app = new App(cfg);
   let data;
   try {
@@ -218,7 +246,18 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
 
     if (!url.pathname.startsWith('/api/')) {
       if (extId) { sendError(req, res, new ApiFailure('forbidden_origin', 'Requests from other web pages are not allowed.')); return; }
+      // Sign in with publik: the gate's own paths (the app window only, with the launch token), and its page at "/"
+      // while the gate is pending.
+      if (gate && url.pathname === GATE_PATH) {
+        routeName = 'publikGate';
+        if (!tokenMatches(headerValue(req, LAUNCH_TOKEN_HEADER), launchDigest)) { sendError(req, res, new ApiFailure('unauthorized', 'This request needs the app\'s launch token.')); return; }
+        if (method === 'POST' && mediaType(req) !== 'application/json') { sendError(req, res, new ApiFailure('unsupported_media_type', 'This request needs a JSON body (content-type: application/json).')); return; }
+        await gate.handle(req, res, method);
+        return;
+      }
       if (method !== 'GET' && method !== 'HEAD') { sendError(req, res, new ApiFailure('not_found', 'There is nothing here.')); return; }
+      if (gate && url.pathname === GATE_SCRIPT_PATH) { gate.script(req, res); return; }
+      if (gate?.pending && (url.pathname === '/' || url.pathname === '/index.html')) { gate.page(req, res); return; }
       if (!site.serve(req, res, url.pathname)) sendError(req, res, new ApiFailure('not_found', 'There is nothing here.'));
       return;
     }
@@ -279,6 +318,12 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     if (extId) {
       // A paired extension (or one pairing) may read the answer: its own Origin only, never "*".
       res.setHeader('access-control-allow-origin', originHeader!);
+    }
+
+    // Sign in with publik first: until the gate has passed, no route but health and shutdown answers.
+    if (gate?.pending && m.name !== 'health' && m.name !== 'shutdown') {
+      sendError(req, res, new ApiFailure('not_ready', 'Sign in with publik first. jobleft is waiting for the sign-in in its window.', { retryAfterSeconds: 3 }));
+      return;
     }
 
     // 6. Media type of writes.

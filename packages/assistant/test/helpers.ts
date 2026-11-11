@@ -1,11 +1,12 @@
 // Test helpers: an assistant on an in-memory database, the stand-in world, an engine on memory stores, and stand-in servers.
-import { AiEngine, kvSettingsStore, memoryKvStore, memorySecretStore } from '@jobleft/ai-engine';
+import { AiEngine, kvSettingsStore, memoryKvStore, memoryPublikSignIn, memorySecretStore } from '@jobleft/ai-engine';
 import type { ChatRequest, ChatStreamEvent } from '@jobleft/contracts';
 import { Assistant, openAssistantDb } from '../src/index.ts';
 import { startScriptedModel, type Script, type ScriptedModelServer } from '../src/mock/scripted-model.ts';
 import { World } from '../src/standin/world.ts';
 import { demoData, scenarioExtras } from '../src/standin/persona.ts';
 import { startMockPublikServer, STANDIN_APP_TOKEN, type MockPublikOptions } from '../../ai-engine/src/mock/publik-server.ts';
+import { standInMint } from '../../ai-engine/test/helpers.ts';
 
 export interface Rig {
   assistant: Assistant;
@@ -20,7 +21,8 @@ export async function makeRig(opts: { script?: Script; extras?: boolean; env?: R
   const kv = memoryKvStore();
   const engine = new AiEngine({
     settings: kvSettingsStore(kv), secrets: memorySecretStore(), state: kv, env: opts.env ?? {},
-    publikBaseUrl: opts.publikBaseUrl ?? 'http://127.0.0.1:9/api/v1', publikAppToken: STANDIN_APP_TOKEN,
+    publikBaseUrl: opts.publikBaseUrl ?? 'http://127.0.0.1:9/api/v1',
+    publikSignIn: memoryPublikSignIn(null, standInMint(opts.publikBaseUrl ?? 'http://127.0.0.1:9/api/v1', STANDIN_APP_TOKEN)),
   });
   const upd = await engine.updateSettings({ provider: 'custom', baseUrl: model.url, model: 'scripted-model' });
   if (!upd.check.ok) throw new Error('the stand-in model failed its setup check: ' + upd.check.message);

@@ -16,11 +16,11 @@ export const CONNECT_PLACE = 'Settings > Balance';
 
 export const PUBLIK_FIRST = {
   title: 'AI runs on publik API',
-  body: 'No key needed. You pay per use from your publik balance. Linking your publik account gives $0.05 of free use, once.',
+  body: 'No key needed. You signed in with publik when jobleft started. Connect it, and you pay per use from your publik balance.',
   button: 'Connect publik',
   other: 'Use my own key or a local model',
   /** One line for the first setup step. */
-  setupLine: 'jobleft runs its AI on publik API. No key needed: you connect it in the last step.',
+  setupLine: 'jobleft runs its AI on publik API. No key needed: you signed in at start, and you connect it in the last step.',
   link: 'Finish linking on publikhq.com',
   linkBody: 'publik opened in your browser. Sign in there and link this computer. jobleft sees the link by itself, and AI is ready after it.',
   walletError: 'Could not load your publik balance',

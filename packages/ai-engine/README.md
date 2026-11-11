@@ -34,7 +34,7 @@ jl() { node packages/ai-engine/src/cli.ts "$@"; }        # a shell function; it 
 
 `jl help` lists every command. Each `jl` command is a new process, like a new start of the app.
 
-This build never contacts the live publik service. With a publik address that is not on 127.0.0.1, `publik connect` answers "Connecting to publik is not available in this build yet (it has no publik app token)" and sends nothing.
+This build never contacts the live publik service. The CLI signs in with the stand-in by itself (a memory sign-in minted at `POST /installs`); the packaged app signs in at start through the publik module (`apps/server/src/publik.ts`) and hands the engine that sign-in. With a publik address that is not on 127.0.0.1, `publik connect` answers "Connecting to publik is not available in this build yet (it has no publik app token)" and sends nothing.
 
 ## 3. Start the stand-ins
 
@@ -173,7 +173,7 @@ Link this computer & pick a plan: https://publikhq.com/claim/XXXX-XXXX
 jl use publik                        # Setup check: Works: publik is connected. Balance: $5.00. Model: publik-balanced.
 jl chat "Reply with the word ready"  # ... [done]  then  publik balance: $4.99
 jl status                            # publik: connected. Balance: $4.99 (read <time>)
-jl publik disconnect                 # the key is revoked at publik and deleted here
+jl publik disconnect                 # nothing spends the balance; the sign-in stays
 ```
 
 Tiers: `publik-fast`, `publik-balanced` (default) and `publik-smart` (`jl use publik --model publik-smart`). publik-smart needs a linked account; while the install is anonymous the check says so and gives the one link to link this computer. The setup check for publik spends nothing: it reads `/wallet` and `/models`.
@@ -189,7 +189,7 @@ The outcomes are in `docs/outcomes/ai-engine.md`. "jl" is the shell function fro
 | Outcome | How to see it with this package |
 |---|---|
 | O1 Chat works through every type | Sections 4.1 to 4.4. Each chat prints the active provider and model in brackets. The choice is saved in `$JOBLEFT_HOME/ai/state.json`; each `jl` command is a new process, so every command after the first is "after a restart". `jl providers` lists the options: there is no Claude subscription sign-in |
-| O2 publik connects with no key typed; disconnect stops spending | `jl publik connect`, `jl use publik`, `jl chat ...`, then `jl publik disconnect`. After that, `jl chat` and `jl json` answer "publik is not connected" and the publik stand-in log shows no new request. `grep -r pk_test_ "$JOBLEFT_HOME"` finds nothing. With the Keychain store: `security find-generic-password -a jobleft.publik.key -s <service>` finds nothing (service: see section 6) |
+| O2 publik connects with no key typed; disconnect stops spending | `jl publik connect`, `jl use publik`, `jl chat ...`, then `jl publik disconnect`. After that, `jl chat` and `jl json` answer "publik is not connected" and the publik stand-in log shows no new request. `grep -r pk_test_ "$JOBLEFT_HOME"` finds nothing: the sign-in key is not in the data folder (the app keeps it in the publik folder of the computer account; the CLI keeps it in memory) |
 | O3 The setup check names the real problem | `jl check` after each change: stop the stand-in (unreachable), `--key` or mode `refuse-key` (key refused), mode `model-not-found` (model does not exist), mode `html` (not an AI server), publik balance 0 (balance too low, with the one link). Each message is different and each check ends within 60 s |
 | O4 Every request ends; cancel works | Stopped server: a plain message at once (a host that does not answer: within 10 s). Mode `stall` or `stall-after-headers`: a plain message after 110 s of silence. Mode `slow`, then Ctrl-C during `jl chat`: it stops in well under 2 s, prints `[cancelled: the part above is incomplete]`, and the stand-in log shows "client closed the connection". Mode `half`: the partial answer stays, then `[incomplete: ...]` |
 | O5 Useful with no provider | `jl use none`, then `jl chat hi`: a plain "No AI provider is set up" message. The other features are in other packages |

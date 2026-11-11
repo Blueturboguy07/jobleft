@@ -231,10 +231,14 @@ try {
     const t6 = await p.eval('document.body.innerText');
     check('ai-step-offers-own-key', /own key|your key/i.test(t6), 'only publik and local model are offered');
     check('ai-step-has-back', await p.eval(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Back')`), 'no Back button on step 6');
-    await p.clickMatching('button', '^Continue with publik'); await sleep(2500);
+    const clicked6 = await p.clickMatching('button', '^Continue with publik'); await sleep(2500);
     const after6 = await p.eval('document.body.innerText');
     const h6 = await p.eval('location.hash');
-    check('publik-card-shows-terms-and-connect', /I have read this/i.test(after6) || /^#\/settings/.test(h6), `card went to ${h6} with no terms or connect button`);
+    const left6 = /I have read this/i.test(after6) || /^#\/settings/.test(h6);
+    // A failure says what the card did: whether the button was found and pressed, what the screen says now (an error
+    // from the save shows there), and a shot of it.
+    if (!left6) await p.shot(join(SHOTS, 'onb-after-publik.png'));
+    check('publik-card-shows-terms-and-connect', left6, `card went to ${h6} with no terms or connect button (button pressed: ${clicked6}; screen: ${after6.replace(/\s+/g, ' ').slice(0, 260)})`);
     // ---------- after onboarding: empty state ----------
     if (!/jobs/.test(await p.eval('location.hash'))) await p.eval(`location.hash = '#/jobs'`);
     await sleep(2000);

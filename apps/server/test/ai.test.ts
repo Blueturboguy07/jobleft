@@ -114,7 +114,7 @@ test('publik: no app token gives a plain message; with the stand-in the balance 
     assert.equal(ev.at(-1).error.link.url, 'https://publikhq.com/claim/stand-in');
     const d = await s.call('POST', '/api/v1/publik/disconnect');
     assert.equal(d.json.state, 'disconnected');
-    assert.ok(pub.log.some((e) => e.path === '/api/v1/installs/revoke'));
+    assert.ok(!pub.log.some((e) => e.path === '/api/v1/installs/revoke'), 'the sign-in stays: nothing is revoked');
     // Nothing identifying went to publik: no data-folder path, no persona.
     for (const e of pub.log) assert.ok(!e.body.includes(s.home) && !e.body.includes('Testwell'));
   } finally { await s.stop(); await pub.close(); cleanup(s.home); }

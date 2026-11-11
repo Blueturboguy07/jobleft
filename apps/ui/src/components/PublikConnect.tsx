@@ -12,7 +12,6 @@ import { invalidate, setCached } from '../app/data.ts';
 import { ui } from '../app/layers.ts';
 import { navigate } from '../app/router.ts';
 import { useAiSettings, usePublik } from '../app/session.ts';
-import { secureStoreText } from '../lib/format.ts';
 import { OTHER_PROVIDERS_ROUTE, PUBLIK_FIRST, linkUrl, publikStage } from '../lib/aiSetup.ts';
 import { WATCH_EVERY_MS, WATCH_MS, watchingBalance } from '../lib/publikWatch.ts';
 import { InlineError } from './States.tsx';
@@ -138,7 +137,7 @@ export function ConnectBody({ size = 'normal', showOther = false }: { size?: 'no
         <Button className="jl-accent-btn" type="primary" shape="round" loading={busy} onClick={() => { void connect(); }}>{PUBLIK_FIRST.button}</Button>
         {showOther && <Button size="small" type="link" style={{ padding: 0 }} onClick={() => navigate(OTHER_PROVIDERS_ROUTE)}>{PUBLIK_FIRST.other}</Button>}
       </div>
-      <p className="jl-small jl-muted" style={{ margin: 0 }}>Pressing {PUBLIK_FIRST.button} accepts the two lines above, connects this computer and opens publikhq.com, where you link it to your publik account. No key is typed: jobleft keeps the connection key in {secureStoreText()}.</p>
+      <p className="jl-small jl-muted" style={{ margin: 0 }}>Pressing {PUBLIK_FIRST.button} accepts the two lines above and makes publik pay for AI. You signed in with publik when jobleft started; if this computer is not linked yet, publikhq.com opens so you can link it. No key is typed: the sign-in key is in the publik folder of this computer account, shared by every publik app.</p>
       {switching && <p className="jl-small jl-muted" role="status" style={{ margin: 0 }}>Making publik your AI provider. jobleft is testing the connection; this can take a few seconds.</p>}
       <InlineError error={err} />
     </>

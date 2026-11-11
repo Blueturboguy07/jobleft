@@ -11,6 +11,11 @@
 //! - Quit (menu bar or Cmd-Q): SIGTERM to the server, wait up to 5 s, then exit. If the shell dies, the server sees
 //!   the parent pid gone and exits by itself.
 //!
+//! - Sign in with publik: the server (the publik module, `apps/server/src/publik.ts`) runs the gate as soon as it
+//!   listens, and serves its screens at `/` until the person is signed in; this shell opens the window as before.
+//!   `PUBLIK_SELF_TEST=1` (the builder's check): the sidecar prints the module's one line on this process's stdout
+//!   and the app exits with its code, before any window or data folder.
+//!
 //! Test hooks (env, never set by the app itself): `JOBLEFT_HOME` (data folder), `JOBLEFT_SHELL_NODE` and
 //! `JOBLEFT_SHELL_SERVER` (a node binary and a server tree outside the bundle), `JOBLEFT_SHELL_PROBE` (a JavaScript
 //! file to run in the window once it has loaded; whatever it puts in `document.title` after the prefix `PROBE:` is
@@ -199,6 +204,36 @@ fn spawn_server(app: &AppHandle, home: &Path, token: &str) -> Result<Child, Stri
         cmd.creation_flags(0x0800_0000);
     }
     cmd.spawn().map_err(|e| format!("could not start node: {e}"))
+}
+
+/// `PUBLIK_SELF_TEST=1`: the sidecar runs the publik module's self-test (one real GET /wallet) with this process's
+/// stdout and stderr, and its exit code is the app's. No window, no data folder.
+fn run_self_test(app: &AppHandle) -> i32 {
+    let (node, server, _ui) = match sidecar_paths(app) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("publik self-test: failed: {e}");
+            return 1;
+        }
+    };
+    let (node, server) = (plain(&node), plain(&server));
+    let mut cmd = Command::new(&node);
+    cmd.arg(server.join("src/main.js"))
+        .current_dir(&server)
+        .env_remove("JOBLEFT_PORT")
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    if let Some(tok) = publik_app_token(app) {
+        cmd.env("JOBLEFT_PUBLIK_APP_TOKEN", tok).env("JOBLEFT_PUBLIK_ALLOW_LIVE", "1");
+    }
+    match cmd.status() {
+        Ok(s) => s.code().unwrap_or(1),
+        Err(e) => {
+            eprintln!("publik self-test: failed: could not start node: {e}");
+            1
+        }
+    }
 }
 
 /// Waits for `run/server.json` and a healthy `GET /api/v1/health`. Returns the port.
@@ -416,6 +451,9 @@ pub fn run() {
         .setup(move |app| {
             let handle = app.handle().clone();
             let shell = handle.state::<Shell>();
+            if std::env::var("PUBLIK_SELF_TEST").map(|v| !v.trim().is_empty()).unwrap_or(false) {
+                std::process::exit(run_self_test(&handle));
+            }
             fs::create_dir_all(shell.home.join("run")).ok();
 
             // 1. The server sidecar, then the window only once the server answers.

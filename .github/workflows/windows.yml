@@ -3,6 +3,9 @@
 # workflow_dispatch with a tag, the installer is attached to that release, but only when the release has no installer
 # of that name yet: a file that is already on a release is never replaced (a release can be made with checked files
 # first, see publik-build.yml). No secrets beyond the public app token.
+# The packaged app starts with Sign in with publik (the publik module's gate): every step that starts it points the
+# gate at the repo's publik stand-in on the runner (PUBLIK_ORIGIN), and passes the gate with qa/bin/publik-gate-pass.mjs.
+# Nothing reaches publikhq.com.
 name: windows
 
 on:
@@ -16,9 +19,13 @@ on:
       release_tag:
         description: "Attach the installer to this existing release tag (optional)"
         required: false
+      installer_run_id:
+        description: "Replay only, against the jobleft-windows-setup artifact of this earlier run (skips the build; optional)"
+        required: false
 
 permissions:
   contents: write
+  actions: read # the replay may download the installer of an earlier run
 
 concurrency:
   group: windows-${{ github.ref }}
@@ -31,6 +38,7 @@ env:
 
 jobs:
   windows:
+    if: github.event.inputs.installer_run_id == ''
     runs-on: windows-latest
     timeout-minutes: 90
     outputs:
@@ -118,6 +126,8 @@ jobs:
       - name: "Smoke: install, start, health, stop"
         id: smoke
         shell: pwsh
+        env:
+          JOBLEFT_PUBLIK_APP_TOKEN: ${{ secrets.PUBLIK_APP_TOKEN }} # the stand-in accepts the token the app ships with
         run: |
           $setup = Get-ChildItem -Path apps/shell/src-tauri/target/release/bundle/nsis -Filter '*.exe' | Select-Object -First 1
           "installer: $($setup.Name) ($([math]::Round($setup.Length/1MB)) MB)"
@@ -125,6 +135,12 @@ jobs:
           $exe = "$env:LOCALAPPDATA\jobleft\jobleft.exe"
           if (-not (Test-Path $exe)) { $exe = (Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Recurse -Filter 'jobleft.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
           "installed at: $exe"
+          # The app signs in with publik at start: a stand-in on the runner takes that (health answers behind the gate).
+          $standin = Start-Process -FilePath node -ArgumentList 'qa/bin/publik-standin.mjs','47990' -PassThru -RedirectStandardOutput standin0.out -RedirectStandardError standin0.err
+          Start-Sleep -Seconds 3
+          "stand-in: $(Get-Content standin0.out -ErrorAction SilentlyContinue) $(Get-Content standin0.err -ErrorAction SilentlyContinue)"
+          $env:PUBLIK_ORIGIN = 'http://127.0.0.1:47990'
+          $env:JOBLEFT_PUBLIK_BASE_URL = 'http://127.0.0.1:47990/api/v1'
           $env:JOBLEFT_AUTO_CRAWL = '0'
           $env:JOBLEFT_SEED_BOARDS = 'none'
           $p = Start-Process -FilePath $exe -PassThru
@@ -149,11 +165,14 @@ jobs:
           if ($alive) { throw "server still running after shutdown" }
           "server stopped cleanly; run file gone: $(-not (Test-Path $run))"
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Stop-Process -Id $standin.Id -Force -ErrorAction SilentlyContinue
+          Remove-Item "$env:LOCALAPPDATA\publik\apps\jobleft.json" -Force -ErrorAction SilentlyContinue
 
       # The two defects behind "linked to publik, but the plan is never used" on Windows (0.1.3): the publik key died
-      # with the local service (keys lived in memory off macOS), and a link made on publikhq.com never showed up
-      # without a click. Against the repo's own publik stand-in (nothing reaches publikhq.com): connect, link at the
-      # stand-in, read the balance with no click, quit, start the installed app again: still connected, ONE install.
+      # with the local service, and plan money that arrived on publikhq.com never showed up without a click. Against the
+      # repo's own publik stand-in (nothing reaches publikhq.com): sign in at the gate (the person has a plan: "Connect
+      # your plan"), read a top-up with no click, quit, start the installed app again: the stored answer passes the gate
+      # with no click, still connected, ONE install.
       - name: "Smoke: the publik connection survives a restart"
         id: restart
         continue-on-error: true # the verdict comes at the end, like the suites': the installer and the replay still run
@@ -170,7 +189,9 @@ jobs:
           if (-not (Test-Path $exe)) { $exe = (Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Recurse -Filter 'jobleft.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
           $env:JOBLEFT_AUTO_CRAWL = '0'
           $env:JOBLEFT_SEED_BOARDS = 'none'
+          $env:PUBLIK_ORIGIN = 'http://127.0.0.1:47991'
           $env:JOBLEFT_PUBLIK_BASE_URL = 'http://127.0.0.1:47991/api/v1'
+          Remove-Item "$env:LOCALAPPDATA\publik\apps\jobleft.json" -Force -ErrorAction SilentlyContinue
           $run = "$env:APPDATA\jobleft\run\server.json"
           function Start-App {
             $p = Start-Process -FilePath $exe -PassThru
@@ -186,29 +207,37 @@ jobs:
             Stop-Process -Id $a.app.Id -Force -ErrorAction SilentlyContinue
             Remove-Item $run -Force -ErrorAction SilentlyContinue
           }
+          # The person has a plan (the stand-in holds $8.05) and signs in in the browser: the gate says Connect your plan.
+          Invoke-RestMethod -Method Post -Uri "$admin/add" -ContentType 'application/json' -Body '{"usd":8.05}' | Out-Null
           $a = Start-App
           $h = @{ 'x-jobleft-token' = $a.token }
-          $c = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$($a.port)/api/v1/publik/connect" -Headers $h -ContentType 'application/json' -Body '{"disclosureAccepted":true,"disclosureVersion":1}'
-          "connect: state=$($c.state) claim=$($c.wallet.claimState) balance=$($c.wallet.balanceMicros)"
-          if ($c.state -ne 'connected') { Stop-App $a; Stop-Process -Id $standin.Id -Force -ErrorAction SilentlyContinue; throw "Connect did not connect (state=$($c.state))" }
-          # The person links the computer on publikhq.com and the plan money arrives: the app shows it with no click.
-          Invoke-RestMethod -Method Post -Uri "$admin/claim" -ContentType 'application/json' -Body '{}' | Out-Null
-          Invoke-RestMethod -Method Post -Uri "$admin/add" -ContentType 'application/json' -Body '{"usd":8.05}' | Out-Null
-          Start-Sleep -Seconds 6
+          node qa/bin/publik-gate-pass.mjs --port $a.port --token $a.token --admin $admin --action connect
+          if ($LASTEXITCODE -ne 0) { Stop-App $a; Stop-Process -Id $standin.Id -Force -ErrorAction SilentlyContinue; throw "the sign-in gate did not pass" }
+          $c = Invoke-RestMethod -Uri "http://127.0.0.1:$($a.port)/api/v1/publik" -Headers $h
+          "after the gate: state=$($c.state) claim=$($c.wallet.claimState) balance=$($c.wallet.balanceMicros)"
+          if ($c.state -ne 'connected') { Stop-App $a; Stop-Process -Id $standin.Id -Force -ErrorAction SilentlyContinue; throw "Connect your plan did not connect (state=$($c.state))" }
+          # More plan money arrives on publikhq.com: the app shows it with no click (it reads the balance again after 20 s).
+          Invoke-RestMethod -Method Post -Uri "$admin/add" -ContentType 'application/json' -Body '{"usd":1}' | Out-Null
+          Start-Sleep -Seconds 22
           $w = Invoke-RestMethod -Uri "http://127.0.0.1:$($a.port)/api/v1/publik" -Headers $h
-          "after the web link, no click: claim=$($w.wallet.claimState) balance=$($w.wallet.balanceMicros)"
+          "after the web top-up, no click: claim=$($w.wallet.claimState) balance=$($w.wallet.balanceMicros)"
           Stop-App $a
-          # Quit and start again (a reboot, an update and a slow first start do the same): still connected, one install.
+          # Quit and start again (a reboot, an update and a slow first start do the same): the stored answer passes the
+          # gate with no click; still connected, one install.
           $b = Start-App
           $h = @{ 'x-jobleft-token' = $b.token }
+          node qa/bin/publik-gate-pass.mjs --port $b.port --token $b.token --wait-s 30
+          if ($LASTEXITCODE -ne 0) { Stop-App $b; Stop-Process -Id $standin.Id -Force -ErrorAction SilentlyContinue; throw "the gate asked again after a restart" }
           $s = Invoke-RestMethod -Uri "http://127.0.0.1:$($b.port)/api/v1/publik" -Headers $h
           "after a restart: state=$($s.state) claim=$($s.wallet.claimState) balance=$($s.wallet.balanceMicros)"
           $st = Invoke-RestMethod -Method Post -Uri "$admin/price" -ContentType 'application/json' -Body '{"usd":0.01}'
           "stand-in installs minted: $($st.keys)"
           Stop-App $b
           Stop-Process -Id $standin.Id -Force -ErrorAction SilentlyContinue
-          if ($w.wallet.claimState -ne 'claimed' -or $w.wallet.balanceMicros -ne 8050000) { throw "the balance screen did not see the web link without a click (claim=$($w.wallet.claimState) balance=$($w.wallet.balanceMicros))" }
-          if ($s.state -ne 'connected') { throw "the publik connection did not survive a restart (state=$($s.state)): the key was not kept" }
+          Remove-Item "$env:LOCALAPPDATA\publik\apps\jobleft.json" -Force -ErrorAction SilentlyContinue
+          if ($c.wallet.claimState -ne 'claimed' -or $c.wallet.balanceMicros -ne 8050000) { throw "Connect your plan did not show the plan (claim=$($c.wallet.claimState) balance=$($c.wallet.balanceMicros))" }
+          if ($w.wallet.balanceMicros -ne 9050000) { throw "the balance screen did not see the web top-up without a click (balance=$($w.wallet.balanceMicros))" }
+          if ($s.state -ne 'connected') { throw "the publik connection did not survive a restart (state=$($s.state)): the sign-in was not kept" }
           if ($st.keys -ne 1) { throw "a second publik install was minted after the restart (installs: $($st.keys))" }
 
       - name: Keep the installer
@@ -244,7 +273,7 @@ jobs:
   # installed app, on a first run (onboarding), then after a live crawl of 12 boards (every other surface).
   replay:
     needs: windows
-    if: always() && needs.windows.outputs.installer == 'true'
+    if: always() && (needs.windows.outputs.installer == 'true' || github.event.inputs.installer_run_id != '')
     runs-on: windows-latest
     timeout-minutes: 75
     steps:
@@ -276,22 +305,43 @@ jobs:
         with:
           name: jobleft-windows-setup
           path: setup
+          run-id: ${{ github.event.inputs.installer_run_id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Install the app and start it (12 starting boards)
         shell: pwsh
+        env:
+          JOBLEFT_PUBLIK_APP_TOKEN: ${{ secrets.PUBLIK_APP_TOKEN }} # the stand-in accepts the token the app ships with
         run: |
           $setup = Get-ChildItem -Path setup -Filter '*.exe' | Select-Object -First 1
           Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait
           $exe = "$env:LOCALAPPDATA\jobleft\jobleft.exe"
           if (-not (Test-Path $exe)) { $exe = (Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Recurse -Filter 'jobleft.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
           "installed at: $exe"
+          # Sign in with publik at the stand-in (nothing reaches publikhq.com); the scenarios then connect publik themselves.
+          # The stand-in gets its own hidden console (no output redirection): a console process that shares this step's
+          # console outlives the step, and the runner then ends every process the step started, the app included.
+          $standin = Start-Process -FilePath node -ArgumentList 'qa/bin/publik-standin.mjs','47993' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 3
+          try { "stand-in: $((Invoke-WebRequest -Uri 'http://127.0.0.1:47993/__admin/log' -UseBasicParsing).StatusCode) on 47993" } catch { "stand-in: $($_.Exception.Message)" }
+          $env:PUBLIK_ORIGIN = 'http://127.0.0.1:47993'
+          $env:JOBLEFT_PUBLIK_BASE_URL = 'http://127.0.0.1:47993/api/v1'
+          Remove-Item "$env:LOCALAPPDATA\publik\apps\jobleft.json" -Force -ErrorAction SilentlyContinue
           $env:JOBLEFT_SEED_LIMIT = '12'
+          $env:JOBLEFT_LOG_LEVEL = 'debug' # the app's logs go into the artifact
           $p = Start-Process -FilePath $exe -PassThru
           $run = "$env:APPDATA\jobleft\run\server.json"
           $deadline = (Get-Date).AddSeconds(60)
           while (-not (Test-Path $run) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
           if (-not (Test-Path $run)) { Get-Content "$env:APPDATA\jobleft\logs\sidecar.log" -ErrorAction SilentlyContinue | Select-Object -Last 30; throw "no run/server.json after 60 s" }
           $j = Get-Content $run | ConvertFrom-Json
+          node qa/bin/publik-gate-pass.mjs --port $j.port --token $j.token --admin 'http://127.0.0.1:47993/__admin' --action own_key
+          if ($LASTEXITCODE -ne 0) { throw "the sign-in gate did not pass" }
+          # Still in this step: is the app there 10 s after the gate passed? (It was gone by the next step on 2026-11-11.)
+          Start-Sleep -Seconds 10
+          "10 s after the gate: shell alive=$([bool](Get-Process -Id $p.Id -ErrorAction SilentlyContinue)) stand-in alive=$([bool](Get-Process -Id $standin.Id -ErrorAction SilentlyContinue))"
+          try { "10 s after the gate: health $((Invoke-WebRequest -Uri "http://127.0.0.1:$($j.port)/api/v1/health" -UseBasicParsing).StatusCode)" } catch { "10 s after the gate: health $($_.Exception.Message)" }
+          "JOBLEFT_STANDIN_PID=$($standin.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "JOBLEFT_QA_URL=http://127.0.0.1:$($j.port)/#token=$($j.token)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "JOBLEFT_QA_API=http://127.0.0.1:$($j.port)/api/v1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "JOBLEFT_QA_TOKEN=$($j.token)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
@@ -307,6 +357,26 @@ jobs:
           JOBLEFT_QA_STATE: fresh
         run: node qa/bin/run-all.mjs onboarding
 
+      # What the app did around the sign-in and the first run: whether the shell, the local service and the stand-in
+      # are still there, and the tails of the app's own logs (the scenarios above only see the HTTP side).
+      - name: App state after the first run
+        if: always()
+        shell: pwsh
+        run: |
+          "shell pid $env:JOBLEFT_APP_PID alive: $([bool](Get-Process -Id $env:JOBLEFT_APP_PID -ErrorAction SilentlyContinue))"
+          "stand-in pid $env:JOBLEFT_STANDIN_PID alive: $([bool](Get-Process -Id $env:JOBLEFT_STANDIN_PID -ErrorAction SilentlyContinue))"
+          "run/server.json present: $(Test-Path "$env:APPDATA\jobleft\run\server.json")"
+          try { "health: $((Invoke-WebRequest -Uri "$env:JOBLEFT_QA_API/health" -UseBasicParsing).StatusCode)" } catch { "health: $($_.Exception.Message)" }
+          Get-Process -Name jobleft,node -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,StartTime | Format-Table | Out-String
+          "--- logs/sidecar.log (last 80 lines)"
+          Get-Content "$env:APPDATA\jobleft\logs\sidecar.log" -Tail 80 -ErrorAction SilentlyContinue
+          "--- logs/server.log (last 80 lines)"
+          Get-Content "$env:APPDATA\jobleft\logs\server.log" -Tail 80 -ErrorAction SilentlyContinue
+          "--- logs/server.log: every profile or setup write, every refused request, every warning"
+          Select-String -Path "$env:APPDATA\jobleft\logs\server.log" -Pattern 'putOnboarding|putProfile|status=[45]\d\d| warn | error |publik' -ErrorAction SilentlyContinue | ForEach-Object { $_.Line } | Select-Object -Last 120
+          "--- stand-in"
+          Get-Content standin.out,standin.err -ErrorAction SilentlyContinue
+
       - name: Jobs from live boards
         id: crawl
         continue-on-error: true
@@ -319,15 +389,21 @@ jobs:
           JOBLEFT_QA_STATE: golden
         run: node qa/bin/run-all.mjs feed tracker resume network settings extension
 
+      # The logs are copied under qa/shots first: upload-artifact refuses two roots (the workspace and the profile).
+      - name: Collect the app's logs
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path qa/shots/app-logs | Out-Null
+          Copy-Item "$env:APPDATA\jobleft\logs\*" qa/shots/app-logs -ErrorAction SilentlyContinue
+
       - name: Keep the screenshots and the app's logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jobleft-windows-replay
           if-no-files-found: ignore
-          path: |
-            qa/shots
-            ~/AppData/Roaming/jobleft/logs
+          path: qa/shots
 
       - name: Stop the app
         if: always()
@@ -336,6 +412,7 @@ jobs:
           try { Invoke-RestMethod -Method Post -Uri "$env:JOBLEFT_QA_API/shutdown" -Headers @{ 'x-jobleft-token' = $env:JOBLEFT_QA_TOKEN } -ContentType 'application/json' -Body '{}' | Out-Null } catch { "shutdown route: $_" }
           Start-Sleep -Seconds 3
           if ($env:JOBLEFT_APP_PID) { Stop-Process -Id $env:JOBLEFT_APP_PID -Force -ErrorAction SilentlyContinue }
+          if ($env:JOBLEFT_STANDIN_PID) { Stop-Process -Id $env:JOBLEFT_STANDIN_PID -Force -ErrorAction SilentlyContinue }
 
       - name: Result
         if: steps.onboarding.outcome == 'failure' || steps.crawl.outcome == 'failure' || steps.rest.outcome == 'failure'

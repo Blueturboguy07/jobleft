@@ -3,10 +3,12 @@
 // header (fetch() refuses to set Host and Origin).
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { PublikSignIn, PublikSignInCredential } from '@jobleft/ai-engine';
 import { memorySecrets, newLaunchToken, startServer, type RunningServer, type ServerOptions } from '../src/index.ts';
 import { tmpdir } from 'node:os';
 // Scratch folders: /private/tmp on macOS (short paths, no symlink games), the system temp folder elsewhere (Windows).
@@ -50,13 +52,49 @@ export interface TestServer {
   stop(): Promise<void>;
 }
 
-export async function startTest(tag: string, extra: { home?: string; env?: Record<string, string>; dev?: boolean; offline?: boolean; secrets?: ServerOptions['secrets'] } = {}): Promise<TestServer> {
+/**
+ * Sign in with publik, as a test does it: the publik module's credential file is this computer's and no test may
+ * touch it, so a test server keeps its credential next to its scratch data folder (<home>.publik-signin.json: it
+ * survives a restart on the same folder, like the real file). provision() stands in for the module's: POST /installs
+ * at the stand-in, only with an app token and a loopback publik address (the old gate G-publik rule, kept for the
+ * tests that check it).
+ */
+export function testPublikSignIn(home: string, env: Record<string, string | undefined>): PublikSignIn {
+  const file = `${home}.publik-signin.json`;
+  const read = (): PublikSignInCredential | null => { try { return JSON.parse(readFileSync(file, 'utf8')) as PublikSignInCredential; } catch { return null; } };
+  const write = (c: PublikSignInCredential) => writeFileSync(file, JSON.stringify(c), { mode: 0o600 });
+  return {
+    credential: read,
+    setChoice(choice) { const c = read(); if (c) write({ ...c, choice }); },
+    async provision() {
+      const base = (env.JOBLEFT_PUBLIK_BASE_URL ?? '').replace(/\/+$/, '');
+      const token = env.JOBLEFT_PUBLIK_APP_TOKEN;
+      let loopback = false;
+      try { loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(base).hostname); } catch { loopback = false; }
+      if (!token || !loopback) throw new Error('Connecting to publik is not available in this build yet (it has no publik app token). Choose a local model or your own key instead.');
+      const installId = randomUUID();
+      const res = await fetch(`${base}/installs`, {
+        method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ app_token: token, app_slug: 'jobleft', app_version: '0.0.0-test', os: 'macos', install_id: installId, disclosure_version: 1, dialects: ['chat_completions'] }),
+      });
+      const body = (await res.json().catch(() => ({}))) as Record<string, any>;
+      if (res.status !== 201 || typeof body.key !== 'string') throw new Error(body.error?.message ?? `publik did not accept this build (HTTP ${res.status}).`);
+      const c: PublikSignInCredential = { key: body.key, baseUrl: typeof body.base_url === 'string' ? body.base_url : base, installId: body.install_id ?? installId, claimUrl: body.claim_url ?? null, choice: null };
+      write(c);
+      return c;
+    },
+  };
+}
+
+export async function startTest(tag: string, extra: { home?: string; env?: Record<string, string>; dev?: boolean; offline?: boolean; secrets?: ServerOptions['secrets']; publikSignIn?: PublikSignIn } = {}): Promise<TestServer> {
   const home = extra.home ?? scratchHome(tag);
   const token = newLaunchToken();
+  const env = { JOBLEFT_LOG_LEVEL: 'debug', JOBLEFT_AUTO_CRAWL: '0', ...(extra.env ?? {}) };
   const server = await startServer({
     home, launchToken: token, secrets: extra.secrets ?? memorySecrets(), dev: extra.dev ?? true, offline: extra.offline ?? false,
+    publikSignIn: extra.publikSignIn ?? testPublikSignIn(home, env),
     // No crawl of real employer boards starts on its own in a test (a test that wants one passes JOBLEFT_AUTO_CRAWL: '1' with its own host map).
-    env: { JOBLEFT_LOG_LEVEL: 'debug', JOBLEFT_AUTO_CRAWL: '0', ...(extra.env ?? {}) },
+    env,
   });
   const port = server.port;
   return {
@@ -76,6 +114,7 @@ export async function startTest(tag: string, extra: { home?: string; env?: Recor
 
 export function cleanup(home: string): void {
   rmSync(home, { recursive: true, force: true });
+  rmSync(`${home}.publik-signin.json`, { force: true });
 }
 
 /** The smallest environment a child Node process needs: PATH, plus what Windows cannot run without (SystemRoot, temp, profile). */

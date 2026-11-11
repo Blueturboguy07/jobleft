@@ -323,7 +323,7 @@ export const LOCAL_API = {
   cancelAi: route({ method: 'POST', path: '/api/v1/ai/requests/:requestId/cancel', auth: 'launch', owner: 'ai-engine', summary: 'Cancel a running AI request (stops upstream too)', response: obj({ cancelled: bool() }) }),
   getPublik: route({ method: 'GET', path: '/api/v1/publik', auth: 'launch', owner: 'ai-engine', summary: 'publik connection and balance', response: PublikConnectionSchema }),
   connectPublik: route({ method: 'POST', path: '/api/v1/publik/connect', auth: 'launch', owner: 'ai-engine', summary: 'Connect after the disclosure (no key is typed)', body: obj({ disclosureAccepted: lit(true), disclosureVersion: int({ minimum: 1 }) }), response: PublikConnectionSchema }),
-  disconnectPublik: route({ method: 'POST', path: '/api/v1/publik/disconnect', auth: 'launch', owner: 'ai-engine', summary: 'Disconnect: the key is deleted and nothing spends the balance', response: PublikConnectionSchema }),
+  disconnectPublik: route({ method: 'POST', path: '/api/v1/publik/disconnect', auth: 'launch', owner: 'ai-engine', summary: 'Disconnect: nothing spends the balance; the sign-in stays', response: PublikConnectionSchema }),
   refreshPublik: route({ method: 'POST', path: '/api/v1/publik/refresh', auth: 'launch', owner: 'ai-engine', summary: 'Read the balance again', response: PublikConnectionSchema }),
 
   // ---- extension
