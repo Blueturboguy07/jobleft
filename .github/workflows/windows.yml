@@ -319,9 +319,11 @@ jobs:
           if (-not (Test-Path $exe)) { $exe = (Get-ChildItem -Path "$env:LOCALAPPDATA","$env:ProgramFiles" -Recurse -Filter 'jobleft.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
           "installed at: $exe"
           # Sign in with publik at the stand-in (nothing reaches publikhq.com); the scenarios then connect publik themselves.
-          $standin = Start-Process -FilePath node -ArgumentList 'qa/bin/publik-standin.mjs','47993' -PassThru -RedirectStandardOutput standin.out -RedirectStandardError standin.err
+          # The stand-in gets its own hidden console (no output redirection): a console process that shares this step's
+          # console outlives the step, and the runner then ends every process the step started, the app included.
+          $standin = Start-Process -FilePath node -ArgumentList 'qa/bin/publik-standin.mjs','47993' -PassThru -WindowStyle Hidden
           Start-Sleep -Seconds 3
-          "stand-in: $(Get-Content standin.out -ErrorAction SilentlyContinue) $(Get-Content standin.err -ErrorAction SilentlyContinue)"
+          try { "stand-in: $((Invoke-WebRequest -Uri 'http://127.0.0.1:47993/__admin/log' -UseBasicParsing).StatusCode) on 47993" } catch { "stand-in: $($_.Exception.Message)" }
           $env:PUBLIK_ORIGIN = 'http://127.0.0.1:47993'
           $env:JOBLEFT_PUBLIK_BASE_URL = 'http://127.0.0.1:47993/api/v1'
           Remove-Item "$env:LOCALAPPDATA\publik\apps\jobleft.json" -Force -ErrorAction SilentlyContinue
@@ -392,7 +394,6 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path qa/shots/app-logs | Out-Null
           Copy-Item "$env:APPDATA\jobleft\logs\*" qa/shots/app-logs -ErrorAction SilentlyContinue
-          Copy-Item standin.out,standin.err qa/shots/app-logs -ErrorAction SilentlyContinue
 
       - name: Keep the screenshots and the app's logs
         if: always()
