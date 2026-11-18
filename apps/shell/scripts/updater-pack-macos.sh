@@ -54,7 +54,7 @@ rm -f "$TARBALL" "$TARBALL.sig"
 COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs -czf "$TARBALL" -C "$(dirname "$APP")" "$(basename "$APP")"
 if tar -tzf "$TARBALL" | grep -q '/\._'; then echo "AppleDouble files in $TARBALL" >&2; exit 1; fi
 
-"${TAURI[@]}" signer sign --app-version "$VERSION" "$TARBALL" >/dev/null
+"${TAURI[@]}" signer sign --app-version "$VERSION" "$TARBALL" < /dev/null >/dev/null
 [ -s "$TARBALL.sig" ] || { echo "No signature was written for $TARBALL" >&2; exit 1; }
 echo "Update bundle: $TARBALL"
 echo "Signature:     $TARBALL.sig (version $VERSION)"

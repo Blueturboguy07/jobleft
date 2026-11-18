@@ -90,14 +90,15 @@ if ($LASTEXITCODE -ne 0) { throw "updater-latest-json refused the N+1 installer"
 & node "$ShellDir\scripts\updater-latest-json.mjs" --version $vN1 --base-url "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$vN1/" --platform "windows-x86_64=$Feed\$pkg" --notes "updater proof" --out "$Out\latest-release-form.json"
 $rel = Get-Content "$Out\latest-release-form.json" -Raw | ConvertFrom-Json
 Check "release feed has the absolute GitHub asset URL" ($rel.platforms.'windows-x86_64'.url -eq "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$vN1/$pkg") "$($rel.platforms.'windows-x86_64'.url)"
-# A signature over the same installer from another key.
+# A signature over the same installer from another key. The throwaway key has a password, given on the command line:
+# without one, Tauri CLI 2.11 waits for a password prompt (the first run of this proof hung there).
 $other = Join-Path $env:RUNNER_TEMP "other"
 New-Item -ItemType Directory -Force $other | Out-Null
-& node $cliJs signer generate --ci -w "$other\other.key" | Out-Null
+$null | & node $cliJs signer generate --ci -w "$other\other.key" -p proof-other | Out-Null
 Copy-Item $N1 "$other\$pkg"
 $savedKey = $env:TAURI_SIGNING_PRIVATE_KEY; $savedPw = $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY, Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD -ErrorAction SilentlyContinue
-& node $cliJs signer sign -f "$other\other.key" --app-version $vN1 "$other\$pkg" | Out-Null
+$null | & node $cliJs signer sign -f "$other\other.key" -p proof-other --app-version $vN1 "$other\$pkg" | Out-Null
 $env:TAURI_SIGNING_PRIVATE_KEY = $savedKey; $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = $savedPw
 if (-not (Test-Path "$other\$pkg.sig")) { throw "no foreign signature was made" }
 & node "$ShellDir\test\updater\make-feeds.mjs" $Feed windows-x86_64 $pkg "$other\$pkg.sig"

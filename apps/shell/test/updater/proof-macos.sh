@@ -155,10 +155,11 @@ node "$SHELL_DIR/scripts/updater-latest-json.mjs" --version "$N1" --base-url "ht
   --platform "darwin-aarch64=$FEED/$PKG" --notes "updater proof" --out "$OUT/latest-release-form.json"
 check "release feed has the absolute GitHub asset URL" "$(jfield "$OUT/latest-release-form.json" version)" \
   grep -q "\"url\": \"https://github.com/${GITHUB_REPOSITORY:-owner/repo}/releases/download/v$N1/$PKG\"" "$OUT/latest-release-form.json"
-# A signature over the same bundle from another key.
-node "$CLI_JS" signer generate --ci -w "$WORK/other.key" -p "" >/dev/null 2>&1
+# A signature over the same bundle from another key. The throwaway key has a password, given on the command line:
+# without one, Tauri CLI 2.11 waits for a password prompt.
+node "$CLI_JS" signer generate --ci -w "$WORK/other.key" -p proof-other < /dev/null >/dev/null 2>&1
 cp "$FEED/$PKG" "$WORK/$PKG"
-env -u TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD= node "$CLI_JS" signer sign -f "$WORK/other.key" --app-version "$N1" "$WORK/$PKG" >/dev/null
+env -u TAURI_SIGNING_PRIVATE_KEY -u TAURI_SIGNING_PRIVATE_KEY_PASSWORD node "$CLI_JS" signer sign -f "$WORK/other.key" -p proof-other --app-version "$N1" "$WORK/$PKG" < /dev/null >/dev/null
 node "$SHELL_DIR/test/updater/make-feeds.mjs" "$FEED" darwin-aarch64 "$PKG" "$WORK/$PKG.sig"
 cp "$FEED"/latest-*.json "$OUT/"
 
