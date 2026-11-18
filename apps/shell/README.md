@@ -9,10 +9,14 @@ What the shell does, in order: make a launch token; start `node src/main.js` fro
 `JOBLEFT_HOME`, `JOBLEFT_LAUNCH_TOKEN`, `JOBLEFT_PARENT_PID` and `JOBLEFT_UI_DIR`; wait for `run/server.json` and a
 healthy `GET /api/v1/health` (15 s at most); only then open the window. No blank page and no "starting" page exist.
 Closing the window hides it; the menu bar item offers **Open jobleft**, **Check for jobs now**, **Pause checks /
-Continue checks**, the time of the last check, and **Quit jobleft**. Every minute it reads `GET /api/v1/notifications`,
+Continue checks**, the time of the last check, **Check for Updates…** and **Quit jobleft**. Every minute it reads `GET /api/v1/notifications`,
 shows each one through Notification Center and acks it. Quit (menu, Cmd-Q, SIGTERM or Ctrl-C) sends SIGTERM to the
 server and waits up to 5 s; if the shell dies, the server sees the parent pid gone and exits by itself. A second launch
 brings the first window forward.
+
+Updates: the shell checks for a signed update 10 s after launch and once a day (`src-tauri/src/updates.rs`). The
+package must verify against the publik update key in `tauri.conf.json`. Before the new version takes over, the local
+service stops. See [docs/updates.md](../../docs/updates.md) for the release steps and the proof.
 
 Data lives in `~/Library/Application Support/jobleft` (or `JOBLEFT_HOME`). The shell writes `run/shell.json`
 (`{ pid, port, windowShown, at }`) while it runs and `logs/sidecar.log` (the server's stdout and stderr).
@@ -53,7 +57,8 @@ The same shell builds on Windows (`cfg(windows)` branches in `src/lib.rs`): the 
 toasts through the notification plugin, and the installer is NSIS per user (`installMode: currentUser`; WebView2 is
 fetched by the bootstrapper when a machine lacks it). `.github/workflows/windows.yml` runs the tests on windows-latest,
 builds the installer (`pack.ts --target win-x64`, `tauri build --bundles nsis`), installs it silently, starts the app,
-checks health, stops it through the shutdown route, and attaches `jobleft_<version>_x64-setup.exe` to a release.
+checks health, stops it through the shutdown route, and attaches `jobleft_<version>_x64-setup.exe` and its updater
+signature (`.sig`) to a release.
 The installer is not code-signed yet (publik lists it as unsigned).
 
 ## Test hooks (environment; the app never sets them)
@@ -63,6 +68,8 @@ The installer is not code-signed yet (publik lists it as unsigned).
 | `JOBLEFT_HOME` | The data folder (a scratch folder under `/private/tmp` for a check) |
 | `JOBLEFT_SHELL_NODE`, `JOBLEFT_SHELL_SERVER` | A Node binary and a server tree outside the bundle (`<server>/src/main.js` must exist) |
 | `JOBLEFT_SHELL_PROBE` | A JavaScript file to run in the window 4 s after it opens; what it leaves in `document.title` after the prefix `PROBE:` lands in `run/probe.json` (evals/gate8-shell uses it to compare WKWebView with Chromium) |
+| `PUBLIK_UPDATE_SELF_TEST`, `PUBLIK_UPDATE_SELF_TEST_OUT`, `PUBLIK_UPDATE_SELF_TEST_SIDECAR` | The updater's self-test: no window, one JSON line (docs/updates.md, `.github/workflows/updater-proof.yml`) |
+| `PUBLIK_NO_AUTO_UPDATE=1` | No automatic update check (CI) |
 | Everything the server reads (`JOBLEFT_AUTO_CRAWL`, `JOBLEFT_SEED_BOARDS`, `JOBLEFT_DEV`, ...) | Passed through to the sidecar |
 
 ## Rules
@@ -71,6 +78,6 @@ The installer is not code-signed yet (publik lists it as unsigned).
   (gate G-release).
 - Types that cross a package boundary live in `@jobleft/contracts`. Contracts change by addition only.
 - Third-party code: read it first, install with scripts off, copy only MIT, Apache-2.0 or BSD code, and record each
-  copy in `THIRD_PARTY_NOTICES.md`. The Rust dependencies are `tauri`, `tauri-plugin-single-instance`, `serde_json`
-  and `libc` (all MIT or Apache-2.0).
+  copy in `THIRD_PARTY_NOTICES.md`. The Rust dependencies are `tauri`, `tauri-plugin-single-instance`, `serde_json`,
+  `libc`, `tauri-plugin-updater` and `tauri-plugin-dialog` (all MIT or Apache-2.0).
 - No personal data in any request, file or test. Tests use the fake persona "Jordan Testwell" (jordan.testwell@example.com).
