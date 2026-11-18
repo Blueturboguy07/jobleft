@@ -75,6 +75,7 @@ windows_of() {
   echo "${n:-0}"
 }
 field() { python3 -c 'import json,sys; lines=[l for l in open(sys.argv[1]) if l.strip()]; d=json.loads(lines[-1]); print(d.get(sys.argv[2], ""))' "$1" "$2" 2>/dev/null || true; }
+lines_of() { local n; n="$(grep -c . "$1" 2>/dev/null)" || true; echo "${n:-0}"; }
 # Every jobleft shell and node sidecar from /Applications, stopped.
 stop_all() {
   pkill -TERM -f "^$INSTALLED/Contents/MacOS/" 2>/dev/null || true
@@ -235,8 +236,9 @@ check "[restart] N installs N+1 and restarts on the yes (exit 0)" "exit=$RC resu
 check "[restart] the local service of N has stopped" "pid ${SIDE_PID:-none}" gone "${SIDE_PID:-0}"
 check "[restart] Info.plist on disk says N+1" "$(plist "$INSTALLED" CFBundleShortVersionString)" test "$(plist "$INSTALLED" CFBundleShortVersionString)" = "$N1"
 check "[restart] the installed code is the signed N+1 (cdhash)" "$(cdhash "$INSTALLED")" test "$(cdhash "$INSTALLED")" = "$N1_CDHASH"
-# The new copy: started by LaunchServices (`open -n`), with none of this script's environment, in the default data
-# folder. It must get past the single-instance check and the data-folder lock, start its service and open its window.
+# The new copy: started by Tauri's restart (`open -n`), in the default data folder. It gets the app's environment,
+# less the two test variables the restart test clears, so it starts as users get it. It must get past the
+# single-instance check and the data-folder lock, start its service and open its window.
 NEW_PID=""
 for _ in $(seq 1 90); do
   if [ -f "$DATA/run/shell.json" ]; then NEW_PID="$(jfield "$DATA/run/shell.json" pid)"; [ -n "$NEW_PID" ] && break; fi
@@ -258,6 +260,7 @@ check "[restart] its local service answers health" "port ${HPORT:-none}" grep -q
 screencapture -x "$OUT/restart-macos.png" 2>/dev/null || echo "screencapture unavailable"
 if [ -n "$NEW_PID" ]; then kill -TERM "$NEW_PID" 2>/dev/null || true; for _ in $(seq 1 15); do alive "$NEW_PID" || break; sleep 1; done; fi
 check "[restart] the new copy quits cleanly on SIGTERM" "pid ${NEW_PID:-none}" gone "${NEW_PID:-0}"
+check "[restart] the new copy did not run the test hook again (one report line)" "$(lines_of "$R") line(s)" test "$(lines_of "$R")" = 1
 stop_all
 
 echo "==> The restart question, from N again (the background check as users get it)"
@@ -279,7 +282,11 @@ for _ in $(seq 1 10); do WINS="$(windows_of "$APP_PID")"; [ "${WINS:-0}" -gt "${
 check "[prompt] the question is on screen" "$WINS window(s) of the app or its system alert, $BEFORE before launch" \
   test "${WINS:-0}" -gt "${BEFORE:-0}"
 screencapture -x "$OUT/prompt-macos.png" 2>/dev/null || echo "screencapture unavailable"
-kill "$APP_PID" 2>/dev/null || true; wait "$APP_PID" 2>/dev/null || true
+# The question is a modal alert: the app may not act on SIGTERM while it is open, so wait at most 10 s, then SIGKILL.
+kill "$APP_PID" 2>/dev/null || true
+for _ in $(seq 1 10); do alive "$APP_PID" || break; sleep 1; done
+alive "$APP_PID" && { kill -9 "$APP_PID" 2>/dev/null || true; echo "the app did not quit on SIGTERM with the question open: SIGKILL" >> "$OUT/windows.log"; }
+wait "$APP_PID" 2>/dev/null || true
 sleep 2; echo "after the app quit: $(windows_of 0)" >> "$OUT/windows.log"
 
 stop_all

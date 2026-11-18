@@ -377,6 +377,11 @@ pub fn run_self_test(app: &AppHandle, mode: String) {
                     emit(&report);
                     let handle = app.clone();
                     std::thread::spawn(move || {
+                        // The new copy gets this process's environment from the restart. Without these two
+                        // variables it starts as users get it, not as a second run of this test (the output file
+                        // stays set, for the error line below).
+                        std::env::remove_var(SELF_TEST_ENV);
+                        std::env::remove_var("PUBLIK_UPDATE_SELF_TEST_SIDECAR");
                         if let Err(e) = restart_into_update(&handle) {
                             let mut r = json!({ "self_test": "restart", "pid": std::process::id() });
                             let code = fail(&mut r, e);
