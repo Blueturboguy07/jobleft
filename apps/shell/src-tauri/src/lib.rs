@@ -5,7 +5,10 @@
 //! - Ready: wait for `run/server.json` and `GET /api/v1/health` (up to 15 s), then open the one window at
 //!   `http://127.0.0.1:<port>/#token=<token>`. Before that, no window at all: no blank page, no "starting" page.
 //! - Closing the window hides it; the app stays in the menu bar with Open, Check for jobs now, Pause/Continue
-//!   checks, the time of the last check, and Quit. A second launch focuses the window (single instance).
+//!   checks, the time of the last check, Check for Updates…, and Quit. A second launch focuses the window (single
+//!   instance).
+//! - Updates (src/updates.rs, docs/updates.md): a signed update is checked 10 s after launch and once a day, and on
+//!   "Check for Updates…". Before the new version takes over, the local service stops (`updates::on_before_restart`).
 //! - Notifications: `GET /api/v1/notifications` every minute; each one shown goes through Notification Center
 //!   (`osascript`) and is acked.
 //! - Quit (menu bar or Cmd-Q): SIGTERM to the server, wait up to 5 s, then exit. If the shell dies, the server sees
@@ -19,7 +22,10 @@
 //! Test hooks (env, never set by the app itself): `JOBLEFT_HOME` (data folder), `JOBLEFT_SHELL_NODE` and
 //! `JOBLEFT_SHELL_SERVER` (a node binary and a server tree outside the bundle), `JOBLEFT_SHELL_PROBE` (a JavaScript
 //! file to run in the window once it has loaded; whatever it puts in `document.title` after the prefix `PROBE:` is
-//! written to `run/probe.json`).
+//! written to `run/probe.json`), `PUBLIK_UPDATE_SELF_TEST` (the updater's self-test, src/updates.rs; with
+//! `PUBLIK_UPDATE_SELF_TEST_SIDECAR=1` the local service starts first, see `self_test_sidecar`).
+
+pub mod updates;
 
 use std::fs;
 use std::io::{Read, Write};
@@ -236,6 +242,33 @@ fn run_self_test(app: &AppHandle) -> i32 {
     }
 }
 
+/// Updater proof hook (`PUBLIK_UPDATE_SELF_TEST_SIDECAR=1` with `PUBLIK_UPDATE_SELF_TEST`): starts the local service as
+/// a launch does, so the update meets a running node as it does for a person (.github/workflows/updater-proof.yml).
+/// Once the service answers health, writes `run/self-test-sidecar.json` (`{ pid, port, at }`). No window.
+fn self_test_sidecar(app: &AppHandle) {
+    let shell = app.state::<Shell>();
+    fs::create_dir_all(shell.home.join("run")).ok();
+    let mut child = match spawn_server(app, &shell.home, &shell.token) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("self-test sidecar: {e}");
+            return;
+        }
+    };
+    match wait_ready(&shell.home, &shell.token, &mut child) {
+        Ok(port) => {
+            let pid = child.id();
+            *shell.child.lock().unwrap() = Some(child);
+            *shell.port.lock().unwrap() = Some(port);
+            let _ = fs::write(shell.home.join("run/self-test-sidecar.json"), json!({ "pid": pid, "port": port, "at": chrono_now() }).to_string());
+        }
+        Err(e) => {
+            let _ = child.kill();
+            eprintln!("self-test sidecar: {e}");
+        }
+    }
+}
+
 /// Waits for `run/server.json` and a healthy `GET /api/v1/health`. Returns the port.
 fn wait_ready(home: &Path, token: &str, child: &mut Child) -> Result<u16, String> {
     let start = Instant::now();
@@ -437,23 +470,40 @@ pub fn run() {
         libc::signal(libc::SIGTERM, on_term as *const () as usize);
         libc::signal(libc::SIGINT, on_term as *const () as usize);
     }
+    // Updater test hook (PUBLIK_UPDATE_SELF_TEST): no window, no menu bar item; see updates.rs.
+    let update_self_test = updates::self_test_mode();
+    // The update's last step before the new version takes over (macOS: the restart; Windows: the installer, which
+    // must replace node.exe and the server tree): the local service stops, as on Quit.
+    updates::on_before_restart(|app| stop_server(&app.state::<Shell>()));
     let builder = tauri::Builder::default();
     #[cfg(windows)]
     let builder = builder.plugin(tauri_plugin_notification::init());
-    builder
+    let builder = builder
         // Links with target=_blank and window.open go to the default browser (the plugin's JS shim patches both).
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // A second launch: bring the one window forward and do nothing else.
             show_main(app);
-        }))
+        }));
+    // Signed self-update: the updater and dialog plugins (src/updates.rs).
+    updates::plugins(builder)
         .manage(Shell { home: home.clone(), token: token.clone(), port: Mutex::new(None), child: Mutex::new(None), quitting: Mutex::new(false) })
         .setup(move |app| {
             let handle = app.handle().clone();
             let shell = handle.state::<Shell>();
+            if let Some(mode) = update_self_test {
+                if std::env::var("PUBLIK_UPDATE_SELF_TEST_SIDECAR").map(|v| v.trim() == "1").unwrap_or(false) {
+                    self_test_sidecar(&handle);
+                }
+                updates::run_self_test(&handle, mode);
+                return Ok(());
+            }
             if std::env::var("PUBLIK_SELF_TEST").map(|v| !v.trim().is_empty()).unwrap_or(false) {
                 std::process::exit(run_self_test(&handle));
             }
+            // Update checks start before the local service, so a build whose service does not start can still be
+            // fixed by an update.
+            updates::start(&handle);
             fs::create_dir_all(shell.home.join("run")).ok();
 
             // 1. The server sidecar, then the window only once the server answers.
@@ -490,8 +540,9 @@ pub fn run() {
             let check = MenuItem::with_id(app, "check", "Check for jobs now", true, None::<&str>)?;
             let pause = MenuItem::with_id(app, "pause", if paused(port, &shell.token) { "Continue checks" } else { "Pause checks" }, true, None::<&str>)?;
             let last = MenuItem::with_id(app, "last", &last_check_text(port, &shell.token), false, None::<&str>)?;
+            let updates_item = MenuItem::with_id(app, "updates", "Check for Updates…", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit jobleft", true, Some("CmdOrCtrl+Q"))?;
-            let menu = Menu::with_items(app, &[&open, &check, &pause, &last, &PredefinedMenuItem::separator(app)?, &quit_item])?;
+            let menu = Menu::with_items(app, &[&open, &check, &pause, &last, &PredefinedMenuItem::separator(app)?, &updates_item, &quit_item])?;
             let mut tray = TrayIconBuilder::with_id("jobleft")
                 .menu(&menu)
                 .show_menu_on_left_click(true)
@@ -513,6 +564,7 @@ pub fn run() {
                             set_paused(port, &s.token, !now);
                         }
                     }
+                    "updates" => updates::check_now(app),
                     "quit" => quit(app),
                     _ => {}
                 });

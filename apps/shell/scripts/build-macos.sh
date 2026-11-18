@@ -3,11 +3,15 @@
 # entitlements the Node sidecar needs, every Mach-O inside the bundle signed (the notary service refuses one that is
 # not), the app notarized and stapled, and the dmg rebuilt around the stapled app, signed, notarized and stapled too
 # (an unstapled dmg needs the network to validate and then reads as a corrupt download).
+# A notarized build also gets the update bundle: jobleft_<version>_aarch64.app.tar.gz and its .sig, packed from the
+# stapled app and signed with the publik update key (apps/shell/scripts/updater-pack-macos.sh, docs/updates.md).
 #
 # Usage: apps/shell/scripts/build-macos.sh [--skip-notarize]
 #   NOTARY_PROFILE=<name>        a `xcrun notarytool store-credentials` profile (default: publik)
 #   APPLE_SIGNING_IDENTITY=<id>  default "Developer ID Application: Mann Bellani (R5R3ZS54LV)"; a development
 #                                certificate is refused (it signs fine and Gatekeeper still blocks it)
+#   TAURI_SIGNING_PRIVATE_KEY(+_PASSWORD), else the login keychain item "publik-update-key": the update key
+#   (needed only for a notarized build; never printed).
 #   The public publik app token comes from apps/shell/publik-app-token.local (scripts/pack.ts); a release without
 #   it is refused because "Connect to publik" would be dead in the shipped app.
 set -euo pipefail
@@ -30,7 +34,9 @@ echo "==> UI, sidecar tree, release bundle"
 pnpm --filter @jobleft/ui build >/dev/null
 node apps/shell/scripts/pack.ts
 TAURI="$(cd "$ROOT/apps/shell" && node -p "require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })")"
-( cd apps/shell && node "$TAURI" build --bundles app,dmg )
+# No updater artifacts here: tauri build would pack the app before it is re-signed below. The update bundle is packed
+# from the final, stapled app at the end.
+( cd apps/shell && node "$TAURI" build --bundles app,dmg --config '{"bundle":{"createUpdaterArtifacts":false}}' )
 APP="$CARGO_TARGET_DIR/release/bundle/macos/jobleft.app"
 [ -d "$APP" ] || { echo "No jobleft.app was produced." >&2; exit 1; }
 
@@ -70,7 +76,11 @@ if [ "$SKIP_NOTARIZE" = 0 ]; then
   xcrun stapler validate "$APP"
   xcrun stapler validate "$DMG"
   spctl -a -t exec -vv "$APP"
+  echo "==> Update bundle (the stapled app, signed with the update key)"
+  UPD="$CARGO_TARGET_DIR/release/bundle/updater"
+  apps/shell/scripts/updater-pack-macos.sh "$APP" "$UPD"
 fi
 echo
 echo "App: $APP"
 echo "Dmg: $DMG ($(du -h "$DMG" | cut -f1))"
+if [ "$SKIP_NOTARIZE" = 0 ]; then echo "Update bundle: $UPD/jobleft_${VERSION}_aarch64.app.tar.gz (+ .sig)"; else echo "Not notarized: no update bundle (it is made only from a notarized app)."; fi

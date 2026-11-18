@@ -6,6 +6,9 @@
 #     with the sign-in key, to a listener on the runner, and none with DO_NOT_TRACK=1.
 #   Both: the built app carries the publik module (server/src/publik.js); on macOS the app's own self-test
 #     (PUBLIK_SELF_TEST=1) must print its one line against the stand-in.
+# Updates (docs/updates.md): the macOS app here has no update bundle (it is re-signed later; the release Mac packs the
+#   bundle from the stapled app). The Windows installer comes with its updater signature (<installer>.sig, made with
+#   the TAURI_SIGNING_PRIVATE_KEY secret) in the same artifact.
 # This workflow never creates, changes or publishes a release.
 name: publik-build
 
@@ -20,6 +23,10 @@ permissions:
 concurrency:
   group: publik-build-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  # No automatic update check while these jobs start the app (apps/shell/src-tauri/src/updates.rs).
+  PUBLIK_NO_AUTO_UPDATE: '1'
 
 jobs:
   macos:
@@ -79,13 +86,15 @@ jobs:
           grep -q '"jobleft"' "$res/server/src/publik.js" || { echo "publik.js does not carry the app slug jobleft."; exit 1; }
           echo "token: present; publik module: present; main.js loads it"
 
+      # No updater artifacts: an update bundle of this unsigned app must never ship (it would not carry the Developer ID
+      # identity), and tauri build would need the update key for them.
       - name: Build the app (not signed)
         shell: bash
         run: |
           cd apps/shell
           cli="$(node -p "require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })")"
           echo "tauri cli: $cli"
-          node "$cli" build --bundles app
+          node "$cli" build --bundles app --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
       - name: Pack the app (ditto keeps symlinks)
         shell: bash
@@ -186,14 +195,26 @@ jobs:
           grep -q '"jobleft"' "$res/server/src/publik.js" || { echo "publik.js does not carry the app slug jobleft."; exit 1; }
           echo "token: present; publik module: present; main.js loads it"
 
+      # With the update key, tauri build also writes <installer>.sig; it must verify against the pubkey in
+      # tauri.conf.json and name this version.
       - name: Build the installer
         shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { Write-Error "The TAURI_SIGNING_PRIVATE_KEY secret is not set. The installer would have no updater signature."; exit 1 }
           Set-Location apps/shell
           $cli = node -p "require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })"
           "tauri cli: $cli"
           node $cli build --bundles nsis
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Set-Location ../..
+          $setup = Get-ChildItem -Path apps/shell/src-tauri/target/release/bundle/nsis -Filter '*.exe' | Select-Object -First 1
+          if (-not (Test-Path "$($setup.FullName).sig")) { Write-Error "no updater signature next to $($setup.Name)"; exit 1 }
+          $version = (Get-Content apps/shell/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          node apps/shell/scripts/updater-latest-json.mjs --version $version --base-url "https://github.com/${{ github.repository }}/releases/download/v$version/" --platform "windows-x86_64=$($setup.FullName)" --out "$env:RUNNER_TEMP/latest-check.json"
+          if ($LASTEXITCODE -ne 0) { Write-Error "the updater signature of $($setup.Name) does not verify"; exit 1 }
 
       # The installed app runs twice on the runner, for about 20 seconds each, signed in at the repo's publik stand-in.
       # Run 1: the gate (Sign in with publik, then Connect your plan) is passed with qa/bin/publik-gate-pass.mjs; the
@@ -325,6 +346,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: jobleft-windows-setup
-          path: apps/shell/src-tauri/target/release/bundle/nsis/*.exe
+          path: |
+            apps/shell/src-tauri/target/release/bundle/nsis/*.exe
+            apps/shell/src-tauri/target/release/bundle/nsis/*.exe.sig
           if-no-files-found: error
           compression-level: 0

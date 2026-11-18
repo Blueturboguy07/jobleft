@@ -3,7 +3,7 @@ name = "jobleft-shell"
 version = "0.1.8"
 description = "jobleft desktop shell: starts the local server as a sidecar, opens the window, lives in the menu bar"
 edition = "2021"
-rust-version = "1.77"
+rust-version = "1.90"
 license = "MIT"
 
 [lib]
@@ -22,6 +22,11 @@ tauri-plugin-opener = "2"
 serde_json = "1"
 # The launch token: 32 random bytes from the operating system, on every platform.
 getrandom = "0.3"
+# Signed self-update (src/updates.rs, docs/updates.md). 2.14.1 at least: `requireSignedVersion` (the signature must
+# name the version the feed announces) needs it, and it needs Rust 1.90 (rust-version above).
+tauri-plugin-updater = "2.14.1"
+# The update questions ("Restart" / "Later") and the result of "Check for Updates…".
+tauri-plugin-dialog = "2.8.4"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

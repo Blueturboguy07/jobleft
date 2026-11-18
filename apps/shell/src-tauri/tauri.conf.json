@@ -20,6 +20,7 @@
       "app",
       "dmg"
     ],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -48,6 +49,18 @@
       },
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY1RTA1MTVDNzc5MTJCRDAKUldUUUs1RjNYRkhnOWRTQ2UwaGJ5Vm5vTTRwV2d5NzNNZEQrWWYxSU1abnRnWEthc3FkWVJjWXYK",
+      "endpoints": [
+        "https://publikhq.com/api/updates/jobleft/latest.json"
+      ],
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
       }
     }
   }
