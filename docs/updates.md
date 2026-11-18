@@ -106,7 +106,7 @@ Run `updater-proof.yml`. It builds 0.0.1 and 0.0.2, installs 0.0.1 on `macos-lat
 that 0.0.1 refuses three bad feeds and then updates to 0.0.2. On Windows the good update runs with the local service
 up. On macOS, 0.0.1 takes the yes with the local service up, and jobleft must come back as 0.0.2 with a working local
 service and its window. Then it starts 0.0.1 once more and checks that the question is on screen while the app keeps
-running and nothing is installed yet. A push to `feat/updater` or `updater/**` also starts it.
+running and nothing is installed yet. Start it by hand (workflow_dispatch).
 
 The app has a test hook for this: `PUBLIK_UPDATE_SELF_TEST=version|check|install|restart` runs the updater with no
 window and no prompt and prints one JSON line. `prompt` runs the background path and shows the real question. The
