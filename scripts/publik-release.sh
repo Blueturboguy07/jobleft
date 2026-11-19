@@ -29,7 +29,8 @@
 #      the app's public key and version; Info.plist and installer versions; codesign, spctl ("Notarized Developer
 #      ID") and stapler for the dmg and both copies of the app; one designated requirement; the publik app token as
 #      in the last release. Then latest.json (absolute GitHub URLs), its signature latest.json.sig and SHA256SUMS.txt
-#      are written, uploaded, downloaded back and checked again.
+#      are written, uploaded, downloaded back and checked again. One large file is on disk at a time (peak: the update
+#      bundle and the app in it, about 320 MB for jobleft 0.1.10).
 #   8. clean-mac-check.yml on the draft: a clean runner downloads the dmg with quarantine on and opens the app.
 #   9. Publish. Then: the tag is on the release commit, every asset URL answers, latest.json is byte for byte the
 #      checked one, and the windows workflow that publishing starts leaves every asset as it was.
@@ -330,20 +331,20 @@ if [ "$STATE" != published ]; then
   fi
 
   # ---------- 7. download back, check, feed ----------
+  # One large file on disk at a time: each is checked, its sha256 kept, and it is deleted before the next one comes,
+  # except the two the feed is made from (the update bundle and the installer). Peak: the update bundle and its app.
   say "7. Download back and check every file; the feed"
   need_disk
   V="$WORK/verify"; purge "$V"; mkdir -p "$V"
-  for f in "${BINARIES[@]}"; do download "$f" "$V"; done
-  check_digests() {  # every file in $1 that is on the release has GitHub's sha256
-    local name digest n=0
-    while read -r name digest; do
-      [ -f "$1/$name" ] || continue
-      [ "sha256:$(sha "$1/$name")" = "$digest" ] || die "$name: the downloaded file does not match GitHub's digest $digest"
-      n=$((n + 1))
-    done < <(digests)
-    ok "$n file(s) match GitHub's sha256 digests"
+  SUMS="$V/sums.txt"; : > "$SUMS"
+  digest_of() { digests | awk -v n="$1" '$1 == n { print $2 }'; }
+  fetch_checked() {  # <file>: downloads it into $V, checks GitHub's sha256 digest, records it for SHA256SUMS.txt
+    download "$1" "$V"
+    local d; d="$(digest_of "$1")"
+    [ -n "$d" ] && [ "sha256:$(sha "$V/$1")" = "$d" ] || die "$1: the downloaded file does not match GitHub's digest ${d:-(none)}"
+    printf '%s  %s\n' "$(sha "$V/$1")" "$1" >> "$SUMS"
+    ok "$1: downloaded back, sha256 = GitHub's digest"
   }
-  check_digests "$V"
 
   # The previous release's app token, read from its update bundle as a stream (nothing written to disk).
   PREV_TGZ="${APP}_${PREV}_aarch64.app.tar.gz"
@@ -372,7 +373,8 @@ if [ "$STATE" != published ]; then
     ok "$what: publik app token present, the same as in $PREV_TAG"
   }
 
-  # The dmg and the app inside it (mounting starts nothing).
+  # 7a. The dmg and the app inside it (mounting starts nothing and writes nothing). Deleted when checked.
+  fetch_checked "$DMG"
   out="$(spctl -a -t open --context context:primary-signature -vv "$V/$DMG" 2>&1)" || die "$DMG: Gatekeeper refuses it: $out"
   case "$out" in *"source=Notarized Developer ID"*) ;; *) die "$DMG: Gatekeeper source is not Notarized Developer ID: $out" ;; esac
   xcrun stapler validate "$V/$DMG" >/dev/null 2>&1 || die "$DMG: no valid stapled ticket"
@@ -384,8 +386,10 @@ if [ "$STATE" != published ]; then
   ( check_app "$MNT/jobleft.app" "the app in $DMG"; printf '%s' "$APP_CDHASH" > "$V/dmg-cdhash" ) || { hdiutil detach "$MNT" -force -quiet; exit 1; }
   hdiutil detach "$MNT" -quiet || hdiutil detach "$MNT" -force -quiet
   DMG_CDHASH="$(cat "$V/dmg-cdhash")"
+  rm -f "$V/$DMG"
 
-  # The update bundle: the same signed app, no AppleDouble files.
+  # 7b. The update bundle: the same signed app, no AppleDouble files. The bundle stays (the feed is made from it).
+  fetch_checked "$TGZ"; fetch_checked "$TGZ.sig"
   ! tar -tzf "$V/$TGZ" | grep -q '/\._' || die "$TGZ carries AppleDouble files"
   [ "$(tar -tzf "$V/$TGZ" | head -1)" = "jobleft.app/" ] || die "$TGZ does not start with jobleft.app/"
   mkdir -p "$V/x"; tar -xzf "$V/$TGZ" -C "$V/x"
@@ -394,35 +398,40 @@ if [ "$STATE" != published ]; then
   ok "the update bundle and the dmg carry the same app (cdhash $APP_CDHASH)"
   purge "$V/x"
 
-  # The Windows installer's own version resource.
+  # 7c. The Windows installer's own version resource.
+  fetch_checked "$EXE"; fetch_checked "$EXE.sig"
   PV="$(node apps/shell/scripts/pe-version.mjs "$V/$EXE")" || die "$EXE has no version resource"
   printf '%s\n' "$PV" | grep -qxF "ProductVersion=$VERSION" || die "$EXE: $(printf '%s' "$PV" | tr '\n' ' ')"
   printf '%s\n' "$PV" | grep -qxF "FileVersion=$VERSION.0" || die "$EXE: $(printf '%s' "$PV" | tr '\n' ' ')"
   ok "$EXE: ProductVersion $VERSION, FileVersion $VERSION.0"
 
-  # The feed, from the files as they are on the release; then its own signature and the sums.
+  # 7d. The feed, from the files as they are on the release; then its own signature and the sums.
   node apps/shell/scripts/updater-latest-json.mjs --version "$VERSION" --base-url "$BASE_URL" \
     --platform "darwin-aarch64=$V/$TGZ" --platform "windows-x86_64=$V/$EXE" --notes "$FEED_NOTES" --out "$V/latest.json" 2>&1 \
     | sed 's/^/      /' || die "the update signatures on the draft do not verify"
   [ -s "$V/latest.json" ] || die "no latest.json was written"
   ensure_tauri_cli
   apps/shell/scripts/updater-sign-file.sh "$V/latest.json" "$VERSION" >/dev/null || die "could not sign latest.json"
-  ( cd "$V" && for f in "$DMG" "$EXE" "$EXE.sig" "$TGZ" "$TGZ.sig" latest.json latest.json.sig; do shasum -a 256 "$f"; done ) > "$V/SHA256SUMS.txt"
+  for f in latest.json latest.json.sig; do printf '%s  %s\n' "$(sha "$V/$f")" "$f" >> "$SUMS"; done
+  for f in "$DMG" "$EXE" "$EXE.sig" "$TGZ" "$TGZ.sig" latest.json latest.json.sig; do grep -E "  $f\$" "$SUMS" | head -1; done > "$V/SHA256SUMS.txt"
+  [ "$(wc -l < "$V/SHA256SUMS.txt" | tr -d ' ')" = 7 ] || die "SHA256SUMS.txt does not have 7 lines"
   node apps/shell/scripts/updater-verify-feed.mjs --feed "$V/latest.json" --feed-sig "$V/latest.json.sig" --dir "$V" \
     --base-url "$BASE_URL" --expect-platforms darwin-aarch64,windows-x86_64 | sed 's/^/      /' || die "the feed does not verify"
   upload "$V/latest.json" "$V/latest.json.sig" "$V/SHA256SUMS.txt"
 
-  # Downloaded back: byte for byte what was checked, and the sums hold for every file.
+  # Downloaded back: byte for byte what was checked, and every line of the sums is GitHub's digest of that file.
   B="$V/back"; mkdir -p "$B"
   for f in latest.json latest.json.sig SHA256SUMS.txt; do
     download "$f" "$B"
     cmp -s "$V/$f" "$B/$f" || die "$f on the release is not the file that was checked"
   done
-  ( cd "$V" && shasum -a 256 -c "$B/SHA256SUMS.txt" >/dev/null ) || die "SHA256SUMS.txt does not hold for the downloaded files"
-  check_digests "$B"
+  while read -r hash name; do
+    [ "$(digest_of "$name")" = "sha256:$hash" ] || die "SHA256SUMS.txt: $name is $hash, GitHub's digest is $(digest_of "$name")"
+  done < "$B/SHA256SUMS.txt"
+  ( cd "$V" && shasum -a 256 -c "$B/SHA256SUMS.txt" --ignore-missing >/dev/null ) || die "SHA256SUMS.txt does not hold for the files here"
   node apps/shell/scripts/updater-verify-feed.mjs --feed "$B/latest.json" --feed-sig "$B/latest.json.sig" --dir "$V" \
     --base-url "$BASE_URL" --expect-platforms darwin-aarch64,windows-x86_64 >/dev/null || die "the feed on the release does not verify"
-  ok "latest.json, latest.json.sig and SHA256SUMS.txt on the draft are the checked files; SHA256SUMS.txt holds for all 7 files"
+  ok "latest.json, latest.json.sig and SHA256SUMS.txt on the draft are the checked files; each of the 7 lines of SHA256SUMS.txt is GitHub's digest of that file"
   cp "$V/latest.json" "$WORK/latest.json"
   digests > "$WORK/digests.checked"
   purge "$V"
