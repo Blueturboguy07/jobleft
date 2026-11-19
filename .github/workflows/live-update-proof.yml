@@ -1,0 +1,132 @@
+# Live update proof: a user's copy of a published jobleft release updates itself from the LIVE publik feed, on clean
+# GitHub runners. Never run on a desk Mac. Run it by hand (docs/updates.md, "Prove a release live").
+#
+#   from_tag        the release a user has (v<x.y.z>): its macOS dmg / Windows setup.exe is downloaded from the GitHub
+#                   release, with the quarantine flag on macOS, and installed as a user installs it
+#   expect_version  what the app must run at the end. Equal to the from_tag version: the app must find no update and
+#                   stay as it is (use this to check the harness while no newer version is live). Higher: the version
+#                   https://publikhq.com/api/updates/jobleft/latest.json serves now.
+#
+# The app starts the normal way: no test hook, no feed override (the release build has the feed URL compiled in) and
+# automatic checks on (PUBLIK_NO_AUTO_UPDATE is not set). It gets DO_NOT_TRACK=1 and PUBLIK_ORIGIN=http://127.0.0.1:9:
+# a runner is not a user, so the local service's sign-in gate makes no install on publik (the updater does not read
+# either variable). Nobody signs in; the microphone, camera and screen capture stay unused.
+#
+#   macos   Gatekeeper accepts the download (Notarized Developer ID); the designated requirement is recorded; allowed
+#           TCC rows for camera, microphone, screen capture and accessibility are written, each with the requirement
+#           as its csreq (apps/shell/test/live-proof/tcc-root.sh: the privileged steps are there); the app's own check
+#           finds the update, the question is answered "Later" (the app stays on the old version and runs), then
+#           "Check for Updates…" in the menu bar item brings it back and it is answered "Install and Restart"; the
+#           app must come back by itself as expect_version, keep its requirement, pass Gatekeeper, and satisfy the
+#           stored csreq of each TCC row. "Check for Updates…" must then answer "jobleft <expect> is the latest
+#           version."
+#   windows silent per-user install; "Later" (the app stays on the old version and runs); quit and start again;
+#           "Restart and Install"; the app's own installer runs and jobleft comes back by itself as expect_version.
+#   unit    cargo test of the shell, with the daily-check schedule on a fake clock (src/updates.rs).
+# Results: the job summaries (PASS/FAIL per check) and the live-update-proof-* artifacts (logs, screenshots).
+name: live-update-proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_tag:
+        description: The release a user has, for example v0.1.9
+        required: true
+      expect_version:
+        description: The version the app must run at the end, for example 0.1.10 (equal to from_tag = no update)
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-update-proof-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DO_NOT_TRACK: '1'
+  FROM_TAG: ${{ inputs.from_tag }}
+  EXPECT_VERSION: ${{ inputs.expect_version }}
+
+jobs:
+  unit:
+    name: Shell unit tests (cargo test)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: pnpm
+        shell: bash
+        run: |
+          npm install -g pnpm@12.4.1
+          test "$(pnpm --version)" = "12.4.1"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/shell/src-tauri
+          shared-key: updater-proof-unit
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # tauri::generate_context! needs the bundle inputs (the node binary and the sidecar tree) to exist.
+      - name: Bundle inputs
+        run: |
+          pnpm --filter @jobleft/ui build
+          node apps/shell/scripts/fetch-node.mjs --target darwin-arm64
+          node apps/shell/scripts/pack.ts --target darwin-arm64
+
+      - name: cargo test
+        working-directory: apps/shell/src-tauri
+        run: cargo test --lib -- --nocapture
+
+      - name: The daily check ran on the fake clock
+        working-directory: apps/shell/src-tauri
+        shell: bash
+        run: |
+          cargo test --lib schedule_tests -- --nocapture 2>&1 | tee "$RUNNER_TEMP/schedule-tests.txt"
+          grep -q "test result: ok. 4 passed" "$RUNNER_TEMP/schedule-tests.txt"
+
+  macos:
+    name: macOS ${{ inputs.from_tag }} -> ${{ inputs.expect_version }}
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Live update proof
+        shell: bash
+        run: bash apps/shell/test/live-proof/macos.sh "$FROM_TAG" "$EXPECT_VERSION" "$RUNNER_TEMP/live-proof"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-update-proof-macos
+          path: ${{ runner.temp }}/live-proof
+          if-no-files-found: warn
+
+  windows:
+    name: Windows ${{ inputs.from_tag }} -> ${{ inputs.expect_version }}
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Live update proof
+        shell: pwsh
+        run: ./apps/shell/test/live-proof/windows.ps1 -FromTag $env:FROM_TAG -Expect $env:EXPECT_VERSION -Out "$env:RUNNER_TEMP\live-proof"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-update-proof-windows
+          path: ${{ runner.temp }}/live-proof
+          if-no-files-found: warn

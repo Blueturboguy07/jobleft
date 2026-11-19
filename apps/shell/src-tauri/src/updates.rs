@@ -108,17 +108,34 @@ pub fn start(app: &AppHandle) {
     // jobleft: a thread with std sleeps (the shell has no direct tokio dependency); the check itself runs on the
     // async runtime.
     std::thread::spawn(move || {
-        std::thread::sleep(FIRST_CHECK_AFTER);
-        let mut last: Option<SystemTime> = None;
-        loop {
-            // A clock that moved back gives an error here; that counts as due.
-            if last.map_or(true, |t| t.elapsed().map_or(true, |e| e >= CHECK_EVERY)) {
-                last = Some(SystemTime::now());
-                tauri::async_runtime::block_on(check(app.clone(), false));
-            }
-            std::thread::sleep(TICK);
-        }
+        schedule(SystemTime::now, std::thread::sleep, || {
+            tauri::async_runtime::block_on(check(app.clone(), false));
+            true
+        });
     });
+}
+
+/// True when the automatic check is due: there was none yet, a day has passed on the wall clock since the last one,
+/// or the clock moved back (that gives an error here, and it counts as due).
+fn due(last: Option<SystemTime>, now: SystemTime) -> bool {
+    last.map_or(true, |t| now.duration_since(t).map_or(true, |e| e >= CHECK_EVERY))
+}
+
+/// The automatic checks: the first one FIRST_CHECK_AFTER after launch, then one whenever `due` says so, looked at
+/// every TICK. The clock, the sleep and the check are arguments so that the unit tests below can run days of it on a
+/// fake clock. In the app `run_check` always answers true and the loop never ends; false ends it (tests only).
+fn schedule(now: impl Fn() -> SystemTime, sleep: impl Fn(Duration), mut run_check: impl FnMut() -> bool) {
+    sleep(FIRST_CHECK_AFTER);
+    let mut last: Option<SystemTime> = None;
+    loop {
+        if due(last, now()) {
+            last = Some(now());
+            if !run_check() {
+                return;
+            }
+        }
+        sleep(TICK);
+    }
 }
 
 /// "Check for Updates…": the same check, with its result shown.
@@ -444,6 +461,102 @@ fn emit(report: &Value) {
         if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
             let _ = writeln!(f, "{line}");
         }
+    }
+}
+
+/// The daily check on a fake clock: the clock moves only when the schedule sleeps, so days run in microseconds.
+#[cfg(test)]
+mod schedule_tests {
+    use super::{due, schedule, CHECK_EVERY, FIRST_CHECK_AFTER, TICK};
+    use std::cell::{Cell, RefCell};
+    use std::time::{Duration, SystemTime};
+
+    fn start() -> SystemTime {
+        SystemTime::UNIX_EPOCH + Duration::from_secs(1_800_000_000)
+    }
+
+    /// Runs the schedule until `checks` checks have run; returns when each ran (from launch) and every sleep asked.
+    fn run_fake(checks: usize) -> (Vec<Duration>, Vec<Duration>) {
+        let t0 = start();
+        let now = Cell::new(t0);
+        let sleeps = RefCell::new(Vec::new());
+        let fired = RefCell::new(Vec::new());
+        schedule(
+            || now.get(),
+            |d| {
+                sleeps.borrow_mut().push(d);
+                now.set(now.get() + d);
+            },
+            || {
+                fired.borrow_mut().push(now.get().duration_since(t0).unwrap());
+                fired.borrow().len() < checks
+            },
+        );
+        (fired.into_inner(), sleeps.into_inner())
+    }
+
+    #[test]
+    fn the_first_check_runs_10_seconds_after_launch() {
+        let (fired, sleeps) = run_fake(1);
+        assert_eq!(FIRST_CHECK_AFTER, Duration::from_secs(10));
+        assert_eq!(fired, vec![FIRST_CHECK_AFTER]);
+        assert_eq!(sleeps, vec![FIRST_CHECK_AFTER]);
+    }
+
+    #[test]
+    fn then_one_check_a_day_and_none_in_between() {
+        assert_eq!(CHECK_EVERY, Duration::from_secs(24 * 60 * 60));
+        let (fired, sleeps) = run_fake(4);
+        assert_eq!(fired.len(), 4);
+        // The loop looks every TICK; a check is due at the first look a full day after the last one.
+        let ticks_per_day = (CHECK_EVERY.as_secs() + TICK.as_secs() - 1) / TICK.as_secs();
+        let step = TICK * ticks_per_day as u32;
+        assert!(step >= CHECK_EVERY && step < CHECK_EVERY + TICK);
+        for (i, at) in fired.iter().enumerate() {
+            assert_eq!(*at, FIRST_CHECK_AFTER + step * i as u32, "check {i}");
+        }
+        // Between two checks the thread only sleeps TICK at a time: one look per TICK, no busy loop.
+        assert!(sleeps[1..].iter().all(|d| *d == TICK));
+        assert_eq!(sleeps.len(), 1 + 3 * ticks_per_day as usize);
+    }
+
+    #[test]
+    fn the_day_is_counted_on_the_wall_clock() {
+        let t = start();
+        assert!(due(None, t), "the first check is due at once");
+        assert!(!due(Some(t), t + CHECK_EVERY - Duration::from_secs(1)), "not due a second before the day is over");
+        assert!(due(Some(t), t + CHECK_EVERY), "due when the day is over");
+        // A Mac that slept through the day: due at the first look after it wakes.
+        assert!(due(Some(t), t + CHECK_EVERY * 3));
+        // A clock that moved back counts as due.
+        assert!(due(Some(t), t - Duration::from_secs(60)));
+    }
+
+    #[test]
+    fn a_wall_clock_jump_brings_the_next_check_to_the_next_look() {
+        // The clock jumps a day ahead during the first sleep after the first check (the Mac slept): the next look
+        // runs the check, it does not wait for 48 more ticks.
+        let t0 = start();
+        let now = Cell::new(t0);
+        let jumped = Cell::new(false);
+        let fired = RefCell::new(Vec::new());
+        schedule(
+            || now.get(),
+            |d| {
+                let extra = if d == TICK && !jumped.get() {
+                    jumped.set(true);
+                    CHECK_EVERY
+                } else {
+                    Duration::ZERO
+                };
+                now.set(now.get() + d + extra);
+            },
+            || {
+                fired.borrow_mut().push(now.get().duration_since(t0).unwrap());
+                fired.borrow().len() < 2
+            },
+        );
+        assert_eq!(fired.into_inner(), vec![FIRST_CHECK_AFTER, FIRST_CHECK_AFTER + TICK + CHECK_EVERY]);
     }
 }
 

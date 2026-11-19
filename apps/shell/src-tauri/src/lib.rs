@@ -359,6 +359,18 @@ fn stop_server(shell: &Shell) {
     let _ = fs::remove_file(shell.home.join("run/shell.json"));
 }
 
+/// Turns the TERM flag (SIGTERM or Ctrl-C, set by `on_term`) into the same clean quit as the menu bar item.
+fn watch_term(app: &AppHandle) {
+    let app = app.clone();
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_millis(100));
+        if TERM.load(Ordering::SeqCst) {
+            quit(&app);
+            return;
+        }
+    });
+}
+
 fn quit(app: &AppHandle) {
     let shell = app.state::<Shell>();
     {
@@ -496,6 +508,9 @@ pub fn run() {
                     self_test_sidecar(&handle);
                 }
                 updates::run_self_test(&handle, mode);
+                // The handler above took SIGTERM over from the default (end the process), so this path needs the
+                // watcher too: before, nothing acted on the flag here and SIGTERM did nothing in this mode.
+                watch_term(&handle);
                 return Ok(());
             }
             if std::env::var("PUBLIK_SELF_TEST").map(|v| !v.trim().is_empty()).unwrap_or(false) {
@@ -574,14 +589,7 @@ pub fn run() {
             tray.build(app)?;
 
             // SIGTERM or Ctrl-C (a `kill`, a logout, a test) quits the same way the menu bar item does.
-            let handle3 = handle.clone();
-            thread::spawn(move || loop {
-                thread::sleep(Duration::from_millis(100));
-                if TERM.load(Ordering::SeqCst) {
-                    quit(&handle3);
-                    return;
-                }
-            });
+            watch_term(&handle);
 
             // 3. Every minute: the last-check line, the pause label, and notifications to show.
             let token2 = shell.token.clone();
