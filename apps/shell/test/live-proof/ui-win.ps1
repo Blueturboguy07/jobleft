@@ -4,12 +4,15 @@
 #   powershell -NoProfile -File ui-win.ps1 click <process id> <button>   clicks the button in a dialog of the process
 # The update question is a task dialog (class #32770) titled "jobleft update". The main window (WebView2) is listed
 # by name only: its web content is not walked.
+# A click uses the button's Invoke pattern; a button that UI Automation shows without one (on the runner a message
+# box's buttons come as panes) gets BM_CLICK, the message a mouse click on a Win32 button sends.
 param(
   [Parameter(Mandatory = $true)][string]$Cmd,
   [Parameter(Mandatory = $true)][int]$ProcId,
   [string]$Name = ""
 )
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+Add-Type -Namespace LiveProof -Name Win32 -MemberDefinition '[DllImport("user32.dll")] public static extern bool PostMessage(System.IntPtr hWnd, int msg, System.IntPtr wParam, System.IntPtr lParam);'
 $AE = [System.Windows.Automation.AutomationElement]
 $TS = [System.Windows.Automation.TreeScope]
 $cond = New-Object System.Windows.Automation.PropertyCondition($AE::ProcessIdProperty, $ProcId)
@@ -22,21 +25,30 @@ if ($Cmd -eq 'dump') {
     "window: $($w.Current.Name) [$($w.Current.ClassName)]"
     if ($w.Current.ClassName -ne '#32770') { continue }
     foreach ($e in $w.FindAll($TS::Descendants, [System.Windows.Automation.Condition]::TrueCondition)) {
-      if ($e.Current.Name) { "  $($e.Current.ControlType.ProgrammaticName -replace '^ControlType\.', '') | $($e.Current.Name)" }
+      if ($e.Current.Name) { "  $($e.Current.ControlType.ProgrammaticName -replace '^ControlType\.', '') | $($e.Current.Name) | $($e.Current.ClassName)" }
     }
   }
   exit 0
 }
 if ($Cmd -eq 'click') {
-  $isButton = New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
   $named = New-Object System.Windows.Automation.PropertyCondition($AE::NameProperty, $Name)
-  $both = New-Object System.Windows.Automation.AndCondition($isButton, $named)
   foreach ($w in $dialogs) {
-    $b = $w.FindFirst($TS::Descendants, $both)
-    if ($b) {
-      $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-      "clicked $Name in '$($w.Current.Name)'"
-      exit 0
+    $found = @($w.FindAll($TS::Descendants, $named))
+    foreach ($e in $found) {
+      $p = $null
+      if ($e.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$p)) {
+        $p.Invoke()
+        "clicked $Name in '$($w.Current.Name)' (invoke)"
+        exit 0
+      }
+    }
+    foreach ($e in $found) {
+      $h = $e.Current.NativeWindowHandle
+      if ($h -ne 0) {
+        [void][LiveProof.Win32]::PostMessage([IntPtr]$h, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)
+        "clicked $Name in '$($w.Current.Name)' (BM_CLICK to a $($e.Current.ClassName) window)"
+        exit 0
+      }
     }
   }
   "no button $Name in $($dialogs.Count) dialog(s)"

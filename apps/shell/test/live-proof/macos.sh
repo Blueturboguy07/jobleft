@@ -40,10 +40,17 @@ cdhash() { codesign -dvvv "$1" 2>&1 | sed -n 's/^CDHash=//p'; }
 dr() { codesign -d -r- "$1" 2>&1 | sed -n 's/^designated => //p'; }
 jfield() { python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ""))' "$1" "$2" 2>/dev/null || true; }
 shot() { screencapture -x "$OUT/$1.png" 2>/dev/null || echo "screencapture $1: not allowed on this runner"; }
-# Each UI call is bounded (30 s): an AppleScript that waits on a stuck UI must not hold the job.
-ui() { perl -e 'alarm shift; exec @ARGV' 30 osascript "$UI" "$@" 2>&1; }
+# Each UI call is bounded (30 s): a script that waits on a stuck UI must not hold the job. "menu" is menu.js (a mouse
+# click opens the menu bar item's menu); the rest is ui.applescript.
+ui() {
+  if [ "$1" = menu ]; then
+    shift; perl -e 'alarm shift; exec @ARGV' 30 osascript -l JavaScript "$HERE/menu.js" "$@" 2>&1
+  else
+    perl -e 'alarm shift; exec @ARGV' 30 osascript "$UI" "$@" 2>&1
+  fi
+}
 # The jobleft shell processes from /Applications (the local service is "node").
-app_pids() { pgrep -x jobleft 2>/dev/null | while read -r p; do case "$(ps -o comm= -p "$p" 2>/dev/null)" in "$INSTALLED"/*) echo "$p" ;; esac; done; }
+app_pids() { ps -axo pid=,args= | awk -v exe="$INSTALLED/Contents/MacOS/jobleft" '$2 == exe { print $1 }'; }
 alive() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
 health() { local port; port="$(jfield "$DATA/run/shell.json" port)"; curl -fs --max-time 5 "http://127.0.0.1:${port:-1}/api/v1/health" 2>/dev/null || true; }
 health_version() { health | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("version",""))' 2>/dev/null || true; }
@@ -169,14 +176,13 @@ echo "==> 5. Start the installed app the normal way"
 launchctl setenv DO_NOT_TRACK 1
 launchctl setenv PUBLIK_ORIGIN http://127.0.0.1:9
 dig +short publikhq.com A > "$OUT/publikhq-addresses.txt" 2>/dev/null || true
-# Evidence of the app's own requests: its TCP connections, sampled every second (the shell process only).
-( while :; do lsof -nP -a -iTCP -c jobleft 2>/dev/null | sed "s/^/$(date -u +%H:%M:%S) /"; sleep 1; done ) > "$OUT/connections.txt" 2>&1 &
-SAMPLER=$!
-# And every new TLS connection with the process that opened it (macOS tcpdump: pktap, -k), when the runner allows it.
+# Evidence of the app's own requests: every new TLS connection with the process that opened it (macOS tcpdump: pktap,
+# -k), when the runner allows it.
 bash "$HERE/tcc-root.sh" capture "$OUT/syn-443.txt" &
 launch app-1
 PID1="$APP_PID"
-check "jobleft started from /Applications" "pid ${PID1:-none}: $(ps -o command= -p "${PID1:-0}" 2>/dev/null)" alive "$PID1"
+ps -axo pid,ppid,user,args | grep -i '[j]obleft' > "$OUT/processes.txt"
+check "jobleft started from /Applications" "pid ${PID1:-none}: $(ps -o args= -p "${PID1:-0}" 2>/dev/null)" alive "$PID1"
 check "its window opened and its local service answers" "$(jfield "$DATA/run/shell.json" windowShown) $(health | cut -c1-120)" \
   test "$(jfield "$DATA/run/shell.json" windowShown)" = True -a -n "$(health)"
 sleep 3; shot launched
@@ -284,7 +290,6 @@ else
   info "SIGTERM with a dialog open: no dialog to test with" "$r"
 fi
 stop_all
-kill "$SAMPLER" 2>/dev/null
 bash "$HERE/tcc-root.sh" capture-stop
 
 echo "==> 11. After: code identity, Gatekeeper and the TCC rows"
@@ -308,12 +313,7 @@ done
 info "The runner cannot show a TCC consent prompt. tccd allows a client without a prompt when its row is allowed and the code satisfies the row's stored csreq; the checks above make that same check for each of the four grants." ""
 
 echo "==> Evidence of the app's own requests (not assertions)"
-ADDRS="$(tr '\n' '|' < "$OUT/publikhq-addresses.txt" | sed 's/|$//')"
-if [ -n "$ADDRS" ] && grep -qE "(${ADDRS//./\\.}):443" "$OUT/connections.txt"; then
-  info "the jobleft process opened a connection to publikhq.com" "$(grep -m1 -E "(${ADDRS//./\\.}):443" "$OUT/connections.txt" | cut -c1-200)"
-else
-  info "no sampled connection of the jobleft process to publikhq.com ($ADDRS) (a short request can fall between samples)" ""
-fi
+info "publikhq.com resolves to" "$(tr '\n' ' ' < "$OUT/publikhq-addresses.txt")"
 if grep -q "proc jobleft" "$OUT/syn-443.txt" 2>/dev/null; then
   info "TLS connections opened by the jobleft process (tcpdump)" "$(grep "proc jobleft" "$OUT/syn-443.txt" | grep -oE '> [0-9.]+\.443' | sort -u | tr '\n' ' ' | cut -c1-200)"
 fi

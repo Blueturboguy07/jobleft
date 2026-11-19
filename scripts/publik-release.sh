@@ -110,7 +110,8 @@ wait_run() {
     st="$(gh run view "$id" -R "$REPO" --json status,conclusion -q '"\(.status) \(.conclusion)"' 2>/dev/null || echo "unknown ")"
     case "$st" in completed*) printf '%s\n' "${st#completed }"; return 0 ;; esac
     [ "$waited" -lt "${2:-7200}" ] || { echo timeout; return 0; }
-    sleep 30; waited=$((waited + 30))
+    # One API call each 90 s: the GitHub API limit (5,000 calls an hour) is shared by every tool of this account.
+    sleep 90; waited=$((waited + 90))
   done
 }
 # True when every failed step of a run is a test step (the known flaky tests), so a new run is worth it.
@@ -136,11 +137,12 @@ ensure_tauri_cli() {
 # A run started now by workflow_dispatch: waits until it is listed and prints its id.
 dispatched_run() {
   local wf="$1" since="$2" id="" i
-  for i in $(seq 1 30); do
+  sleep 15
+  for i in $(seq 1 10); do
     id="$(gh run list -R "$REPO" -w "$wf" -e workflow_dispatch -L 10 --json databaseId,createdAt \
       -q "map(select(.createdAt >= \"$since\")) | sort_by(.createdAt) | .[0].databaseId // empty")"
     [ -z "$id" ] || break
-    sleep 5
+    sleep 90
   done
   [ -n "$id" ] || die "the $wf run that was just started does not show up"
   printf '%s\n' "$id"
@@ -480,10 +482,10 @@ if [ -f "$WORK/latest.json" ]; then
 fi
 if [ "$WAIT_WINDOWS" = 1 ]; then
   WR=""
-  for i in $(seq 1 20); do
+  for i in $(seq 1 6); do
     WR="$(gh run list -R "$REPO" -w windows.yml -e release -L 10 --json databaseId,headBranch -q "map(select(.headBranch == \"$TAG\")) | .[0].databaseId // empty")"
     [ -z "$WR" ] || break
-    sleep 15
+    sleep 90
   done
   if [ -n "$WR" ]; then
     info "windows workflow started by publishing: run $WR; waiting for its \"Attach to the release\" step"
@@ -492,7 +494,7 @@ if [ "$WAIT_WINDOWS" = 1 ]; then
       st="$(gh run view "$WR" -R "$REPO" --json status,jobs -q '[.status, ([.jobs[].steps[]? | select(.name == "Attach to the release") | .status] | first // "none")] | join(" ")')"
       case "$st" in completed*|*" completed") break ;; esac
       [ "$waited" -lt 5400 ] || { info "gave up waiting after 90 minutes"; break; }
-      sleep 60; waited=$((waited + 60))
+      sleep 90; waited=$((waited + 90))
     done
     digests > "$WORK/digests.after"
     cmp -s "$WORK/digests.before" "$WORK/digests.after" || die "the release's files changed after publishing (see $WORK/digests.before and .after)"
