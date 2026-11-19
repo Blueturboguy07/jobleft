@@ -40,7 +40,8 @@ cdhash() { codesign -dvvv "$1" 2>&1 | sed -n 's/^CDHash=//p'; }
 dr() { codesign -d -r- "$1" 2>&1 | sed -n 's/^designated => //p'; }
 jfield() { python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ""))' "$1" "$2" 2>/dev/null || true; }
 shot() { screencapture -x "$OUT/$1.png" 2>/dev/null || echo "screencapture $1: not allowed on this runner"; }
-ui() { osascript "$UI" "$@" 2>&1; }
+# Each UI call is bounded (30 s): an AppleScript that waits on a stuck UI must not hold the job.
+ui() { perl -e 'alarm shift; exec @ARGV' 30 osascript "$UI" "$@" 2>&1; }
 # The jobleft shell processes from /Applications (the local service is "node").
 app_pids() { pgrep -x jobleft 2>/dev/null | while read -r p; do case "$(ps -o comm= -p "$p" 2>/dev/null)" in "$INSTALLED"/*) echo "$p" ;; esac; done; }
 alive() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
@@ -90,7 +91,8 @@ stop_all() {
 launch() {  # <log name>: sets APP_PID
   local i r
   rm -f "$DATA/run/shell.json"
-  open -a "$INSTALLED" --stdout "$OUT/$1.out" --stderr "$OUT/$1.err"
+  # With --stdout/--stderr, open(1) stays until the app ends: it runs in the background.
+  open -a "$INSTALLED" --stdout "$OUT/$1.out" --stderr "$OUT/$1.err" &
   APP_PID=""
   for i in $(seq 1 90); do
     APP_PID="$(app_pids | head -1)"
@@ -149,9 +151,9 @@ bash "$HERE/tcc-root.sh" schema "$USER_DB" > "$OUT/tcc-schema-user.txt" 2>&1
 bash "$HERE/tcc-root.sh" schema "$SYSTEM_DB" > "$OUT/tcc-schema-system.txt" 2>&1
 sed -n 1p "$OUT/tcc-schema-system.txt"
 # Camera and microphone are per user; screen capture and accessibility are in the system database.
-GRANTS="kTCCServiceCamera:$USER_DB kTCCServiceMicrophone:$USER_DB kTCCServiceScreenCapture:$SYSTEM_DB kTCCServiceAccessibility:$SYSTEM_DB"
-for g in $GRANTS; do
-  svc="${g%%:*}"; db="${g#*:}"
+GRANTS=("kTCCServiceCamera|$USER_DB" "kTCCServiceMicrophone|$USER_DB" "kTCCServiceScreenCapture|$SYSTEM_DB" "kTCCServiceAccessibility|$SYSTEM_DB")
+for g in "${GRANTS[@]}"; do
+  svc="${g%%|*}"; db="${g#*|}"
   r="$(bash "$HERE/tcc-root.sh" grant "$db" "$svc" "$APP_ID" "$WORK/dr.bin" 2>&1)"; echo "$r"
   bash "$HERE/tcc-root.sh" show "$db" "$svc" "$APP_ID" "$WORK/$svc-before.bin" > "$OUT/tcc-$svc-before.json" 2>&1
   check "[TCC] $svc row written ($( [ "$db" = "$SYSTEM_DB" ] && echo system || echo user ) TCC.db)" "$(cut -c1-180 "$OUT/tcc-$svc-before.json")" \
@@ -294,8 +296,8 @@ check "[identity] bundle id unchanged" "$(plist "$INSTALLED" CFBundleIdentifier)
 check "[identity] codesign --verify --deep --strict" "" codesign --verify --deep --strict "$INSTALLED"
 SP="$(spctl -a -t exec -vv "$INSTALLED" 2>&1)"; echo "$SP" > "$OUT/spctl-installed-after.txt"
 check "[identity] Gatekeeper still accepts the app: Notarized Developer ID" "$(echo "$SP" | tr '\n' ' ' | cut -c1-200)" grep -q "source=Notarized Developer ID" "$OUT/spctl-installed-after.txt"
-for g in $GRANTS; do
-  svc="${g%%:*}"; db="${g#*:}"
+for g in "${GRANTS[@]}"; do
+  svc="${g%%|*}"; db="${g#*|}"
   bash "$HERE/tcc-root.sh" show "$db" "$svc" "$APP_ID" "$WORK/$svc-after.bin" > "$OUT/tcc-$svc-after.json" 2>&1
   check "[TCC] $svc: the row is still there, allowed" "$(cut -c1-160 "$OUT/tcc-$svc-after.json")" grep -q '"auth_value": 2' "$OUT/tcc-$svc-after.json"
   REQ="$(csreq -r "$WORK/$svc-after.bin" -t 2>/dev/null)"

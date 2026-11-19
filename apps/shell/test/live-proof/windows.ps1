@@ -117,6 +117,17 @@ Check "the installer ran silently (exit 0)" ($inst.ExitCode -eq 0) "exit $($inst
 Check "jobleft $From is installed (jobleft.exe version, uninstall entry)" ((Disk-Version) -eq $From -and (Reg-Version) -eq $From) "$Exe $(Disk-Version), registry $(Reg-Version)"
 $hashBefore = if (Test-Path $Exe) { (Get-FileHash $Exe).Hash } else { "" }
 
+Write-Host "==> 1b. The UI driver reads and clicks a Win32 dialog (the same kind of window as the update question)"
+# A message box of another process, titled like the question: ui-win.ps1 must find it by process id, read its text
+# and click a button by name. The app's own question is clicked with the same two commands below.
+$probe = Start-Process powershell.exe -PassThru -WindowStyle Hidden -ArgumentList @("-NoProfile", "-Command",
+  "Add-Type -AssemblyName System.Windows.Forms; exit [int][System.Windows.Forms.MessageBox]::Show('jobleft 0.0.0 is ready. (the harness checks its UI driver)', 'jobleft update', 'OKCancel')")
+$d = Wait-Dialog $probe.Id "is ready" 30
+$r = UI click $probe.Id "Cancel"
+$exited = $probe.WaitForExit(15000)
+Check "the UI driver reads a dialog's text and clicks its button" ($d -like "*jobleft 0.0.0 is ready*" -and $r -like "clicked*" -and $exited -and $probe.ExitCode -eq 2) "$($d -replace "`r?`n", ' / '); $r; exit $(if ($exited) { $probe.ExitCode })"
+if (-not $exited) { Stop-Process -Id $probe.Id -Force -ErrorAction SilentlyContinue }
+
 Write-Host "==> 2. Start jobleft.exe the normal way"
 Remove-Item Env:PUBLIK_NO_AUTO_UPDATE, Env:PUBLIK_UPDATE_SELF_TEST, Env:PUBLIK_UPDATE_SELF_TEST_OUT -ErrorAction SilentlyContinue
 $env:DO_NOT_TRACK = "1"
