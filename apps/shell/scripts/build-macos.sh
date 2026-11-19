@@ -6,7 +6,12 @@
 # A notarized build also gets the update bundle: jobleft_<version>_aarch64.app.tar.gz and its .sig, packed from the
 # stapled app and signed with the publik update key (apps/shell/scripts/updater-pack-macos.sh, docs/updates.md).
 #
-# Usage: apps/shell/scripts/build-macos.sh [--skip-notarize]
+# Usage: apps/shell/scripts/build-macos.sh [--skip-notarize] [--app <jobleft.app> --out <dir>]
+#   --app <jobleft.app>          do not build: sign, notarize and pack this app, built elsewhere (the
+#                                jobleft-macos-arm64-app artifact of publik-build.yml; scripts/publik-release.sh uses
+#                                this). The app is signed in place. Its Contents/Resources/publik-app-token.txt must
+#                                carry the public publik app token.
+#   --out <dir>                  where the dmg and the update bundle go (default: the cargo target bundle folders)
 #   NOTARY_PROFILE=<name>        a `xcrun notarytool store-credentials` profile (default: publik)
 #   APPLE_SIGNING_IDENTITY=<id>  default "Developer ID Application: Mann Bellani (R5R3ZS54LV)"; a development
 #                                certificate is refused (it signs fine and Gatekeeper still blocks it)
@@ -15,30 +20,50 @@
 #   The public publik app token comes from apps/shell/publik-app-token.local (scripts/pack.ts); a release without
 #   it is refused because "Connect to publik" would be dead in the shipped app.
 set -euo pipefail
+CALLER_PWD="$PWD"
 cd "$(dirname "$0")/../../.."
 ROOT="$PWD"
+abs() { case "$1" in /*) printf '%s' "$1" ;; *) printf '%s' "$CALLER_PWD/$1" ;; esac; }
 SKIP_NOTARIZE=0
-[ "${1:-}" = "--skip-notarize" ] && SKIP_NOTARIZE=1
+PREBUILT=""
+OUT=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --skip-notarize) SKIP_NOTARIZE=1; shift ;;
+    --app) PREBUILT="$(abs "${2:?--app needs a path}")"; shift 2 ;;
+    --out) OUT="$(abs "${2:?--out needs a folder}")"; shift 2 ;;
+    *) echo "Unknown argument: $1" >&2; exit 1 ;;
+  esac
+done
 IDENTITY="${APPLE_SIGNING_IDENTITY:-Developer ID Application: Mann Bellani (R5R3ZS54LV)}"
 PROFILE="${NOTARY_PROFILE:-publik}"
 case "$IDENTITY" in "Developer ID Application:"*) ;; *) echo "Refusing: '$IDENTITY' is not a Developer ID Application identity." >&2; exit 1 ;; esac
 security find-identity -v -p codesigning | grep -qF "$IDENTITY" || { echo "No such identity in the keychain: $IDENTITY" >&2; exit 1; }
-if [ "$SKIP_NOTARIZE" = 0 ] && ! grep -qE '^pat_jobleft_[A-Za-z0-9]+$' apps/shell/publik-app-token.local 2>/dev/null; then
-  echo "Refusing to build a release without apps/shell/publik-app-token.local (the public publik app token)." >&2; exit 1
-fi
 export CARGO_TARGET_DIR="$ROOT/.cache/cargo-target"
 export APPLE_SIGNING_IDENTITY="$IDENTITY"
 ENT="$ROOT/apps/shell/src-tauri/Entitlements.plist"
 
-echo "==> UI, sidecar tree, release bundle"
-pnpm --filter @jobleft/ui build >/dev/null
-node apps/shell/scripts/pack.ts
-TAURI="$(cd "$ROOT/apps/shell" && node -p "require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })")"
-# No updater artifacts here: tauri build would pack the app before it is re-signed below. The update bundle is packed
-# from the final, stapled app at the end.
-( cd apps/shell && node "$TAURI" build --bundles app,dmg --config '{"bundle":{"createUpdaterArtifacts":false}}' )
-APP="$CARGO_TARGET_DIR/release/bundle/macos/jobleft.app"
-[ -d "$APP" ] || { echo "No jobleft.app was produced." >&2; exit 1; }
+if [ -n "$PREBUILT" ]; then
+  APP="$PREBUILT"
+  [ -d "$APP/Contents/MacOS" ] || { echo "Not an app bundle: $APP" >&2; exit 1; }
+  if [ "$SKIP_NOTARIZE" = 0 ] && ! grep -qE '^pat_jobleft_[A-Za-z0-9]+$' "$APP/Contents/Resources/publik-app-token.txt" 2>/dev/null; then
+    echo "Refusing to release an app without Contents/Resources/publik-app-token.txt (the public publik app token)." >&2; exit 1
+  fi
+  echo "==> Signing the app built elsewhere: $APP"
+else
+  if [ "$SKIP_NOTARIZE" = 0 ] && ! grep -qE '^pat_jobleft_[A-Za-z0-9]+$' apps/shell/publik-app-token.local 2>/dev/null; then
+    echo "Refusing to build a release without apps/shell/publik-app-token.local (the public publik app token)." >&2; exit 1
+  fi
+  echo "==> UI, sidecar tree, release bundle"
+  pnpm --filter @jobleft/ui build >/dev/null
+  node apps/shell/scripts/pack.ts
+  TAURI="$(cd "$ROOT/apps/shell" && node -p "require.resolve('@tauri-apps/cli/tauri.js', { paths: ['.'] })")"
+  # No updater artifacts here: tauri build would pack the app before it is re-signed below. The update bundle is packed
+  # from the final, stapled app at the end.
+  ( cd apps/shell && node "$TAURI" build --bundles app,dmg --config '{"bundle":{"createUpdaterArtifacts":false}}' )
+  APP="$CARGO_TARGET_DIR/release/bundle/macos/jobleft.app"
+  [ -d "$APP" ] || { echo "No jobleft.app was produced." >&2; exit 1; }
+fi
 
 echo "==> Signing every Mach-O inside the bundle (Node, the fit-model runtime), then the app"
 # Inner binaries first, the bundle seal last; --deep is not used because it signs in the wrong order for nested code.
@@ -57,13 +82,19 @@ if [ "$SKIP_NOTARIZE" = 0 ]; then
   rm -f "$ZIP"
 fi
 
-VERSION="$(python3 -c "import json;print(json.load(open('apps/shell/src-tauri/tauri.conf.json'))['version'])")"
-DMG_DIR="$CARGO_TARGET_DIR/release/bundle/dmg"
+if [ -n "$PREBUILT" ]; then
+  VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
+else
+  VERSION="$(python3 -c "import json;print(json.load(open('apps/shell/src-tauri/tauri.conf.json'))['version'])")"
+fi
+DMG_DIR="${OUT:-$CARGO_TARGET_DIR/release/bundle/dmg}"
 mkdir -p "$DMG_DIR"
+DMG_DIR="$(cd "$DMG_DIR" && pwd)"
 DMG="$DMG_DIR/jobleft_${VERSION}_aarch64.dmg"
 echo "==> Building the dmg around the signed app: $DMG"
 STAGE="$(mktemp -d)"
-cp -R "$APP" "$STAGE/jobleft.app"
+# An APFS clone (cp -c) takes no disk space; a plain copy when the volume cannot clone.
+cp -Rc "$APP" "$STAGE/jobleft.app" 2>/dev/null || { rm -R "$STAGE/jobleft.app" 2>/dev/null; cp -R "$APP" "$STAGE/jobleft.app"; }
 ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG"
 hdiutil create -volname "jobleft" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
@@ -77,7 +108,7 @@ if [ "$SKIP_NOTARIZE" = 0 ]; then
   xcrun stapler validate "$DMG"
   spctl -a -t exec -vv "$APP"
   echo "==> Update bundle (the stapled app, signed with the update key)"
-  UPD="$CARGO_TARGET_DIR/release/bundle/updater"
+  UPD="${OUT:-$CARGO_TARGET_DIR/release/bundle/updater}"
   apps/shell/scripts/updater-pack-macos.sh "$APP" "$UPD"
 fi
 echo
