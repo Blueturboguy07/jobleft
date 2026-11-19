@@ -25,36 +25,51 @@ on textOf(x)
 	end try
 end textOf
 
+on attrText(e, attrName)
+	try
+		tell application "System Events" to return my textOf(value of attribute attrName of e)
+	on error
+		return ""
+	end try
+end attrText
+
+-- One line per element that carries text (role | title or name | value | description), children to a depth of 5.
+-- Each element is read on its own, so one element that cannot be read does not hide the others.
+on dumpElement(e, depth)
+	set out to ""
+	set r to my attrText(e, "AXRole")
+	set n to my attrText(e, "AXTitle")
+	if n is "" then
+		try
+			tell application "System Events" to set n to my textOf(name of e)
+		end try
+	end if
+	set v to my attrText(e, "AXValue")
+	set d to my attrText(e, "AXDescription")
+	if n is not "" or v is not "" or d is not "" then set out to out & linefeed & "  " & r & " | " & n & " | " & v & " | " & d
+	if depth < 5 then
+		try
+			tell application "System Events" to set kids to UI elements of e
+			repeat with k in kids
+				set out to out & my dumpElement(k, depth + 1)
+			end repeat
+		end try
+	end if
+	return out
+end dumpElement
+
 on dumpProcess(pname)
 	tell application "System Events"
 		if not (exists process pname) then return "no process " & pname
-		tell process pname
-			set wc to count of windows
-			set out to pname & ": " & wc & " window(s)"
-			repeat with i from 1 to wc
-				set w to window i
-				set out to out & linefeed & "window " & i & ": " & my textOf(name of w)
-				try
-					repeat with e in (entire contents of w)
-						set r to ""
-						set n to ""
-						set v to ""
-						try
-							set r to my textOf(role of e)
-						end try
-						try
-							set n to my textOf(name of e)
-						end try
-						try
-							set v to my textOf(value of e)
-						end try
-						if n is not "" or v is not "" then set out to out & linefeed & "  " & r & " | " & n & " | " & v
-					end repeat
-				end try
-			end repeat
-			return out
-		end tell
+		set wc to count of windows of process pname
 	end tell
+	set out to pname & ": " & wc & " window(s)"
+	repeat with i from 1 to wc
+		tell application "System Events" to set w to window i of process pname
+		set out to out & linefeed & "window " & i & ": " & my attrText(w, "AXTitle")
+		set out to out & my dumpElement(w, 0)
+	end repeat
+	return out
 end dumpProcess
 
 on clickButton(pname, bname)

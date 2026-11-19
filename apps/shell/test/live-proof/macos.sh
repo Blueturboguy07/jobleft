@@ -134,16 +134,20 @@ xattr -w com.apple.quarantine "$Q" "$WORK/dl/$DMG_NAME"
 SP="$(spctl -a -t open --context context:primary-signature -vv "$WORK/dl/$DMG_NAME" 2>&1)"; echo "$SP" > "$OUT/spctl-dmg.txt"
 check "Gatekeeper accepts the quarantined dmg: Notarized Developer ID" "$(echo "$SP" | tr '\n' ' ' | cut -c1-200)" grep -q "source=Notarized Developer ID" "$OUT/spctl-dmg.txt"
 
-echo "==> 2. Install: copy jobleft.app from the dmg to /Applications"
+echo "==> 2. Install: Finder copies jobleft.app from the dmg to /Applications (a user's drag)"
 stop_all
-MNT="$WORK/mnt"; mkdir -p "$MNT"
-hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$MNT" "$WORK/dl/$DMG_NAME" > /dev/null
 [ -e "$INSTALLED" ] && rm -R "$INSTALLED"
-ditto "$MNT/jobleft.app" "$INSTALLED"
+MNT="$(hdiutil attach -readonly -noautoopen "$WORK/dl/$DMG_NAME" | awk -F '\t' '/\/Volumes\// { print $NF; exit }')"
+echo "mounted at $MNT"
+# A copy made by Finder is what a user's drag makes: macOS then runs the app from /Applications. A copy made with
+# cp or ditto keeps the quarantine flag without Finder's mark, and macOS runs it from a random read-only place (App
+# Translocation), where an update cannot replace it.
+r="$(perl -e 'alarm shift; exec @ARGV' 120 osascript -e 'on run argv' \
+  -e 'tell application "Finder" to duplicate (POSIX file (item 1 of argv) as alias) to (POSIX file "/Applications" as alias) with replacing' \
+  -e 'return "copied"' -e 'end run' "$MNT/jobleft.app" 2>&1)"
+check "Finder copied jobleft.app from the dmg to /Applications" "$r" test -d "$INSTALLED/Contents/MacOS"
 hdiutil detach "$MNT" -quiet || hdiutil detach "$MNT" -force -quiet
-# Finder keeps the flag on the copy; ditto from the quarantined image does too, and it is set again to be sure.
-xattr -w -r com.apple.quarantine "$Q" "$INSTALLED"
-check "the installed app carries the quarantine flag" "$(xattr -p com.apple.quarantine "$INSTALLED" 2>/dev/null)" xattr -p com.apple.quarantine "$INSTALLED"
+check "the installed app carries the quarantine flag (Finder's copy of the downloaded dmg)" "$(xattr -p com.apple.quarantine "$INSTALLED" 2>/dev/null)" xattr -p com.apple.quarantine "$INSTALLED"
 SP="$(spctl -a -t exec -vv "$INSTALLED" 2>&1)"; echo "$SP" > "$OUT/spctl-installed-before.txt"
 check "Gatekeeper accepts the installed app: Notarized Developer ID" "$(echo "$SP" | tr '\n' ' ' | cut -c1-200)" grep -q "source=Notarized Developer ID" "$OUT/spctl-installed-before.txt"
 check "the installed app is $FROM" "$(plist "$INSTALLED" CFBundleShortVersionString)" test "$(plist "$INSTALLED" CFBundleShortVersionString)" = "$FROM"
@@ -182,7 +186,7 @@ bash "$HERE/tcc-root.sh" capture "$OUT/syn-443.txt" &
 launch app-1
 PID1="$APP_PID"
 ps -axo pid,ppid,user,args | grep -i '[j]obleft' > "$OUT/processes.txt"
-check "jobleft started from /Applications" "pid ${PID1:-none}: $(ps -o args= -p "${PID1:-0}" 2>/dev/null)" alive "$PID1"
+check "jobleft started from /Applications (not translocated)" "pid ${PID1:-none}: $(ps -o args= -p "${PID1:-0}" 2>/dev/null; grep -m1 -o 'AppTranslocation/[^ ]*' "$OUT/processes.txt")" alive "$PID1"
 check "its window opened and its local service answers" "$(jfield "$DATA/run/shell.json" windowShown) $(health | cut -c1-120)" \
   test "$(jfield "$DATA/run/shell.json" windowShown)" = True -a -n "$(health)"
 sleep 3; shot launched
