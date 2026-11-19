@@ -139,15 +139,26 @@ stop_all
 [ -e "$INSTALLED" ] && rm -R "$INSTALLED"
 MNT="$(hdiutil attach -readonly -noautoopen "$WORK/dl/$DMG_NAME" | awk -F '\t' '/\/Volumes\// { print $NF; exit }')"
 echo "mounted at $MNT"
-# A copy made by Finder is what a user's drag makes: macOS then runs the app from /Applications. A copy made with
-# cp or ditto keeps the quarantine flag without Finder's mark, and macOS runs it from a random read-only place (App
-# Translocation), where an update cannot replace it.
-r="$(perl -e 'alarm shift; exec @ARGV' 120 osascript -e 'on run argv' \
-  -e 'tell application "Finder" to duplicate (POSIX file (item 1 of argv) as alias) to (POSIX file "/Applications" as alias) with replacing' \
-  -e 'return "copied"' -e 'end run' "$MNT/jobleft.app" 2>&1)"
-check "Finder copied jobleft.app from the dmg to /Applications" "$r" test -d "$INSTALLED/Contents/MacOS"
+# A person drags the app's icon onto the Applications link in the dmg window: drag.js does that with mouse events, and
+# Finder copies the app. (A copy made with ditto, or with Finder's AppleScript "duplicate", keeps the quarantine flag
+# without the mark of a person's drag, and macOS then runs the app from App Translocation, a random read-only place
+# where an update cannot replace it: runs 3 and 4 of this workflow on 2026-11-19.)
+r="$(perl -e 'alarm shift; exec @ARGV' 90 osascript -l JavaScript "$HERE/drag.js" "$MNT" jobleft 2>&1)"; echo "$r"
+for _ in $(seq 1 120); do codesign --verify --deep --strict "$INSTALLED" 2>/dev/null && break; sleep 1; done
+shot install-drag
+if [ -d "$INSTALLED/Contents/MacOS" ]; then
+  pass "a mouse drag in Finder copied jobleft.app from the dmg to /Applications" "$r"
+else
+  fail "a mouse drag in Finder copied jobleft.app from the dmg to /Applications" "$r"
+  ui dump Finder > "$OUT/finder-window.txt"
+  r="$(perl -e 'alarm shift; exec @ARGV' 120 osascript -e 'on run argv' \
+    -e 'tell application "Finder" to duplicate (POSIX file (item 1 of argv) as alias) to (POSIX file "/Applications" as alias) with replacing' \
+    -e 'return "copied"' -e 'end run' "$MNT/jobleft.app" 2>&1)"
+  info "instead, Finder's duplicate command copied the app (the run goes on for the evidence)" "$r"
+fi
+osascript -e 'tell application "Finder" to close every window' >/dev/null 2>&1 || true
 hdiutil detach "$MNT" -quiet || hdiutil detach "$MNT" -force -quiet
-check "the installed app carries the quarantine flag (Finder's copy of the downloaded dmg)" "$(xattr -p com.apple.quarantine "$INSTALLED" 2>/dev/null)" xattr -p com.apple.quarantine "$INSTALLED"
+check "the installed app carries the quarantine flag (Finder's copy of the downloaded dmg)" "$(xattr -p com.apple.quarantine "$INSTALLED" 2>/dev/null) (on the dmg: $Q)" xattr -p com.apple.quarantine "$INSTALLED"
 SP="$(spctl -a -t exec -vv "$INSTALLED" 2>&1)"; echo "$SP" > "$OUT/spctl-installed-before.txt"
 check "Gatekeeper accepts the installed app: Notarized Developer ID" "$(echo "$SP" | tr '\n' ' ' | cut -c1-200)" grep -q "source=Notarized Developer ID" "$OUT/spctl-installed-before.txt"
 check "the installed app is $FROM" "$(plist "$INSTALLED" CFBundleShortVersionString)" test "$(plist "$INSTALLED" CFBundleShortVersionString)" = "$FROM"
@@ -260,10 +271,10 @@ fi
 echo "==> 8. Check for Updates… in the menu bar item: the app's answer"
 r="$(ui menu jobleft "Check for Updates")"; echo "$r" | tee "$OUT/menu-check.txt"
 ANSWER=""
-if wait_dialog "is the latest version" 40; then ANSWER="$(grep -m1 -oE "jobleft [0-9.]+ is the latest version\." "$WORK/dialog.txt")"
+if wait_dialog "is the latest version" 40; then ANSWER="$(grep -oE "jobleft [0-9.]+ is the latest version\." "$WORK/dialog.txt" | head -1)"
 elif grep -q "already checking" "$WORK/dialog.txt"; then
   click_in_dialog OK; sleep 15; r="$(ui menu jobleft "Check for Updates")"; echo "$r"
-  wait_dialog "is the latest version" 40 && ANSWER="$(grep -m1 -oE "jobleft [0-9.]+ is the latest version\." "$WORK/dialog.txt")"
+  wait_dialog "is the latest version" 40 && ANSWER="$(grep -oE "jobleft [0-9.]+ is the latest version\." "$WORK/dialog.txt" | head -1)"
 fi
 cp "$WORK/dialog.txt" "$OUT/menu-answer.txt"; shot menu-answer
 check "Check for Updates… answers \"jobleft $EXPECT is the latest version.\"" "${ANSWER:-$(tr '\n' ' ' < "$WORK/dialog.txt" | cut -c1-200)}; $r" \
