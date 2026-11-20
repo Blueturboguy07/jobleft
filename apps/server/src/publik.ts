@@ -2,7 +2,7 @@
 // At app start, before any screen of your own: `const gate = await ensureSignedIn(ui)`. It
 //   1. loads or provisions this computer's publik key (POST /api/v1/installs);
 //   2. shows Sign in with publik until GET /api/v1/wallet says "claimed" (no other way past it);
-//   3. when USES_AI: asks once how the app pays for AI and stores the answer (setChoice() changes it);
+//   3. when USES_AI: uses the publik account for AI, with no pay screen (setChoice() changes it);
 //   4. starts usage counting: app_opened now, active_session every 30 minutes (POST /api/v1/telemetry).
 // This is the publik module from https://publikhq.com/sdk/publik.ts.md, copied as one file. In jobleft the
 // server (the Node sidecar) owns it: main.ts runs the gate, http/publik-gate.ts draws its screens in the app
@@ -71,7 +71,7 @@ function writeCredential(c: PublikCredential | null): void {
   writeFileSync(file, JSON.stringify(c ?? {}, null, 2), { mode: 0o600 });
   chmodSync(file, 0o600);
 }
-/** The person's answer to the plan screen. Settings call it to change the answer; null asks again at the next start. */
+/** How the app pays for AI. Settings call it to change the answer; null: the next start stores "publik" again. */
 export function setChoice(choice: Choice | null): void {
   const c = readCredential();
   if (c) writeCredential({ ...c, choice });
@@ -150,7 +150,7 @@ async function ask(ui: GateUI, screen: GateScreen, key?: string, until?: (w: Wal
 /** The gate (see the top of the file). Resolves once the person is signed in; `choice` is null when USES_AI is false. */
 export async function ensureSignedIn(ui: GateUI = terminalUI()): Promise<{ key: string; wallet: Wallet; choice: Choice | null }> {
   if (process.env.PUBLIK_SELF_TEST) { console.log(await selfTest()); process.exit(0); }
-  let signNote: string | null = null, signPoll = true, planNote: string | null = null, planPoll = false;
+  let signNote: string | null = null, signPoll = true;
   for (;;) {
     let c: PublikCredential, r: Awaited<ReturnType<typeof readWallet>>;
     try {
@@ -171,16 +171,7 @@ export async function ensureSignedIn(ui: GateUI = terminalUI()): Promise<{ key: 
       continue;
     }
     let choice: Choice | null = USES_AI ? readCredential()?.choice ?? null : null;
-    if (USES_AI && !choice) {
-      if (w.plan.kind !== "none" || w.balance_micros > 0) { planNote = null; planPoll = false; } // the plan is there: Connect your plan
-      const a = await ask(ui, gateScreen("choose", w, planNote), c.key, planPoll ? (x) => x.plan.kind !== "none" || x.balance_micros > 0 : undefined);
-      planNote = null; planPoll = false;
-      if (a === "get_plan") { ui.openUrl(w.top_up_url); planNote = "Waiting for your plan. Finish in your browser."; planPoll = true; }
-      if (a === "timeout") planNote = "No plan after 10 minutes. Click Get a plan to try again.";
-      if (a !== "connect" && a !== "own_key") continue; // "done": the plan is there; the next screen is Connect your plan
-      choice = a === "connect" ? "publik" : "own_key";
-      setChoice(choice);
-    }
+    if (USES_AI && !choice) { choice = "publik"; setChoice(choice); } // no pay screen at start: publik is the choice; the app offers a plan when publik answers 402
     startTelemetry();
     return { key: c.key, wallet: w, choice };
   }

@@ -1,8 +1,8 @@
 // The publik module's GateUI on the app window. The shell opens the one window at "/" as soon as the server
 // answers health; while the gate is pending, "/" serves this small page instead of the UI, and every API route except
 // health, shutdown and the gate's own answers 503 not_ready. The page shows the module's current screen (Sign in with
-// publik, Choose how to pay for AI, Connect your plan), sends a button press back, and reloads itself once the gate
-// has passed: the UI then loads as before, with the launch token still in the URL fragment.
+// publik, or publik is not reachable with Retry; there is no pay screen at start), sends a button press back, and
+// reloads itself once the gate has passed: the UI then loads as before, with the launch token still in the URL fragment.
 // Nothing here talks to publik: main.ts runs ensureSignedIn(gate) from src/publik.ts, and that module does.
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -19,7 +19,7 @@ export const GATE_SCRIPT_PATH = '/publik-gate.js';
 const ACTIONS: ReadonlySet<string> = new Set<GateAction>(['sign_in', 'retry', 'get_plan', 'connect', 'own_key']);
 
 export interface GateState {
-  /** true until the person is signed in (and, when the app uses AI, has answered how it pays for it). */
+  /** true until the person is signed in. */
   pending: boolean;
   screen: GateScreen | null;
   /** The last link the module asked the browser to open (the page shows it in case the browser did not open). */

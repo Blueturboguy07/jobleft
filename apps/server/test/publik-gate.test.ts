@@ -41,7 +41,7 @@ async function usageListener(): Promise<{ url: string; seen: Array<{ headers: Re
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-test('the gate holds the UI and the API until the person signed in, then the usage count goes out once', async () => {
+test('the gate holds the UI and the API until the person signed in, then opens at once with no pay screen; the usage count goes out once', async () => {
   const pub = await startMockPublikServer({ balanceUsd: 0, log: null });
   const usage = await usageListener();
   const home = scratchHome('gate');
@@ -74,29 +74,29 @@ test('the gate holds the UI and the API until the person signed in, then the usa
     assert.deepEqual(state.screen.buttons, [{ action: 'sign_in', label: 'Sign in with publik' }]);
     assert.ok(existsSync(credentialFile(home)), 'the credential file is in the redirected publik folder');
     assert.equal(usage.seen.length, 0, 'no usage count before the sign-in');
-    // The person signs in in the browser: the gate sees it on its own (it reads the wallet every 3 s).
-    await fetch(`http://127.0.0.1:${pub.port}/__admin/claim`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
-    for (let i = 0; i < 100 && state?.screen?.id !== 'choose'; i++) { await sleep(100); state = (await raw(port, { path: '/publik-gate', headers: h })).json; }
-    assert.equal(state.screen.id, 'choose', JSON.stringify(state));
-    assert.equal(state.screen.title, 'Choose how to pay for AI', 'no plan and no balance');
-    assert.ok(state.screen.buttons.some((b: { action: string }) => b.action === 'own_key'));
     // A press that is not one of the screen's buttons does nothing.
     const wrong = await raw(port, { method: 'POST', path: '/publik-gate', headers: h, body: JSON.stringify({ action: 'retry' }) });
     assert.equal(wrong.status, 200);
     assert.equal(wrong.json.pressed, false);
     assert.equal(wrong.json.pending, true);
-    // "Use my own key": the gate passes, the UI is served, the API answers, one usage count went out with the key.
-    const pressed = await raw(port, { method: 'POST', path: '/publik-gate', headers: h, body: JSON.stringify({ action: 'own_key' }) });
-    assert.equal(pressed.json.pressed, true);
-    for (let i = 0; i < 50 && state?.pending; i++) { await sleep(100); state = (await raw(port, { path: '/publik-gate', headers: h })).json; }
-    assert.equal(state.pending, false);
+    // The person signs in in the browser (no plan, $0.00): the gate sees it on its own (it reads the wallet every 3 s)
+    // and passes with no pay screen. The choice "publik" is stored; the app offers a plan when publik answers 402.
+    await fetch(`http://127.0.0.1:${pub.port}/__admin/claim`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    const screens = new Set<string>();
+    for (let i = 0; i < 100 && state?.pending !== false; i++) {
+      await sleep(100);
+      state = (await raw(port, { path: '/publik-gate', headers: h })).json;
+      if (state?.screen?.id) screens.add(state.screen.id);
+    }
+    assert.equal(state.pending, false, JSON.stringify(state));
     assert.equal(state.screen, null);
+    assert.ok(!screens.has('choose'), `no pay screen after the sign-in (screens seen: ${[...screens].join(', ')})`);
     const ui = await raw(port, { path: '/' });
     assert.equal(ui.status, 200);
     assert.doesNotMatch(ui.text, /publik-gate\.js/);
     assert.equal((await raw(port, { path: '/api/v1/publik', headers: h })).status, 200);
     const cred = JSON.parse(readFileSync(credentialFile(home), 'utf8'));
-    assert.equal(cred.choice, 'own_key');
+    assert.equal(cred.choice, 'publik', 'signed in with no stored choice: the gate stores "publik" by itself');
     assert.match(cred.key, /^pk_test_/);
     for (let i = 0; i < 50 && usage.seen.length === 0; i++) await sleep(100);
     assert.equal(usage.seen.length, 1, 'exactly one app_opened');
@@ -104,8 +104,17 @@ test('the gate holds the UI and the API until the person signed in, then the usa
     assert.equal(usage.seen[0]!.body.app, 'jobleft');
     assert.equal(usage.seen[0]!.body.app_version, APP_VERSION);
     assert.equal(usage.seen[0]!.headers.authorization, `Bearer ${cred.key}`, 'a signed-in computer is counted once');
-    // The publik card: "use my own key" reads as disconnected; Connect = pay with the plan (no new install).
-    assert.equal((await raw(port, { path: '/api/v1/publik', headers: h })).json.state, 'disconnected');
+    // The publik card: connected with no click, on the account with no plan and no balance.
+    const card = await raw(port, { path: '/api/v1/publik', headers: h });
+    assert.equal(card.json.state, 'connected', card.text);
+    assert.equal(card.json.wallet.claimState, 'claimed');
+    assert.equal(card.json.wallet.balanceMicros, 0);
+    // "Use my own key" stays in the app's setting (Disconnect): the choice becomes own_key. Connect = pay with the
+    // plan again (no new install).
+    const d = await raw(port, { method: 'POST', path: '/api/v1/publik/disconnect', headers: { 'x-jobleft-token': s.token } });
+    assert.equal(d.status, 200, d.text);
+    assert.equal(d.json.state, 'disconnected');
+    assert.equal(JSON.parse(readFileSync(credentialFile(home), 'utf8')).choice, 'own_key');
     const c = await raw(port, { method: 'POST', path: '/api/v1/publik/connect', headers: h, body: JSON.stringify({ disclosureAccepted: true, disclosureVersion: 1 }) });
     assert.equal(c.status, 200, c.text);
     assert.equal(c.json.state, 'connected');
@@ -121,7 +130,7 @@ test('the gate holds the UI and the API until the person signed in, then the usa
   }
 });
 
-test('a second start with the stored answer passes the gate with no click; a stored "publik" answer connects', async () => {
+test('a signed-in person passes the gate with no screen at every start; a stored "own_key" answer is kept', async () => {
   const pub = await startMockPublikServer({ balanceUsd: 3, log: null });
   await fetch(`http://127.0.0.1:${pub.port}/__admin/claim`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   const home = scratchHome('gate2');
@@ -130,37 +139,65 @@ test('a second start with the stored answer passes the gate with no click; a sto
     JOBLEFT_PUBLIK_ALLOW_LIVE: '1', PUBLIK_APP_TOKEN: STANDIN_APP_TOKEN, PUBLIK_ORIGIN: `http://127.0.0.1:${pub.port}`,
     JOBLEFT_PUBLIK_BASE_URL: pub.baseUrl, DO_NOT_TRACK: '1',
   };
-  // First start: signed in already (claimed), the plan screen: Connect your plan.
-  const a = spawnServer(home, env);
-  try {
-    const { port } = await a.ready;
-    const h = { 'x-jobleft-token': a.token, 'content-type': 'application/json' };
+  /** Waits for the gate to pass; gives its last state and every screen it showed on the way. */
+  const pass = async (port: number, h: Record<string, string>) => {
+    const screens = new Set<string>();
     let state: any = null;
-    for (let i = 0; i < 100 && state?.screen?.id !== 'choose'; i++) { await sleep(100); state = (await raw(port, { path: '/publik-gate', headers: h })).json; }
-    assert.equal(state.screen.title, 'Connect your plan', JSON.stringify(state.screen));
-    assert.match(state.screen.body, /Your balance: \$3\.00/);
-    await raw(port, { method: 'POST', path: '/publik-gate', headers: h, body: JSON.stringify({ action: 'connect' }) });
-    for (let i = 0; i < 50 && state?.pending; i++) { await sleep(100); state = (await raw(port, { path: '/publik-gate', headers: h })).json; }
-    assert.equal(state.pending, false);
-    const p = await raw(port, { path: '/api/v1/publik', headers: h });
-    assert.equal(p.json.state, 'connected', 'Connect your plan = the publik plan pays for AI, with no other click');
-    assert.equal(p.json.wallet.balanceMicros, 3_000_000);
-    await stopServer(a.child, port, a.token);
-  } finally { if (a.child.exitCode === null) { a.child.kill('SIGKILL'); await waitExit(a.child, 5000); } }
-  // Second start: nothing to ask; the UI is there at once, still connected, still one install.
-  const b = spawnServer(home, env);
+    for (let i = 0; i < 100 && state?.pending !== false; i++) {
+      await sleep(100);
+      state = (await raw(port, { path: '/publik-gate', headers: h })).json;
+      if (state?.screen?.id) screens.add(state.screen.id);
+    }
+    return { state, screens };
+  };
+  const kill = async (child: ReturnType<typeof spawnServer>['child']) => { if (child.exitCode === null) { child.kill('SIGKILL'); await waitExit(child, 5000); } };
   try {
-    const { port } = await b.ready;
-    const h = { 'x-jobleft-token': b.token, 'content-type': 'application/json' };
-    let state: any = null;
-    for (let i = 0; i < 100 && state?.pending !== false; i++) { await sleep(100); state = (await raw(port, { path: '/publik-gate', headers: h })).json; }
-    assert.equal(state.pending, false);
-    assert.doesNotMatch((await raw(port, { path: '/' })).text, /publik-gate\.js/);
-    assert.equal((await raw(port, { path: '/api/v1/publik', headers: h })).json.state, 'connected');
-    assert.equal(pub.state().keys, 1);
-    await stopServer(b.child, port, b.token);
+    // First start: signed in already (claimed), $3.00 on the account: no screen, the publik plan pays for AI.
+    const a = spawnServer(home, env);
+    try {
+      const { port } = await a.ready;
+      const h = { 'x-jobleft-token': a.token, 'content-type': 'application/json' };
+      const { state, screens } = await pass(port, h);
+      assert.equal(state.pending, false, JSON.stringify(state));
+      assert.equal(screens.size, 0, `no screen for a signed-in person (screens seen: ${[...screens].join(', ')})`);
+      assert.doesNotMatch((await raw(port, { path: '/' })).text, /publik-gate\.js/);
+      const p = await raw(port, { path: '/api/v1/publik', headers: h });
+      assert.equal(p.json.state, 'connected', 'no stored choice: the gate stores "publik", with no click');
+      assert.equal(p.json.wallet.balanceMicros, 3_000_000);
+      assert.equal(JSON.parse(readFileSync(credentialFile(home), 'utf8')).choice, 'publik');
+      await stopServer(a.child, port, a.token);
+    } finally { await kill(a.child); }
+    // Second start: nothing to ask; the UI is there at once, still connected, still one install.
+    const b = spawnServer(home, env);
+    try {
+      const { port } = await b.ready;
+      const h = { 'x-jobleft-token': b.token, 'content-type': 'application/json' };
+      const { state, screens } = await pass(port, h);
+      assert.equal(state.pending, false);
+      assert.equal(screens.size, 0);
+      assert.doesNotMatch((await raw(port, { path: '/' })).text, /publik-gate\.js/);
+      assert.equal((await raw(port, { path: '/api/v1/publik', headers: h })).json.state, 'connected');
+      assert.equal(pub.state().keys, 1);
+      // The person picks "Use my own key" in the app's setting (Disconnect).
+      const d = await raw(port, { method: 'POST', path: '/api/v1/publik/disconnect', headers: { 'x-jobleft-token': b.token } });
+      assert.equal(d.status, 200, d.text);
+      assert.equal(JSON.parse(readFileSync(credentialFile(home), 'utf8')).choice, 'own_key');
+      await stopServer(b.child, port, b.token);
+    } finally { await kill(b.child); }
+    // Third start: the stored "own_key" answer is kept as it is (no screen, not changed to "publik").
+    const c = spawnServer(home, env);
+    try {
+      const { port } = await c.ready;
+      const h = { 'x-jobleft-token': c.token, 'content-type': 'application/json' };
+      const { state, screens } = await pass(port, h);
+      assert.equal(state.pending, false);
+      assert.equal(screens.size, 0);
+      assert.equal(JSON.parse(readFileSync(credentialFile(home), 'utf8')).choice, 'own_key', 'a stored own_key choice is kept');
+      assert.equal((await raw(port, { path: '/api/v1/publik', headers: h })).json.state, 'disconnected');
+      assert.equal(pub.state().keys, 1);
+      await stopServer(c.child, port, c.token);
+    } finally { await kill(c.child); }
   } finally {
-    if (b.child.exitCode === null) { b.child.kill('SIGKILL'); await waitExit(b.child, 5000); }
     await pub.close();
     cleanup(home);
   }

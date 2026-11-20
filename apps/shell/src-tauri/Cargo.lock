@@ -1968,7 +1968,7 @@ dependencies = [
 
 [[package]]
 name = "jobleft-shell"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "getrandom 0.3.4",
  "libc",

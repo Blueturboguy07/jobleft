@@ -70,7 +70,7 @@ export interface PublikSignInCredential {
 export interface PublikSignIn {
   /** The stored credential, or null before this computer signed in. Read on every call; never cached here. */
   credential(): PublikSignInCredential | null;
-  /** Stores the answer to the plan screen. null = ask again at the next start. */
+  /** Stores how the app pays for AI. null = the next start stores "publik" again (no pay screen at start). */
   setChoice(choice: 'publik' | 'own_key' | null): void;
   /** Makes this computer's install when there is none (POST /installs through the module). Throws a readable message. */
   provision(): Promise<PublikSignInCredential>;
@@ -338,7 +338,7 @@ export class PublikClient {
     return { state: 'disconnected', wallet: null, disclosureVersion: null };
   }
 
-  /** Forgets the kept wallet and the answer to the plan screen (delete all data): the next start asks again. */
+  /** Forgets the kept wallet and how the app pays for AI (delete all data): the next start stores "publik" again. */
   forget(): void {
     this.save({ ...EMPTY });
     this.signIn.setChoice(null);
